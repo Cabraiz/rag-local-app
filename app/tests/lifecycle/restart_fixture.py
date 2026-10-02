@@ -14,18 +14,28 @@ Never starts a server. Requires --inside-owned-fixture and the active fixture ru
 """
 import json
 from pathlib import Path
+import re
 import sys
 import time
+import http_fixture as base
 from http_fixture import docker, http, key, wait_state, app_python
 
 if len(sys.argv)!=3 or sys.argv[1]!='--inside-owned-fixture':
     raise SystemExit('Refuse execution without explicit temporary fixture context')
 folder=Path(sys.argv[2]).resolve()
-if folder.parent!=Path('D:/RAG-Local/eval/runs').resolve() or not (folder/'contract.json').is_file() or (folder/'receipt.json').exists():
+if '-p' not in base.COMPOSE or base.COMPOSE.index('-p')+1>=len(base.COMPOSE):
+    raise SystemExit('Refuse restart without an isolated QA project')
+project=base.COMPOSE[base.COMPOSE.index('-p')+1]
+if not re.fullmatch(r'rag-local-(?:qa|resilience-qa)-[a-z0-9-]+',project) or base.BASE!='http://127.0.0.1:8940':
+    raise SystemExit('Refuse restart outside the isolated QA runtime')
+if not folder.is_relative_to(_workspace_root/'.local') or not (folder/'contract.json').is_file() or (folder/'receipt.json').exists():
     raise SystemExit('Refuse unknown or already finished fixture')
+contract=json.loads((folder/'contract.json').read_text(encoding='utf8'))
+if contract.get('isolated_project')!=project or contract.get('endpoint')!=base.BASE:
+    raise SystemExit('Refuse restart when fixture ownership does not match')
 rounds=[]
 try:
-    a=http('/v1/lab/session',body={'tenant':'demo-a'})[1]['token']
+    a=http('/v1/lab/session',body={'profile':'ana'})[1]['token']
     for number in (1,2):
         docker('stop','worker')
         try:

@@ -19,8 +19,9 @@ class SafeSdkHandler(logging.Handler):
 def setup():
     for namespace in ('google.adk','google_adk'):
         root=logging.getLogger(namespace)
-        if not any(isinstance(h,SafeSdkHandler) for h in root.handlers):
-            root.handlers=[SafeSdkHandler()]
+        # Repeated setup must also remove raw handlers added after startup.
+        handler=next((h for h in root.handlers if isinstance(h,SafeSdkHandler)),None)
+        root.handlers=[handler if handler is not None else SafeSdkHandler()]
         root.propagate=False
         root.setLevel(logging.WARNING)
         # SDK children must use the same boundary, including modules imported later.

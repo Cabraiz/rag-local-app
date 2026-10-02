@@ -1,0 +1,91 @@
+{
+  "lane": "runtime",
+  "execution_owner": "central_only",
+  "executed_in_this_lane": false,
+  "global_preconditions": [
+    "Hold the Central's exclusive local heavy-QA lock; never run gates concurrently.",
+    "Use a fresh isolated QA project and owned QA resources; verify every service and volume before faults.",
+    "Leave the existing laboratory's containers, images, volumes, secrets and journal untouched.",
+    "Freeze integrated sources, image digests, contracts and seeds; reset the clean sequence on every change.",
+    "Keep new output in .local; adapt Central-owned evidence readers without accepting stale sources.",
+    "Keep all cloud/providers disabled. Missing local QA assets or credentials block setup; no paid fallback."
+  ],
+  "gates": [
+    {
+      "id": "runtime-observability-real",
+      "cards": ["RAG-09"],
+      "script": "app/tests/observability/observability_fixture.py",
+      "criteria": ["collector", "traces", "metrics", "alerts", "redaction"],
+      "required_evidence": "Two real collector/HTTP/SQL rounds: four correlated spans, private metrics, deduplicated stale/clear alerts, redaction, no published collector ports, terminal commit during collector outage.",
+      "status": "PENDING_CENTRAL_REAL_GATE"
+    },
+    {
+      "id": "runtime-delivery-real",
+      "cards": ["RAG-10", "BUG-032"],
+      "script": "app/tests/lifecycle/delivery_fixture.py",
+      "criteria": ["outbox_dispatch", "retention", "byte_limits", "recovery"],
+      "required_evidence": "Two real HTTP/SQL/inbox/process rounds: crash after durable inbox commit, deduplicated replay, independent event authorization, exact global/tenant UTF-8 counters, byte-exhaustion rejection, owned retainer stopped before synthetic aging, managed retention and idempotent cancellation.",
+      "status": "PENDING_CENTRAL_REAL_GATE"
+    },
+    {
+      "id": "runtime-reliability-real",
+      "cards": ["BUG-110", "BUG-111", "BUG-112", "BUG-113", "BUG-114", "BUG-115", "BUG-116"],
+      "script": "app/tests/resilience/reliability_gate.py",
+      "arguments": ["rag-local-resilience-qa-<unique-digits>"],
+      "required_evidence": "Two original complete rounds, each with 44 RAG checks; 129 locked shard/request candidates and orphan FK isolation; four phases of 128 real accepted requests, zero lost/duplicate terminal IDs, >=99% SUCCEEDED, drain within 180s (broker/cache outage 120s), PostgreSQL ready within <60s from SIGKILL, migration under a live row lock, Decimal counter reconciliation and restore to separate owned instance/volume.",
+      "status": "PENDING_CENTRAL_REAL_GATE"
+    },
+    {
+      "id": "runtime-cache-expiry-real",
+      "cards": ["BUG-124"],
+      "script": "app/tests/resilience/cache_expiry_checks.py",
+      "arguments": ["--project", "rag-local-resilience-qa-<unique-digits>", "--output", "<private-output-path>"],
+      "required_evidence": "Two owned Redis expiration rounds. Live subsecond key and SCAN-expired key pass; persistent, overlong, malformed and unknown TTL controls fail. Delete only exact generated fixture keys; preserve volumes. Current script expects eval/runs output, so Central must adapt this allowlisted output check to .local before execution.",
+      "status": "PENDING_CENTRAL_REAL_GATE"
+    },
+    {
+      "id": "runtime-restore-lifecycle-real",
+      "cards": ["BUG-121"],
+      "script": "app/tests/resilience/restore_lifecycle_checks.py",
+      "arguments": ["rag-local-resilience-qa-<unique-digits>"],
+      "required_evidence": "Two retained QA-volume start/stop cycles: TCP health, real restored databases, unchanged database/volume fingerprints, durability settings on, 120s clean stop, no OOM. Setup deadline remains 480s; live PostgreSQL SIGKILL RTO remains <60s.",
+      "status": "PENDING_CENTRAL_REAL_GATE"
+    },
+    {
+      "id": "runtime-100000-http-real",
+      "cards": ["RAG-12"],
+      "script": "app/tests/resilience/resilience_load.py",
+      "arguments": ["rag-local-resilience-qa-<unique-digits>", "100000"],
+      "criteria": ["defined_workload", "accepted_reconciliation", "deadlines", "measured_slo"],
+      "required_evidence": "Define the original workload and acceptance/SLO targets before execution. Reconcile each offered key, HTTP classification, accepted ID, terminal, deadline and delivery. The existing offered-load fixture uses one Ana identity and explicitly cannot certify 100000 successful workflows or the production policy's 100-tenant workload. Provisioning a legitimate synthetic 100-tenant admission surface is a Central/shared-file dependency.",
+      "status": "BLOCKED_WORKLOAD_AND_REAL_GATE"
+    },
+    {
+      "id": "runtime-production-recovery",
+      "cards": ["RAG-13"],
+      "criteria": ["persistent_runtime", "versioned_migrations", "restore", "failover", "security_release_gate"],
+      "required_evidence": "Prove externally supervised process persistence, integrated migration execution, backup/restore integrity, failover with fencing on an independent host/failure domain, and the real identity/TLS/security/release gate. One-host synthetic tests and production-disabled startup are insufficient for this approval.",
+      "status": "BLOCKED_EXTERNAL_PRODUCTION_PREREQUISITES"
+    }
+  ],
+  "dependencies": [
+    {
+      "id": "central-shared-rag-stage-oracle",
+      "path": "app/tests/rag/rag_fixture.py",
+      "problem": "workflow_stage_logs_complete_and_redacted expects ['retrieve','compose','--project-directory',str(APP),'verify'] although the workflow emits retrieve/compose/verify.",
+      "action": "Central or corpus owner must restore the literal three-stage oracle. Runtime must not edit this shared/corpus file."
+    },
+    {
+      "id": "central-shared-http-fixture",
+      "path": "app/tests/shared/http_fixture.py",
+      "problem": "Standalone fixture defaults to the existing runtime, hardcodes the canonical eval/runs output, and requests sessions with the removed tenant payload. The new supplemental restart guard requires explicit isolated_project/endpoint contract fields and .local output.",
+      "action": "Central must configure isolated ownership, .local output and current Ana/Bruno profiles before any real execution."
+    },
+    {
+      "id": "central-real-evidence-location",
+      "paths": ["app/tests/receipts/retention_race_receipt.py", "app/tools/receipts/reliability-card-receipts.py"],
+      "problem": "Existing real-gate evidence writers/readers assume eval/runs and old baseline receipts.",
+      "action": "Central must preserve strict freshness checks when adapting real evidence to private .local output; do not derive card approval from the offline controlled receipts."
+    }
+  ]
+}
