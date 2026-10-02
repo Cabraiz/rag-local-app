@@ -15,6 +15,7 @@ cache/
 eval/runs/
 eval/history/
 eval/receipts/
+eval/reports/orchestration/
 eval/resilience-runtime/
 deliveries/
 docs/architecture/proof/

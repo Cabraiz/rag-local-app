@@ -32,7 +32,7 @@ def scan(root):
     for name in names:
         parts = Path(name).parts
         if (any(p in ('.local', '.venv', '__pycache__', 'node_modules') for p in parts)
-                or name.startswith(('eval/runs/', 'eval/history/', 'eval/receipts/', 'eval/logs/', 'deliveries/', 'cache/', 'tmp/'))
+                or name.startswith(('eval/runs/', 'eval/history/', 'eval/receipts/', 'eval/logs/', 'eval/reports/orchestration/', 'deliveries/', 'cache/', 'tmp/'))
                 or (Path(name).name.startswith('.env') and Path(name).name != '.env.example')
                 or Path(name).suffix.lower() in ('.sqlite3', '.db', '.log', '.pem', '.key', '.pfx', '.p12')):
             rejected.append(dict(path=name, reason='PRIVATE_RUNTIME_PATH'))

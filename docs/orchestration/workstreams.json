@@ -46,7 +46,7 @@
       "objective": "Revalidar todos os requisitos do desafio e regressões CF: transpilador, ADK, OCR/RAG MCP, PII, Swagger, CLI e idempotência. Rodar testes offline adversariais, corrigir bugs e repetir duas rodadas com fontes congeladas. Preparar gates Docker/Playwright separados para a Central."
     }
   ],
-  "central_only": ["RAG-11", "RAG-15", "BUG-016", "BUG-020", "BUG-033", "BUG-040"],
+  "central_only": ["RAG-11", "RAG-15", "BUG-016", "BUG-020", "BUG-033", "BUG-040", "BUG-126"],
   "shared_files_owner": "central",
   "shared_files": ["AGENTS.md", ".gitignore", ".codex/", "README.md", "app/workspace.py", "app/manage.py", "app/src/rag_app/__init__.py", "app/src/rag_app/entrypoints/", "frontend/", "app/tests/shared/", "app/tests/cards/", "app/tests/receipts/", "app/tools/cards/", "app/tools/revalidation/", "app/tools/organization/", "app/tools/orchestration/", "docs/cards/", "docs/challenges/", "docs/orchestration/acceptance.md", "docs/orchestration/workstreams.json"]
 }

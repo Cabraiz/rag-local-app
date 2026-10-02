@@ -4,6 +4,7 @@ Only supervises jobs and terminal callbacks; never edits, merges or closes cards
 Runtime state is private and outside Git. Processes run under Task Scheduler.
 """
 import argparse
+from contextlib import closing
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -12,6 +13,9 @@ from pathlib import Path
 import sqlite3
 import subprocess
 import sys
+import time
+import traceback
+from uuid import uuid4
 
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -20,12 +24,83 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def write_json(path, value):
+def write_json(path, value, *, attempts=9, delay=0.05):
+    """Atomic snapshot; short Windows sharing violations must not kill a writer."""
+    if attempts < 1 or delay < 0:
+        raise ValueError("INVALID_SNAPSHOT_RETRY")
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + ".tmp")
+    temporary = path.with_name(path.name + "." + uuid4().hex + ".tmp")
     temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf8")
-    os.replace(temporary, path)
+    for attempt in range(attempts):
+        try:
+            os.replace(temporary, path)
+            return
+        except PermissionError:
+            if attempt + 1 == attempts:
+                # Retain this private, uniquely named snapshot for diagnosis.
+                raise
+            time.sleep(delay)
+
+
+def record_fault(state, operation, exc):
+    """No raw exception messages, commands, prompts or secrets in diagnostics."""
+    value = {"at": now(), "operation": operation, "error_type": type(exc).__name__,
+             "errno": getattr(exc, "errno", None), "winerror": getattr(exc, "winerror", None),
+             "frames": [{"file": Path(frame.filename).name, "line": frame.lineno,
+                         "function": frame.name}
+                        for frame in traceback.extract_tb(exc.__traceback__)[-5:]]}
+    try:
+        with (state / "supervisor-faults.jsonl").open("a", encoding="utf8") as stream:
+            stream.write(json.dumps(value) + "\n")
+    except OSError:
+        print("SUPERVISOR_DIAGNOSTIC_UNAVAILABLE", file=sys.stderr)
+
+
+def snapshot(state, name, value, progress):
+    try:
+        write_json(state / name, value)
+    except OSError as exc:
+        progress["supervisorFaults"] = progress.get("supervisorFaults", 0) + 1
+        record_fault(state, name, exc)
+        return False
+    return True
+
+
+def process_alive(pid):
+    """Read-only liveness, fail closed on denied access; never os.kill on Windows."""
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+        raise ValueError("INVALID_PREVIOUS_PID")
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel.OpenProcess.restype = wintypes.HANDLE
+        kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        handle = kernel.OpenProcess(0x1000, False, pid)
+        if not handle:
+            error = ctypes.get_last_error()
+            if error == 87:  # no such process
+                return False
+            if error == 5:
+                return True  # unknown ownership/liveness is never permission to resume
+            raise ctypes.WinError(error)
+        try:
+            code = wintypes.DWORD()
+            if not kernel.GetExitCodeProcess(handle, ctypes.byref(code)):
+                raise ctypes.WinError(ctypes.get_last_error())
+            return code.value == 259
+        finally:
+            kernel.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def owner(manifest, root_card, card_id):
@@ -48,7 +123,7 @@ def prepare(root, state, codex):
         raise RuntimeError("STATE_OUTSIDE_PRIVATE_ORCHESTRATION")
     manifest = json.loads((root / "docs/orchestration/workstreams.json").read_text(encoding="utf8"))
     database = root / ".local/card-execution/queue.sqlite3"
-    with sqlite3.connect(database.as_uri() + "?mode=ro", uri=True) as db:
+    with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)) as db:
         db.row_factory = sqlite3.Row
         cards = [dict(row) for row in db.execute(
             "SELECT seq,id,parent,title,status,evidence_type,criteria FROM cards ORDER BY seq")]
@@ -99,9 +174,25 @@ O supervisor entrega um callback terminal à Central automaticamente. Não mande
                                  for key in ["central"] + [x["id"] for x in manifest["lanes"]]}}))
 
 
-def dispatch_claim(db, lane):
+def dispatch_claim(db, lane, resume_thread=None):
     db.execute("CREATE TABLE IF NOT EXISTS jobs(lane TEXT PRIMARY KEY, started_at TEXT, "
                "status TEXT, thread_id TEXT, callback_status TEXT)")
+    db.execute("CREATE TABLE IF NOT EXISTS recovery_history(id INTEGER PRIMARY KEY, "
+               "lane TEXT, at TEXT, previous_started_at TEXT, previous_status TEXT, "
+               "thread_id TEXT, previous_callback_status TEXT)")
+    if resume_thread:
+        with db:
+            previous = db.execute("SELECT started_at,status,thread_id,callback_status FROM jobs "
+                                  "WHERE lane=?", (lane,)).fetchone()
+            changed = db.execute("UPDATE jobs SET started_at=?,status='STARTING',"
+                                 "callback_status='NOT_READY' WHERE lane=? AND status='FAILED' "
+                                 "AND thread_id=?", (now(), lane, resume_thread)).rowcount
+            if changed != 1:
+                return False
+            db.execute("INSERT INTO recovery_history(lane,at,previous_started_at,"
+                       "previous_status,thread_id,previous_callback_status) VALUES (?,?,?,?,?,?)",
+                       (lane, now(), *previous))
+        return True
     try:
         with db:
             db.execute("INSERT INTO jobs VALUES (?,?,'STARTING',NULL,'NOT_READY')", (lane, now()))
@@ -110,74 +201,118 @@ def dispatch_claim(db, lane):
         return False
 
 
-def run(job_path):
-    job = json.loads(Path(job_path).read_text(encoding="utf8"))
-    state, worktree = Path(job["run_dir"]), Path(job["worktree"])
-    db = sqlite3.connect(state.parent / "dispatch.sqlite3", timeout=20)
-    db.execute("PRAGMA journal_mode=WAL")
-    db.execute("PRAGMA synchronous=FULL")
-    if not dispatch_claim(db, job["lane"]):
-        print("ALREADY_DISPATCHED_NO_SECOND_WRITER")
-        return
-    progress = {"status": "running", "startedAt": now(), "lastProgressAt": now(),
-                "lane": job["lane"], "supervisorPid": os.getpid(), "completedItems": 0}
-    write_json(state / "progress.json", progress)
+def validate_recovery(job):
+    terminal = Path(job["resume_from"])
+    if hashlib.sha256(terminal.read_bytes()).hexdigest() != job["resume_terminal_sha256"]:
+        raise RuntimeError("RECOVERY_TERMINAL_CHANGED")
+    value = json.loads(terminal.read_text(encoding="utf8"))
+    if (value.get("status") != "FAILED" or value.get("lane") != job["lane"]
+            or value.get("thread_id") != job["resume_thread"]):
+        raise RuntimeError("RECOVERY_IDENTITY_MISMATCH")
+    if len(job.get("previous_pids", [])) != 2:
+        raise RuntimeError("RECOVERY_PREVIOUS_PIDS_REQUIRED")
+    if any(process_alive(pid) for pid in job["previous_pids"]):
+        raise RuntimeError("PREVIOUS_WRITER_OR_SUPERVISOR_STILL_ALIVE")
+    branch = subprocess.check_output(["git", "-C", job["worktree"], "branch", "--show-current"],
+                                     creationflags=NO_WINDOW, text=True).strip()
+    if branch != job["branch"]:
+        raise RuntimeError("RECOVERY_BRANCH_CHANGED")
+
+
+def prepare_recovery(job_path, terminal_sha, attempt):
+    if not attempt.startswith("recovery-") or not attempt[len("recovery-"):].isdigit():
+        raise ValueError("INVALID_RECOVERY_ATTEMPT_NAME")
+    original = json.loads(Path(job_path).read_text(encoding="utf8"))
+    previous_state = Path(original["run_dir"]).resolve()
+    if not previous_state.is_relative_to(Path(original["canonical_root"]).resolve() / ".local/orchestration"):
+        raise RuntimeError("RECOVERY_OUTSIDE_PRIVATE_STATE")
+    previous = json.loads((previous_state / "progress.json").read_text(encoding="utf8"))
+    terminal = json.loads((previous_state / "terminal.json").read_text(encoding="utf8"))
+    state = previous_state / attempt
+    job = {**original, "run_dir": str(state),
+           "dispatch_db": str(previous_state.parent / "dispatch.sqlite3"),
+           "resume_thread": terminal["thread_id"], "resume_from": str(previous_state / "terminal.json"),
+           "resume_terminal_sha256": terminal_sha,
+           "previous_pids": [previous["executorPid"], previous["supervisorPid"]]}
+    validate_recovery(job)
+    with closing(sqlite3.connect(Path(job["dispatch_db"]).as_uri() + "?mode=ro", uri=True)) as db:
+        row = db.execute("SELECT status,thread_id FROM jobs WHERE lane=?", (job["lane"],)).fetchone()
+    if row != ("FAILED", job["resume_thread"]):
+        raise RuntimeError("RECOVERY_LANE_NOT_FAILED_OR_ALREADY_DISPATCHED")
+    state.mkdir()  # exclusive; never replace a previous attempt or its receipts
+    prompt = f"""Retome ESTA sessão {job['resume_thread']} no MESMO worktree {job['worktree']} e branch {job['branch']}.
+A supervisão anterior falhou com PermissionError e fechou o pipe stdout. A Central confirmou os PIDs mortos e corrigiu o supervisor; o histórico e suas alterações locais foram preservados.
+Continue do último checkpoint. Não crie outro executor nem recomece os cards já verificados. Confira os arquivos que ficaram incompletos pela interrupção.
+Permanecem o manifesto, a allowlist, os critérios originais e o snapshot de cards da primeira execução. Não escreva na Central, journal, credenciais ou containers; nada de cloud, instalações no Python compartilhado, Docker ou ações remotas.
+Finalize as correções reproduzíveis e duas rodadas consecutivas com fontes congeladas. Preserve falhas e não conte rodadas anteriores a uma mudança como aprovação atual.
+Gates online/Docker/SDK indisponíveis continuam pendentes, não solucionados por inferência. Faça commit local só da allowlist.
+Ao terminar, entregue .local/orchestration/worker-receipt.json com branch/SHA, fontes SHA-256, rodadas, cards verificados, bugs novos, dependências e limitações; resumo em docs/orchestration/results/{job['lane']}/result.md. O supervisor entrega a conclusão à Central uma única vez.
+"""
+    (state / "prompt.txt").write_text(prompt, encoding="utf8")
+    write_json(state / "job.json", job)
+    print(json.dumps({"prepared_recovery": True, "lane": job["lane"],
+                      "thread_id": job["resume_thread"], "job": str(state / "job.json")}))
+
+
+def build_command(job, state, worktree):
     command = [job["codex"], "exec", "--json", "--color", "never", "--model", job["model"],
                "-c", f'model_reasoning_effort="{job["reasoning_effort"]}"',
                "-c", f'service_tier="{job["service_tier"]}"', "--enable", "fast_mode",
                "-c", 'approval_policy="never"', "--sandbox", "workspace-write",
                "-c", "sandbox_workspace_write.network_access=false", "--cd", str(worktree),
                "--add-dir", str(Path(job["canonical_root"]) / ".git"),
-               "--output-last-message", str(state / "last-message.txt"), "-"]
-    terminal_event, exit_code, error_type = None, None, None
-    try:
-        with (state / "stderr.log").open("a", encoding="utf8") as errors, \
-                (state / "events.jsonl").open("a", encoding="utf8") as events:
-            child = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                     stderr=errors, text=True, encoding="utf8", errors="replace",
-                                     creationflags=NO_WINDOW, shell=False, cwd=worktree)
-            progress["executorPid"] = child.pid
-            write_json(state / "progress.json", progress)
-            child.stdin.write((state / "prompt.txt").read_text(encoding="utf8"))
-            child.stdin.close()
-            for line in child.stdout:
-                events.write(line)
-                events.flush()
-                try:
-                    event = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if event.get("type") == "thread.started":
-                    progress["threadId"] = event["thread_id"]
-                    with db:
-                        db.execute("UPDATE jobs SET status='RUNNING',thread_id=? WHERE lane=?",
-                                   (event["thread_id"], job["lane"]))
-                    write_json(state / "identity.json", {**job, "thread_id": event["thread_id"]})
-                if event.get("type") == "item.completed" and event.get("item", {}).get("type") in (
-                        "command_execution", "file_change", "mcp_tool_call", "web_search"):
-                    progress["completedItems"] += 1
-                    progress["lastProgressAt"] = now()
-                    progress["progressFingerprint"] = str(progress["completedItems"])
-                if event.get("type") in ("turn.completed", "turn.failed"):
-                    terminal_event = event["type"]
-                write_json(state / "progress.json", progress)
-            exit_code = child.wait()
-    except Exception as exc:
-        error_type = type(exc).__name__
-    status = "TURN_COMPLETED" if exit_code == 0 and terminal_event == "turn.completed" else "FAILED"
-    progress.update(status=status, endedAt=now(), lastProgressAt=now())
-    write_json(state / "progress.json", progress)
-    worker_receipt = worktree / ".local/orchestration/worker-receipt.json"
-    receipt = {"lane": job["lane"], "status": status, "thread_id": progress.get("threadId"),
-               "exit_code": exit_code, "error_type": error_type, "ended_at": now(),
-               "worker_receipt": str(worker_receipt), "worker_receipt_exists": worker_receipt.is_file(),
-               "worker_receipt_sha256": hashlib.sha256(worker_receipt.read_bytes()).hexdigest()
-               if worker_receipt.is_file() else None, "merge_approved": False}
-    write_json(state / "terminal.json", receipt)
-    with db:
-        db.execute("UPDATE jobs SET status=?,callback_status='PENDING' WHERE lane=?", (status, job["lane"]))
+               "--output-last-message", str(state / "last-message.txt")]
+    return command + (["resume", job["resume_thread"], "-"] if job.get("resume_thread") else ["-"])
+
+
+def accept_event(event, job, state, db, progress):
+    kind, changed = event.get("type"), False
+    if kind == "thread.started":
+        if job.get("resume_thread") and event["thread_id"] != job["resume_thread"]:
+            raise RuntimeError("RESUMED_THREAD_ID_CHANGED")
+        progress["threadId"], progress["identityVerified"] = event["thread_id"], True
+        with db:
+            db.execute("UPDATE jobs SET status='RUNNING',thread_id=? WHERE lane=?",
+                       (event["thread_id"], job["lane"]))
+        snapshot(state, "identity.json", {**job, "thread_id": event["thread_id"]}, progress)
+        changed = True
+    if kind == "item.completed" and event.get("item", {}).get("type") in (
+            "command_execution", "file_change", "mcp_tool_call", "web_search"):
+        progress["completedItems"] += 1
+        progress["lastProgressAt"] = now()
+        progress["progressFingerprint"] = str(progress["completedItems"])
+        changed = True
+    if kind in ("turn.completed", "turn.failed"):
+        progress["terminalEvent"] = kind
+        changed = True
+    if changed:
+        snapshot(state, "progress.json", progress, progress)
+
+
+def drain_events(stream, child, consume):
+    """Tail durable stdout, retaining partial UTF-8/JSON until newline or exit."""
+    while True:
+        offset = stream.tell()
+        line = stream.readline()
+        alive = child.poll() is None
+        if line and (line.endswith(b"\n") or not alive):
+            try:
+                event = json.loads(line.decode("utf8"))
+            except (ValueError, UnicodeError):
+                continue
+            if isinstance(event, dict):
+                consume(event)
+        elif alive:
+            stream.seek(offset)
+            time.sleep(0.05)
+        elif not line:
+            break
+
+
+def notify_terminal(job, state, worktree, receipt):
+    status = receipt["status"]
     message = (f"RAG_EXECUTOR_TERMINAL lane={job['lane']} status={status} "
-               f"thread={progress.get('threadId')} receipt={state / 'terminal.json'}. "
+               f"thread={receipt.get('thread_id')} receipt={state / 'terminal.json'}. "
                "Revise a allowlist, o SHA e as duas rodadas antes de integrar; não há aprovação automática. "
                "Retome a integração serial das frentes autorizadas pelo usuário, sem polling.")
     try:
@@ -190,11 +325,75 @@ def run(job_path):
         delivery = "UNCERTAIN_DO_NOT_RETRY"
     except OSError:
         delivery = "FAILED_DELIVERY"
-    with db:
-        db.execute("UPDATE jobs SET callback_status=? WHERE lane=?", (delivery, job["lane"]))
     write_json(state / "callback.json", {"status": delivery, "at": now(),
                                          "parent_thread": job["parent_thread"], "message": message})
-    db.close()
+    return delivery
+
+
+def run(job_path):
+    job = json.loads(Path(job_path).read_text(encoding="utf8"))
+    state, worktree = Path(job["run_dir"]), Path(job["worktree"])
+    if job.get("resume_thread"):
+        validate_recovery(job)  # repeated immediately before atomic claim, not just preparation
+    database = Path(job.get("dispatch_db", state.parent / "dispatch.sqlite3"))
+    with closing(sqlite3.connect(database, timeout=20)) as db:
+        db.execute("PRAGMA journal_mode=WAL")
+        db.execute("PRAGMA synchronous=FULL")
+        if not dispatch_claim(db, job["lane"], job.get("resume_thread")):
+            print("ALREADY_DISPATCHED_NO_SECOND_WRITER")
+            return
+        progress = {"status": "running", "startedAt": now(), "lastProgressAt": now(),
+                    "lane": job["lane"], "supervisorPid": os.getpid(), "completedItems": 0,
+                    "supervisorFaults": 0, "identityVerified": False}
+        if job.get("resume_thread"):
+            progress["threadId"] = job["resume_thread"]
+        snapshot(state, "progress.json", progress, progress)
+        child, exit_code, error_type = None, None, None
+        try:
+            # Child owns a real file handle: a supervisor/progress failure cannot close its stdout pipe.
+            with (state / "stderr.log").open("ab") as errors, (state / "events.jsonl").open("ab") as events:
+                child = subprocess.Popen(build_command(job, state, worktree), stdin=subprocess.PIPE,
+                                         stdout=events, stderr=errors, text=True, encoding="utf8",
+                                         creationflags=NO_WINDOW, shell=False, cwd=worktree)
+                progress["executorPid"] = child.pid
+                snapshot(state, "progress.json", progress, progress)
+                try:
+                    child.stdin.write((state / "prompt.txt").read_text(encoding="utf8"))
+                    child.stdin.close()
+                except BrokenPipeError as exc:
+                    record_fault(state, "stdin", exc)
+                with (state / "events.jsonl").open("rb") as source:
+                    drain_events(source, child, lambda event: accept_event(event, job, state, db, progress))
+                exit_code = child.wait()
+        except Exception as exc:
+            error_type = type(exc).__name__
+            record_fault(state, "execute", exc)
+            if child is not None:
+                exit_code = child.poll()
+        alive = child is not None and exit_code is None
+        if alive:
+            # Fail closed: a lost supervisor is NOT permission to launch a second writer.
+            status = "SUPERVISOR_FAILED_EXECUTOR_RUNNING"
+        else:
+            status = "TURN_COMPLETED" if (exit_code == 0 and progress.get("terminalEvent") ==
+                      "turn.completed" and progress["identityVerified"] and not error_type) else "FAILED"
+        progress.update(status=status, endedAt=now(), lastProgressAt=now())
+        snapshot(state, "progress.json", progress, progress)
+        worker_receipt = worktree / ".local/orchestration/worker-receipt.json"
+        receipt = {"lane": job["lane"], "status": status, "thread_id": progress.get("threadId"),
+                   "exit_code": exit_code, "error_type": error_type, "ended_at": now(),
+                   "executor_alive": alive, "executor_pid": progress.get("executorPid"),
+                   "supervisor_faults": progress["supervisorFaults"],
+                   "worker_receipt": str(worker_receipt), "worker_receipt_exists": worker_receipt.is_file(),
+                   "worker_receipt_sha256": hashlib.sha256(worker_receipt.read_bytes()).hexdigest()
+                   if worker_receipt.is_file() else None, "merge_approved": False}
+        write_json(state / "terminal.json", receipt)
+        with db:
+            db.execute("UPDATE jobs SET status=?,callback_status='PENDING' WHERE lane=?", (status, job["lane"]))
+        delivery = notify_terminal(job, state, worktree, receipt)
+        with db:
+            db.execute("UPDATE jobs SET callback_status=? WHERE lane=?", (delivery, job["lane"]))
+        return receipt
 
 
 if __name__ == "__main__":
@@ -206,8 +405,14 @@ if __name__ == "__main__":
     prep.add_argument("--codex", required=True)
     worker = commands.add_parser("run")
     worker.add_argument("--job", required=True)
+    recovery = commands.add_parser("prepare-recovery")
+    recovery.add_argument("--job", required=True)
+    recovery.add_argument("--terminal-sha", required=True)
+    recovery.add_argument("--attempt", required=True)
     args = parser.parse_args()
     if args.action == "prepare":
         prepare(args.root, args.state, args.codex)
+    elif args.action == "prepare-recovery":
+        prepare_recovery(args.job, args.terminal_sha, args.attempt)
     else:
         run(args.job)
