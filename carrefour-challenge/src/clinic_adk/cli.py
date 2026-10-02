@@ -11,6 +11,11 @@ from .errors import SafeError
 from .safe_logging import setup
 from .file_input import bounded_file, atomic_artifact
 
+class SafeArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        # argparse's default prints attacker-controlled arguments to stderr.
+        raise SafeError('CLI_INVALID_ARGUMENTS')
+
 def read_spec(path):
     candidate = Path(path).resolve()
     root = Path('/app/examples').resolve()
@@ -48,12 +53,19 @@ async def execute(spec, source, image_ref, request_id):
     await sessions.create_session(app_name='clinic_lab', user_id='fictional_demo', session_id=runtime.request_id)
     runner = Runner(app_name='clinic_lab', node=agent, session_service=sessions)
     result = None
-    async with asyncio.timeout(spec.timeout_seconds):
-        async for event in runner.run_async(user_id='fictional_demo', session_id=runtime.request_id,
-                new_message=types.Content(role='user', parts=[types.Part(text='Processar pedido ficticio local autorizado.')])):
-            output = getattr(event, 'output', None)
-            if isinstance(output, dict) and 'result' in output:
-                result = output['result']
+    try:
+        async with asyncio.timeout(spec.timeout_seconds):
+            async for event in runner.run_async(user_id='fictional_demo', session_id=runtime.request_id,
+                    new_message=types.Content(role='user', parts=[types.Part(text='Processar pedido ficticio local autorizado.')])):
+                output = getattr(event, 'output', None)
+                if isinstance(output, dict) and 'result' in output:
+                    result = output['result']
+    except TimeoutError:
+        # The workflow deadline can expire after the API committed but before the
+        # reply arrived. Preserve the same reconciliation contract as HTTP timeouts.
+        code = ('APPOINTMENT_OUTCOME_UNKNOWN_RETRY_SAME_KEY' if 'schedule' in runtime.stages
+                else 'WORKFLOW_TIMEOUT_BEFORE_APPOINTMENT')
+        raise SafeError(code) from None
     if result is None or runtime.stages != ['ocr', 'retrieve', 'validate', 'schedule', 'format']:
         raise SafeError('ADK_INCOMPLETE_RESULT')
     result['generated_source_sha256'] = hashlib.sha256(raw).hexdigest()
@@ -78,7 +90,7 @@ def safe_failure_code(error):
 
 def main():
     setup()
-    parser = argparse.ArgumentParser(description='Transpilador JSON -> Google ADK; clinica inteiramente ficticia.')
+    parser = SafeArgumentParser(description='Transpilador JSON -> Google ADK; clinica inteiramente ficticia.')
     commands = parser.add_subparsers(dest='command', required=True)
     transpile = commands.add_parser('transpile')
     transpile.add_argument('--spec', default='/app/examples/agent.json')
@@ -88,9 +100,9 @@ def main():
     run.add_argument('--agent', default='agent.py')
     run.add_argument('--image', default='request.png')
     run.add_argument('--request-id')
-    args = parser.parse_args()
     request_id = None
     try:
+        args = parser.parse_args()
         if args.command == 'run':
             candidate = args.request_id or str(uuid4())
             try:

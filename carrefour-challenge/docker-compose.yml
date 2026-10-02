@@ -1,6 +1,6 @@
 name: carrefour-adk-challenge
 x-runtime: &runtime
-  image: carrefour-adk-challenge:1.0.0
+  image: ${CLINIC_IMAGE:-carrefour-adk-challenge:1.0.0}
   build: .
   user: "10001:10001"
   init: true
@@ -73,7 +73,7 @@ services:
       ocr: {condition: service_healthy}
       rag: {condition: service_healthy}
   browser:
-    image: carrefour-adk-browser:1.0.0
+    image: ${CLINIC_BROWSER_IMAGE:-carrefour-adk-browser:1.0.0}
     build:
       context: .
       dockerfile: e2e/Dockerfile

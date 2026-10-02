@@ -32,10 +32,19 @@ Para testar outra imagem fictícia, coloque PNG/JPEG em examples e passe o nome 
 Para duas rodadas completas, incluindo interrupções reais dos serviços isolados:
 
 ~~~powershell
-.\tools\verify.ps1 -Evidence D:\RAG-Local\eval\runs\carrefour-minha-rodada
+.\tools\verify.ps1 -Evidence ..\.local\carrefour-gates\minha-rodada
 ~~~
 
-Escolha uma pasta de evidência nova. O script interrompe somente os serviços deste desafio, preserva o RAG/Grafana e cria uma segunda instância temporária na porta 8861. Ao terminar, remove apenas os containers/rede temporários, preservando seus volumes. Não execute o gate durante uma demonstração ativa desta clínica.
+Escolha uma pasta de evidência nova. O gate exige execução serial pela Central:
+adquire uma trava local exclusiva, usa as fontes desta pasta, dois projetos novos
+com ownership registrado, imagens próprias e portas livres 18860/18861
+(configuráveis por `-FirstApiPort`/`-SecondApiPort`). Ele não reutiliza a clínica
+da demonstração nem suas imagens/volumes. Interrupções atingem somente os projetos
+novos; ao terminar remove seus containers/redes, preservando os volumes de prova.
+O Compose recebe um arquivo de configuração gerado sem segredos e não lê `.env`.
+Docker e Playwright têm evidências separadas em cada rodada; a aprovação completa
+continua exigindo ambos. Veja o plano de gates em
+`../docs/orchestration/results/carrefour/gates.md`.
 
 ## Arquitetura e comunicação
 
@@ -68,6 +77,12 @@ No ADK 2.10, o grafo Workflow é um BaseNode, executado por Runner(node=...). El
 Tesseract executa OCR local; texto bruto existe apenas em memória nessa fronteira. Antes de retornar ao ADK, o guardrail descarta linhas de paciente/médico/documentos/contatos e deixa passar apenas nomes canônicos de exames permitidos. Texto desconhecido, instrução maliciosa ou PII em linha de exame bloqueia o fluxo inteiro.
 
 Esta política conservadora não equivale a detector universal de PII nem certificação LGPD. Imagens manuscritas não são cobertas; reconhecimento incerto abstém-se. Não alimente esta demonstração com documentos reais. A imagem inclui sentinelas fictícias para comprovar que elas não entram em estado, recibos ou logs da aplicação.
+
+Cabeçalhos de demonstração só são ignorados quando correspondem integralmente
+à allowlist; prefixos como `PEDIDO` não escondem um exame desconhecido.
+O catálogo exige schema versão 1, marcador fictício, tipos/códigos válidos e JSON
+sem duplicatas. Recibos SQLite rejeitam campos duplicados antes de retornar sucesso.
+Erros de argumentos da CLI são JSON sanitizado, inclusive flags desconhecidas.
 
 Containers: usuário sem privilégios, filesystem somente leitura, capabilities removidas, temporários limitados e limites de memória. Nenhum segredo cloud é montado. A rede interna e o modo offline evitam chamadas a Gemini/Vertex ou gastos de inferência. Usar ADK não obriga usar um LLM: aqui o workflow é determinístico.
 
@@ -143,6 +158,22 @@ chave, sem fabricar sucesso ou declarar rejeição definitiva.
 `tests/test_integration.py`: OCR em imagens reais fictícias, handshake/list/call MCP SSE real, execução CLI do Python gerado, API persistente, duplicatas concorrentes, dados desconhecidos e ausência de agendamento em falhas.
 
 `tools/verify.ps1`: orquestra rodadas novas e testes de interrupção/reinício dos serviços isolados; evidências são geradas em pasta própria. Duas rodadas verdes sobre os mesmos hashes são regressão repetida no escopo, não auditoria independente nem prova de ausência de todos os bugs. Resultado real e limites ficam no relatório de execução.
+
+Para revalidar fronteiras offline no executor Windows, sem instalar dependências
+no ambiente compartilhado nem iniciar servidores, na raiz do worktree:
+
+```powershell
+& D:/RAG-Local/adk/.venv/Scripts/python.exe carrefour-challenge/tools/run_offline.py --seed 126021 --output .local/orchestration/offline-round-1
+& D:/RAG-Local/adk/.venv/Scripts/python.exe carrefour-challenge/tools/run_offline.py --seed 330994 --output .local/orchestration/offline-round-2
+```
+
+Esse runner usa `unittest`, os imports do próprio worktree e as dependências já
+disponíveis. Asserts da suíte pytest original são preservados. API/SQLite rodam em
+processo com dados fictícios; adapters de caminhos, assets vazios e flags de arquivo
+regular permitem apenas essa verificação. As etapas do grafo ADK são substituídas
+no teste de integridade de bytes, e ferramentas HTTP são substituídas nos testes
+de erro/retry. Isso não comprova OCR/SSE real, flags POSIX, assets construídos,
+containers ou navegador. Cada receipt contém limites e SHA-256 das fontes.
 
 ## Transparência sobre IA e decisões
 
