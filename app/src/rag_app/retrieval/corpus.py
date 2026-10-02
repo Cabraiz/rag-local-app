@@ -126,7 +126,14 @@ class QdrantAdapter:
                 else:
                     self.call('PUT','/collections/'+name+'/index?wait=true',{'field_name':field,'field_schema':'keyword'})
         points=[]
-        neural_vectors=neural_client.embed([c['title']+' '+c['quote'] for c in chunks],scope=(chunks[0]['tenant'],chunks[0]['actor'],str(release)))[0] if neural and chunks else None
+        neural_vectors=[] if neural else None
+        if neural and chunks:
+            scope=(chunks[0]['tenant'],chunks[0]['actor'],str(release))
+            # A valid additive corpus may have more chunks than the bounded RPC
+            # accepts in one batch. Finish all batches before publishing points.
+            for start in range(0,len(chunks),32):
+                texts=[c['title']+' '+c['quote'] for c in chunks[start:start+32]]
+                neural_vectors.extend(neural_client.embed(texts,scope=scope)[0])
         for ordinal,chunk in enumerate(chunks):
             dense,sparse=vectors(chunk['title']+' '+chunk['quote'])
             if neural: dense=neural_vectors[ordinal]
@@ -150,7 +157,16 @@ class QdrantAdapter:
             'prefetch':[{'query':dense,'using':'dense','filter':scope,'limit':16},
                         {'query':sparse,'using':'sparse','filter':scope,'limit':16}],
             'query':{'fusion':'rrf'},'filter':scope,'limit':16,'with_payload':True})
-        ids=[str(UUID(str(p['id']))) for p in result['result']['points']]
+        try:
+            points=result['result']['points']
+            if not isinstance(points,list) or len(points)>16: raise ValueError()
+            ids=[]
+            for point in points:
+                if not isinstance(point,dict) or not isinstance(point['id'],str): raise ValueError()
+                ids.append(str(UUID(point['id'])))
+            if len(set(ids))!=len(ids): raise ValueError()
+        except (KeyError,TypeError,ValueError,AttributeError):
+            raise RequestError('INDEX_RESPONSE_INVALID',503) from None
         cache.put(cache_key,ids)
         return ids
 
@@ -160,9 +176,13 @@ def validate_bundle(documents):
         raise RequestError('INVALID_CORPUS_BUNDLE',422)
     keys=set(); size=0
     for doc in documents:
+        if not isinstance(doc,dict):
+            raise RequestError('INVALID_CORPUS_DOCUMENT',422)
         if set(doc)-{'source_key','title','text','media_type','valid_until'}:
             raise RequestError('INVALID_CORPUS_DOCUMENT',422)
-        if doc.get('media_type')!='text/plain' or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}',doc.get('source_key','')):
+        source_key=doc.get('source_key')
+        if (doc.get('media_type')!='text/plain' or not isinstance(source_key,str)
+                or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}',source_key)):
             raise RequestError('UNSUPPORTED_CORPUS_DOCUMENT',422)
         title=doc.get('title'); text=doc.get('text')
         if not isinstance(title,str) or not isinstance(text,str) or not 1<=len(title)<=120 or not text.strip() or len(text)>8192:
@@ -170,7 +190,11 @@ def validate_bundle(documents):
         if any(ord(c)<32 and c not in '\n\t\r' for c in title+text) or not terms(title+' '+text):
             raise RequestError('INVALID_CORPUS_DOCUMENT',422)
         if doc['source_key'] in keys: raise RequestError('DUPLICATE_SOURCE_KEY',422)
-        keys.add(doc['source_key']); size+=len((title+text).encode('utf8'))
+        keys.add(doc['source_key'])
+        try:
+            size+=len((title+text).encode('utf8'))
+        except UnicodeError:
+            raise RequestError('INVALID_CORPUS_DOCUMENT',422) from None
         if doc.get('valid_until') is not None:
             try:
                 expiry=datetime.fromisoformat(doc['valid_until'].replace('Z','+00:00'))

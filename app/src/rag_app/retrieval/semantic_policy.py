@@ -23,16 +23,24 @@ def eligible(question,text):
         {'industrial','fabrica'}, {'impressora'}, {'servidor'}, {'ferias'}]
     if any(q & group and not evidence & group for group in groups): return False
     if q & {'aprovar','aprova','aprovacao','autoriza','autorizar'} and not any(v.startswith(('aprova','autoriza')) for v in evidence): return False
-    money=bool(q & {'valor','preco','orcamento','custo','custos','gastos','gastar','teto'}) or ('quanto' in q and not q & {'tempo','dias','horas'})
+    price_terms={'preco','precos','custa','custam','custo','custos','cotacao'}
+    price_request=bool(q & price_terms)
+    # An authorized reimbursement cap is not a purchase price. Numeric overlap
+    # alone cannot qualify a source that contains no price/cost statement.
+    if price_request and not evidence & price_terms: return False
+    money=price_request or bool(q & {'valor','orcamento','gastos','gastar','teto'}) or ('quanto' in q and not q & {'tempo','dias','horas'})
     # Procedures and qualitative effects on a cap need policy evidence, not
     # necessarily an amount. Explicit requests for amounts still require one.
     process=bool(q & {'como','quem'} or q & {'aumenta','aumentar','reduz','reduzir','consome','consumir'})
-    if process and not q & {'quanto','valor','preco'}: money=False
+    if process and not price_request and not q & {'quanto','valor'}: money=False
     # Match against original ordered text, not a set of tokens.
     plain=''.join(c for c in unicodedata.normalize('NFKD',text.lower()) if not unicodedata.combining(c))
     if money and not re.search(r'(?:r\$\s*\d|\d+(?:[.,]\d+)?\s*(?:reais|real|dolares))',plain): return False
     # "Quando trabalho em casa" is a condition, not a request for a date.
-    temporal=bool(q & {'horario','horarios','horas','prazo','tempo'}) or question.strip().lower().startswith('quando ')
+    question_plain=''.join(c for c in unicodedata.normalize('NFKD',question.lower()) if not unicodedata.combining(c)).strip()
+    conditional_when=bool(re.match(r'^quando (?:eu )?(?:trabalho|trabalhamos|trabalhar|estou|estamos|estiver|uso|usamos|usar)\b',question_plain)
+                          and q & {'como','quem','preciso','precisamos','devo','devemos','posso'})
+    temporal=bool(q & {'horario','horarios','horas','prazo','tempo'}) or (question_plain.startswith('quando ') and not conditional_when)
     if temporal and not evidence & {'dia','dias','hora','horas','uteis','semana','segunda','sexta'}: return False
     return True
 
