@@ -19,7 +19,9 @@ import functional_smoke as smoke
 
 ROOT=_workspace_root
 def hashes():
-    names=['app/src/rag_app/'+n+'.py' for n in ('remote_feed','feed_server','feed_client','api')]
+    names=['app/src/rag_app/integrations/'+n+'.py' for n in ('remote_feed','feed_server','feed_client')]
+    names+=['app/src/rag_app/integrations/atlassian_lab.py','app/src/rag_app/integrations/github_lab.py',
+            'app/src/rag_app/entrypoints/api.py', 'app/tests/mcp/feed_smoke.py']
     names+=['app/infrastructure/compose/runtime/compose.integrations.yaml','frontend/public/app.js','frontend/public/index.html','frontend/public/styles.css']
     return {n:hashlib.sha256((ROOT/n).read_bytes()).hexdigest() for n in names}
 

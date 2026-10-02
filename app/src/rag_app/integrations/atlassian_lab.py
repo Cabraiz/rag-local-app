@@ -43,16 +43,35 @@ def arguments(issue_key):
     return {'cloudId': CLOUD_ID, 'issueIdOrKey': issue_key, 'fields': ['summary', 'project', 'updated']}
 
 
+def parse_rpc(body):
+    def unique_pairs(items):
+        value = {}
+        for key, item in items:
+            if key in value:
+                raise ValueError()
+            value[key] = item
+        return value
+    try:
+        value = json.loads(body, object_pairs_hook=unique_pairs)
+        if (not isinstance(value, dict) or value.get('jsonrpc') != '2.0'
+                or not isinstance(value.get('method'), str)):
+            raise ValueError()
+        return value
+    except (ValueError, TypeError, UnicodeError, RecursionError):
+        raise McpBlocked('INVALID_RPC') from None
+
+
 def authorize_rpc(message):
-    if not isinstance(message, dict) or message.get('jsonrpc') != '2.0':
+    if (not isinstance(message, dict) or message.get('jsonrpc') != '2.0'
+            or not isinstance(message.get('method'), str)):
         raise McpBlocked('INVALID_RPC')
     method = message.get('method')
     if method == 'tools/call':
         params = message.get('params', {})
-        if params.get('name') != TOOL:
+        if not isinstance(params, dict) or params.get('name') != TOOL:
             raise McpBlocked('TOOL_NOT_AUTHORIZED')
         supplied = params.get('arguments', {})
-        if supplied != arguments(supplied.get('issueIdOrKey')):
+        if not isinstance(supplied, dict) or supplied != arguments(supplied.get('issueIdOrKey')):
             raise McpBlocked('ARGUMENTS_NOT_AUTHORIZED')
         # SDK 2.2 serializes an empty metadata object. Non-empty metadata remains denied.
         if set(params) - {'name', 'arguments', '_meta'} or params.get('_meta') not in (None, {}):
@@ -94,10 +113,7 @@ class LabTransport(httpx2.AsyncBaseTransport):
             body = await request.aread()
             if len(body) > 16384:
                 raise McpBlocked('REQUEST_TOO_LARGE')
-            try:
-                payload = json.loads(body)
-            except (ValueError, UnicodeError):
-                raise McpBlocked('INVALID_RPC') from None
+            payload = parse_rpc(body)
             authorize_rpc(payload)
             if payload['method'] == 'tools/call':
                 self.tool_calls += 1

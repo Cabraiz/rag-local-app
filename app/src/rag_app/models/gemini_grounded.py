@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from .domain import Citation, Proposal
 from . import resilience
-from .gemini_lab import MODEL, DAILY_ATTEMPTS, ProbeBlocked
+from .gemini_lab import MODEL, DAILY_ATTEMPTS, ProbeBlocked, validate_counter, usage_connection
 
 USAGE = Path('/usage/gemini-probes.sqlite3')
 INSTRUCTION = '''Você verifica evidências de um RAG de laboratório com dados fictícios.
@@ -50,7 +50,7 @@ def configuration():
 def reserve(rid, digest):
     # Unique durable request claim + shared daily budget in ONE transaction.
     day = datetime.now(timezone.utc).date().isoformat()
-    with closing(sqlite3.connect(USAGE, timeout=2)) as db, db:
+    with usage_connection(USAGE) as db:
         db.execute('PRAGMA synchronous=FULL')
         db.execute('CREATE TABLE IF NOT EXISTS attempts(day TEXT PRIMARY KEY, used INTEGER NOT NULL)')
         db.execute('CREATE TABLE IF NOT EXISTS rag_model_calls(id TEXT PRIMARY KEY, digest TEXT NOT NULL, state TEXT NOT NULL, response TEXT)')
@@ -61,6 +61,7 @@ def reserve(rid, digest):
             if old[1] == 'DONE': return json.loads(old[2])
             raise ProbeBlocked('MODEL_ATTEMPT_ALREADY_RESERVED')
         used = db.execute('SELECT used FROM attempts WHERE day=?',(day,)).fetchone()
+        validate_counter(used[0] if used else 0)
         if used and used[0] >= DAILY_ATTEMPTS: raise ProbeBlocked('DAILY_MODEL_LIMIT')
         db.execute('INSERT INTO attempts VALUES (?,1) ON CONFLICT(day) DO UPDATE SET used=used+1',(day,))
         db.execute('INSERT INTO rag_model_calls VALUES (?, ?, ?, NULL)',(rid,digest,'RESERVED'))
@@ -68,12 +69,26 @@ def reserve(rid, digest):
 
 
 def complete(rid, response):
-    with closing(sqlite3.connect(USAGE, timeout=2)) as db, db:
+    with usage_connection(USAGE) as db:
         db.execute("UPDATE rag_model_calls SET state='DONE',response=? WHERE id=?",(json.dumps(response),rid))
 
 
+def _unique_pairs(items):
+    result = {}
+    for key, value in items:
+        if key in result:
+            raise ValueError('INVALID_MODEL_SCHEMA')
+        result[key] = value
+    return result
+
+
 def parse(text, evidence):
-    value = json.loads(text)
+    try:
+        if not isinstance(text, str) or len(text.encode('utf8')) > 4096:
+            raise ValueError()
+        value = json.loads(text, object_pairs_hook=_unique_pairs)
+    except (ValueError, TypeError, UnicodeError, RecursionError):
+        raise ValueError('INVALID_MODEL_SCHEMA') from None
     if not isinstance(value,dict) or set(value) != {'answerable','chunk_id'} or type(value['answerable']) is not bool or not isinstance(value['chunk_id'],str):
         raise ValueError('INVALID_MODEL_SCHEMA')
     if not value['answerable']:

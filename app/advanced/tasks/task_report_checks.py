@@ -84,7 +84,8 @@ def main():
     parser = Path(__file__).parent / 'task_report.py'
     if parser.exists():
         files.append(parser)
-    sources = {'app/advanced/' + p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
+    base = Path(__file__).resolve().parents[1]
+    sources = {'app/advanced/' + p.relative_to(base).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
     print(json.dumps(dict(card_id='BUG-122', evidence_type='verified_regression', complete=complete,
                          consecutive_passes=2 if complete else 0,
                          criteria_passed=['reproduction', 'two_regression_rounds'] if complete else [],

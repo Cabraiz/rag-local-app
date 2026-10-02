@@ -46,6 +46,7 @@ class Budget:
             key,path=configuration()
             reserve_attempt(path)
             self.calls+=1
+            self.check()
             return key.read_text().strip()
     def read(self):
         with self.lock:
@@ -85,6 +86,7 @@ def invoke(budget,contents,*,system='',tools=None,schema=None):
             budget.check()
             key=budget.reserve()
             LAST_CALL=time.monotonic()
+        budget.check()
         client=genai.Client(api_key=key,vertexai=False,http_options=types.HttpOptions(
             base_url='https://generativelanguage.googleapis.com',api_version='v1beta',timeout=15000,
             retry_options=types.HttpRetryOptions(attempts=1)))

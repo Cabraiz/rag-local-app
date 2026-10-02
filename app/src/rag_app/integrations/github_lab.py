@@ -14,7 +14,7 @@ import re
 import httpx2
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
-from .atlassian_lab import BoundedStream, McpBlocked
+from .atlassian_lab import BoundedStream, McpBlocked, parse_rpc
 
 ENDPOINT = 'https://api.githubcopilot.com/mcp/x/repos/readonly'
 OWNER, REPO, FILE = 'Cabraiz', 'rag-mcp-lab', 'README.md'
@@ -45,7 +45,8 @@ def arguments(path):
 
 
 def authorize_rpc(message):
-    if not isinstance(message, dict) or message.get('jsonrpc') != '2.0':
+    if (not isinstance(message, dict) or message.get('jsonrpc') != '2.0'
+            or not isinstance(message.get('method'), str)):
         raise McpBlocked('INVALID_RPC')
     method = message.get('method')
     if method == 'tools/call':
@@ -77,10 +78,7 @@ class GithubTransport(httpx2.AsyncBaseTransport):
             body = await request.aread()
             if len(body) > 16384:
                 raise McpBlocked('REQUEST_TOO_LARGE')
-            try:
-                message = json.loads(body)
-            except (ValueError, UnicodeError):
-                raise McpBlocked('INVALID_RPC') from None
+            message = parse_rpc(body)
             authorize_rpc(message)
             if message['method'] == 'tools/call':
                 self.tool_calls += 1

@@ -143,7 +143,7 @@ def validate_usage_proof(smoke, persistence_path, *, now=None, allow_validation_
                       'RAG_GEMINI_FREE_CONFIRMED':'no_billing', 'GOOGLE_GENAI_USE_VERTEXAI':'false'}
     if before.get('flags') != expected_flags or after.get('flags') != expected_flags:
         raise ValueError('USAGE_MODE_INVALID')
-    embedded = {'app/src/rag_app/'+n: hashlib.sha256((ROOT/'app/src/rag_app'/n).read_bytes()).hexdigest() for n in CORE}
+    embedded = {'app/src/rag_app/models/'+n: hashlib.sha256((ROOT/'app/src/rag_app/models'/n).read_bytes()).hexdigest() for n in CORE}
     if before.get('module_sha256') != embedded or after.get('module_sha256') != embedded:
         raise ValueError('USAGE_IMAGE_INVALID')
     observed = after.get('model_requests', [])

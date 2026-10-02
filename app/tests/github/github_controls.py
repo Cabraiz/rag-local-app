@@ -37,7 +37,7 @@ def frozen():
     files = ['app/src/rag_app/integrations/github_lab.py', 'app/src/rag_app/integrations/atlassian_lab.py',
              'app/tests/github/github_controls.py', 'app/infrastructure/compose/labs/compose.github-lab.yaml',
              'app/infrastructure/images/integrations/Dockerfile.github-lab', 'app/infrastructure/dependencies/integrations/mcp-requirements.lock',
-             'eval/runs/functional-priority-20261001/acceptance.json']
+             'docs/orchestration/acceptance.md', 'docs/orchestration/workstreams.json']
     return {f: hashlib.sha256((ROOT / f).read_bytes()).hexdigest() for f in files}
 
 
