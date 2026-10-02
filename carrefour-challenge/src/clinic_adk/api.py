@@ -37,10 +37,19 @@ def connect():
 
 def saved_receipt(row):
     """Never trust stored JSON merely because the request key exists."""
+    def unique(pairs):
+        result = {}
+        for key, item in pairs:
+            if key in result:
+                raise ValueError('duplicate stored field')
+            result[key] = item
+        return result
     try:
         if len(row[2]) > 4096:
             raise ValueError()
-        value = AppointmentReceipt.model_validate(json.loads(row[2])).model_dump()
+        payload = json.loads(row[2], object_pairs_hook=unique,
+                             parse_constant=lambda _: (_ for _ in ()).throw(ValueError('number')))
+        value = AppointmentReceipt.model_validate(payload).model_dump()
         body = {key: value[key] for key in ('request_id', 'exam_codes', 'catalog_version')}
         digest = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
         if (value['request_id'] != row[0] or digest != row[1]

@@ -15,6 +15,8 @@ def normalize(value):
 PII = re.compile(r'(?i)([\w.+-]+@[\w.-]+\.[a-z]{2,}|\b\d[\d .()/+-]{7,}\d\b|https?://)')
 LABEL = re.compile(r'(?i)^\s*(paciente|nome|m[eé]dic[oa]|doutor|dra?|cpf|rg|documento|telefone|celular|email|e-mail|contato|endere[cç]o|nascimento)\b')
 INJECTION = re.compile(r'(?i)(ignore|ignor[ea]|instru[cç]|system|prompt|execute|crie|agende|sudo|eval|__import__|<script|https?://|FICT-\d)')
+BANNERS = frozenset(('pedido medico ficticio', 'dados ficticios - demonstracao',
+                     'clinica ficticia', 'demonstracao'))
 def query_safe(value):
     key = normalize(value)
     if not key or PII.search(value) or INJECTION.search(value) or not re.fullmatch(r'[a-z0-9 ()/.,+-]{1,100}', key):
@@ -37,18 +39,20 @@ def sanitize_ocr(raw, catalog):
         if INJECTION.search(line):
             raise SafeError('UNTRUSTED_IMAGE_INSTRUCTIONS')
         if PII.search(line):
-            if re.match(r'(?i)^exame\s*:', line):
-                raise SafeError('OCR_UNRESOLVED_EXAMS')
-            redacted += 1
-            continue
+            # An unlabelled exam can also contain PII. Silently dropping it would
+            # let the other exams create a partial booking. Only known personal
+            # headers above may be discarded without making extraction uncertain.
+            raise SafeError('OCR_UNRESOLVED_EXAMS')
         explicit = bool(re.match(r'(?i)^exame\s*:', line))
         candidate = re.sub(r'(?i)^exame\s*:\s*', '', line).strip(' *-')
-        if not explicit and candidate.upper().startswith(('PEDIDO', 'DEMONSTRACAO', 'DEMONSTRAÇÃO', 'DADOS FICT', 'CLINICA', 'CLÍNICA')):
-            continue
         try:
             key = query_safe(candidate)
         except SafeError:
             unresolved += 1
+            continue
+        # Only complete known fixture banners are metadata. A prefix followed by
+        # an unknown exam must fail the same gate as any other unresolved line.
+        if not explicit and key in BANNERS:
             continue
         # Return only catalog-approved labels. Unknown text/names are not echoed.
         entry = catalog.by_name.get(key)

@@ -8,7 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app/src OTEL_SDK_DI
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt /app/requirements.txt
-COPY requirements.lock /app/infrastructure/dependencies/backend/requirements.lock
+COPY requirements.lock /app/requirements.lock
 RUN pip install --no-cache-dir -r requirements.lock && pip check && useradd --uid 10001 --create-home clinic
 COPY --chown=10001:10001 src /app/src
 COPY --chown=10001:10001 examples /app/examples

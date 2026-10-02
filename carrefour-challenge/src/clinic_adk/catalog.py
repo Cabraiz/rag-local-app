@@ -1,27 +1,53 @@
 import hashlib
 import json
+import re
 from pathlib import Path
-from .privacy import normalize, query_safe
+from .privacy import query_safe
 from .errors import SafeError
+from .file_input import bounded_file
 
 PATH = Path('/app/data/exams.json')
 class Catalog:
     def __init__(self, path=PATH):
-        raw = Path(path).read_bytes()
-        value = json.loads(raw)
+        raw = bounded_file(path, 1000000, 'CATALOG_SIZE_OR_PATH')
+        def unique(pairs):
+            result = {}
+            for key, item in pairs:
+                if key in result:
+                    raise SafeError('CATALOG_DUPLICATE_KEY')
+                result[key] = item
+            return result
+        try:
+            value = json.loads(raw, object_pairs_hook=unique,
+                               parse_constant=lambda _: (_ for _ in ()).throw(ValueError('number')))
+        except (ValueError, UnicodeError, RecursionError) as error:
+            if isinstance(error, SafeError):
+                raise
+            raise SafeError('CATALOG_SCHEMA') from None
+        if (not isinstance(value, dict) or set(value) != {'schema_version', 'fictional', 'notice', 'exams'}
+                or type(value['schema_version']) is not int or value['schema_version'] != 1
+                or value['fictional'] is not True or not isinstance(value['notice'], str)
+                or not 1 <= len(value['notice'].strip()) <= 1000 or not isinstance(value['exams'], list)):
+            raise SafeError('CATALOG_SCHEMA')
         self.version = hashlib.sha256(raw).hexdigest()
         self.entries = value['exams']
         if len(self.entries) < 100:
             raise SafeError('CATALOG_TOO_SMALL')
+        if len(self.entries) > 1000:
+            raise SafeError('CATALOG_TOO_LARGE')
         self.by_name, self.by_code = {}, {}
         for row in self.entries:
-            if set(row) != {'code', 'name', 'aliases', 'evidence'}:
+            if (not isinstance(row, dict) or set(row) != {'code', 'name', 'aliases', 'evidence'}
+                    or not isinstance(row['code'], str) or not re.fullmatch(r'FICT-[0-9]{3}', row['code'])
+                    or not isinstance(row['aliases'], list) or len(row['aliases']) > 20
+                    or not isinstance(row['evidence'], str) or not 1 <= len(row['evidence'].strip()) <= 2000):
                 raise SafeError('CATALOG_SCHEMA')
-            if row['code'] in self.by_code or normalize(row['name']) in self.by_name:
+            name_key = query_safe(row['name'])
+            if row['code'] in self.by_code or name_key in self.by_name:
                 raise SafeError('CATALOG_DUPLICATE')
             self.by_code[row['code']] = row
             for name in [row['name'], *row['aliases']]:
-                key = normalize(name)
+                key = query_safe(name)
                 if key in self.by_name:
                     raise SafeError('CATALOG_AMBIGUOUS_ALIAS')
                 self.by_name[key] = row
