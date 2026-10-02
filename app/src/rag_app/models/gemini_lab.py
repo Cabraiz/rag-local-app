@@ -1,6 +1,6 @@
 """Opt-in, fixed synthetic ADK connectivity probe; not a RAG answer workflow."""
 import asyncio
-from contextlib import closing
+from contextlib import closing, contextmanager
 from datetime import datetime, timezone
 import json
 import logging
@@ -13,6 +13,7 @@ MODEL = 'gemini-3.5-flash-lite'
 # Authorized lab ceiling, not a Google quota or a monetary hard cap.
 # Never reset the durable usage counter when changing this policy.
 DAILY_ATTEMPTS = 1000
+USAGE_BUSY_TIMEOUT_SECONDS = 5
 PROMPT = 'Responda exatamente RAG_LAB_OK. Sem ferramentas e sem texto adicional.'
 
 
@@ -30,18 +31,36 @@ def configuration(environ=None):
     return Path('/run/secrets/gemini_api_key'), Path('/usage/gemini-probes.sqlite3')
 
 
+@contextmanager
+def usage_connection(path):
+    try:
+        with closing(sqlite3.connect(path, timeout=USAGE_BUSY_TIMEOUT_SECONDS)) as db, db:
+            yield db
+    except sqlite3.OperationalError as error:
+        code = getattr(error, 'sqlite_errorcode', None)
+        if isinstance(code, int) and (code & 255) in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+            raise ProbeBlocked('USAGE_COUNTER_BUSY') from None
+        raise
+
+
 def reserve_attempt(path, day=None):
     day = day or datetime.now(timezone.utc).date().isoformat()
-    with closing(sqlite3.connect(path, timeout=2)) as db, db:
+    with usage_connection(path) as db:
         db.execute('PRAGMA synchronous=FULL')
         db.execute('CREATE TABLE IF NOT EXISTS attempts(day TEXT PRIMARY KEY, used INTEGER NOT NULL)')
         db.execute('BEGIN IMMEDIATE')
         row = db.execute('SELECT used FROM attempts WHERE day=?', (day,)).fetchone()
         used = row[0] if row else 0
+        validate_counter(used)
         if used >= DAILY_ATTEMPTS:
             raise ProbeBlocked('DAILY_PROBE_LIMIT')
         db.execute('INSERT INTO attempts VALUES (?,1) ON CONFLICT(day) DO UPDATE SET used=used+1', (day,))
     return used + 1
+
+
+def validate_counter(used):
+    if type(used) is not int or not 0 <= used <= DAILY_ATTEMPTS:
+        raise ProbeBlocked('INVALID_DAILY_COUNTER')
 
 
 async def run_adk(api_key):

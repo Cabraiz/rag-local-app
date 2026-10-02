@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 import httpx2
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
-from .atlassian_lab import BoundedStream, McpBlocked, CLOUD_ID, EMAIL
+from .atlassian_lab import BoundedStream, McpBlocked, CLOUD_ID, EMAIL, parse_rpc
 from .github_lab import safe_error
 
 ENDPOINTS={'github':'https://api.githubcopilot.com/mcp/x/pull_requests/readonly','jira':'https://mcp.atlassian.com/v2/mcp'}
@@ -41,12 +41,14 @@ class FeedTransport(httpx2.AsyncBaseTransport):
         if request.method=='POST':
             raw=await request.aread()
             if len(raw)>16384:raise McpBlocked('REQUEST_TOO_LARGE')
-            value=json.loads(raw);method=value.get('method')
-            if value.get('jsonrpc')!='2.0':raise McpBlocked('INVALID_RPC')
+            value=parse_rpc(raw);method=value['method']
             if method=='tools/call':
                 self.calls+=1
                 if self.calls>MAX_PAGES:raise McpBlocked('TOOL_CALL_BUDGET')
-                params=value.get('params',{});args=params.get('arguments',{})
+                params=value.get('params',{})
+                if not isinstance(params,dict):raise McpBlocked('INVALID_RPC')
+                args=params.get('arguments',{})
+                if not isinstance(args,dict):raise McpBlocked('ARGUMENTS_NOT_AUTHORIZED')
                 if params.get('name')!=TOOLS[self.provider]:raise McpBlocked('TOOL_NOT_AUTHORIZED')
                 if args!=arguments(self.provider,args.get('page',1),args.get('nextPageToken')) or set(params)-{'name','arguments','_meta'} or params.get('_meta') not in (None,{}):raise McpBlocked('ARGUMENTS_NOT_AUTHORIZED')
             elif method not in {'initialize','notifications/initialized','tools/list','notifications/cancelled'}:raise McpBlocked('METHOD_NOT_AUTHORIZED')
