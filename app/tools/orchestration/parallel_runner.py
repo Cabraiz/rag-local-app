@@ -89,6 +89,7 @@ O supervisor entrega um callback terminal à Central automaticamente. Não mande
             "lane": lane["id"], "title": lane["title"], "worktree": lane["worktree"],
             "branch": lane["branch"], "base_sha": base, "codex": str(Path(codex).resolve()),
             "parent_thread": manifest["central_thread"], "run_dir": str(directory),
+            "canonical_root": str(root),
             "model": manifest["model"], "reasoning_effort": manifest["reasoning_effort"],
             "service_tier": manifest["service_tier"], "assigned_cards": len(assigned)})
     write_json(state / "progress.json", {"status": "waiting_executors", "startedAt": now(),
@@ -126,6 +127,7 @@ def run(job_path):
                "-c", f'service_tier="{job["service_tier"]}"', "--enable", "fast_mode",
                "-c", 'approval_policy="never"', "--sandbox", "workspace-write",
                "-c", "sandbox_workspace_write.network_access=false", "--cd", str(worktree),
+               "--add-dir", str(Path(job["canonical_root"]) / ".git"),
                "--output-last-message", str(state / "last-message.txt"), "-"]
     terminal_event, exit_code, error_type = None, None, None
     try:
