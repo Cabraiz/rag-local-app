@@ -13,6 +13,7 @@ APP = _workspace_root / "app"
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 import secrets
 import subprocess
 import time
@@ -22,7 +23,8 @@ import rag_fixture as rag
 import http_fixture as base
 import current_queue_fixture as qa
 
-base.COMPOSE[3]='rag-local-qa-observability-20261001'
+PROJECT='rag-local-qa-observability-20261001'
+base.COMPOSE[base.COMPOSE.index('-p')+1]=PROJECT
 
 base.COMPOSE += ['-f',str(base.ROOT/'infrastructure/compose/observability/compose.observability.yaml')]
 ACTIVE_FOLDER=None
@@ -93,7 +95,8 @@ def collector_has_no_host_bindings():
         return False
     for field in ('HostConfig.PortBindings','NetworkSettings.Ports'):
         result=subprocess.run(['docker','inspect',container,'--format','{{json .'+field+'}}'],
-            capture_output=True,text=True,timeout=15,check=True)
+            capture_output=True,text=True,timeout=15,check=True,shell=False,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
         if not unbound_ports(json.loads(result.stdout)):
             return False
     return True
@@ -179,7 +182,7 @@ def main():
     sources=frozen(); seeds=[secrets.randbits(32) for _ in range(2)]
     contract=dict(scope='actual_local_otel_collector_SQL_HTTP_ADK_outage',independent_blind=False,
                   seeds=seeds,sources_sha256=sources,oracle_frozen_before_inputs=True,
-                  isolated_project=base.COMPOSE[3],endpoint=base.BASE,current_roles=True,cloud_calls=0)
+                  isolated_project=PROJECT,endpoint=base.BASE,current_roles=True,cloud_calls=0)
     (folder/'contract.json').write_text(json.dumps(contract,indent=2),encoding='utf8')
     rounds=[]; streak=0; error=None
     try:

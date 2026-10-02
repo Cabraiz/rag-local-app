@@ -58,7 +58,11 @@ def publish_one():
 
 class Consumer:
     def __init__(self):
-        self.conn=connection(); self.ch=channel(self.conn); self.had_delivery=False
+        self.conn=connection(); self.had_delivery=False
+        try:
+            self.ch=channel(self.conn)
+        except Exception:
+            self.close(); raise
 
     def poll(self):
         method,_,body=self.ch.basic_get(queue=QUEUE,auto_ack=False)

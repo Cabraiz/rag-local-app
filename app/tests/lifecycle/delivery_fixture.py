@@ -18,7 +18,8 @@ import time
 import http_fixture as base
 import current_queue_fixture as qa
 
-base.COMPOSE[3]='rag-local-qa-delivery-20261001'
+PROJECT='rag-local-qa-delivery-20261001'
+base.COMPOSE[base.COMPOSE.index('-p')+1]=PROJECT
 
 base.COMPOSE += ['-f',str(base.ROOT/'infrastructure/compose/runtime/compose.delivery.yaml')]
 ACTIVE_FOLDER=None
@@ -132,7 +133,7 @@ def main():
     sources=frozen(); seeds=[secrets.randbits(32) for _ in range(2)]
     contract=dict(scope='actual_HTTP_SQL_inbox_request_retention_byte_quota_process_restart',independent_blind=False,
                   seeds=seeds,sources_sha256=sources,oracle_frozen_before_inputs=True,external_broker=False,
-                  isolated_project=base.COMPOSE[3],endpoint=base.BASE,current_roles=True,cloud_calls=0)
+                  isolated_project=PROJECT,endpoint=base.BASE,current_roles=True,cloud_calls=0)
     (folder/'contract.json').write_text(json.dumps(contract,indent=2),encoding='utf8')
     rounds=[]; streak=0; error=None
     try:
