@@ -1,0 +1,731 @@
+{
+  "schema_version": 1,
+  "fictional": true,
+  "notice": "Catalogo demonstrativo, sem codigos clinicos oficiais ou dados de pacientes.",
+  "exams": [
+    {
+      "code": "FICT-001",
+      "name": "Hemograma completo",
+      "aliases": [
+        "Hemograma"
+      ],
+      "evidence": "Ficha ficticia 001: Hemograma completo; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-002",
+      "name": "Glicemia de jejum",
+      "aliases": [
+        "Glicose em jejum"
+      ],
+      "evidence": "Ficha ficticia 002: Glicemia de jejum; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-003",
+      "name": "Hemoglobina glicada",
+      "aliases": [],
+      "evidence": "Ficha ficticia 003: Hemoglobina glicada; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-004",
+      "name": "Ureia",
+      "aliases": [],
+      "evidence": "Ficha ficticia 004: Ureia; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-005",
+      "name": "Creatinina",
+      "aliases": [],
+      "evidence": "Ficha ficticia 005: Creatinina; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-006",
+      "name": "Colesterol total",
+      "aliases": [],
+      "evidence": "Ficha ficticia 006: Colesterol total; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-007",
+      "name": "Colesterol HDL",
+      "aliases": [],
+      "evidence": "Ficha ficticia 007: Colesterol HDL; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-008",
+      "name": "Colesterol LDL",
+      "aliases": [],
+      "evidence": "Ficha ficticia 008: Colesterol LDL; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-009",
+      "name": "Triglicerideos",
+      "aliases": [],
+      "evidence": "Ficha ficticia 009: Triglicerideos; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-010",
+      "name": "Acido urico",
+      "aliases": [],
+      "evidence": "Ficha ficticia 010: Acido urico; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-011",
+      "name": "Sodio",
+      "aliases": [],
+      "evidence": "Ficha ficticia 011: Sodio; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-012",
+      "name": "Potassio",
+      "aliases": [],
+      "evidence": "Ficha ficticia 012: Potassio; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-013",
+      "name": "Calcio total",
+      "aliases": [],
+      "evidence": "Ficha ficticia 013: Calcio total; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-014",
+      "name": "Calcio ionizado",
+      "aliases": [],
+      "evidence": "Ficha ficticia 014: Calcio ionizado; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-015",
+      "name": "Magnesio",
+      "aliases": [],
+      "evidence": "Ficha ficticia 015: Magnesio; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-016",
+      "name": "Fosforo",
+      "aliases": [],
+      "evidence": "Ficha ficticia 016: Fosforo; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-017",
+      "name": "Ferro serico",
+      "aliases": [],
+      "evidence": "Ficha ficticia 017: Ferro serico; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-018",
+      "name": "Ferritina",
+      "aliases": [],
+      "evidence": "Ficha ficticia 018: Ferritina; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-019",
+      "name": "Transferrina",
+      "aliases": [],
+      "evidence": "Ficha ficticia 019: Transferrina; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-020",
+      "name": "Capacidade de ligacao do ferro",
+      "aliases": [],
+      "evidence": "Ficha ficticia 020: Capacidade de ligacao do ferro; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-021",
+      "name": "Vitamina B12",
+      "aliases": [],
+      "evidence": "Ficha ficticia 021: Vitamina B12; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-022",
+      "name": "Acido folico",
+      "aliases": [],
+      "evidence": "Ficha ficticia 022: Acido folico; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-023",
+      "name": "Vitamina D",
+      "aliases": [],
+      "evidence": "Ficha ficticia 023: Vitamina D; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-024",
+      "name": "TSH",
+      "aliases": [],
+      "evidence": "Ficha ficticia 024: TSH; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-025",
+      "name": "T4 livre",
+      "aliases": [],
+      "evidence": "Ficha ficticia 025: T4 livre; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-026",
+      "name": "T3 livre",
+      "aliases": [],
+      "evidence": "Ficha ficticia 026: T3 livre; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-027",
+      "name": "T4 total",
+      "aliases": [],
+      "evidence": "Ficha ficticia 027: T4 total; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-028",
+      "name": "T3 total",
+      "aliases": [],
+      "evidence": "Ficha ficticia 028: T3 total; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-029",
+      "name": "Insulina",
+      "aliases": [],
+      "evidence": "Ficha ficticia 029: Insulina; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-030",
+      "name": "Peptideo C",
+      "aliases": [],
+      "evidence": "Ficha ficticia 030: Peptideo C; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-031",
+      "name": "Cortisol",
+      "aliases": [],
+      "evidence": "Ficha ficticia 031: Cortisol; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-032",
+      "name": "ACTH",
+      "aliases": [],
+      "evidence": "Ficha ficticia 032: ACTH; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-033",
+      "name": "Prolactina",
+      "aliases": [],
+      "evidence": "Ficha ficticia 033: Prolactina; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-034",
+      "name": "FSH",
+      "aliases": [],
+      "evidence": "Ficha ficticia 034: FSH; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-035",
+      "name": "LH",
+      "aliases": [],
+      "evidence": "Ficha ficticia 035: LH; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-036",
+      "name": "Estradiol",
+      "aliases": [],
+      "evidence": "Ficha ficticia 036: Estradiol; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-037",
+      "name": "Progesterona",
+      "aliases": [],
+      "evidence": "Ficha ficticia 037: Progesterona; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-038",
+      "name": "Testosterona total",
+      "aliases": [],
+      "evidence": "Ficha ficticia 038: Testosterona total; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-039",
+      "name": "Testosterona livre",
+      "aliases": [],
+      "evidence": "Ficha ficticia 039: Testosterona livre; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-040",
+      "name": "SHBG",
+      "aliases": [],
+      "evidence": "Ficha ficticia 040: SHBG; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-041",
+      "name": "DHEA sulfato",
+      "aliases": [],
+      "evidence": "Ficha ficticia 041: DHEA sulfato; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-042",
+      "name": "Androstenediona",
+      "aliases": [],
+      "evidence": "Ficha ficticia 042: Androstenediona; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-043",
+      "name": "Paratormonio",
+      "aliases": [],
+      "evidence": "Ficha ficticia 043: Paratormonio; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-044",
+      "name": "Calcitonina",
+      "aliases": [],
+      "evidence": "Ficha ficticia 044: Calcitonina; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-045",
+      "name": "IGF-1",
+      "aliases": [],
+      "evidence": "Ficha ficticia 045: IGF-1; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-046",
+      "name": "Hormonio do crescimento",
+      "aliases": [],
+      "evidence": "Ficha ficticia 046: Hormonio do crescimento; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-047",
+      "name": "Beta HCG",
+      "aliases": [],
+      "evidence": "Ficha ficticia 047: Beta HCG; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-048",
+      "name": "PSA total",
+      "aliases": [],
+      "evidence": "Ficha ficticia 048: PSA total; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-049",
+      "name": "PSA livre",
+      "aliases": [],
+      "evidence": "Ficha ficticia 049: PSA livre; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-050",
+      "name": "CEA",
+      "aliases": [],
+      "evidence": "Ficha ficticia 050: CEA; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-051",
+      "name": "CA 125",
+      "aliases": [],
+      "evidence": "Ficha ficticia 051: CA 125; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-052",
+      "name": "CA 19-9",
+      "aliases": [],
+      "evidence": "Ficha ficticia 052: CA 19-9; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-053",
+      "name": "CA 15-3",
+      "aliases": [],
+      "evidence": "Ficha ficticia 053: CA 15-3; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-054",
+      "name": "Alfa fetoproteina",
+      "aliases": [],
+      "evidence": "Ficha ficticia 054: Alfa fetoproteina; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-055",
+      "name": "AST",
+      "aliases": [],
+      "evidence": "Ficha ficticia 055: AST; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-056",
+      "name": "ALT",
+      "aliases": [],
+      "evidence": "Ficha ficticia 056: ALT; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-057",
+      "name": "Gama GT",
+      "aliases": [],
+      "evidence": "Ficha ficticia 057: Gama GT; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-058",
+      "name": "Fosfatase alcalina",
+      "aliases": [],
+      "evidence": "Ficha ficticia 058: Fosfatase alcalina; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-059",
+      "name": "Bilirrubina total",
+      "aliases": [],
+      "evidence": "Ficha ficticia 059: Bilirrubina total; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-060",
+      "name": "Bilirrubina direta",
+      "aliases": [],
+      "evidence": "Ficha ficticia 060: Bilirrubina direta; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-061",
+      "name": "Bilirrubina indireta",
+      "aliases": [],
+      "evidence": "Ficha ficticia 061: Bilirrubina indireta; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-062",
+      "name": "Albumina",
+      "aliases": [],
+      "evidence": "Ficha ficticia 062: Albumina; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-063",
+      "name": "Proteinas totais",
+      "aliases": [],
+      "evidence": "Ficha ficticia 063: Proteinas totais; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-064",
+      "name": "LDH",
+      "aliases": [],
+      "evidence": "Ficha ficticia 064: LDH; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-065",
+      "name": "Amilase",
+      "aliases": [],
+      "evidence": "Ficha ficticia 065: Amilase; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-066",
+      "name": "Lipase",
+      "aliases": [],
+      "evidence": "Ficha ficticia 066: Lipase; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-067",
+      "name": "Creatinoquinase",
+      "aliases": [],
+      "evidence": "Ficha ficticia 067: Creatinoquinase; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-068",
+      "name": "CK MB",
+      "aliases": [],
+      "evidence": "Ficha ficticia 068: CK MB; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-069",
+      "name": "Troponina I",
+      "aliases": [],
+      "evidence": "Ficha ficticia 069: Troponina I; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-070",
+      "name": "BNP",
+      "aliases": [],
+      "evidence": "Ficha ficticia 070: BNP; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-071",
+      "name": "Proteina C reativa",
+      "aliases": [],
+      "evidence": "Ficha ficticia 071: Proteina C reativa; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-072",
+      "name": "Velocidade de hemossedimentacao",
+      "aliases": [],
+      "evidence": "Ficha ficticia 072: Velocidade de hemossedimentacao; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-073",
+      "name": "Fator reumatoide",
+      "aliases": [],
+      "evidence": "Ficha ficticia 073: Fator reumatoide; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-074",
+      "name": "Anti CCP",
+      "aliases": [],
+      "evidence": "Ficha ficticia 074: Anti CCP; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-075",
+      "name": "FAN",
+      "aliases": [],
+      "evidence": "Ficha ficticia 075: FAN; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-076",
+      "name": "Anti DNA",
+      "aliases": [],
+      "evidence": "Ficha ficticia 076: Anti DNA; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-077",
+      "name": "Complemento C3",
+      "aliases": [],
+      "evidence": "Ficha ficticia 077: Complemento C3; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-078",
+      "name": "Complemento C4",
+      "aliases": [],
+      "evidence": "Ficha ficticia 078: Complemento C4; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-079",
+      "name": "IgA",
+      "aliases": [],
+      "evidence": "Ficha ficticia 079: IgA; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-080",
+      "name": "IgG",
+      "aliases": [],
+      "evidence": "Ficha ficticia 080: IgG; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-081",
+      "name": "IgM",
+      "aliases": [],
+      "evidence": "Ficha ficticia 081: IgM; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-082",
+      "name": "IgE total",
+      "aliases": [],
+      "evidence": "Ficha ficticia 082: IgE total; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-083",
+      "name": "Tempo de protrombina",
+      "aliases": [],
+      "evidence": "Ficha ficticia 083: Tempo de protrombina; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-084",
+      "name": "Tempo de tromboplastina parcial",
+      "aliases": [],
+      "evidence": "Ficha ficticia 084: Tempo de tromboplastina parcial; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-085",
+      "name": "Fibrinogenio",
+      "aliases": [],
+      "evidence": "Ficha ficticia 085: Fibrinogenio; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-086",
+      "name": "Dimero D",
+      "aliases": [],
+      "evidence": "Ficha ficticia 086: Dimero D; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-087",
+      "name": "Antitrombina",
+      "aliases": [],
+      "evidence": "Ficha ficticia 087: Antitrombina; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-088",
+      "name": "Proteina C",
+      "aliases": [],
+      "evidence": "Ficha ficticia 088: Proteina C; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-089",
+      "name": "Proteina S",
+      "aliases": [],
+      "evidence": "Ficha ficticia 089: Proteina S; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-090",
+      "name": "Urina tipo I",
+      "aliases": [],
+      "evidence": "Ficha ficticia 090: Urina tipo I; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-091",
+      "name": "Urocultura",
+      "aliases": [],
+      "evidence": "Ficha ficticia 091: Urocultura; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-092",
+      "name": "Proteinuria de 24 horas",
+      "aliases": [],
+      "evidence": "Ficha ficticia 092: Proteinuria de 24 horas; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-093",
+      "name": "Microalbuminuria",
+      "aliases": [],
+      "evidence": "Ficha ficticia 093: Microalbuminuria; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-094",
+      "name": "Clearance de creatinina",
+      "aliases": [],
+      "evidence": "Ficha ficticia 094: Clearance de creatinina; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-095",
+      "name": "Parasitologico de fezes",
+      "aliases": [],
+      "evidence": "Ficha ficticia 095: Parasitologico de fezes; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-096",
+      "name": "Sangue oculto nas fezes",
+      "aliases": [],
+      "evidence": "Ficha ficticia 096: Sangue oculto nas fezes; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-097",
+      "name": "Coprocultura",
+      "aliases": [],
+      "evidence": "Ficha ficticia 097: Coprocultura; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-098",
+      "name": "Calprotectina fecal",
+      "aliases": [],
+      "evidence": "Ficha ficticia 098: Calprotectina fecal; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-099",
+      "name": "Elastase fecal",
+      "aliases": [],
+      "evidence": "Ficha ficticia 099: Elastase fecal; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-100",
+      "name": "Pesquisa de rotavirus",
+      "aliases": [],
+      "evidence": "Ficha ficticia 100: Pesquisa de rotavirus; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-101",
+      "name": "Pesquisa de adenovirus",
+      "aliases": [],
+      "evidence": "Ficha ficticia 101: Pesquisa de adenovirus; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-102",
+      "name": "HIV antigeno e anticorpos",
+      "aliases": [],
+      "evidence": "Ficha ficticia 102: HIV antigeno e anticorpos; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-103",
+      "name": "HBsAg",
+      "aliases": [],
+      "evidence": "Ficha ficticia 103: HBsAg; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-104",
+      "name": "Anti HBs",
+      "aliases": [],
+      "evidence": "Ficha ficticia 104: Anti HBs; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-105",
+      "name": "Anti HBc total",
+      "aliases": [],
+      "evidence": "Ficha ficticia 105: Anti HBc total; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-106",
+      "name": "Anti HCV",
+      "aliases": [],
+      "evidence": "Ficha ficticia 106: Anti HCV; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-107",
+      "name": "VDRL",
+      "aliases": [],
+      "evidence": "Ficha ficticia 107: VDRL; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-108",
+      "name": "FTA ABS",
+      "aliases": [],
+      "evidence": "Ficha ficticia 108: FTA ABS; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-109",
+      "name": "Toxoplasmose IgG",
+      "aliases": [],
+      "evidence": "Ficha ficticia 109: Toxoplasmose IgG; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-110",
+      "name": "Toxoplasmose IgM",
+      "aliases": [],
+      "evidence": "Ficha ficticia 110: Toxoplasmose IgM; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-111",
+      "name": "Rubeola IgG",
+      "aliases": [],
+      "evidence": "Ficha ficticia 111: Rubeola IgG; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-112",
+      "name": "Rubeola IgM",
+      "aliases": [],
+      "evidence": "Ficha ficticia 112: Rubeola IgM; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-113",
+      "name": "Citomegalovirus IgG",
+      "aliases": [],
+      "evidence": "Ficha ficticia 113: Citomegalovirus IgG; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-114",
+      "name": "Citomegalovirus IgM",
+      "aliases": [],
+      "evidence": "Ficha ficticia 114: Citomegalovirus IgM; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-115",
+      "name": "Dengue NS1",
+      "aliases": [],
+      "evidence": "Ficha ficticia 115: Dengue NS1; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-116",
+      "name": "Dengue IgG",
+      "aliases": [],
+      "evidence": "Ficha ficticia 116: Dengue IgG; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-117",
+      "name": "Dengue IgM",
+      "aliases": [],
+      "evidence": "Ficha ficticia 117: Dengue IgM; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-118",
+      "name": "Chagas IgG",
+      "aliases": [],
+      "evidence": "Ficha ficticia 118: Chagas IgG; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-119",
+      "name": "Sifilis anticorpos totais",
+      "aliases": [],
+      "evidence": "Ficha ficticia 119: Sifilis anticorpos totais; identificador de demonstracao, sem significado clinico oficial."
+    },
+    {
+      "code": "FICT-120",
+      "name": "Covid antigeno",
+      "aliases": [],
+      "evidence": "Ficha ficticia 120: Covid antigeno; identificador de demonstracao, sem significado clinico oficial."
+    }
+  ]
+}

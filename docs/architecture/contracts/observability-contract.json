@@ -1,0 +1,8 @@
+{
+  "card_id":"RAG-09",
+  "scope":"synthetic_local_operational_profile_not_production",
+  "expected":["official pinned OpenTelemetry collector receives actual workflow traces and scrapes SQL-derived aggregate metrics", "export boundary drops all ADK/provider spans except explicitly named application spans", "no prompts, contents, tokens, actor or tenant attributes exported", "stale worker heartbeat produces a deduplicated structured alert", "collector outage must not block durable terminal commit"],
+  "forbidden":["raw exception messages in telemetry", "public telemetry ports", "unbounded SDK export queue", "external telemetry egress", "claiming an HA monitoring backend"],
+  "limits":{"span_queue":256,"span_batch":32,"export_timeout_seconds":0.5,"trace_rotation_megabytes":5,"trace_backups":2,"worker_stale_seconds":15},
+  "minimal_proof":"two frozen-source real collector, HTTP, SQL, redaction and outage rounds"
+}

@@ -1,0 +1,7 @@
+FROM rag-local-resilience:0.1.0
+USER root
+COPY infrastructure/dependencies/integrations/mcp-requirements.lock /tmp/mcp-requirements.lock
+RUN pip install --no-cache-dir --only-binary=:all: --no-deps --require-hashes -r /tmp/mcp-requirements.lock && pip check
+RUN mkdir -p /syncdata && chown 10001:10001 /syncdata
+USER 10001:10001
+CMD ["python", "-m", "uvicorn", "rag_app.feed_server:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log", "--log-level", "error"]

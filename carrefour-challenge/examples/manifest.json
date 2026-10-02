@@ -1,0 +1,18 @@
+{
+  "fictional": true,
+  "sha256": {
+    "agent-variant.json": "96638c39f535b0d97f2fdff5dfbf6460c520143f51e9249d9098c0e61f5ff7ed",
+    "agent-variant.json.py": "b5499472022627a3bd23e31e58d63c25e1c6bb57abbbc22c84afe16edc295c48",
+    "agent.json": "75e1616a1879f5afc52e8a1de920df394f4b22728a03db7cf39e757a7e1ed3e4",
+    "agent.json.py": "f8f5aacb262684604882562ea6b06f1c10c00bc09de0629ba4f381db3ddcdac0",
+    "agent.schema.json": "af9e23acff5290873975ccd815a59aa1a532d507d69987138378fb4b8ecbcdd5",
+    "blank.png": "cc0c648721063ad0a794d9c187f5cd9997192daf33a5eba4ebfb2423fbfbac81",
+    "corrupt.png": "5464533c9647b67eb320c40ccc5959537c09102ae75388f6a7675b433e745c9d",
+    "injection.png": "87d902353e8e14aa9e69102f9bc3f7aa071858777322e34d5a99d3ea6777d179",
+    "openapi.json": "2668000f49c8a9317ab4fc9588e490d37dc7ac226b69b6c7b165c961332d3ca6",
+    "pii_as_exam.png": "da6fe5b49214630c8af8f71dc0a4dcc5f162ad9c7bb748a78d2f1461e8989af8",
+    "request.png": "ffc4d42148949df88ceb398e5905a6c0b23e697faf82d6215a959e27c010e1ff",
+    "unknown.png": "74ac14b2f0e336be1c531b1df10f686908772da976c1b92d062614ede1434070",
+    "variant.png": "e5c5953d0b646f174eba422b1224310b2d103f9ad3180869ec317b7d6cc87936"
+  }
+}

@@ -1,0 +1,7 @@
+# Defaults scoped to this newly versioned project; existing unrelated chats are unchanged.
+model = "gpt-6.1-sol"
+model_reasoning_effort = "max"
+service_tier = "fast"
+
+[features]
+fast_mode = true

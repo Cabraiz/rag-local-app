@@ -1,0 +1,9 @@
+[project]
+name = "rag-local"
+version = "0.1.0"
+requires-python = ">=3.12,<3.14"
+description = "First vertical slice: durable request lifecycle; not a production release"
+dependencies = ["google-adk==2.10.0", "fastapi==0.141.1", "uvicorn==0.54.0", "psycopg[binary]==3.3.6", "PyJWT==2.15.1", "pypdf==6.19.0"]
+
+[tool.ruff]
+line-length = 110

@@ -1,0 +1,6 @@
+# Never add this override to the main runtime.
+services:
+  grafana:
+    ports: !override [127.0.0.1:8950:3000]
+  worker:
+    deploy: {replicas: 1}

@@ -1,0 +1,43 @@
+# Lab telemetry only. Collector has no ports, secrets or external network.
+services:
+  api:
+    environment:
+      RAG_OBSERVABILITY: local_lab
+    volumes: [telemetrydata:/telemetry:ro]
+  worker:
+    environment:
+      RAG_OBSERVABILITY: local_lab
+  control:
+    environment:
+      RAG_OBSERVABILITY: local_lab
+  telemetry-init:
+    image: rag-local-backend:0.1.0
+    user: "0:0"
+    command: [python, -c, "import os; os.chown('/telemetry',10001,10001); os.chmod('/telemetry',0o700)"]
+    volumes: [telemetrydata:/telemetry]
+    network_mode: none
+    restart: "no"
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 64m
+    cpus: 0.25
+  collector:
+    image: otel/opentelemetry-collector-contrib@sha256:0fba96233274f6d665ac8831ad99dfe6479a9a20459f6e2719c0d20945773b46
+    user: "10001:10001"
+    command: [--config=/etc/rag-otel.yaml]
+    volumes: [./monitoring/collector/otel-collector.yaml:/etc/rag-otel.yaml:ro, telemetrydata:/telemetry]
+    networks: [data]
+    depends_on:
+      telemetry-init: {condition: service_completed_successfully}
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 192m
+    cpus: 0.5
+    pids_limit: 64
+    logging: {driver: json-file, options: {max-size: 5m, max-file: "3"}}
+volumes:
+  telemetrydata: {}

@@ -1,0 +1,6 @@
+Pedido: integrar o RAG empresarial existente com Google ADK.
+Esperado: projeto isolado no D:, SDK Google ADK real com versao fixa, workflow em grafo, servicos de RAG substituiveis, gates deterministas, logs sem prompts/evidencias, observador sem escrita e testes reais no Runner.
+Proibido: transformar session.state em ledger duravel de pedidos; encaminhar tokens/deltas de resposta antes da validacao e commit; abrir aprovacao humana; expor endpoint; enviar documentos a Google/Gemini/servicos externos; declarar 100 mil usuarios ou backend real a partir de fixtures.
+Prova minima: importar o SDK instalado, executar workflow via Runner sem chave/API remota, comprovar ordem retrieval/politica/composicao/verificacao/reautorizacao/commit/entrega e caminhos deny/outage/falhas, com artefato de testes e dependencias fixas.
+Escopo desta implementacao: camada ADK funcional e adaptadores locais de laboratorio com fixtures sinteticas. Qdrant/LLM privado/PostgreSQL/RabbitMQ reais exigem adaptadores e ensaios de integracao antes de habilitar corpus real.
+Decisao: SDK na virtualenv D:\RAG-Local\adk\.venv; cache e arquivos de teste em D:. Sem instalacao global, deploy, chave cloud ou servidor em background.

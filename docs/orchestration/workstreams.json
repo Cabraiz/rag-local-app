@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "central_thread": "01a0eed2-991f-7220-9c09-f2d131682f39",
+  "canonical_root": "D:/RAG-Local",
+  "model": "gpt-6.1-sol",
+  "reasoning_effort": "max",
+  "service_tier": "fast",
+  "user_confirmed_fast": true,
+  "canonical_journal_writer": "central_only",
+  "lanes": [
+    {
+      "id": "corpus",
+      "title": "RAG · Corpus, ingestão e recuperação",
+      "branch": "codex/rag-corpus",
+      "worktree": "D:/RAG-Worktrees/corpus",
+      "root_cards": ["RAG-05", "RAG-06", "RAG-16"],
+      "allowlist": ["app/src/rag_app/retrieval/", "app/src/rag_app/domain/", "app/semantic/", "app/tests/documents/", "app/tests/rag/", "app/tests/semantic/", "app/tests/assistant/", "app/tools/ingestion/demo_seed.py", "app/tools/ingestion/publish_meal_policy.py", "app/tools/ingestion/download_public_embedding.py", "eval/datasets/", "docs/orchestration/results/corpus/"],
+      "objective": "Revalidar ingestão, versões, revogação, isolamento, recuperação semântica, abstenção e regras de alimentação. Corrigir bugs reais com regressões e preservar os oráculos originais."
+    },
+    {
+      "id": "providers",
+      "title": "RAG · ADK, Gemini, MCP e avaliações",
+      "branch": "codex/rag-providers",
+      "worktree": "D:/RAG-Worktrees/providers",
+      "root_cards": ["RAG-01", "RAG-02", "RAG-03", "RAG-04", "RAG-07", "RAG-08", "RAG-14"],
+      "allowlist": ["app/src/rag_app/models/", "app/src/rag_app/integrations/", "app/advanced/", "app/tests/gemini/", "app/tests/provider/", "app/tests/mcp/", "app/tests/github/", "app/tests/atlassian/", "app/tools/ingestion/publish_mcp_evidence.py", "docs/orchestration/results/providers/"],
+      "objective": "Revalidar contratos offline do ADK/Gemini/MCP, segurança e contabilidade, DeepAgents e DeepEval; corrigir regressões. Preparar lista exata dos gates online para a Central sem acessar credenciais nem chamar providers. Vertex pago continua proibido."
+    },
+    {
+      "id": "runtime",
+      "title": "RAG · Resiliência, entrega e observabilidade",
+      "branch": "codex/rag-runtime",
+      "worktree": "D:/RAG-Worktrees/runtime",
+      "root_cards": ["RAG-09", "RAG-10", "RAG-12", "RAG-13"],
+      "exclude_cards": ["BUG-020", "BUG-033", "BUG-040"],
+      "allowlist": ["app/src/rag_app/runtime/", "app/src/rag_app/persistence/", "app/infrastructure/", "app/monitoring/", "app/tests/resilience/", "app/tests/lifecycle/", "app/tests/observability/", "app/tests/security/sdk_logging_fixture.py", "app/tools/runtime/", "docs/orchestration/results/runtime/"],
+      "objective": "Revalidar limites, admissão, idempotência, leases, recuperação, outbox/inbox, cache, broker, tracing e métricas. Corrigir falhas reproduzíveis com duas rodadas offline; preparar testes reais isolados sem interromper os containers ativos nem alegar HA ou 100 mil workflows sem prova."
+    },
+    {
+      "id": "carrefour",
+      "title": "Carrefour · Desafio, segurança e testes",
+      "branch": "codex/carrefour",
+      "worktree": "D:/RAG-Worktrees/carrefour",
+      "root_card_prefix": "CF-",
+      "allowlist": ["carrefour-challenge/", "docs/orchestration/results/carrefour/"],
+      "objective": "Revalidar todos os requisitos do desafio e regressões CF: transpilador, ADK, OCR/RAG MCP, PII, Swagger, CLI e idempotência. Rodar testes offline adversariais, corrigir bugs e repetir duas rodadas com fontes congeladas. Preparar gates Docker/Playwright separados para a Central."
+    }
+  ],
+  "central_only": ["RAG-11", "RAG-15", "BUG-016", "BUG-020", "BUG-033", "BUG-040"],
+  "shared_files_owner": "central",
+  "shared_files": ["AGENTS.md", ".gitignore", ".codex/", "README.md", "app/workspace.py", "app/manage.py", "app/src/rag_app/__init__.py", "app/src/rag_app/entrypoints/", "frontend/", "app/tests/shared/", "app/tests/cards/", "app/tests/receipts/", "app/tools/cards/", "app/tools/revalidation/", "app/tools/organization/", "app/tools/orchestration/", "docs/cards/", "docs/challenges/", "docs/orchestration/acceptance.md", "docs/orchestration/workstreams.json"]
+}

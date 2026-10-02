@@ -1,0 +1,6 @@
+{
+  "name": "clinic-offline-swagger-assets",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {"swagger-ui-dist": "5.33.1"}
+}

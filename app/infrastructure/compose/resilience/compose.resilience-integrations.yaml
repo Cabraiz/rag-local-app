@@ -1,0 +1,8 @@
+services:
+  integration-gateway:
+    image: rag-local-integrations-resilience:0.1.0
+    build: {context: ., dockerfile: infrastructure/images/integrations/Dockerfile.integrations.resilience}
+    environment: {RAG_RESILIENCE: local_lab}
+    secrets: [db_app]
+    networks: [data]
+    depends_on: {migrate: {condition: service_completed_successfully}}

@@ -1,0 +1,27 @@
+# Optional SDK lab only. No ports, MCP credentials, paid fallback or default chat path.
+services:
+  advanced:
+    image: rag-local-advanced:0.1.0
+    build: {context: ., dockerfile: advanced/containers/Dockerfile}
+    profiles: [advanced_lab]
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=128m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    cpus: 1
+    pids_limit: 128
+    networks: [data, gemini_egress]
+    secrets: [db_app, gemini_api_key]
+    volumes: [gemini_probe_usage:/usage, taskdata:/tasks]
+    environment:
+      RAG_MODE: lab
+      RAG_GEMINI_PROBE: synthetic_only
+      RAG_GEMINI_FREE_CONFIRMED: no_billing
+      GOOGLE_GENAI_USE_VERTEXAI: "false"
+      DEEPEVAL_TELEMETRY_OPT_OUT: "YES"
+      LANGSMITH_TRACING: "false"
+    restart: "no"
+volumes:
+  taskdata: {}

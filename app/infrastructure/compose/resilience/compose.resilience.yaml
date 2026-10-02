@@ -1,0 +1,76 @@
+# One-host laboratory. No paid providers, no externally exposed broker/cache.
+services:
+  postgres:
+    # Unix-socket readiness can succeed on PostgreSQL's temporary init server.
+    # Require TCP readiness before launching migrations and other containers.
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -U rag_bootstrap -d rag]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+      start_period: 60s
+  api:
+    image: rag-local-resilience:0.1.0
+    build: {context: ., dockerfile: infrastructure/images/backend/Dockerfile.resilience}
+    environment: {RAG_RESILIENCE: local_lab}
+    secrets: [db_app, jwt_lab, cache_signing]
+  migrate:
+    image: rag-local-resilience:0.1.0
+    environment: {RAG_RESILIENCE: local_lab}
+  worker:
+    image: rag-local-resilience:0.1.0
+    environment: {RAG_RESILIENCE: local_lab}
+    secrets: [db_app, rabbitmq_password, cache_signing]
+    deploy: {replicas: 2}
+  control:
+    image: rag-local-resilience:0.1.0
+    environment: {RAG_RESILIENCE: local_lab}
+  delivery:
+    image: rag-local-resilience:0.1.0
+    environment: {RAG_RESILIENCE: local_lab}
+  relay:
+    image: rag-local-resilience:0.1.0
+    environment: {RAG_MODE: lab, RAG_RESILIENCE: local_lab}
+    command: [python, -m, rag_app.process, relay]
+    secrets: [db_app, rabbitmq_password]
+    networks: [data]
+    depends_on: {migrate: {condition: service_completed_successfully}}
+    user: "10001:10001"
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    mem_limit: 192m
+    cpus: 0.5
+    pids_limit: 64
+    logging: {driver: json-file, options: {max-size: 2m, max-file: "2"}}
+  redis:
+    image: redis@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
+    command: [redis-server, --maxmemory, 128mb, --maxmemory-policy, allkeys-lru, --save, "", --appendonly, "no"]
+    networks: [data]
+    user: "999:999"
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 192m
+    cpus: 0.5
+    healthcheck: {test: [CMD, redis-cli, ping], interval: 10s, timeout: 3s, retries: 6}
+    logging: {driver: json-file, options: {max-size: 2m, max-file: "2"}}
+  rabbitmq:
+    image: rabbitmq@sha256:628bd74c1c7e2a820bf417b32e75eed1bd8d517345d9749ee8bd4076ae393abe
+    volumes: [rabbitdata:/var/lib/rabbitmq, ./infrastructure/broker/rabbitmq-enabled-plugins:/etc/rabbitmq/enabled_plugins:ro, ./.local/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro]
+    networks: [data]
+    hostname: rag-rabbit
+    restart: unless-stopped
+    mem_limit: 768m
+    cpus: 1
+    security_opt: [no-new-privileges:true]
+    healthcheck: {test: [CMD, rabbitmq-diagnostics, -q, ping], interval: 10s, timeout: 5s, retries: 12, start_period: 20s}
+    logging: {driver: json-file, options: {max-size: 2m, max-file: "2"}}
+volumes:
+  rabbitdata: {}
+secrets:
+  rabbitmq_password: {file: .local/rabbitmq_password}
+  cache_signing: {file: .local/cache_signing}

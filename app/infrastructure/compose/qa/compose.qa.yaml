@@ -1,0 +1,4 @@
+# Exclusive local QA project; do not add this file to the live project.
+services:
+  frontend:
+    ports: !override [127.0.0.1:8940:8080]

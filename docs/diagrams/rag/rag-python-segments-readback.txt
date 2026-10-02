@@ -1,0 +1,600 @@
+title RAG Python - ADK e integracoes
+direction down
+typeface clean
+styleMode plain
+colorMode pastel
+// Mapa integrado: setas agregam transicoes entre os blocos A-I.
+// Nao representa nove microsservicos; distingue modulos e fluxo de controle.
+Mapa [color: blue, label: "0. COMUNICACAO ENTRE BLOCOS"] {
+  MA [color: blue, label: "A Entrada"]
+  MB [color: blue, label: "B Outbox e fila"]
+  MC [color: purple, label: "C ADK e RAG"]
+  MD [color: green, label: "D Validacao"]
+  ME [color: gray, label: "E Pessoa so ve logs"]
+  MF [color: orange, label: "F Recuperacao"]
+  MG [color: teal, label: "G Ingestao e corpus"]
+  MH [color: gray, label: "H Auditoria e SLO"]
+  MI [color: green, label: "I Commit e entrega"]
+  MJ [color: blue, label: "J Python e fronteiras"]
+  MK [color: orange, label: "K MCP e APIs"]
+  ML [color: purple, label: "L Modelos local/cloud"]
+  MM [color: teal, label: "M DeepAgents opcional"]
+  MN [color: green, label: "N DeepEval e testes"]
+}
+
+MA --> MI: Status
+MA > MB: Outbox
+MB > MC: Executar
+MC > MF: Politica indispon.
+MC > MD: Resposta
+MD > MI: Valida
+MD > MF: Falha
+MD > MC: Abster
+MI > MF: Retry/falha
+MA --> MF: Ledger
+MB --> MF: Lease
+MF > MB: Republicar
+MB > MI: Terminal
+MF > MI: Terminal
+MG --> MC: Snapshot
+MA --> MH: Audit
+MI --> MH: Audit
+MF --> MH: SLO
+MH --> ME: Logs/alertas
+
+
+MJ --> MC: Workflow Python
+MC --> MK: Ferramentas
+MK --> MC: Evidencias
+MC --> ML: Inferencia
+ML --> MC: Proposta
+MC --> MM: Tarefa complexa
+MM --> MC: Proposta
+MG --> MN: Candidato
+MD --> MN: Casos de regressao
+MN --> MG: Gate EVAL
+MN --> MH: Metricas
+
+// DETALHES: mesmas 53 etapas e 72 ligacoes; referencias remetem ao mapa.
+// Layout automatico; nenhuma coordenada editada manualmente.
+// Uma oval "Ir para Xn" continua no no Xn do bloco X.
+// Fonte completa: workflow-rag-eraser.txt; semantica preservada no manifesto.
+
+BlocoA [color: blue, label: "A. Entrada"] {
+  Cliente [shape: oval, label: "A1 Cliente"]
+  Gateway [label: "A2 Autenticar"]
+  Seguranca [shape: diamond, label: "A3 Entrada valida?"]
+  Invalido [shape: oval, color: red, label: "A4 Rejeitar entrada"]
+  Dedup [shape: diamond, label: "A5 Chave existente?"]
+  Existente [label: "A6 Mesmo pedido"]
+  Conflito [shape: oval, color: red, label: "A7 Conflito 409"]
+  Reserva [label: "A8 Reservar quota"]
+  Capacidade [shape: diamond, label: "A9 Ha capacidade?"]
+  Recusa [shape: oval, color: red, label: "A10 Recusar 429/503"]
+  Ledger [shape: cylinder, label: "A11 Commit de admissao"]
+  Recibo [shape: oval, label: "A12 Recibo 202"]
+  Ref008 [shape: oval, color: gray, label: "Ir para I5"]
+  Ref013 [shape: oval, color: gray, label: "Ir para B1"]
+  Ref043 [shape: oval, color: gray, label: "Ir para I5"]
+  Ref044 [shape: oval, color: gray, label: "Ir para F1"]
+  Ref065 [shape: oval, color: gray, label: "Ir para H1"]
+}
+
+  Cliente > Gateway
+  Gateway > Seguranca
+  Seguranca > Dedup: Sim
+  Seguranca > Invalido: Nao
+  Dedup > Reserva: Nova
+  Dedup > Existente: Igual
+  Dedup > Conflito: Diferente
+  Existente --> Ref008
+  Reserva > Capacidade
+  Capacidade > Recusa: Nao
+  Capacidade > Ledger: Sim
+  Ledger > Recibo
+  Ledger > Ref013
+  Recibo --> Ref043
+  Ledger --> Ref044
+  Ledger -- Ref065
+
+BlocoB [color: blue, label: "B. Execucao"] {
+  Dispatcher [label: "B1 Publicar outbox"]
+  Broker [shape: cylinder, label: "B2 Fila duravel"]
+  Worker [label: "B3 Adquirir lease"]
+  Etapa [shape: diamond, label: "B4 Qual etapa?"]
+  Redelivery [label: "B5 Reutilizar terminal"]
+  Ref017 [shape: oval, color: gray, label: "Ir para C1"]
+  Ref045 [shape: oval, color: gray, label: "Ir para F1"]
+  Ref052 [shape: oval, color: gray, label: "Ir para I4"]
+}
+
+  Dispatcher > Broker
+  Broker > Worker
+  Worker > Etapa
+  Etapa > Ref017: Executar/retry
+  Etapa > Redelivery: Terminal
+  Worker --> Ref045
+  Redelivery > Ref052
+
+BlocoC [color: purple, label: "C. Evidencias"] {
+  Orquestrador [label: "C1 Orquestrador ADK"]
+  Busca [label: "C2 Qdrant hibrido + ACL"]
+  Analise [label: "C3 Evidencias isoladas"]
+  Evidencia [shape: diamond, label: "C4 Evidencia suficiente?"]
+  PoliticaResposta [shape: diamond, label: "C5 Politica permite?"]
+  Abstencao [label: "C7 Template sem claims"]
+  Compositor [label: "C6 Compor com citacoes"]
+  Ref026 [shape: oval, color: gray, label: "Ir para F2"]
+  RefCL [shape: oval, color: gray, label: "Ir para L1"]
+  Ref035 [shape: oval, color: gray, label: "Ir para D1"]
+}
+
+  Orquestrador > Busca
+  Busca > Analise
+  Analise > Evidencia
+  Evidencia > PoliticaResposta: Sim
+  Evidencia > Abstencao: Nao/conflito
+  PoliticaResposta > Compositor: Sim
+  PoliticaResposta > Abstencao: Nao
+  PoliticaResposta > Ref026: Indisponivel
+  Compositor > RefCL
+  Abstencao > Ref035
+
+BlocoD [color: green, label: "D. Validacao"] {
+  Verificador [shape: diamond, label: "D1 Validar saida"]
+  ModoFalha [shape: diamond, label: "D2 Qual saida falhou?"]
+  Tentativa [shape: diamond, label: "D3 Pode reparar?"]
+  Reparo [label: "D4 Um unico reparo"]
+  Ref028 [shape: oval, color: gray, label: "Ir para I1"]
+  Ref031 [shape: oval, color: gray, label: "Ir para F4"]
+  Ref033 [shape: oval, color: gray, label: "Ir para C7"]
+  Ref034 [shape: oval, color: gray, label: "Ir para D1"]
+}
+
+  Verificador > Ref028: Valida
+  Verificador > ModoFalha: Invalida
+  ModoFalha > Tentativa: Factual
+  ModoFalha > Ref031: Template
+  Tentativa > Reparo: Sim
+  Tentativa > Ref033: Nao
+  Reparo > Ref034
+
+BlocoE [color: gray, label: "E. Observar logs"] {
+  Logs [label: "E1 Logs e alertas"]
+  Observador [shape: oval, label: "E2 Pessoa so consulta logs"]
+}
+
+  Logs --> Observador
+
+BlocoF [color: orange, label: "F. Recuperacao"] {
+  Reconciliador [label: "F1 Reconciliar ledger"]
+  Retry [shape: cylinder, label: "F2 Commit de retry"]
+  ACKRetry [label: "F3 ACK apos retry"]
+  FalhaFinal [label: "F4 Falha sem conteudo"]
+  Prazo [label: "F5 Cancelar ou expirar"]
+  DLQ [shape: cylinder, label: "F6 DLQ + responsavel"]
+  Ref046 [shape: oval, color: gray, label: "Ir para B1"]
+  Ref049 [shape: oval, color: gray, label: "Ir para B1"]
+  Ref053 [shape: oval, color: gray, label: "Ir para I3"]
+  Ref054 [shape: oval, color: gray, label: "Ir para I3"]
+  Ref067 [shape: oval, color: gray, label: "Ir para H2"]
+}
+
+  Reconciliador > Ref046: Outbox
+  Reconciliador > Retry: Transitoria
+  Retry > ACKRetry
+  ACKRetry > Ref049
+  Reconciliador > FalhaFinal: Permanente
+  Reconciliador > Prazo: Prazo
+  FalhaFinal > Ref053
+  Prazo > Ref054
+  Reconciliador -- Ref067
+
+BlocoG [color: teal, label: "G. Corpus e EVAL"] {
+  Fontes [shape: document, label: "G1 Fontes aprovadas"]
+  Quarentena [shape: diamond, label: "G2 Fonte permitida?"]
+  FonteBloqueada [shape: oval, color: red, label: "G3 Nao indexar"]
+  Parser [label: "G4 Parser + embeddings"]
+  Candidato [shape: cylinder, label: "G5 Vetores candidatos"]
+  Evals [shape: diamond, label: "G6 Relatorio vinculado?"]
+  RefGN [shape: oval, color: gray, label: "Ir para N1"]
+  Promocao [label: "G7 Ativar corpus"]
+  Reprovado [label: "G8 Corrigir candidato"]
+  Ref063 [shape: oval, color: gray, label: "Ir para G5"]
+  Ref064 [shape: oval, color: gray, label: "Ir para C2"]
+}
+
+  Fontes > Quarentena
+  Quarentena > Parser: Sim
+  Quarentena > FonteBloqueada: Nao
+  Parser > Candidato
+  Candidato > RefGN
+  Evals > Promocao: Sim
+  Evals > Reprovado: Nao
+  Reprovado > Ref063
+  Promocao --> Ref064
+
+BlocoH [color: gray, label: "H. Observabilidade"] {
+  Auditoria [label: "H1 Audit + tracing"]
+  SLO [label: "H2 Metricas e custos"]
+  Escala [label: "H3 Benchmark pendente"]
+  Local [label: "H4 D: laboratorio"]
+  Ref070 [shape: oval, color: gray, label: "Ir para E1"]
+  Ref071 [shape: oval, color: gray, label: "Ir para E1"]
+}
+
+  SLO -- Escala
+  Escala -- Local
+  Auditoria --> Ref070
+  SLO --> Ref071
+
+BlocoI [color: green, label: "I. Entrega"] {
+  Autorizacao [shape: diamond, label: "I1 ACL atual permite?"]
+  Bloqueio [label: "I2 Bloquear conteudo"]
+  Resultado [shape: cylinder, label: "I3 Commit terminal CAS"]
+  ACK [label: "I4 ACK estado/versao"]
+  Consulta [shape: oval, label: "I5 Status e resultado"]
+  Ref038 [shape: oval, color: gray, label: "Ir para F2"]
+  Ref039 [shape: oval, color: gray, label: "Ir para F4"]
+  Ref041 [shape: oval, color: gray, label: "Ir para F1"]
+  Ref055 [shape: oval, color: gray, label: "Ir para F6"]
+  Ref066 [shape: oval, color: gray, label: "Ir para H1"]
+}
+
+  Autorizacao > Resultado: Sim
+  Autorizacao > Bloqueio: Nao
+  Autorizacao > Ref038: Indisponivel
+  Bloqueio > Ref039
+  Resultado > ACK: Commit OK
+  Resultado > Ref041: CAS/commit falhou
+  ACK > Consulta
+  Resultado --> Ref055: FAILED_FINAL
+  Resultado -- Ref066
+
+legend [position: bottom-left] {
+  [shape: oval, color: gray, label: "Ir para: referencia entre blocos"]
+  [color: blue, label: "A entrada / B execucao"]
+  [color: purple, label: "C evidencias"]
+  [color: green, label: "D validacao / I entrega"]
+  [color: gray, label: "E observador de logs sem controle"]
+  [color: orange, label: "F recuperacao"]
+  [color: teal, label: "G corpus e EVAL"]
+  [color: gray, label: "H observabilidade"]
+}
+
+// DEFINICOES COMPLETAS DOS NOS
+// A1 Cliente: shape: oval, label: "Cliente / sistema empresarial"
+// A2 Gateway: label: "TLS + OIDC + tenant/ACL + Idempotency-Key"
+// A3 Seguranca: shape: diamond, label: "Identidade confiavel; schema estrito sem coercao; chave nao nula; tamanho e politica validos?"
+// A4 Invalido: shape: oval, color: red, label: "400/401/403; sem aceite e sem job"
+// A5 Dedup: shape: diamond, label: "Chave tenant/ator + payload HMAC: novo, igual ou conflito?"
+// A6 Existente: label: "Retornar pedido existente; nao reservar nem executar novamente"
+// A7 Conflito: shape: oval, color: red, label: "409: mesma chave com payload diferente"
+// A8 Reserva: label: "Na transacao: testar e reservar quota por rota/tenant"
+// A9 Capacidade: shape: diamond, label: "Capacidade e prazo viaveis?"
+// A10 Recusa: shape: oval, color: red, label: "429/503 + Retry-After; sem aceite"
+// A11 Ledger: shape: cylinder, label: "PostgreSQL HA: pedido + reserva + auditoria + outbox"
+// A12 Recibo: shape: oval, label: "202 somente apos commit; request_id + status_url"
+// B1 Dispatcher: label: "Outbox: confirmar publicacao E rota; marcar enviada depois"
+// B2 Broker: shape: cylinder, label: "RabbitMQ quorum; 3 hosts distintos"
+// B3 Worker: label: "Worker: lease + fencing + checkpoint + deadline"
+// B4 Etapa: shape: diamond, label: "Etapa persistida: executar/retry valido ou terminal?"
+// C1 Orquestrador: label: "Roteador so leitura; intencao/risco/custo; snapshot fixo; documentos sao dados"
+// C2 Busca: label: "ACL + Qdrant dense/BM25 + RRF + reranker"
+// C3 Analise: label: "Integrar evidencias; calculos e analise temporal sob demanda"
+// C4 Evidencia: shape: diamond, label: "Evidencia suficiente e coerente?"
+// C5 PoliticaResposta: shape: diamond, label: "Politica automatica permite resposta factual neste dominio? Sem aprovacao humana"
+// C7 Abstencao: label: "Template fixo sem claims: NO_EVIDENCE, CONFLICT, CLARIFY ou POLICY_RESTRICTED"
+// C6 Compositor: label: "Compor alegacoes com fontes e evidencias rastreaveis"
+// D1 Verificador: shape: diamond, label: "Validar claims OU template; schema estrito; erro invalida validacao anterior; citacoes, numeros e exfiltracao"
+// D2 ModoFalha: shape: diamond, label: "Falhou texto factual ou template seguro?"
+// D3 Tentativa: shape: diamond, label: "Reparo ainda nao foi usado?"
+// D4 Reparo: label: "Uma tentativa de reparo; segunda falha vira abstencao"
+// I1 Autorizacao: shape: diamond, label: "ACL e politica atuais permitem esta saida (factual ou template)? Revalidar versao"
+// I2 Bloqueio: label: "Sem conteudo: negacao de ACL/politica; nunca publicar texto nao verificado"
+// I3 Resultado: shape: cylinder, label: "Commit CAS state/version/fence/ACL epoch: terminal permitido + resultado opcional + audit + reserva + outbox; rejeitar estado desconhecido"
+// I4 ACK: label: "ACK do broker somente depois do commit; prova do estado/version e entrega atuais, nunca audit antigo"
+// I5 Consulta: shape: oval, label: "GET status/resultado com reautorizacao; SSE opcional"
+// F1 Reconciliador: label: "Reconciliacao automatica por estado/version: outbox, leases e terminais"
+// F2 Retry: shape: cylinder, label: "CAS state/version/fence/epoch: RETRY_WAIT + outbox; prazo/teto/backoff; liberar lease; mesma chave"
+// F3 ACKRetry: label: "ACK da etapa APOS RETRY_WAIT duravel; prova do mesmo checkpoint/version e entrega; nao e conclusao"
+// F4 FalhaFinal: label: "Propor FAILED_FINAL sem conteudo; DLQ so via outbox apos commit"
+// F5 Prazo: label: "Propor CANCELLED/EXPIRED sem conteudo; CAS impede sobrescrever terminal"
+// B5 Redelivery: label: "Terminal ja commitado? Reutilizar; nunca concluir novamente"
+// F6 DLQ: shape: cylinder, label: "DLQ duravel + incidente/dono; publicar com confirm e rota"
+// G1 Fontes: shape: document, label: "Fontes aprovadas: owner + ACL + versao + validade"
+// G2 Quarentena: shape: diamond, label: "Quarentena: arquivo permitido, DLP, malware e instrucoes nao confiaveis?"
+// G3 FonteBloqueada: shape: oval, color: red, label: "Rejeitar fonte; registrar motivo sem indexar"
+// G4 Parser: label: "Parser/OCR + tabelas/paginas + chunks + embeddings + proveniencia"
+// G5 Candidato: shape: cylinder, label: "Colecao candidata isolada; IDs deterministas"
+// G6 Evals: shape: diamond, label: "Checklist EVAL: retrieval, citacoes, ACL, ataques, carga e restore"
+// G7 Promocao: label: "Gates automaticos PASS + politica versionada: ativar epoch imutavel; falha conserva alias"
+// G8 Reprovado: label: "Reprovar candidato; corrigir e repetir EVAL"
+// H1 Auditoria: label: "Auditoria minima no commit; traces por request/attempt; sem segredos"
+// H2 SLO: label: "p95/p99, idade da fila, outbox lag, DLQ, custo e forgotten_count"
+// H3 Escala: label: "120 mil contas nao sao 120 mil RPS; benchmark real e N-1 pendentes"
+// H4 Local: label: "D: laboratorio; producao privada distribuida, CPU/GPU separados"
+// E1 Logs: label: "Logs redigidos e alertas; RBAC, retencao, request_id e trilha de acesso"
+// E2 Observador: shape: oval, label: "Pessoa consulta somente logs autorizados; sem liberar, editar ou retomar pedidos"
+// LIGACOES CANONICAS COMPLETAS
+// Cliente > Gateway: 
+// Gateway > Seguranca: 
+// Seguranca > Dedup: Sim
+// Seguranca > Invalido: Nao
+// Dedup > Reserva: Novo
+// Dedup > Existente: Mesmo payload; recibo anterior duravel
+// Dedup > Conflito: Payload diferente
+// Existente --> Consulta: Mesmo ID; reautorizar status e resultado
+// Reserva > Capacidade: 
+// Capacidade > Recusa: Nao
+// Capacidade > Ledger: Sim; reserva e pedido na mesma transacao
+// Ledger > Recibo: Commit duravel confirmado
+// Ledger > Dispatcher: Outbox commitada
+// Dispatcher > Broker: Confirmar publicacao antes de marcar enviada
+// Broker > Worker: Entrega at-least-once
+// Worker > Etapa: Adquirir lease/CAS; validar deadline antes de executar
+// Etapa > Orquestrador: Iniciar ou retry valido
+// Etapa > Redelivery: Terminal ja commitado
+// Orquestrador > Busca: 
+// Busca > Analise: 
+// Analise > Evidencia: 
+// Evidencia > PoliticaResposta: Sim
+// Evidencia > Abstencao: Nao ou conflito
+// PoliticaResposta > Compositor: Sim; escopo somente leitura
+// PoliticaResposta > Abstencao: Nao; POLICY_RESTRICTED sem recomendacao factual
+// PoliticaResposta > Retry: Indisponivel ou timeout; fail closed; retry com teto e deadline
+// Compositor > Verificador: 
+// Verificador > Autorizacao: Passou; factual ou template validado
+// Verificador > ModoFalha: Falhou
+// ModoFalha > Tentativa: Factual
+// ModoFalha > FalhaFinal: Template falhou; sem conteudo e sem novo reparo
+// Tentativa > Reparo: Sim
+// Tentativa > Abstencao: Nao; segunda falha
+// Reparo > Verificador: Revalidar sem loop ilimitado
+// Abstencao > Verificador: Validacao deterministica do template; nao pular gate
+// Autorizacao > Resultado: Sim
+// Autorizacao > Bloqueio: Nao; negacao confirmada
+// Autorizacao > Retry: Politica indisponivel; nunca fallback permissivo
+// Bloqueio > FalhaFinal: Terminal seguro sem answer; status nao e resposta factual
+// Resultado > ACK: Commit confirmado e CAS aplicado; prova vinculada ao estado/version e entrega atuais
+// Resultado > Reconciliador: Commit incerto ou CAS rejeitado; sem ACK nem saida
+// ACK > Consulta: 
+// Recibo --> Consulta: Acompanhar com backoff e cursor
+// Ledger --> Reconciliador: Fonte de verdade
+// Worker --> Reconciliador: Lease expirada, deadline ou sem progresso
+// Reconciliador > Dispatcher: Outbox pendente
+// Reconciliador > Retry: Falha transitoria; prazo permite e sem terminal existente
+// Retry > ACKRetry: Commit do checkpoint confirmado
+// ACKRetry > Dispatcher: Outbox com next_action_at; prazo permite; sem terminal existente
+// Reconciliador > FalhaFinal: Permanente ou limite de tentativas
+// Reconciliador > Prazo: Cancelamento ou deadline
+// Redelivery > ACK: Resultado ja commitado; sem segunda conclusao
+// FalhaFinal > Resultado: Commit terminal CAS + audit + liberar reserva + outbox DLQ
+// Prazo > Resultado: Commit terminal CAS + audit + liberar reserva; sem conteudo
+// Resultado --> DLQ: Somente outbox commitada de FAILED_FINAL; confirm e rota
+// Fontes > Quarentena: 
+// Quarentena > Parser: Somente material aprovado
+// Quarentena > FonteBloqueada: Nao; fail closed
+// Parser > Candidato: 
+// Candidato > Evals: 
+// Evals > Promocao: Todos os gates automaticos e politica versionada passam
+// Evals > Reprovado: Qualquer gate falha
+// Reprovado > Candidato: Nova versao e novos testes
+// Promocao --> Busca: Snapshot fixo por pedido; rollback preserva tombstones
+// Ledger -- Auditoria: 
+// Resultado -- Auditoria: 
+// Reconciliador -- SLO: 
+// SLO -- Escala: 
+// Escala -- Local: 
+// Auditoria --> Logs: Eventos redigidos; sem conteudo sensivel por padrao
+// SLO --> Logs: Metricas e alertas; nunca comando de aprovacao
+// Logs --> Observador: Consulta autenticada somente leitura; indisponibilidade nao bloqueia respostas
+
+// EXTENSAO ARQUITETURAL: ADK e DeepAgents sao frameworks distintos.
+// Integracao proposta por adaptador Python explicito; nao recurso nativo pronto.
+// Setas tracejadas do mapa indicam chamadas, resultados ou dependencias.
+// A-I conservam o fluxo autoritativo. Novos paineis mostram contratos de adaptadores.
+// Cada referencia remete a um codigo visivel; sem linhas longas sobre titulos.
+
+BlocoJ [color: blue, label: "J. Python e arquitetura hexagonal leve"] {
+  J1 [label: "J1 Python no D:"]
+  J2 [label: "J2 Casos de uso e dominio"]
+  J3 [label: "J3 Ports tipadas"]
+  J4 [label: "J4 Adaptador ADK Workflow"]
+  J5 [label: "J5 Contexto isolado por pedido"]
+  J6 [label: "J6 ADK Web apenas dev"]
+  J7 [label: "J7 Ledger fora da sessao"]
+  RefJC [shape: oval, color: gray, label: "Ir para C1"]
+  RefJA [shape: oval, color: gray, label: "Ir para A11"]
+}
+J1 > J2
+J2 > J3
+J3 > J4
+J4 > J5
+J5 --> RefJC
+J6 --> J4: Testar
+J7 --> RefJA
+
+BlocoK [color: orange, label: "K. MCP e APIs somente leitura"] {
+  K1 [label: "K1 Tool gateway"]
+  K2 [shape: diamond, label: "K2 Escopo permitido?"]
+  K3 [label: "K3 Cliente MCP remoto"]
+  KGH [label: "GitHub MCP online\nDocs / issues / PRs"]
+  KAT [label: "Atlassian MCP online\nConfluence / Jira"]
+  K4 [label: "K4 Adaptador REST"]
+  K5 [label: "K5 Validar retorno"]
+  K6 [label: "K6 Negar sem ferramenta"]
+  K7 [label: "K7 Falha ou timeout"]
+  K8 [shape: diamond, label: "K8 Tipo de falha?"]
+  RefKC [shape: oval, color: gray, label: "Ir para C3"]
+  RefKF [shape: oval, color: gray, label: "Ir para F2"]
+  RefKA [shape: oval, color: gray, label: "Ir para C7"]
+  RefKT [shape: oval, color: gray, label: "Ir para F4"]
+}
+K1 > K2
+K2 > K3: MCP permitido
+K2 > K4: API permitida
+K2 > K6: DENY
+K2 > K7: UNKNOWN
+K3 > KGH: Leitura autorizada
+K3 > KAT: Leitura autorizada
+KGH > K5: Retorno
+KAT > K5: Retorno
+K4 > K5: Retorno
+K3 > K7: Erro
+K4 > K7: Erro
+K5 > RefKC: Valido
+K5 > K7: Invalido
+K6 > RefKA
+K7 > K8
+K8 > RefKF: Transitoria
+K8 > RefKT: Permanente
+
+BlocoL [color: purple, label: "L. Modelos e perfil cloud desativado"] {
+  L1 [label: "L1 Validar perfil e schema"]
+  L2 [label: "L2 Executar LLM local"]
+  L3 [shape: diamond, label: "L3 Cloud autorizado?"]
+  L4 [label: "L4 Executar Vertex Gemini"]
+  L5 [label: "L5 Reservar budget agregado"]
+  L6 [label: "L6 Proposta tipada"]
+  L7 [label: "L7 Bloquear cloud"]
+  L8 [shape: diamond, label: "L8 Contexto autorizado?"]
+  L9 [shape: diamond, label: "L9 Destino configurado?"]
+  RefLD [shape: oval, color: gray, label: "Ir para D1"]
+  RefLF [shape: oval, color: gray, label: "Ir para F2"]
+  RefLT [shape: oval, color: gray, label: "Ir para F4"]
+}
+L1 > L5: Valido
+L1 > RefLT: Invalido
+L5 > L8: Reservado
+L5 > RefLF: Sem quota
+L8 > L9: ALLOW
+L8 > RefLT: DENY
+L8 > RefLF: UNKNOWN
+L9 > L2: Local default
+L9 > L3: Cloud opt-in
+L3 > L4: Autorizado
+L3 > L7: DENY
+L3 > RefLF: UNKNOWN
+L2 > L6: Proposta
+L4 > L6: Proposta
+L2 > RefLF: Timeout ou 429
+L4 > RefLF: Timeout ou 429
+L6 > RefLD
+L7 > RefLT
+
+BlocoM [color: teal, label: "M. DeepAgents como tarefa delimitada"] {
+  M1 [label: "M1 Adaptador Python"]
+  M2 [label: "M2 Escopo e isolamento"]
+  M3 [label: "M3 Planejar tarefa"]
+  M4 [label: "M4 Subagentes limitados"]
+  M5 [label: "M5 Agregar proposta"]
+  M6 [label: "M6 Sem publish ou commit"]
+  M7 [shape: diamond, label: "M7 Envelope valido e atual?"]
+  RefMC [shape: oval, color: gray, label: "Ir para C3"]
+  RefMF [shape: oval, color: gray, label: "Ir para F2"]
+  RefMK [shape: oval, color: gray, label: "Ir para K1"]
+  RefML [shape: oval, color: gray, label: "Ir para L1"]
+}
+M1 > M2
+M2 > M3
+M3 > M4: Se necessario
+M3 > M7: Tarefa simples
+M4 > M7: Resultado
+M7 > M5: Valido
+M7 > RefMF: Rejeitar
+M4 --> RefMK: Tool gateway
+M4 --> RefML: Model port
+M5 > M6
+M6 > RefMC
+M4 > RefMF: Limite ou timeout
+
+BlocoN [color: green, label: "N. EVAL offline e gates automaticos"] {
+  N1 [label: "N1 Dataset versionado"]
+  N2 [label: "N2 Testes deterministas"]
+  N3 [label: "N3 DeepEval RAG"]
+  N4 [label: "N4 LLM-as-a-Judge"]
+  N5 [shape: diamond, label: "N5 Todos gates passam?"]
+  N6 [label: "N6 Conservar versao ativa"]
+  N7 [label: "N7 Metricas e tracing"]
+  RefNG [shape: oval, color: gray, label: "Ir para G6"]
+  RefNR [shape: oval, color: gray, label: "Ir para G8"]
+  RefNH [shape: oval, color: gray, label: "Ir para H2"]
+}
+N1 > N2
+N2 > N3
+N3 > N4
+N4 > N5
+N5 > RefNG: PASS
+N5 > N6: FAIL ou indisponivel
+N6 > RefNR
+N5 --> N7: Evidencia do ensaio
+N7 --> RefNH
+
+// CONTRATOS DA EXTENSAO
+// J1: D:/RAG-Local; runtime Python 3.12 em containers; venv host 3.13 existente preservado.
+// J2: dominio independente de SDK; authorization, gates e state machine em Python determinista.
+// J3: RetrievalPort, ModelPort, PolicyPort, ToolPort, TaskPort, LedgerPort, TelemetryPort.
+// J4: ADK e dono do fluxo externo; rotas deterministas; nao usar LLM para ACL, retry ou commit.
+// J5: request_id/attempt_id/fence; sessao nao e identidade nem ledger; eventos com handles opacos.
+// J5: evidencias e candidatos privados por tentativa; nenhum delta bruto ao usuario ou logs.
+// J6: ADK Web/Visual Builder somente desenvolvimento com dados sinteticos; nao painel do observador.
+// J7: outbox, ACK, quota e CAS continuam externos ao ADK; checkpoints dos SDKs nao substituem ledger.
+// C6: ModelPort invoca L1; ResultEnvelope retorna a D1, nao reentra C6; sem loop de composicao.
+// G5: candidato segue N1, nao G6 direto; G6 aceita somente EvalReport completo assinado/verificado.
+// G6: EvalReport vincula release_bundle_hash, corpus snapshot, rubric, suites e politicas atuais.
+// G6: enum PASS estrito, metricas finitas, todos gates e holdout completos; replay/stale/faltante = FAIL.
+// G7: promocao CAS aplica o MESMO release_bundle_hash; alteracao de prompt/model/tool tambem reavalia.
+// K1: identidade do gateway, nunca argumento do LLM; allowlist de tools, destinos e schemas fixos.
+// K2: autorizacao por chamada e por recurso; escopos minimos, secrets fora do prompt.
+// K3: clientes GitHub/Atlassian hosted via HTTPS; gateway valida identidade, tool, destino, schema e limites.
+// K3: OAuth conforme discovery do provedor; tokens opacos nao viram JWT local; sem token passthrough.
+// K3: neste perfil somente remoto online; leitura via allowlist e escopos minimos; readOnlyHint nao e autorizacao.
+// K4: URLs fixas, egress allowlist, TLS; bloquear SSRF, redirecionamento e resolucao insegura.
+// K5: retorno limitado em bytes, schema estrito, provenance/ACL/versao; tratar como dados nao instrucoes.
+// K7: timeout por chamada dentro do deadline global; cancelamento, circuit breaker, retry com teto.
+// K7: retry idempotente apenas em leitura; UNKNOWN nunca vira ALLOW; sem ferramentas de escrita.
+// K8: autenticar/audience/schema malicioso/SSRF sao permanentes; rede/429/503 transitorios com teto.
+// L1: cloud default OFF; nenhuma ativacao, chamada externa, chave ou deployment nesta edicao.
+// L3: opt-in de operador autorizado e politica de dados; DLP; escopo/region/provider aprovados.
+// L4: ADC/workload identity, IAM minimo; modelo/versao/regiao fixados; verificar retencao e recursos usados.
+// L4: nao assumir retencao zero ou privacidade apenas por ser Vertex; sem chave hardcoded.
+// L5: concorrencia, RPM/TPM, input/output tokens, gasto por tenant/pedido, quotas e backpressure.
+// L5: medir p95, erros/429, tokens e custo; usar preco vigente do modelo, nao valor inventado.
+// L5: reservar atomico ANTES da inferencia; budget agregado pai e filhos por tenant/request/attempt.
+// L5: settle de tokens reais idempotente inclui tentativa falha; liberar reserva sobrante no terminal.
+// L8: reautorizar evidencias antes de inferencia; snapshot/tombstones/ACL atuais; cloud egress por proposito.
+// L6: resposta e apenas proposta; citacoes fonte/pagina/chunk/versao; passar D1 e I1 antes de I3.
+// L7: sem fallback automatico do local para cloud; falha tecnica segue F, sem resposta parcial.
+// M1: bridge por TaskPort.invoke; DeepAgents usa LangGraph internamente, nao e subagente ADK nativo.
+// M1: ativar so para tarefa multietapa que justifica custo; RAG simples nao exige DeepAgents.
+// M2: contexto por tenant/pedido, corpus imutavel autorizado; sem filesystem irrestrito ou shell.
+// M2: ferramentas de editar/escrever/executar desabilitadas; scratch efemero isolado nao altera fontes.
+// M2: general-purpose implicito desativado/restrito; allowlist explicita em todos subagentes e middleware.
+// M2: memory/skills/checkpoint/scratch sem compartilhamento entre tenants; nao carregar defaults livres.
+// M4: max passos/subagentes/tokens/deadline; mesmas ACL e policy em todos; fan-out com limite.
+// M5: proposta estruturada com evidencia; cancelamento e resultado vinculados ao attempt/fence atuais.
+// M6: nunca entrega direta, commit ou permissao de promover corpus; sem revisao humana.
+// M7: ResultEnvelope estrito: request/attempt/task, tenant, fence, deadline, snapshot, ACL epoch e hash.
+// M7: duplicado dedup idempotente; late/stale/cancelled/cross-tenant rejeitados; cancelar filhos ao expirar.
+// N1: casos reais aprovados/sinteticos, holdout separado; versao de corpus, prompts, ferramentas e modelos.
+// N2: schema, ACL entre tenants, citacoes resolvidas, numeros, injection, vazamento, retry, CAS/ACK, restore.
+// N3: Recall@k/nDCG com gold labels + faithfulness, relevancia e contextual precision/recall via DeepEval.
+// N4: juiz local por default; ModelPort aplica L1-L8 e cloud L3; rubric/model/version fixos e gold labels.
+// L: diagrama de inferencia de C6 retorna a D1; M/N reutilizam guards do ModelPort mas retornam ao caller registrado.
+// L: caller/purpose/return channel confiaveis no envelope; nunca escolhidos pelo LLM ou payload do usuario.
+// N4: vies e variancia medidos; inconclusivo falha gate; nenhum juiz aprova ACL ou substitui testes.
+// N5: thresholds publicados antes do ensaio; custo/latencia/qualidade e seguranca; sem promessa zero alucinacao.
+// N5: CI sobre versao candidata; promote G7 automatico somente PASS; testes ADK e DeepAgents separados.
+// N7: OpenTelemetry trace/request/attempt/tool/model; logs redigidos, sem prompts/evidencias por default.
+// N7: export de traces pode atrasar; auditoria minima no commit obrigatoria; observador E sem escrita.
+// N7: amostragem limitada e labels de baixa cardinalidade; request_id em trace/log, nao em label metrica.
+// C2: cache tenant/ator/ACL epoch/snapshot/model/prompt; reautorizar no hit, nao compartilhar claims livres.
+// D1: claim-citation chunk/page/hash/versao resolvida; numero recalculado; judge nao substitui autorizacao.
+// G4: delete/tombstone imediato, reindex incremental por hash e versao; rollback nao revive fonte revogada.
+// ESTADO: desenho proposto e nao implementado; instalacao do SDK nao comprova integracoes ou escala.
+
+// REVISAO 4: request worker detem lease/fence e chama WorkflowPort; ADK orquestra etapas.
+// DeepAgents e delegado por TaskPort; agentes retornam propostas privadas, nunca commitem terminal.
+// GitHub e Atlassian estao planejados/desabilitados; conexoes reais ainda PENDING.
+// Casos e oraculos: segment-cases.tsv; testes reais da primeira fatia nao certificam RAG completo.

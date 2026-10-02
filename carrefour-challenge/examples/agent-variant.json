@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "name": "alternative_clinic_flow",
+  "framework": "google-adk",
+  "transport": "sse",
+  "model_mode": "offline",
+  "timeout_seconds": 45,
+  "stages": [
+    {
+      "name": "variant_extract_order",
+      "kind": "ocr"
+    },
+    {
+      "name": "variant_retrieve_codes",
+      "kind": "retrieve"
+    },
+    {
+      "name": "variant_validate_codes",
+      "kind": "validate"
+    },
+    {
+      "name": "variant_submit_request",
+      "kind": "schedule"
+    },
+    {
+      "name": "variant_format_receipt",
+      "kind": "format"
+    }
+  ]
+}

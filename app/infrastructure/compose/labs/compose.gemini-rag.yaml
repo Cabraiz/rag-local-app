@@ -1,0 +1,20 @@
+# Explicit Free-only lab profile. Gemini does evidence selection, never tools.
+services:
+  api:
+    environment:
+      RAG_GEMINI_RESPONSES: free_lab
+  worker:
+    environment:
+      RAG_GEMINI_RESPONSES: free_lab
+      RAG_GEMINI_FREE_CONFIRMED: no_billing
+      GOOGLE_GENAI_USE_VERTEXAI: "false"
+    secrets: [db_app, gemini_api_key]
+    volumes: [gemini_probe_usage:/usage]
+    networks: [data, gemini_egress]
+networks:
+  gemini_egress: {}
+volumes:
+  gemini_probe_usage: {}
+secrets:
+  gemini_api_key:
+    file: ../.local/secrets/gemini-api-key.txt

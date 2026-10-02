@@ -1,0 +1,610 @@
+{
+  "schema_version": 1,
+  "source": {
+    "path": "C:/Users/Cabraiz/Downloads/DESAFIO_SENIOR_IA Banco Carrefour.pdf",
+    "sha256": "8d65f159d05aa388e5456b0397505220e76268c5d0bb86646104ccb2ef3c1a3b",
+    "pages": 2,
+    "kind": "user_supplied_requirements",
+    "read_on": "2026-10-01"
+  },
+  "policy": {
+    "only_fictional_data": true,
+    "paid_actions": false,
+    "generated_agent_framework": "google-adk-only",
+    "mcp_transport": "legacy-http-sse-only",
+    "queue_order": "append to existing local FIFO; preserve active writer and all prior cards",
+    "execution_started": false,
+    "completion": "two fresh scoped full rounds; changes reset streak; same-author review is not independent blind audit",
+    "remote_jira_writes": false
+  },
+  "requirements": [
+    {
+      "id": "R01",
+      "page": 1,
+      "text": "Transpilador JSON para Python executavel; todos os agentes exclusivamente Google ADK.",
+      "card_ids": [
+        "CF-01",
+        "CF-02",
+        "CF-08",
+        "CF-14"
+      ]
+    },
+    {
+      "id": "R02",
+      "page": 1,
+      "text": "Validacao robusta de input, erros claros e boas praticas do codigo gerado.",
+      "card_ids": [
+        "CF-01",
+        "CF-02",
+        "CF-11",
+        "CF-14"
+      ]
+    },
+    {
+      "id": "R03",
+      "page": 1,
+      "text": "CLI recebe imagem ficticia de pedido medico; manuscrito e opcional.",
+      "card_ids": [
+        "CF-04",
+        "CF-08",
+        "CF-09",
+        "CF-14"
+      ]
+    },
+    {
+      "id": "R04",
+      "page": 1,
+      "text": "OCR e RAG expostos como servidores MCP com transporte SSE exclusivamente.",
+      "card_ids": [
+        "CF-04",
+        "CF-06",
+        "CF-08",
+        "CF-11",
+        "CF-14"
+      ]
+    },
+    {
+      "id": "R05",
+      "page": 1,
+      "text": "Catalogo RAG com pelo menos 100 exames diferentes, nomes e codigos; base mock permitida.",
+      "card_ids": [
+        "CF-05",
+        "CF-06",
+        "CF-08",
+        "CF-14"
+      ]
+    },
+    {
+      "id": "R06",
+      "page": 1,
+      "text": "API ficticia de agendamentos FastAPI com Swagger /docs refletindo contrato consumido.",
+      "card_ids": [
+        "CF-07",
+        "CF-08",
+        "CF-14"
+      ]
+    },
+    {
+      "id": "R07",
+      "page": 1,
+      "text": "Detectar/mascarar PII extraida antes de enviar a LLM ou persistir; todos os dados ficticios.",
+      "card_ids": [
+        "CF-01",
+        "CF-03",
+        "CF-07",
+        "CF-08",
+        "CF-11",
+        "CF-14"
+      ]
+    },
+    {
+      "id": "R08",
+      "page": 1,
+      "text": "Terminal lista exames/codigos e confirma solicitacao junto a API.",
+      "card_ids": [
+        "CF-09",
+        "CF-14"
+      ]
+    },
+    {
+      "id": "R09",
+      "page": 1,
+      "text": "Toda solucao em Docker com orquestracao por docker-compose.yml.",
+      "card_ids": [
+        "CF-04",
+        "CF-10",
+        "CF-14"
+      ]
+    },
+    {
+      "id": "R10",
+      "page": 2,
+      "text": "Entrega: fontes, JSON exemplo, imagem ficticia, README de execucao e evidencias reais.",
+      "card_ids": [
+        "CF-09",
+        "CF-10",
+        "CF-12",
+        "CF-14"
+      ]
+    },
+    {
+      "id": "R11",
+      "page": 2,
+      "text": "README explica uso consciente de IA, referencias e estrategia de orquestracao.",
+      "card_ids": [
+        "CF-12",
+        "CF-13",
+        "CF-14"
+      ]
+    },
+    {
+      "id": "R12",
+      "page": 2,
+      "text": "Avaliar separacao transpilador/runtime/MCP/API/guardrails, testes, organizacao e revisao de codigo.",
+      "card_ids": [
+        "CF-02",
+        "CF-03",
+        "CF-11",
+        "CF-12",
+        "CF-13",
+        "CF-14"
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "id": "CF-01",
+      "title": "Especificacao JSON versionada e contratos do desafio",
+      "priority": "P0",
+      "dependencies": [],
+      "requirement_ids": [
+        "R01",
+        "R02",
+        "R07"
+      ],
+      "knowledge": [
+        "DSL declarativa, JSON Schema/Pydantic, validacao sintatica versus semantica, DAG e contratos."
+      ],
+      "criteria": [
+        "versioned_json_schema",
+        "positive_negative_spec_cases",
+        "clear_field_errors",
+        "bounded_allowlisted_dag"
+      ],
+      "expected": "JSON valido descreve agentes ADK, etapas e ferramentas; erros apontam campo e motivo sem segredo.",
+      "forbidden": "Codigo Python, imports, shell, segredos ou destinos arbitrarios no JSON; aceitar ciclos ou ferramentas desconhecidas.",
+      "minimum_proof": "Spec valida e specs invalidas para tipos, campos extras, ciclo, endpoint, tool e limites; mensagens verificadas.",
+      "evidence_type": "specification_contract",
+      "status": "QUEUED",
+      "scope": "carrefour_adk_transpiler",
+      "references": [
+        "docs/challenges/carrefour/ajustes-e-conhecimentos.md"
+      ]
+    },
+    {
+      "id": "CF-02",
+      "title": "Transpilador deterministico JSON para Python Google ADK",
+      "priority": "P0",
+      "dependencies": [
+        "CF-01"
+      ],
+      "requirement_ids": [
+        "R01",
+        "R02",
+        "R12"
+      ],
+      "knowledge": [
+        "Pipeline parse -> validar -> IR -> emitir; AST, escaping, determinismo e compilacao versus execucao."
+      ],
+      "criteria": [
+        "deterministic_python_emission",
+        "adk_only_agent_instances",
+        "compile_and_import_generated_output",
+        "code_injection_rejected"
+      ],
+      "expected": "A spec produz Python executavel que instancia agentes exclusivamente Google ADK, sem depender de outro framework de agentes.",
+      "forbidden": "Usar eval/exec de texto do usuario, gerar codigo por LLM sem validacao ou entregar apenas runtime escrito a mao.",
+      "minimum_proof": "Transpilar duas specs distintas, comparar saida repetida byte a byte, compilar e importar no container; testes de strings maliciosas.",
+      "evidence_type": "generated_code_execution",
+      "status": "QUEUED",
+      "scope": "carrefour_adk_transpiler",
+      "references": [
+        "docs/challenges/carrefour/ajustes-e-conhecimentos.md"
+      ]
+    },
+    {
+      "id": "CF-03",
+      "title": "Guardrail PII antes do modelo e da persistencia",
+      "priority": "P0",
+      "dependencies": [
+        "CF-01"
+      ],
+      "requirement_ids": [
+        "R07",
+        "R12"
+      ],
+      "knowledge": [
+        "PII, mascaramento versus anonimizacao, fronteira de confianca, allowlist de dados e defesa em profundidade."
+      ],
+      "criteria": [
+        "pii_masked_before_model_state_storage",
+        "names_documents_contacts_detected",
+        "raw_ocr_never_logged",
+        "pii_failure_blocks_downstream"
+      ],
+      "expected": "OCR bruto existe somente na memoria efemera local; MCP devolve apenas dados sanitizados. Nome, documento e contato sinteticos nao entram em LLM, state ADK, banco, traces ou excecoes.",
+      "forbidden": "Mascarar apenas a resposta final; OCR em nuvem sobre imagem bruta; regex unica anunciada como detector universal; persistir o texto original.",
+      "minimum_proof": "Sentinelas sinteticas de nome/documento/email/telefone e OCR ruidoso: inspecionar todas as saidas e spies de modelo, banco, state e logs; falha/ambiguidade bloqueia.",
+      "evidence_type": "challenge_real_integration",
+      "status": "QUEUED",
+      "scope": "carrefour_adk_transpiler",
+      "references": [
+        "docs/challenges/carrefour/ajustes-e-conhecimentos.md"
+      ]
+    },
+    {
+      "id": "CF-04",
+      "title": "OCR local real exposto por MCP HTTP+SSE",
+      "priority": "P0",
+      "dependencies": [
+        "CF-03"
+      ],
+      "requirement_ids": [
+        "R03",
+        "R04",
+        "R09"
+      ],
+      "knowledge": [
+        "OCR local, leitura de imagem, MIME versus bytes, limites de tamanho/pixels e MCP handshake."
+      ],
+      "criteria": [
+        "real_image_ocr",
+        "ocr_mcp_sse_handshake_list_call",
+        "sanitized_tool_output",
+        "bounded_file_access"
+      ],
+      "expected": "Servidor OCR processa PNG/JPEG ficticio por motor local e expõe ferramenta MCP via SSE; a saida ja vem sanitizada.",
+      "forbidden": "Retornar exames hardcoded por nome/hash do arquivo; REST comum chamado de MCP; stdio/Streamable HTTP como substituto; path traversal, URL arbitraria ou imagem enviada ao modelo.",
+      "minimum_proof": "Imagem sintetica legivel e variante nao vista; initialize/list_tools/call_tool via SSE reais; corrupcao, tamanho e travessia rejeitados. Manuscrito e extra, nao gate minimo.",
+      "evidence_type": "challenge_real_integration",
+      "status": "QUEUED",
+      "scope": "carrefour_adk_transpiler",
+      "references": [
+        "docs/challenges/carrefour/ajustes-e-conhecimentos.md"
+      ]
+    },
+    {
+      "id": "CF-05",
+      "title": "Catalogo ficticio versionado com pelo menos 100 exames",
+      "priority": "P0",
+      "dependencies": [
+        "CF-01"
+      ],
+      "requirement_ids": [
+        "R05"
+      ],
+      "knowledge": [
+        "Identidade canonica, aliases, normalizacao, indice versus fonte da verdade e fixtures sinteticas."
+      ],
+      "criteria": [
+        "at_least_100_distinct_exam_names",
+        "unique_canonical_codes",
+        "versioned_fictional_catalog",
+        "independent_expected_results"
+      ],
+      "expected": "Catalogo legivel com pelo menos 100 nomes distintos e codigos exclusivos FICT-*, fontes e aliases auditaveis; sem dados de pacientes ou pretensao de validade clinica.",
+      "forbidden": "Contar aliases/duplicatas como exames diferentes, inventar codigos oficiais ou derivar o oracle da propria funcao testada.",
+      "minimum_proof": "Teste conta distintos/duplicatas e valida schema, release e integridade; gold/holdout independente com encontrados, desconhecidos e ambiguos.",
+      "evidence_type": "challenge_real_integration",
+      "status": "QUEUED",
+      "scope": "carrefour_adk_transpiler",
+      "references": [
+        "docs/challenges/carrefour/ajustes-e-conhecimentos.md"
+      ]
+    },
+    {
+      "id": "CF-06",
+      "title": "RAG de exames exposto por MCP HTTP+SSE",
+      "priority": "P0",
+      "dependencies": [
+        "CF-05"
+      ],
+      "requirement_ids": [
+        "R04",
+        "R05"
+      ],
+      "knowledge": [
+        "Recuperacao versus geracao, lexical/semantica, recall/top-k, threshold, evidencias e abstenção."
+      ],
+      "criteria": [
+        "rag_mcp_sse_handshake_list_call",
+        "canonical_exam_evidence",
+        "unknown_ambiguous_abstention",
+        "catalog_mock_boundary_documented"
+      ],
+      "expected": "Nomes sanitizados consultam catalogo via MCP SSE; resultado contem nome/codigo canonicos, evidencia e release. Implementacao de catalogo mock e permitida e identificada.",
+      "forbidden": "Chamada direta ao Qdrant/API substituindo MCP, codigo inventado pelo LLM ou escolha silenciosa entre exames ambiguos.",
+      "minimum_proof": "Chamadas SSE reais com nome, alias, typo, desconhecido, ambiguidade e prompt injection; codigos retornados conferidos contra oracle. Mock de base nao mascara mock de transporte.",
+      "evidence_type": "challenge_real_integration",
+      "status": "QUEUED",
+      "scope": "carrefour_adk_transpiler",
+      "references": [
+        "docs/challenges/carrefour/ajustes-e-conhecimentos.md"
+      ]
+    },
+    {
+      "id": "CF-07",
+      "title": "API FastAPI de agendamentos com Swagger e idempotencia",
+      "priority": "P0",
+      "dependencies": [
+        "CF-05"
+      ],
+      "requirement_ids": [
+        "R06",
+        "R07"
+      ],
+      "knowledge": [
+        "HTTP/OpenAPI, validacao de dominio, atomicidade, idempotencia e confirmacao de solicitacao versus agendamento realizado."
+      ],
+      "criteria": [
+        "documented_exact_openapi_contract",
+        "durable_fictional_booking_receipt",
+        "canonical_exam_validation",
+        "idempotent_same_key_and_payload"
+      ],
+      "expected": "POST /appointments recebe apenas codigos canonicos/release e request_id ficticio; GET /appointments/{id}, /docs e /openapi.json documentam contrato. Resposta confirma solicitacao ficticia persistida.",
+      "forbidden": "Aceitar codigo desconhecido/PII/campos extras ou dizer que agendou em clinica real; duplicar agendamento em timeout/retry.",
+      "minimum_proof": "201 inicial, 200 replay mesma chave/corpo, 409 mesma chave/corpo diferente e 422 invalido; consulta apos restart em QA e igualdade OpenAPI-cliente.",
+      "evidence_type": "challenge_real_integration",
+      "status": "QUEUED",
+      "scope": "carrefour_adk_transpiler",
+      "references": [
+        "docs/challenges/carrefour/ajustes-e-conhecimentos.md"
+      ]
+    },
+    {
+      "id": "CF-08",
+      "title": "Runtime gerado com orquestracao exclusivamente Google ADK",
+      "priority": "P0",
+      "dependencies": [
+        "CF-02",
+        "CF-04",
+        "CF-06",
+        "CF-07"
+      ],
+      "requirement_ids": [
+        "R01",
+        "R03",
+        "R04",
+        "R05",
+        "R06",
+        "R07"
+      ],
+      "knowledge": [
+        "Workflow ADK, Runner, estado/eventos, lifecycle de McpToolset, timeout e controle deterministico de efeitos."
+      ],
+      "criteria": [
+        "generated_adk_runtime_used",
+        "ordered_sanitized_data_flow",
+        "allowlisted_sse_tools_and_cleanup",
+        "no_schedule_on_incomplete_evidence"
+      ],
+      "expected": "Codigo gerado executa imagem -> OCR+PII -> RAG -> validacao dos codigos -> API -> recibo. ADK controla o fluxo e contexto; MCPs e cliente HTTP tem limites e cleanup.",
+      "forbidden": "Trocar o agente gerado por executor manual, deixar LLM burlar gate ou agendar conjunto parcial sem informar; DeepAgents/LangGraph como runtime de agentes desta entrega.",
+      "minimum_proof": "E2E do agente gerado contra dois MCPs SSE e FastAPI reais, com rastreio de ordem e sentinelas PII; falhas de OCR/RAG/API impedem falsa confirmacao.",
+      "evidence_type": "challenge_real_integration",
+      "status": "QUEUED",
+      "scope": "carrefour_adk_transpiler",
+      "references": [
+        "docs/challenges/carrefour/ajustes-e-conhecimentos.md"
+      ]
+    },
+    {
+      "id": "CF-09",
+      "title": "CLI do transpilador e do agente com saida verificavel",
+      "priority": "P0",
+      "dependencies": [
+        "CF-08"
+      ],
+      "requirement_ids": [
+        "R03",
+        "R08",
+        "R10"
+      ],
+      "knowledge": [
+        "Entrypoints, exit codes, stderr/stdout, arquivos gerados, ergonomia de CLI e estados do pedido."
+      ],
+      "criteria": [
+        "transpile_then_run_cli",
+        "image_input_and_exam_code_output",
+        "truthful_booking_confirmation",
+        "nonzero_safe_errors"
+      ],
+      "expected": "Comandos documentados transpilem spec e executem codigo gerado com imagem; terminal mostra lista de nomes/codigos e ID/status retornados pela API.",
+      "forbidden": "Exigir frontend React, ADK Web ou login Jira; exibir confirmacao antes da API ou vazar payload bruto em traceback.",
+      "minimum_proof": "Captura/log real do terminal com caminho feliz, spec invalida, imagem ilegivel, exame desconhecido e timeout; conferir saida e exit code.",
+      "evidence_type": "challenge_real_integration",
+      "status": "QUEUED",
+      "scope": "carrefour_adk_transpiler",
+      "references": [
+        "docs/challenges/carrefour/ajustes-e-conhecimentos.md"
+      ]
+    },
+    {
+      "id": "CF-10",
+      "title": "Docker Compose unico e isolado do laboratorio atual",
+      "priority": "P0",
+      "dependencies": [
+        "CF-04",
+        "CF-06",
+        "CF-07",
+        "CF-09"
+      ],
+      "requirement_ids": [
+        "R09",
+        "R10"
+      ],
+      "knowledge": [
+        "Dockerfile, Compose, DNS de servicos, networks, volumes, healthchecks, imagens pinadas e minimo privilegio."
+      ],
+      "criteria": [
+        "single_docker_compose_yml",
+        "all_solution_services_containerized",
+        "fresh_environment_reproduction",
+        "existing_rag_runtime_preserved"
+      ],
+      "expected": "docker-compose.yml inicia OCR-MCP, RAG-MCP, API e runner/transpilador em projeto separado; persistencia local da API em volume. Python/OCR/SDK nao dependem de instalacao no host.",
+      "forbidden": "Usar Kubernetes/Podman como requisito, reaproveitar volumes/dados do RAG ativo, depender de nove overlays ocultos, publicar MCP sem necessidade ou montar socket Docker.",
+      "minimum_proof": "Compose config e build limpos, healthchecks e execucao via compose run; portas alternativas e stack 8840/8850 continuam intactas.",
+      "evidence_type": "challenge_real_integration",
+      "status": "QUEUED",
+      "scope": "carrefour_adk_transpiler",
+      "references": [
+        "docs/challenges/carrefour/ajustes-e-conhecimentos.md"
+      ]
+    },
+    {
+      "id": "CF-11",
+      "title": "Testes unitarios, contrato, seguranca e falhas do desafio",
+      "priority": "P0",
+      "dependencies": [
+        "CF-02",
+        "CF-03",
+        "CF-08",
+        "CF-09",
+        "CF-10"
+      ],
+      "requirement_ids": [
+        "R02",
+        "R04",
+        "R07",
+        "R12"
+      ],
+      "knowledge": [
+        "Unitario versus integracao/E2E, oracle independente, holdout, fault injection e limites de LLM-as-a-Judge."
+      ],
+      "criteria": [
+        "compiler_unit_and_negative_tests",
+        "real_sse_contract_tests",
+        "pii_and_prompt_injection_regressions",
+        "timeouts_retries_no_duplicate_booking"
+      ],
+      "expected": "pytest cobre compilador, codigo gerado, SSE, catalogo, PII, API e workflow; falhas injetadas retornam erro seguro sem agendamento indevido.",
+      "forbidden": "Mocks aprovarem integracao real, alterar oracle para passar, chamar duas rodadas do mesmo autor de auditoria independente ou judge substituir testes deterministas.",
+      "minimum_proof": "Relatorio com comandos, cobertura medida e cenarios: imagem vazia/corrupta, unicode, PII ruidosa, injection, queda SSE, codigo desconhecido, timeout apos commit e replay.",
+      "evidence_type": "challenge_real_integration",
+      "status": "QUEUED",
+      "scope": "carrefour_adk_transpiler",
+      "references": [
+        "docs/challenges/carrefour/ajustes-e-conhecimentos.md"
+      ]
+    },
+    {
+      "id": "CF-12",
+      "title": "Pacote de entrega e README com transparencia de IA",
+      "priority": "P0",
+      "dependencies": [
+        "CF-09",
+        "CF-10",
+        "CF-11"
+      ],
+      "requirement_ids": [
+        "R10",
+        "R11",
+        "R12"
+      ],
+      "knowledge": [
+        "Reprodutibilidade, proveniencia, estrategia de orquestracao, evidencias sanitizadas e higiene de repositorio."
+      ],
+      "criteria": [
+        "complete_source_example_spec_image",
+        "readme_exact_reproduction_commands",
+        "ai_usage_and_official_references",
+        "real_cli_swagger_evidence_no_secrets"
+      ],
+      "expected": "Entrega contem fontes, JSON de exemplo, imagem inteiramente ficticia, Docker/lock e README detalhado; evidencia CLI, Swagger e logs sanitizados. Explicar revisao/testes e limites do uso de IA.",
+      "forbidden": "Credenciais/dados reais no repo, screenshot encenado como E2E, comandos nao executados, commit/push/submissao sem nova autorizacao.",
+      "minimum_proof": "Checklist reproduzido do zero com checksums das evidencias; varredura de segredos; README descreve ferramentas, referencias, revisao e sequencia ADK.",
+      "evidence_type": "challenge_real_integration",
+      "status": "QUEUED",
+      "scope": "carrefour_adk_transpiler",
+      "references": [
+        "docs/challenges/carrefour/ajustes-e-conhecimentos.md"
+      ]
+    },
+    {
+      "id": "CF-13",
+      "title": "Preparacao tecnica para defender as escolhas",
+      "priority": "P1",
+      "dependencies": [
+        "CF-01",
+        "CF-08",
+        "CF-11"
+      ],
+      "requirement_ids": [
+        "R11",
+        "R12"
+      ],
+      "knowledge": [
+        "ADK versus modelo, transpilador versus runtime, MCP versus REST, SSE legado, RAG versus banco vetorial, PII e arquitetura pragmatica."
+      ],
+      "criteria": [
+        "explain_compiler_and_runtime_boundaries",
+        "explain_sse_and_pii_placement",
+        "justify_simple_architecture_and_tests",
+        "state_mock_cloud_and_production_limits"
+      ],
+      "expected": "Roteiro permite explicar codigo e demonstrar uma alteracao na spec, erro claro, exame ausente, mascaramento PII e repeticao segura do agendamento.",
+      "forbidden": "Decoracao sem prova, prometer conformidade/ausencia de alucinacao, tratar DeepAgents/Vertex/100k requests como obrigatorios do PDF.",
+      "minimum_proof": "Ensaio com perguntas e respostas ligadas a trechos e testes reais; lacunas desconhecidas registradas honestamente.",
+      "evidence_type": "technical_demonstration",
+      "status": "QUEUED",
+      "scope": "carrefour_adk_transpiler",
+      "references": [
+        "docs/challenges/carrefour/ajustes-e-conhecimentos.md"
+      ]
+    },
+    {
+      "id": "CF-14",
+      "title": "Gate final com duas rodadas completas consecutivas",
+      "priority": "P0",
+      "dependencies": [
+        "CF-11",
+        "CF-12",
+        "CF-13"
+      ],
+      "requirement_ids": [
+        "R01",
+        "R02",
+        "R03",
+        "R04",
+        "R05",
+        "R06",
+        "R07",
+        "R08",
+        "R09",
+        "R10",
+        "R11",
+        "R12"
+      ],
+      "knowledge": [
+        "Fontes congeladas, reproducao independente, seed/holdout, receipts e invalidacao por mudanca."
+      ],
+      "criteria": [
+        "two_unchanged_source_full_e2e_rounds",
+        "all_pdf_requirements_traceable",
+        "no_open_challenge_bug",
+        "frozen_hashes_and_honest_receipts"
+      ],
+      "expected": "Duas rodadas novas passam sobre o mesmo codigo congelado: transpilar -> importar -> imagem -> OCR/SSE -> PII -> RAG/SSE -> API -> CLI. Bugs novos entram no fim da fila e reiniciam contagem apos correcao.",
+      "forbidden": "Marcar DONE pelo planejamento, receipt antigo, carga oferecida ou mock de infraestrutura; encerrar com gate faltante; modificar codigo entre passes sem reset.",
+      "minimum_proof": "Dois receipts com hashes, imagens/builds, catalogo, seed, testes/saidas sanitizadas e reconciliacao da solicitacao; zero falhas no escopo testado, sem promessa de 100%.",
+      "evidence_type": "challenge_full_end_to_end",
+      "status": "QUEUED",
+      "scope": "carrefour_adk_transpiler",
+      "references": [
+        "docs/challenges/carrefour/ajustes-e-conhecimentos.md"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+title Aplicacao RAG - containers e producao
+direction right
+
+// Revisao 2. Componentes de runtime; imports continuam hexagonais.
+// Contratos: production-contracts.md; Gate A nao libera producao.
+// Workflow RAG existente preservado como figura separada.
+
+Entradas [color: blue, label: "1 ENTRADAS EM CONTAINERS"] {
+  Front [label: "Frontend proprio\nStatus e evidencias"]
+  API [label: "FastAPI\nAceite apos commit"]
+  Workers [label: "Request worker\nLease e fence"]
+  Control [label: "Control worker\nRecupera e expira"]
+  Batch [label: "Ingest / EVAL\nQuotas separadas"]
+  Dev [label: "ADK Web\nSomente dev"]
+}
+
+Nucleo [color: green, label: "2 NUCLEO PYTHON"] {
+  UseCases [label: "Casos de uso\nSeis modulos do RAG"]
+  Domain [label: "Dominio puro\nPoliticas e invariantes"]
+  Ports [label: "Ports Python\nProtocol e contratos"]
+}
+
+Adaptadores [color: purple, label: "3 ADAPTADORES E GATES"] {
+  ADK [label: "Google ADK\nWorkflowPort"]
+  Deep [label: "DeepAgents\nTaskPort"]
+  IO [label: "Dados e integracoes\nPorts de saida"]
+  Eval [label: "pytest / DeepEval\nJudge e gates"]
+  Release [label: "Gate de producao\nHA / restore / carga"]
+}
+
+Servicos [color: orange, label: "4 SERVICOS POR PERFIL"] {
+  PG [shape: cylinder, label: "PostgreSQL\nLedger + jobs + outbox"]
+  QD [shape: cylinder, label: "Qdrant servidor\nBusca + filtros"]
+  FS [label: "Storage privado\nVolumes Linux / POSIX"]
+  Remote [label: "Local / Vertex opt-in\nMCP / REST"]
+}
+
+Operacao [color: teal, label: "5 OPERACAO"] {
+  Boot [label: "Bootstrap\nDI + config"]
+  Observe [label: "Logs / metricas / traces\nAlertas por idade"]
+}
+
+Front > API
+API > UseCases
+Workers > UseCases
+Control > UseCases
+Batch > UseCases
+Dev > UseCases
+UseCases > Domain: Regras
+UseCases > Ports: Contratos
+Ports > ADK: Workflow
+Ports > Deep: Task
+Ports > IO: I/O
+Ports > Eval: EVAL
+IO > PG
+IO > QD
+IO > FS
+IO > Remote
+UseCases --> Observe
+Boot --> UseCases
+Eval --> Release
+
+// Controle tem CPU/pool SQL reservados, sem LLM.
+// PG queue/polling no lab; RabbitMQ opcional via outbox na escala.
+// Agentes retornam propostas; so UseCases commita terminal.
+// HA exige replica sincrona elegivel e fencing em outro dominio.
+// Recibos/chaves com retencao; retry antigo rejeitado.
+// Gate A: desenho; Gate B: testes reais, restore, carga e qualidade.
+// Lab D: nao e producao HA. Sem deploy realizado.

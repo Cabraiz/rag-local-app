@@ -1,0 +1,41 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: rag-local
+          scrape_interval: 2s
+          metrics_path: /internal/metrics
+          static_configs:
+            - targets: [api:8000]
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 96
+    spike_limit_mib: 16
+  batch:
+    timeout: 200ms
+    send_batch_size: 32
+    send_batch_max_size: 32
+exporters:
+  file/traces:
+    path: /telemetry/traces.json
+    rotation: {max_megabytes: 5, max_days: 2, max_backups: 2}
+  file/metrics:
+    path: /telemetry/metrics.json
+    rotation: {max_megabytes: 5, max_days: 2, max_backups: 2}
+service:
+  telemetry:
+    logs: {level: error}
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [file/traces]
+    metrics:
+      receivers: [prometheus]
+      processors: [memory_limiter, batch]
+      exporters: [file/metrics]

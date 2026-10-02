@@ -1,0 +1,28 @@
+groups:
+  - name: rag-local
+    rules:
+      - alert: RAGMetricsUnavailable
+        expr: up == 0
+        for: 15s
+        labels: {severity: warning}
+        annotations: {summary: 'Servico local nao responde ao scrape'}
+      - alert: RAGWorkerStale
+        expr: rag_worker_stale > 0
+        for: 15s
+        labels: {severity: critical}
+        annotations: {summary: 'Heartbeat de processamento desatualizado'}
+      - alert: RAGDependencyCircuitOpen
+        expr: rag_dependency_open > 0
+        for: 10s
+        labels: {severity: warning}
+        annotations: {summary: 'Integracao com falhas repetidas; circuito aberto'}
+      - alert: RAGQueueWaitHigh
+        expr: rag_queue_oldest_seconds > 60
+        for: 15s
+        labels: {severity: warning}
+        annotations: {summary: 'Pedido aguardando processamento ha mais de um minuto'}
+      - alert: RAGDeadlineRecoveryNeeded
+        expr: rag_expired_pending_requests > 0
+        for: 15s
+        labels: {severity: critical}
+        annotations: {summary: 'Pedido vencido ainda pendente de recuperacao'}

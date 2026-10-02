@@ -1,0 +1,43 @@
+# Exclusive QA image. Never merge this override into the user's main runtime.
+services:
+  api:
+    image: rag-local-reliability-qa:20261002
+    build: {context: ., dockerfile: infrastructure/images/backend/Dockerfile.resilience}
+  migrate:
+    image: rag-local-reliability-qa:20261002
+  worker:
+    image: rag-local-reliability-qa:20261002
+    deploy: {replicas: 2}
+  control:
+    image: rag-local-reliability-qa:20261002
+  delivery:
+    image: rag-local-reliability-qa:20261002
+  relay:
+    image: rag-local-reliability-qa:20261002
+  restore-postgres:
+    # Restore drills must never grow the live cluster's crash-recovery surface.
+    # Separate instance/volume, still the same host (NOT disaster-recovery HA).
+    image: postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: rag_bootstrap
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_admin
+    secrets: [db_admin]
+    volumes: [restore_pgdata:/var/lib/postgresql]
+    networks: [data]
+    restart: unless-stopped
+    # Retained restore drills accumulate files. Initial crash redo may fsync
+    # them before accepting connections; this is NOT the live DB recovery SLO.
+    # Stop cleanly so the next drill does not inherit an avoidable crash redo.
+    stop_grace_period: 120s
+    mem_limit: 512m
+    cpus: 0.5
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U rag_bootstrap -d postgres]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 300s
+    logging: {driver: json-file, options: {max-size: 5m, max-file: "3"}}
+volumes:
+  restore_pgdata: {}

@@ -1,0 +1,102 @@
+name: carrefour-adk-challenge
+x-runtime: &runtime
+  image: carrefour-adk-challenge:1.0.0
+  build: .
+  user: "10001:10001"
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: ["/tmp:size=64m,mode=1777"]
+  networks: [clinic]
+  environment: &environment
+    OTEL_SDK_DISABLED: "true"
+    PYTHONDONTWRITEBYTECODE: "1"
+    PYTHONUNBUFFERED: "1"
+    PYTHONPATH: "/app/src"
+  logging:
+    driver: json-file
+    options: {max-size: "5m", max-file: "2"}
+services:
+  api:
+    <<: *runtime
+    networks: [clinic, edge]
+    command: ["python", "-m", "uvicorn", "clinic_adk.api:app", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]
+    ports: ["127.0.0.1:${CLINIC_API_PORT:-8860}:8080"]
+    restart: unless-stopped
+    volumes: [appointments:/state]
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health',timeout=2)"]
+      interval: 10s
+      timeout: 4s
+      retries: 8
+  ocr:
+    <<: *runtime
+    command: ["python", "-m", "uvicorn", "clinic_adk.ocr_server:app", "--host", "0.0.0.0", "--port", "8081", "--no-access-log"]
+    restart: unless-stopped
+    volumes: ["./examples:/samples:ro"]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health',timeout=2)"]
+      interval: 10s
+      timeout: 4s
+      retries: 8
+  rag:
+    <<: *runtime
+    command: ["python", "-m", "uvicorn", "clinic_adk.rag_server:app", "--host", "0.0.0.0", "--port", "8082", "--no-access-log"]
+    restart: unless-stopped
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8082/health',timeout=2)"]
+      interval: 10s
+      timeout: 4s
+      retries: 8
+  runner:
+    <<: *runtime
+    profiles: [cli]
+    command: ["python", "-m", "clinic_adk.cli", "--help"]
+    mem_limit: 768m
+    volumes: [artifacts:/artifacts]
+    depends_on:
+      api: {condition: service_healthy}
+      ocr: {condition: service_healthy}
+      rag: {condition: service_healthy}
+  tests:
+    <<: *runtime
+    profiles: [test]
+    command: ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests"]
+    mem_limit: 768m
+    volumes: [artifacts:/artifacts]
+    depends_on:
+      api: {condition: service_healthy}
+      ocr: {condition: service_healthy}
+      rag: {condition: service_healthy}
+  browser:
+    image: carrefour-adk-browser:1.0.0
+    build:
+      context: .
+      dockerfile: e2e/Dockerfile
+    profiles: [browser]
+    user: "10001:10001"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=256m,mode=1777"]
+    shm_size: 256m
+    mem_limit: 1536m
+    networks: [clinic]
+    environment:
+      CLINIC_BROWSER_URL: "http://api:8080"
+      BROWSER_EVIDENCE: "/evidence"
+    depends_on:
+      api: {condition: service_healthy}
+networks:
+  edge:
+    driver: bridge
+  clinic:
+    internal: true
+volumes:
+  appointments:
+  artifacts:

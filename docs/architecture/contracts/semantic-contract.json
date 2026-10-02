@@ -1,0 +1,18 @@
+{
+  "scope": "local_CPU_neural_hybrid_retrieval_office_FAQ_lab",
+  "expected": ["pinned_neural_model_384_dimensions", "canonical_SQL_citations_and_scope_filters", "new_embedding_family_does_not_mix_with_lexical_vectors", "Portuguese_holdout_before_two_frozen_rounds", "abstain_on_unknown_ambiguous_or_unsupported_slots"],
+  "forbidden": ["cloud_inference", "billing", "external_upload_of_documents", "runtime_model_download", "silent_lexical_fallback_on_model_failure", "train_on_holdout_to_claim_independent_validation", "production_or_100_percent_accuracy_claim"],
+  "smallest_proof": "real_ONNX_service_Qdrant_PostgreSQL_ADK_HTTP_positive_and_negative_controls_two_rounds",
+  "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "repository": "qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+  "revision": "faf4aa4225822f3bc6376869cb1164e8e3feedd0",
+  "model_sha256": "634d0f66c29dc934c8fa72b8a4fe91dd4d420a22f1d82a241058d4316e659a99",
+  "license": "Apache-2.0",
+  "calibration": "calibration_only_threshold_grid_0.30_to_0.90_step_0.01_zero_false_accepts",
+  "margin": 0.05,
+  "holdout_minimum_correct_positive_answers": 1.0,
+  "holdout_unknown_answers_must_abstain": true,
+  "evaluation_lineage": "v1_became_known_regression_after_BUG_037; new_authored_v2_before_next_inference; threshold_still_calibration_only",
+  "query_expansion": "controlled_workplace_device_aliases_for_repair_intent; original_request_preserved; unsupported_equipment_requires_evidence",
+  "independent_blind": false
+}

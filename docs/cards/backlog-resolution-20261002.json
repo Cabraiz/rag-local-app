@@ -1,0 +1,62 @@
+{
+  "objective": "Resolver os cards pendentes por dependencia, com provas atuais; nao apagar a fila ou simular fechamento de bloqueios",
+  "expected": "Implementar ou revalidar cada criterio; duas rodadas consecutivas com fontes e imagens congeladas; novos bugs reproduzidos entram no fim da fila",
+  "forbidden": ["pagar ou ligar faturamento", "mudar para provider pago", "expor servicos publicamente sem destino autorizado", "apagar pedidos para ajustar resultados", "reutilizar aprovacao de fontes diferentes", "confundir mock ou laboratorio com producao", "commit push ou alteracao de branch"],
+  "execution": {"writer": "tarefa canonica atual", "journal": "D:/RAG-Local/.local/card-execution/queue.sqlite3", "live_project": "rag-local-v2", "qa_only_fault_injection": true, "preserve_volumes": true},
+  "stages": [
+    {"order": 1, "cards": ["BUG-035", "BUG-037", "RAG-06"], "action": "Revalidar MiniLM real, Qdrant dense/sparse, holdouts existentes, isolamento, revogacao, abstenção e indice compartilhado", "proof": "current_semantic_fixture.py; duas rodadas atuais em projeto QA"},
+    {"order": 2, "cards": ["BUG-026", "BUG-060", "RAG-05"], "action": "Revalidar documentos e originais, readiness Qdrant, versoes e contratos distintos de revogar versao e fonte", "proof": "current_queue_fixture.py; duas rodadas HTTP SQL Qdrant"},
+    {"order": 3, "cards": ["RAG-09", "BUG-032", "RAG-10"], "action": "Revalidar collector traces metricas alertas redaction, outbox inbox retencao bytes e recuperacao; ajustar incompatibilidades reais", "proof": "observability_fixture.py e delivery_fixture.py; duas rodadas por segmento"},
+    {"order": 4, "cards": ["BUG-061", "RAG-02", "RAG-16"], "action": "Revalidar guard, Gemini ADK gratuito e casos reais da politica de alimentacao, respeitando quota duravel sem reset", "proof": "resposta real com citacao canonica e negativos; no_billing verificado; indisponibilidade nao conta como passe"},
+    {"order": 5, "cards": ["RAG-04", "RAG-07", "RAG-08"], "action": "Implementar lacunas de integracao autorizada de evidencias MCP, tarefa DeepAgents com ferramentas restritas e judge DeepEval calibrado; nao fechar por import de SDK", "proof": "integracao executavel e duas rodadas reais por criterio, com contexto e budgets limitados"},
+    {"order": 6, "cards": ["RAG-11", "RAG-12", "RAG-13"], "action": "Preparar identidade real e workload mensurado, restauracao funcional e estrategia de failover; revalidar limites atuais antes de classificar bloqueio externo", "proof": "autenticacao autorizada, carga HTTP reconciliada e dois dominios de falha; localhost sozinho nao prova HA"},
+    {"order": 7, "cards": ["RAG-14"], "action": "Verificar se ha caminho Vertex autorizado sem cobranca; manter billing desligado. Se exige custo, registrar conflito real para decisao, nao fingir chamada Vertex", "proof": "identidade regiao chamada real e autorizacao de custo compativeis com custo zero"},
+    {"order": 8, "cards": ["RAG-15"], "action": "Atualizar documentos e diagrama; revisar toda a fila e executar duas rodadas completas; nenhum fechamento sem provas dos filhos", "proof": "no_pending_cards e two_final_full_rounds; blockers externos exigem escolha explicita"}
+  ],
+  "next_blocked_gates": {
+    "RAG-04": {
+      "current_evidence": "eval/runs/remote-feed-20261001/live-153029.json: duas leituras autenticadas, tres cards Jira e zero PRs GitHub",
+      "decision": "Autorizar especificamente branch, commit de um arquivo ficticio e PR no repositorio privado Cabraiz/rag-mcp-lab, sem merge; ou fornecer PR existente neste mesmo escopo",
+      "constraint": "Nao ampliar o token MCP de leitura, criar fork, escrever em outro repositorio ou fabricar dados remotos",
+      "execution_after_decision": "Criar somente a fixture autorizada, se necessario; anexar o PR criado a esta tarefa; manter gateway somente leitura; executar mcp_evidence_gate.py integralmente duas vezes consecutivas com expiracao de citacoes",
+      "required_result": "MCP real -> snapshot aprovado -> SQL/Qdrant -> ADK/Gemini -> citacao canonica; snapshot expirado deixa de ser entregue"
+    },
+    "RAG-11": {
+      "decision": "Escolher Keycloak local em container com usuarios ficticios ou fornecer issuer e client autorizados da empresa; nao importar a sessao do navegador",
+      "proposed_implementation": "OIDC Authorization Code com PKCE S256; state e nonce vinculados a transacao; tokens mantidos no BFF; sessao revogavel; issuer, audience, assinatura e validade verificados; membership e papel resolvidos no SQL",
+      "scope_boundary": "Keycloak start-dev em loopback permite integrar o laboratorio, nao certifica TLS, configuracao de producao, HA nem identidade corporativa",
+      "required_tests": ["login e logout reais", "state/nonce/code incorretos ou reaproveitados", "token expirado e issuer/audience/assinatura incorretos", "CSRF e fixation", "papel e membership revogados", "acesso cruzado entre usuarios e tenants", "retomar e cancelar recibo proprio", "Ana nao publica e Bruno nao consulta", "origens e redirect_uri fora da allowlist", "segredos ausentes de DOM URL e logs"],
+      "release_guard": "Demonstracao sem senha nunca recebe dados reais nem production_ready=true; exposicao publica exige destino e autorizacao especificos"
+    },
+    "RAG-12": {
+      "depends_on": ["RAG-11"],
+      "workload_contract": "Manter production-policy.json revision 3: 100000 ofertas unicas por 100 tenants, pendentes globais 100000 e por tenant 1024; definir duracao, concorrencia e mistura de perguntas antes de executar",
+      "required_tests": ["duas rodadas HTTP completas em projeto QA proprio", "identidade e membership de todos os tenants", "aceites 202 comparados ao ledger", "rejeicoes 429/503 distinguidas de aceites", "confirmacao incerta resolvida pela mesma chave", "zero IDs aceitos ausentes e zero terminais duplicados", "deadlines medidos desde criacao", "reconciliacao de jobs audit outbox e inbox", "latencia p50 p95 p99 e distribuicao por tenant", "SLO sobre aceites, nao sobre ofertas rejeitadas"],
+      "cost_boundary": "Nao executar 100000 chamadas Gemini nem resetar contador. Um workload sem LLM mede a infraestrutura, nao a capacidade do modelo remoto; a mistura real precisa ser definida e respeitar a quota gratuita",
+      "capacity_boundary": "Os 1028 aceitos atuais e a restauração local nao substituem este workload nem demonstram 100000 usuarios simultaneos"
+    },
+    "RAG-13": {
+      "decision": "Fornecer um segundo computador/servidor gratuito e seu destino de recuperacao autorizados, sem tokens ou senhas no chat",
+      "already_proven": "Imagem aplicada localmente; dois ciclos com falhas de dependencias, backup/restore em outra instancia, 1028 aceitos entregues; ambos ainda no mesmo host",
+      "required_tests": ["backup cifrado somente dos dados autorizados", "restauracao e consulta funcional no segundo host", "RPO e RTO medidos", "fencing do primario antigo antes de escrita no novo", "reconciliacao apos perda do host ou disco", "migracao compativel e retorno controlado", "TLS identidade segredos e exposicao minima", "gate de seguranca e autorizacao de deploy"],
+      "forbidden": "Nao chamar dois containers no D: de HA; nao provisionar cloud paga ou enviar dados/segredos para destino novo por inferencia"
+    },
+    "RAG-14": {
+      "current_evidence": "eval/runs/vertex-express-ui-20261002.json: oferta gratuita nao confirmada nesta conta",
+      "safe_choice": "Manter Gemini API gratuito atual. Vertex permanece sem chamada aprovada enquanto nao houver uma rota real compativel com custo zero",
+      "forbidden": "Nao ativar faturamento, upgrade, trial, novos termos ou nova conta para transformar este card em DONE"
+    },
+    "RAG-15": {
+      "depends_on": ["RAG-04", "RAG-11", "RAG-12", "RAG-13", "RAG-14", "RAG-16"],
+      "required_result": "Nenhum card pendente e duas rodadas completas com as mesmas fontes, imagens e contratos; documentacao e diagrama correspondem a integracao executada",
+      "forbidden": "Nao certificar ausencia absoluta de bugs, auditoria independente, producao publica ou HA com gates parciais"
+    }
+  },
+  "design_references": {
+    "keycloak_container": "https://www.keycloak.org/getting-started/getting-started-docker",
+    "keycloak_hostname": "https://www.keycloak.org/server/hostname",
+    "oauth_security": "https://www.rfc-editor.org/rfc/rfc9700",
+    "github_pr": "https://docs.github.com/en/pull-requests/how-tos/create-pull-requests/creating-a-pull-request"
+  },
+  "stop_rule": "Persistir enquanto houver acao segura no escopo; se conclusao exigir nova identidade, gasto ou infraestrutura externa nao autorizada, apresentar a prova e pedir somente a decisao necessaria"
+}

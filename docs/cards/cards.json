@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "policy": {"order": "FIFO; new verified bugs appended last", "paid_actions": false, "external_security_grants": "specific_consent_required", "completion": "two consecutive real scoped rounds; blocked is not done"},
+  "cards": [
+    {"id":"RAG-01","title":"Desbloquear Atlassian MCP","evidence_type":"real_provider","criteria":["KAN-1","KAN-2","authorized_read_only"]},
+    {"id":"RAG-02","title":"Desbloquear Gemini ADK gratuito","evidence_type":"real_provider","criteria":["real_inference","no_billing","persistent_daily_limit"]},
+    {"id":"RAG-03","title":"Conectar GitHub MCP online","evidence_type":"real_provider","criteria":["repository_allowlist","real_read","negative_authorization"]},
+    {"id":"RAG-04","title":"Integrar providers ao workflow ADK","evidence_type":"real_integration","criteria":["provider_workflow","evidence_gate","authorization","bounded_execution"]},
+    {"id":"RAG-05","title":"Ingestao de documentos e versoes","evidence_type":"real_integration","criteria":["formats","versions","revocation","isolation","canonical_download"]},
+    {"id":"RAG-06","title":"Recuperacao semantica avaliada","evidence_type":"real_integration","criteria":["neural_embeddings","hybrid_retrieval","portuguese_holdout","abstention"]},
+    {"id":"RAG-07","title":"DeepAgents executavel","evidence_type":"real_integration","criteria":["real_task","restricted_tools","checkpoint","cancellation","budgets"]},
+    {"id":"RAG-08","title":"DeepEval e judge calibrado","evidence_type":"real_integration","criteria":["versioned_dataset","holdout","calibrated_judge","deterministic_tests"]},
+    {"id":"RAG-09","title":"Observabilidade operacional","evidence_type":"real_integration","criteria":["collector","traces","metrics","alerts","redaction"]},
+    {"id":"RAG-10","title":"Entrega duravel e retencao","evidence_type":"real_integration","criteria":["outbox_dispatch","retention","byte_limits","recovery"]},
+    {"id":"RAG-11","title":"Login real e frontend integrado","evidence_type":"real_integration","criteria":["real_authentication","tenant_isolation","citations","cancel_resume"]},
+    {"id":"RAG-12","title":"100000 requests HTTP reais","evidence_type":"real_load","criteria":["defined_workload","accepted_reconciliation","deadlines","measured_slo"]},
+    {"id":"RAG-13","title":"Operacao e recuperacao de producao","evidence_type":"real_production_recovery","criteria":["persistent_runtime","versioned_migrations","restore","failover","security_release_gate"]},
+    {"id":"RAG-14","title":"Vertex AI real sem violar politica de custos","evidence_type":"real_provider","criteria":["approved_identity_region","real_vertex_call","cost_authorization"]},
+    {"id":"RAG-15","title":"Documentacao e gate final completos","evidence_type":"full_end_to_end","criteria":["current_docs_diagram","no_pending_cards","two_final_full_rounds"]},
+    {"id":"RAG-16","title":"Ampliar politica de alimentacao da Aurora","evidence_type":"real_integration","criteria":["versioned_policy","additive_publication","real_grounded_queries","negative_cases","rules_checklist"]}
+  ]
+}

@@ -1,0 +1,66 @@
+title Aplicacao RAG - monolito modular
+direction right
+
+// Vista de componentes e chamadas em runtime, nao de imports Python.
+// Imports: application -> domain/ports; adapters -> application/domain;
+// somente bootstrap conhece implementacoes. Nenhum servico implementado.
+// ADK e DeepAgents separados; callbacks limitados usam os mesmos ports.
+// Commit terminal pertence ao caso de uso, nunca ao agente.
+// Layout automatico; nao altera o workflow RAG existente.
+
+Entradas [color: blue, label: "1 ENTRADAS"] {
+  API [label: "FastAPI\nAPI autenticada"]
+  Workers [label: "Workers\nPedidos / ingestao / EVAL"]
+  Dev [label: "ADK Web\nFacade dev local"]
+}
+
+Nucleo [color: green, label: "2 NUCLEO PYTHON"] {
+  UseCases [label: "Casos de uso\nSeis modulos do RAG"]
+  Domain [label: "Dominio puro\nPoliticas e invariantes"]
+  Ports [label: "Ports Python\nProtocol e contratos"]
+}
+
+Adaptadores [color: purple, label: "3 ADAPTADORES"] {
+  ADK [label: "Google ADK\nWorkflowPort"]
+  Deep [label: "DeepAgents\nTaskPort"]
+  IO [label: "Dados e integracoes\nPorts de saida"]
+  Eval [label: "pytest / DeepEval\nJudge e gates"]
+}
+
+Servicos [color: orange, label: "4 SERVICOS POR PERFIL"] {
+  PG [shape: cylinder, label: "PostgreSQL\nLedger + jobs + outbox"]
+  QD [shape: cylinder, label: "Qdrant servidor\nBusca + filtros"]
+  FS [label: "Storage privado D:\nObjetos / checkpoints"]
+  Remote [label: "Local / Vertex opt-in\nMCP / REST"]
+}
+
+Operacao [color: teal, label: "5 OPERACAO"] {
+  Boot [label: "Bootstrap\nDI + config"]
+  Observe [label: "Logs / metricas / traces\nOpenTelemetry"]
+}
+
+API > UseCases
+Workers > UseCases
+Dev > UseCases
+UseCases > Domain: Regras
+UseCases > Ports: Contratos
+Ports > ADK: Workflow
+Ports > Deep: Task
+Ports > IO: I/O
+Ports > Eval: EVAL
+IO > PG
+IO > QD
+IO > FS
+IO > Remote
+UseCases --> Observe: Telemetria
+Boot --> UseCases: Injeta ports
+
+// As setas resumem interfaces usadas; nao autorizam acesso direto de SDK a provedor.
+// Bootstrap cria tambem os recursos de I/O; relacao omitida para evitar linha sobre titulo.
+// ADK recebe callbacks para etapas da aplicacao, sem finalize/credenciais/DI container.
+// DeepAgents e judge reutilizam ModelPort/ToolPort e o budget agregado.
+// Consultar application.md para sequencia, schemas, fases e regras de imports.
+// API so responde 202 apos request/job/audit/outbox commitados no PostgreSQL.
+// Progresso e terminal seguros; proposta privada nao e enviada ao ADK Web/SSE.
+// Broker RabbitMQ e Redis sao opcionais no perfil de escala; PG queue no lab.
+// D: e laboratorio, nao capacidade de 100000 usuarios ou garantia de HA.

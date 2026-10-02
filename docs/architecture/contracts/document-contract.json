@@ -1,0 +1,8 @@
+{
+  "card_id": "RAG-05",
+  "scope": "synthetic_single_user_lab_not_production",
+  "expected": ["UTF-8 TXT and Markdown plus text PDF are parsed in a bounded subprocess", "original bytes have immutable content-addressed identity", "changed original bytes create a different release even if parsed text is unchanged", "download requires canonical tenant and actor authorization and READY, non-expired, non-revoked document", "source revocation covers historical versions and prevents implicit reactivation", "retrieval and citation validation remain canonical SQL checks"],
+  "forbidden": ["file paths or URLs from upload", "content in logs or vector payloads", "cross-tenant download or revocation", "OCR claims for scanned PDF", "paid providers", "claiming independent blind or production tests"],
+  "limits": {"raw_bytes": 8192, "parsed_chars": 8192, "pdf_pages": 3, "parser_wall_seconds": 4, "parser_cpu_seconds": 2, "parser_memory_bytes": 268435456, "object_store_bytes": 20971520},
+  "minimal_proof": "two consecutive real HTTP, PostgreSQL, Qdrant and object-volume rounds on frozen source hashes and image IDs; original byte equality, negative authorization, expiry and revocation assertions"
+}

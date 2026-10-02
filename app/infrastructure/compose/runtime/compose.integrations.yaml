@@ -1,0 +1,37 @@
+# Private MCP gateway, no host port. Only gateway holds external read credentials.
+services:
+  api:
+    environment:
+      RAG_REMOTE_FEED: enabled
+    networks: [edge, data, integration_internal]
+  integration-gateway:
+    image: rag-local-integrations:0.1.0
+    build: {context: ., dockerfile: infrastructure/images/integrations/Dockerfile.integrations}
+    environment: {RAG_MODE: lab, OTEL_SDK_DISABLED: "true"}
+    secrets: [jwt_lab, github_mcp_token, atlassian_mcp_token, atlassian_mcp_metadata]
+    volumes: [feeddata:/syncdata]
+    networks: [integration_internal, integration_egress]
+    user: "10001:10001"
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 0.5
+    mem_limit: 384m
+    pids_limit: 64
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live',timeout=3)"]
+      interval: 10s
+      timeout: 4s
+      retries: 6
+    logging: {driver: json-file, options: {max-size: 1m, max-file: "2"}}
+networks:
+  integration_internal: {internal: true}
+  integration_egress: {}
+volumes:
+  feeddata: {}
+secrets:
+  github_mcp_token: {file: ../.local/secrets/github-mcp-token.txt}
+  atlassian_mcp_token: {file: ../.local/secrets/atlassian-mcp-token-active.txt}
+  atlassian_mcp_metadata: {file: ../.local/secrets/atlassian-mcp-token-active.json}

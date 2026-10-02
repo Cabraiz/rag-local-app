@@ -1,0 +1,30 @@
+{
+  "revision": 3,
+  "workload": {"offered_unique": 100000, "tenants": 100, "global_pending": 100000, "tenant_pending": 1024, "max_body_bytes": 16384},
+  "durability": {"ack_after_commit": true, "production_sync_flush": true, "eligible_promotion_only": true, "fence_old_primary": true, "status_from_primary": true},
+  "control": {"separate_process": true, "reserved_sql_pool": 2, "reserved_cpu": true, "runs_llm": false, "db_clock": true, "lease_seconds": 30, "max_attempts": 3, "deadline_seconds": 900},
+  "publication": {"state_cas": true, "fence_cas": true, "valid_lease": true, "deadline": true, "acl_recheck": true, "audit_outbox_atomic": true},
+  "admission": {"atomic_reservation": true, "byte_budget": true, "disk_headroom": true, "fair_tenant_claim": true},
+  "retention": {"key_age_seconds": 604800, "future_skew_seconds": 60, "terminal_key_days": 8, "receipt_days": 30, "gc_nonterminal": false, "reject_old_unmapped_key": true},
+  "production": {"fixture_auth": false, "fixture_model": false, "public_adk_web": false, "pinned_images": true, "posix_db_volumes": true, "tls_identity_required": true, "secrets_external": true, "nonroot_app": true, "restore_failover_evidence": true, "metrics_no_request_labels": true},
+  "remote_mcp": {
+    "status": "planned_not_connected",
+    "transport": "streamable_http_https",
+    "read_only_required": true,
+    "per_identity_credentials": true,
+    "gateway_required": true,
+    "acl_recheck_before_delivery": true,
+    "logs_redacted": true,
+    "connect_seconds": 5,
+    "call_seconds": 20,
+    "max_attempts": 2,
+    "max_response_bytes": 1048576,
+    "concurrency_per_provider": 2,
+    "providers": {
+      "github": {"enabled": false, "endpoint": "https://api.githubcopilot.com/mcp/", "hosted_by_provider": true, "read_only_header": "X-MCP-Readonly"},
+      "atlassian": {"enabled": false, "endpoint": "https://mcp.atlassian.com/v2/mcp", "hosted_by_provider": true, "resources": ["Confluence", "Jira"]}
+    }
+  },
+  "gate_a": "design_only_start_local_implementation",
+  "gate_b": "real_integration_load_quality_security_ha_evidence_and_explicit_deploy_authorization"
+}

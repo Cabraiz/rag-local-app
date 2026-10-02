@@ -1,0 +1,95 @@
+id	segment	cenario	esperado	proibido	menor_prova	runner	check
+LABRAG01	rag	Bundle sintético text/plain	Promover após Qdrant real persistir	Promover antes da indexação	HTTP e catálogo e índice reais	rag_fixture	real_index_promoted
+LABRAG02	rag	Limites do perfil text/plain	Rejeitar PDF duplicatas controles datas sem timezone e excesso	Aceitar formatos não implementados	HTTP com entradas adversariais	rag_fixture	unsupported_format_rejected|duplicate_source_rejected|control_char_rejected|naive_expiry_rejected|byte_budget_rejected
+LABRAG03	rag	Manifest repetido e indexação interrompida	Mesmo release ou mesmo candidato ao retomar	Duplicar ou promover incompleto	Replay real e fault injetado de indexação	rag_fixture	manifest_replay_same_release|failed_index_never_promoted|failed_index_resume_same_candidate
+LABRAG04	rag	Grafo ADK extrativo sem LLM	Trecho literal e citação canônica exata	Texto inventado ou payload vetorial virar fonte	Runner e Qdrant e PostgreSQL reais	rag_fixture	native_graph_exact_citation|forged_quote_not_published
+LABRAG05	rag	Isolamento do catálogo e revogação	Outro tenant ou ator não obtém nem revoga fonte	Índice malicioso contornar SQL canônico	HTTP cross tenant e adapter adversarial sem privilégios	rag_fixture	tenant_no_corpus_abstains|tenant_cannot_revoke|canonical_actor_filter_rejects_malicious_index
+LABRAG06	rag	Revogação no commit e na leitura	Abster e remover conteúdo e citações	Entregar trecho revogado em status ou lista	Fonte real revogada antes e depois do commit	rag_fixture	revocation_before_commit_abstains|revocation_after_commit_redacts_read|revocation_redacts_list
+LABRAG07	rag	Release alterado com pedido pendente	Snapshot fica no release do aceite	Pedido assumir automaticamente nova versão	Ingestão de nova versão com worker indisponível	rag_fixture	snapshot_fixed_at_admission|queued_snapshot_uses_original_source
+LABRAG08	rag	Qdrant reiniciado e indisponível	Persistir índice e conservar head até reconciliar	Perder fonte ou promover índice ausente	Stop start reais do container e HTTP 503	rag_fixture	qdrant_restart_preserves_index|real_qdrant_outage_returns_retryable_error|real_qdrant_outage_preserves_ready_head|real_qdrant_outage_reconciles
+LABRAG09	rag	Ausência conflito validade e cálculo não implementado	Abstenção da baseline extrativa	Inventar resolução ou calcular com LLM inexistente	Corpus sintético e respostas reais	rag_fixture	unknown_question_abstains|ambiguous_sources_abstain|expired_source_abstains|unsupported_calculation_abstains
+LABRAG10	rag	Pedido extrativo e texto instrucional	Conteúdo permanece literal e terminal tem audit outbox	Instrução documental executar ação ou pedido ficar sem terminal	Grafo sem tools e SQL por IDs aceitos	rag_fixture	document_instructions_remain_literal_data|requests_terminal_audit_outbox_conserved
+LABRAG11	rag	Logs das etapas do grafo	Retrieve compose verify por pedido sem texto sensível	Omitir etapa ou registrar pergunta e fonte	JSON real emitido pelo worker em cada rodada	rag_fixture	workflow_stage_logs_complete_and_redacted
+PY01	python_adk	Aceitar pedido válido	202 após commit com ID estável	ACK sem registro durável	HTTP e SQL do ID criado	http_fixture	16_concurrent_duplicates_same_committed_receipt
+PY02	python_adk	Duplicatas concorrentes	Um ID por tenant ator chave payload	Duplicar pedidos e reservas	16 chamadas concorrentes e SQL	http_fixture	16_concurrent_duplicates_same_committed_receipt
+PY03	python_adk	Chave com payload diferente	409 sem alterar pedido	Reutilizar resultado de outro payload	HTTP 409 e ID original	http_fixture	different_payload_same_key_conflicts
+PY04	python_adk	Confirmação perdida	Resolver chave retorna ID commitado	Criar pedido substituto	Resolver por chave após envio	http_fixture	resolve_after_lost_confirmation
+PY05	python_adk	Chave antiga já conhecida	Reutilizar receipt retido e conferir payload	Invalidar receipt existente pela idade	Envelhecer chave de ID sintético e repetir	segment_fixture	known_old_key_replay
+PY06	python_adk	Chave velha não conhecida	409 sem criar pedido	Ressuscitar chave coletada	HTTP com nonce antigo novo	http_fixture	old_unmapped_key_rejected
+PY07	python_adk	Sessão privada ADK	ABSTAIN sem corpus e sem citações falsas	Proposta bruta no frontend	ADK real e resultado HTTP	http_fixture	adk_returns_explicit_abstention_no_fake_citations
+PY08	python_adk	Cancelamento sem inferência	CANCELLED idempotente	Esperar LLM para cancelar	Worker pausado e HTTP	http_fixture	cancel_idempotent_with_inference_unavailable
+PY09	python_adk	Worker obsoleto	Fence antigo não commita	Dois terminais lógicos	SQL real e finish False True	http_fixture	real_sql_stale_fence_rejected_new_owner_commits
+PY10	python_adk	Rotas e mensagens do workflow	Etapas tipadas retornam ao caller registrado	Reentrada ExecuteRequest ou autoridade LLM	Workflow ADK completo e traces por etapa	pending	workflow_contract
+PY11	python_adk	Fronteiras hexagonais	Domínio e aplicação não importam adapters	SDK ou SQL concreto no núcleo	Teste AST dos módulos atuais	static	core_import_boundary
+PY12	python_adk	Orquestrador explícito nas figuras	Mesmo dono de execução e proposta privada	Dois donos do terminal	Inspeção de DSL e contratos	static	orchestrator_contract
+RAG01	rag	Documento válido autorizado	Snapshot candidato e chunks versionados	Indexar diretamente no release ativo	Ingestão Qdrant e catálogo reais	pending	ingest_valid
+RAG02	rag	Formato inválido arquivo gigante ou zip bomb	Rejeitar com limites de parser e tamanho	Esgotar CPU memória ou disco	Arquivos adversariais e recursos medidos	pending	ingest_limits
+RAG03	rag	Ingestão repetida e falha parcial	Upsert idempotente por versão e reconciliação	Duplicar chunks ou promover incompleto	Repetir e interromper indexação real	pending	ingest_idempotency
+RAG04	rag	Consulta com evidência suficiente	Resposta fundamentada com referências verificáveis	Afirmação sem fonte	Gold PT e trechos reais recuperados	pending	grounded_answer
+RAG05	rag	Busca híbrida e rerank	Recall e ranking medidos no corpus	Afirmar ganho sem baseline	Dense sparse híbrido e rerank no holdout	pending	retrieval_quality
+RAG06	rag	Tenant ou ACL incompatível	Não recuperar nem enviar nem entregar evidência	Vazamento cruzado	Qdrant real e tentativas cross tenant	pending	retrieval_acl
+RAG07	rag	Revogação entre busca geração e entrega	Tombstone epoch impedem uso posterior	Servir cache ou citação revogada	Barreiras concorrentes e revogação real	pending	revocation_race
+RAG08	rag	Sem evidência evidência conflitante ou vencida	Abstenção ou explicitar conflito sustentado	Inventar resolução ou certeza	Dataset de ausência conflito e validade	pending	abstention_quality
+RAG09	rag	Citação inventada ou trecho incompatível	Bloquear proposta ou reparar uma vez	URL existente contar como suporte suficiente	Validação fonte trecho e alegação	pending	citation_support
+RAG10	rag	Prompt injection no documento	Tratar conteúdo como dados não confiáveis	Executar instrução embutida	Corpus adversarial e spy das tools reais	pending	document_injection
+RAG11	rag	Número cálculo unidade e data	Conferir dados e cálculo determinístico	Número plausível mas errado	Casos de tabela moedas unidades e datas	pending	numeric_grounding
+RAG12	rag	Promoção e rollback do corpus	CAS e versão fixa sem ressuscitar ACL	Alias mutável ou rollback de revogação	Promoção concorrente e rollback reais	pending	corpus_release
+MCP01	mcp_api	GitHub leitura autorizada	Fonte identificada e identidade delegada mínima	Credencial ampla global	Chamada remota e escopos reais aprovados	pending	github_read
+MCP02	mcp_api	Atlassian leitura autorizada	Jira Confluence no site e usuário permitidos	Trocar cloudId ou aceitar header GH como ACL	Chamada remota e teste negativo de site	pending	atlassian_read
+MCP03	mcp_api	Tool de escrita ou não allowlisted	Gateway nega antes da chamada	Criar editar comentar merge delete	Manifest real e spy do adapter	pending	tool_allowlist
+MCP04	mcp_api	401 e 403	Refresh limitado ou negar sem escalada	Usar outra credencial silenciosamente	Contrato adapter e token real revogado	pending	mcp_auth_failure
+MCP05	mcp_api	429 e Retry After	Retry durável limitado pelo deadline	Dormir ilimitadamente ou esquecer job	Servidor de contrato e ledger real	pending	mcp_rate_limit
+MCP06	mcp_api	Timeout conexão parcial 5xx e circuit breaker	Erro tipado e retry somente seguro	Retry infinito ou duplicar efeitos	Fault proxy e adapter real	pending	mcp_transient
+MCP07	mcp_api	Saída gigante malformada ou incompatível	Limite schema e fonte válida	Consumir objeto arbitrário como evidência	Servidor de contrato com corpus ruim	pending	mcp_schema_limits
+MCP08	mcp_api	Prompt injection em tool result	Sem alteração de permissão destino ou instrução	Credencial no contexto ou exfiltração	Ataque em tool e spies de egress	pending	tool_injection
+MCP09	mcp_api	Cache após revogação	Cache scoped e nova autorização	Cache global contornar permissões	Duas identidades e revogação real	pending	mcp_cache_acl
+MCP10	mcp_api	REST URL redirect DNS maliciosos	Destinos fixos TLS e proteção SSRF	Loopback metadata ou TLS inseguro	Adapter HTTP real e DNS controlado	pending	ssrf
+MCP11	mcp_api	Bypass ADK ou DeepAgents	Todo caminho externo passa no gateway	Chamada direta ao provedor	Grafo e mutantes de bypass	static	gateway_graph
+MCP12	mcp_api	Conexões cloud ainda não autorizadas	Provedores desabilitados	Teste documental virar conexão aprovada	Flags atuais e rede Compose	static	remote_disabled
+VTX01	vertex_gemini	Cloud desligada	Nenhum fallback local para cloud	Enviar dados sem opt in	ModelPort real e spy de transporte	pending	cloud_opt_in
+VTX02	vertex_gemini	Identidade e IAM	Workload autorizado com escopo mínimo	Chave no browser prompt log ou imagem	ADC IAM e imagem inspecionados	pending	vertex_identity
+VTX03	vertex_gemini	Perfil de dados região retenção	Bloquear finalidade ou destino incompatíveis	Supor retenção zero por usar Vertex	Política aprovada e chamada controlada	pending	vertex_data_policy
+VTX04	vertex_gemini	Orçamento simultâneo	Reserva agregada por tenant pai e filhos	Ultrapassar teto por corrida	Model adapter e SQL com uso medido	pending	model_budget
+VTX05	vertex_gemini	Tokens custo de falhas e cancelamento	Contabilizar uso e resolver UNKNOWN	Liberar reserva com custo ainda desconhecido	Usage real e reconciliação do ledger	pending	model_usage_unknown
+VTX06	vertex_gemini	429 5xx timeout e deadline	Retry seguro dentro de prazo e custo	Pedido sem terminal ou retry infinito	Fault proxy e adapter de modelo	pending	model_failures
+VTX07	vertex_gemini	Modelo prompt embedding incompatíveis	Bundle fixado e validado	Misturar dimensões ou versão silenciosa	Manifest e teste de compatibilidade real	pending	model_bundle
+VTX08	vertex_gemini	Resposta do modelo inválida	Schema e evidência antes de publicar	Streaming de candidato não verificado	Modelo real controlado e canal público	pending	model_output
+EVAL01	evaluation	Oráculos e código congelados	Hashes iguais nas duas rodadas positivas	Editar esperado depois do resultado	Contract e receipt por rodada	static	frozen_contract
+EVAL02	evaluation	Teste deliberadamente defeituoso	Mutante é detectado e falha	Suite verde por asserção vazia	Mutação de import gateway e catálogo	static	negative_controls
+EVAL03	evaluation	Gold e holdout em português	Separação por fonte versão sem contaminação	Treinar ou ajustar no holdout	Dataset manifest e split reproduzível	pending	rag_holdout
+EVAL04	evaluation	Judge e fidelidade às evidências	Calibração limites e discordâncias registrados	Judge substituir autorização ou verdade	Rubrica exemplos rotulados e uso medido	pending	judge_calibration
+EVAL05	evaluation	Regressão por segmento e UNKNOWN	Gate falha em PENDING erro ou evidência vencida	Promover pela média agregada	Manifest completo e release gate real	pending	eval_release_gate
+EVAL06	evaluation	Correlacionar API worker ADK tool modelo	Trace consistente sem conteúdo sensível	Identificadores em labels de métrica	OTel real e consulta de traces	pending	trace_propagation
+EVAL07	evaluation	Collector indisponível	Fila de export limitada sem bloquear pedido	Perder auditoria ou explodir memória	Collector interrompido e limite medido	pending	collector_failure
+EVAL08	evaluation	Segredos documentos perguntas em logs	Não registrar conteúdo privado	Token ou texto bruto em log	Canários em entradas e captura dos sinks	pending	log_redaction
+EVAL09	evaluation	Auditoria do terminal	Uma audit e uma outbox por terminal	Terminal sem trilha atômica	SQL por IDs sintéticos	http_fixture	all_accepted_ids_terminal_and_one_audit_outbox_each
+EVAL10	evaluation	Monitor de pedidos antigos	Alerta por idade e reconciliação	Somente contar erros HTTP	Métricas e incidente reproduzido	pending	stalled_request_alert
+DEEP01	deepagents	Pergunta simples	Não ativar planejamento ou filhos	DeepAgents em toda chamada	Roteador real e spy do TaskPort	pending	task_routing
+DEEP02	deepagents	Relatório complexo	Planning configurado e tarefas limitadas	Plano sem execução ou filhos ilimitados	DeepAgents real com traces	pending	deep_planning
+DEEP03	deepagents	Resultado duplicado tardio ou de outro tenant	Envelope schema fence snapshot validade	Aceitar resultado do dono anterior	TaskPort real e envelopes adversariais	pending	task_envelope
+DEEP04	deepagents	Filho falha cancela ou estoura orçamento	Agregação limitada e resposta sustentada ou abstenção	Ignorar falha ou exceder teto do pai	Subagentes reais e fault injection	pending	task_failures
+DEEP05	deepagents	Ferramentas default shell filesystem	Ferramentas mínimas isoladas e auditáveis	Acesso amplo ao host por defaults	Manifest root filhos e middleware	pending	deep_defaults
+DEEP06	deepagents	Checkpoint e retomada	Isolamento cifragem reautorização novo fence	Checkpoint virar ledger ou ressuscitar acesso	Retomada real entre processos	pending	deep_resume
+DEEP07	deepagents	Ponte ADK TaskPort sem reentrada	Uma coordenação externa e propostas privadas	Dois runtimes publicarem resposta	Workflow integrado e traces	pending	deep_bridge
+DEEP08	deepagents	Proposta tentar commit	Agente sem capacidade de finalizar	Contornar verificação determinística	Capabilities reais e terminal protegido	pending	deep_no_commit
+OPS01	production	Lease perdido	Control recupera sem inferência	Pedido preso para sempre	Worker pausado e SQL	http_fixture	lease_recovered_without_original_worker
+OPS02	production	Deadline sem worker	EXPIRED com auditoria atômica	Esperar modelo retornar	Deadline vencido e control real	http_fixture	control_expires_while_worker_unavailable
+OPS03	production	Lease expirado antes de reclaim	finish recusa mesmo com fence atual	Commit depois da perda de posse	SQL real e finish False	segment_fixture	expired_lease_no_commit
+OPS04	production	Máximo de tentativas	FAILED_FINAL após teto	Retry sem limite	SQL real terceira lease vencida	segment_fixture	attempt_limit
+OPS05	production	Job ausente	Control recria job do pedido não terminal	Esquecer pedido aceito	Remover somente job sintético e aguardar	segment_fixture	orphan_job_recovered
+OPS06	production	Postgres reinicia após aceite	Receipt e pedido permanecem recuperáveis	Novo ID ou perda de ACK	Restart real do container próprio	segment_fixture	postgres_restart
+OPS07	production	100000 pedidos e tenant flood	Conservação SLO fairness e backpressure	Confundir simulação com carga real	Carga HTTP SQL retrieval modelo reconciliada	pending	load_100k
+OPS08	production	Disco cheio limites de bytes e conexões	503 ou 429 antes do aceite e controle reservado	ACK sem espaço ou lock global saturado	Recursos limitados e workload real	pending	admission_resources
+OPS09	production	Outbox duplicada e dispatcher cai	Entrega idempotente retomada durável	Notificação virar única fonte de status	Dispatcher real e consumidor faulted	pending	outbox_delivery
+OPS10	production	Backup PITR failover e split brain	Restaurar e promover cópia elegível com fencing	ACK perdido ou dois primários escrevendo	Restore e HA em domínios diferentes	pending	ha_restore
+OPS11	production	Produção usando fixtures	Startup recusado	Lab auth ou modelo aprovarem produção	Container com RAG_MODE production	segment_fixture	production_refused
+OPS12	production	Supply chain migration shutdown	Digest locks SBOM scan upgrade e drain testados	Tag mutável upgrade destrutivo ou órfão	CI e migrations com rollback seguro	pending	release_operations
+OPS13	production	Cliente congelado segurando lock SQL	Servidor encerra transação ociosa em prazo limitado	Lock bloquear controle indefinidamente	Conexão SQL real segurando admission e timeout server side	segment_fixture	idle_transaction_bounded
+UI01	frontend	Tenant fornecido no corpo	422 sem trocar identidade	Prompt decidir tenant	HTTP campo extra	http_fixture	extra_tenant_field_rejected
+UI02	frontend	Outra identidade consulta ou cancela	404 sem revelar existência	ID enumerável expor pedido	HTTP com demo b	http_fixture	cross_tenant_read_denied
+UI03	frontend	Mesmo tenant outro ator	Sem acesso a pedido de outro ator	Isolamento somente por tenant	Ledger real com Identity sintética	segment_fixture	actor_isolation
+UI04	frontend	Body gigante vazio e campos ausentes	413 ou 422 sem criar pedido	Input inválido criar reserva	HTTP e contagens SQL	segment_fixture	input_boundaries
+UI05	frontend	Reconectar recarregar e confirmação perdida	ID recuperável sem duplicata	Depender da memória da aba	Browser E2E com falhas de rede	pending	ui_reconnect
+UI06	frontend	Texto HTML hostil no resultado	Renderizar como texto e sem execução	XSS ou dados privados em storage	Browser E2E com canários	pending	ui_xss
+UI07	frontend	Candidato e cache HTTP	Somente terminal verificado e no store	Cache compartilhado ou streaming bruto	HTTP atual e inspeção dos canais	segment_fixture	public_result_boundary
+UI08	frontend	Cancelamento após terminal	Manter terminal original	Sobrescrever sucesso ou duplicar audit	HTTP cancel e SQL	segment_fixture	cancel_after_terminal

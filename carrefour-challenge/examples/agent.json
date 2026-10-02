@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "name": "clinic_scheduling",
+  "framework": "google-adk",
+  "transport": "sse",
+  "model_mode": "offline",
+  "timeout_seconds": 45,
+  "stages": [
+    {
+      "name": "extract_order",
+      "kind": "ocr"
+    },
+    {
+      "name": "retrieve_codes",
+      "kind": "retrieve"
+    },
+    {
+      "name": "validate_codes",
+      "kind": "validate"
+    },
+    {
+      "name": "submit_request",
+      "kind": "schedule"
+    },
+    {
+      "name": "format_receipt",
+      "kind": "format"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+FROM rag-local-mcp-lab:0.1.0
+USER root
+COPY --chown=10001:10001 src/rag_app/integrations/github_lab.py /app/src/rag_app/integrations/github_lab.py
+USER 10001:10001
+CMD ["python", "-m", "rag_app.github_lab"]

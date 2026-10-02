@@ -1,0 +1,11 @@
+.local
+.venv
+__pycache__
+tests/results
+*.log
+semantic/model
+tools
+tests
+README.md
+manage.py
+workspace.py

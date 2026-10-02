@@ -1,0 +1,27 @@
+{
+  "id": "office_faq_v1",
+  "documents": [
+    {"source_key":"meal","title":"Alimentação","text":"O orçamento aprovado para refeições é de 45 reais por pessoa. Esse valor é o limite de alimentação durante viagens."},
+    {"source_key":"receipts","title":"Comprovantes","text":"Notas fiscais de despesas devem ser enviadas ao setor financeiro em até 12 dias úteis após a viagem."},
+    {"source_key":"support","title":"Atendimento","text":"A equipe de suporte atende de segunda a sexta, das 8 às 17 horas."},
+    {"source_key":"access","title":"Aprovação de acesso","text":"O acesso à plataforma é liberado após a aprovação do gestor responsável pela equipe."},
+    {"source_key":"parking","title":"Visitantes","text":"O estacionamento gratuito para visitantes fica no portão leste do prédio."},
+    {"source_key":"packages","title":"Encomendas","text":"Encomendas internas devem ser entregues na recepção até as 16 horas."},
+    {"source_key":"vpn","title":"Trabalho remoto","text":"Para trabalhar fora do escritório, use a conexão VPN corporativa antes de abrir os sistemas internos."},
+    {"source_key":"repair","title":"Manutenção","text":"Solicitações de manutenção de computadores devem ser registradas no portal de TI."}
+  ],
+  "cases": [
+    {"question":"Qual é o limite autorizado para alimentação?","expected":"meal"},
+    {"question":"Em quanto tempo envio os comprovantes de despesas?","expected":"receipts"},
+    {"question":"Qual é o horário do atendimento de suporte?","expected":"support"},
+    {"question":"Quem precisa aprovar meu acesso ao sistema?","expected":"access"},
+    {"question":"Onde os visitantes podem estacionar?","expected":"parking"},
+    {"question":"Até que horas posso deixar uma encomenda na recepção?","expected":"packages"},
+    {"question":"Como acessar os sistemas quando trabalho em casa?","expected":"vpn"},
+    {"question":"Onde abro uma solicitação para consertar meu computador?","expected":"repair"},
+    {"question":"Qual é a distância entre a Terra e Saturno?","expected":null},
+    {"question":"Como preparar um bolo de chocolate?","expected":null},
+    {"question":"Qual é o número da conta bancária para o reembolso?","expected":null},
+    {"question":"Quanto posso gastar com hotel e hospedagem?","expected":null}
+  ]
+}

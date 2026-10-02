@@ -1,0 +1,27 @@
+# Opt-in one-shot read. No API/worker credential mounts or network changes.
+services:
+  github-probe:
+    profiles: [github-lab]
+    image: rag-local-github-lab:0.1.0
+    build: {context: ., dockerfile: infrastructure/images/integrations/Dockerfile.github-lab}
+    command: [python, -m, rag_app.github_lab]
+    user: "10001:10001"
+    restart: "no"
+    environment:
+      RAG_MODE: lab
+      RAG_GITHUB_PROBE: synthetic_readonly
+      OTEL_SDK_DISABLED: "true"
+    secrets: [github_mcp_token]
+    networks: [github_egress]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    pids_limit: 64
+    cpus: 0.5
+    mem_limit: 384m
+    logging: {driver: json-file, options: {max-size: 1m, max-file: "2"}}
+networks:
+  github_egress: {}
+secrets:
+  github_mcp_token: {file: ../.local/secrets/github-mcp-token.txt}

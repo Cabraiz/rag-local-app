@@ -1,0 +1,8 @@
+{
+ "card_id":"RAG-10",
+ "scope":"synthetic_SQL_notification_inbox_and_request_retention_not_external_broker_or_production",
+ "expected":["outbox dispatch persists a minimal notification inbox before acknowledgment", "crash between delivery and acknowledgment is replayable and deduplicated", "authenticated polling independently reauthorizes event ownership", "byte counters are atomically reserved with acceptance and released exactly once at terminal commit", "30-day managed request content retention preserves identity, idempotency mapping and minimal receipt", "pre-existing unmanaged records and nonterminal requests are never scrubbed"],
+ "forbidden":["claiming external delivery exactly once", "deleting receipts or accepted requests", "scrubbing historical unmanaged data", "negative byte counters", "returning 202 for rejected admission", "running model inference while a SQL transaction is held"],
+ "limits":{"pending_global_bytes":33554432,"pending_tenant_bytes":8388608,"database_admission_ceiling_bytes":268435456,"dispatch_batch":128,"retention_batch":32,"managed_content_days":30},
+ "minimal_proof":"two frozen real HTTP/SQL/process rounds, deduplicated replay, byte exhaustion negative control, exact reservation reconciliation, synthetic aged retention, and worker restart"
+}

@@ -1,0 +1,19 @@
+{
+  "scope":"new_authored_Portuguese_set_not_used_for_threshold_or_query_rewrite_selection_not_independent",
+  "cases":[
+    {"question":"Quanto dinheiro posso usar para almoçar numa viagem?","expected":"meal"},
+    {"question":"Qual o prazo para entregar os comprovantes da viagem?","expected":"receipts"},
+    {"question":"A que horas o suporte começa e termina o atendimento?","expected":"support"},
+    {"question":"Quem precisa dar aprovação para eu acessar a plataforma?","expected":"access"},
+    {"question":"Onde deixo o carro quando sou visitante?","expected":"parking"},
+    {"question":"Até quando posso levar encomendas à recepção?","expected":"packages"},
+    {"question":"Como consigo abrir os sistemas da empresa estando fora do escritório?","expected":"vpn"},
+    {"question":"Em qual portal solicito manutenção para o notebook?","expected":"repair"},
+    {"question":"Como preparar uma receita de lasanha?","expected":null},
+    {"question":"Como solicito reparo de uma máquina industrial?","expected":null},
+    {"question":"Qual o preço da manutenção do computador?","expected":null},
+    {"question":"Qual é a conta bancária para receber o reembolso?","expected":null},
+    {"question":"Qual é a senha da conexão VPN?","expected":null},
+    {"question":"Qual o prazo aprovado para férias?","expected":null}
+  ]
+}

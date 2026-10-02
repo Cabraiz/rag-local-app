@@ -1,0 +1,54 @@
+services:
+  prometheus:
+    image: prom/prometheus@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
+    # Lifecycle mutation endpoint is disabled by default; do not enable it.
+    command: [--config.file=/etc/prometheus/prometheus.yaml, --storage.tsdb.retention.time=7d, --storage.tsdb.retention.size=256MB]
+    volumes: [promdata:/prometheus, ./monitoring/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro, ./monitoring/alerts.yaml:/etc/prometheus/alerts.yaml:ro]
+    networks: [data]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 384m
+    cpus: 0.5
+    healthcheck: {test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:9090/-/ready'], interval: 10s, timeout: 3s, retries: 12}
+    logging: {driver: json-file, options: {max-size: 2m, max-file: "2"}}
+  grafana:
+    image: grafana/grafana@sha256:b28bae15e219c998fb0e0424ed724930cc61b1f61fb404d47c862f9a23f9e572
+    ports: [127.0.0.1:8850:3000]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SECURITY_ADMIN_USER: rag-operator
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_PLUGINS_PREINSTALL_AUTO_UPDATE: "false"
+      GF_PLUGINS_PUBLIC_KEY_RETRIEVAL_DISABLED: "true"
+      GF_PLUGINS_PLUGIN_ADMIN_ENABLED: "false"
+      GF_DATABASE_WAL: "true"
+      GF_LOG_LEVEL: warn
+    secrets: [grafana_admin]
+    volumes: [grafanadata:/var/lib/grafana, ./monitoring/provisioning:/etc/grafana/provisioning:ro, ./monitoring/dashboards:/var/lib/grafana/dashboards:ro]
+    # A published loopback port needs the edge bridge; data-only internal Docker
+    # networking can report healthy while the host cannot reach the dashboard.
+    networks: [data, edge]
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 384m
+    cpus: 0.5
+    healthcheck: {test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:3000/api/health'], interval: 10s, timeout: 3s, retries: 24, start_period: 60s}
+    logging: {driver: json-file, options: {max-size: 2m, max-file: "2"}}
+volumes:
+  promdata: {}
+  grafanadata: {}
+secrets:
+  grafana_admin: {file: .local/grafana_admin}

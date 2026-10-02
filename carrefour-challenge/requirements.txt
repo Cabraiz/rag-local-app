@@ -1,0 +1,7 @@
+google-adk==2.10.0
+mcp==2.2.0
+fastapi==0.141.1
+uvicorn==0.54.0
+httpx2==2.13.1
+Pillow==12.1.0
+pytest==8.4.2

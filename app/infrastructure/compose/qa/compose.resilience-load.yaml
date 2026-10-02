@@ -1,0 +1,4 @@
+# Match the application's two workers for offered-load capacity checks.
+services:
+  worker:
+    deploy: {replicas: 2}

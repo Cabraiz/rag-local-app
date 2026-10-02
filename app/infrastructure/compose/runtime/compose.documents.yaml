@@ -1,0 +1,8 @@
+# Optional synthetic document ingestion. Add after compose.retrieval.yaml.
+services:
+  api:
+    environment:
+      RAG_DOCUMENTS: synthetic_lab
+    volumes: [objectdata:/objects]
+volumes:
+  objectdata: {}

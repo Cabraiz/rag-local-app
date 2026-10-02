@@ -1,0 +1,33 @@
+# Isolated one-shot provider probe; never adds credentials/egress to the RAG worker.
+services:
+  gemini-probe:
+    profiles: [gemini-lab]
+    image: rag-local-backend:0.1.0
+    build: {context: ., dockerfile: infrastructure/images/backend/Dockerfile}
+    command: [python, -m, rag_app.gemini_lab]
+    user: "10001:10001"
+    restart: "no"
+    environment:
+      RAG_MODE: lab
+      RAG_GEMINI_PROBE: synthetic_only
+      RAG_GEMINI_FREE_CONFIRMED: no_billing
+      GOOGLE_GENAI_USE_VERTEXAI: "false"
+      OTEL_SDK_DISABLED: "true"
+    secrets: [gemini_api_key]
+    volumes: [gemini_probe_usage:/usage]
+    networks: [gemini_egress]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    pids_limit: 64
+    cpus: 0.5
+    mem_limit: 384m
+    logging: {driver: json-file, options: {max-size: 1m, max-file: "2"}}
+networks:
+  gemini_egress: {}
+volumes:
+  gemini_probe_usage: {}
+secrets:
+  gemini_api_key:
+    file: ../.local/secrets/gemini-api-key.txt

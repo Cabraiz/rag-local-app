@@ -1,0 +1,87 @@
+{
+  "$defs": {
+    "Stage": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 48,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "ocr",
+            "retrieve",
+            "validate",
+            "schedule",
+            "format"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "Stage",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "name": {
+      "maxLength": 48,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "framework": {
+      "const": "google-adk",
+      "title": "Framework",
+      "type": "string"
+    },
+    "transport": {
+      "const": "sse",
+      "title": "Transport",
+      "type": "string"
+    },
+    "model_mode": {
+      "const": "offline",
+      "title": "Model Mode",
+      "type": "string"
+    },
+    "timeout_seconds": {
+      "maximum": 60,
+      "minimum": 5,
+      "title": "Timeout Seconds",
+      "type": "integer"
+    },
+    "stages": {
+      "items": {
+        "$ref": "#/$defs/Stage"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "title": "Stages",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "name",
+    "framework",
+    "transport",
+    "model_mode",
+    "timeout_seconds",
+    "stages"
+  ],
+  "title": "AgentSpec",
+  "type": "object"
+}

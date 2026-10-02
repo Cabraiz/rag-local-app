@@ -1,0 +1,536 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Clinica ficticia - agendamentos",
+    "description": "Demonstracao: dados ficticios, sem pacientes reais ou agendamento clinico real.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "operacao"
+        ],
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/appointments": {
+      "post": {
+        "tags": [
+          "agendamentos"
+        ],
+        "summary": "Create",
+        "operationId": "create_appointments_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppointmentRequest"
+              },
+              "example": {
+                "request_id": "00000000-0000-4000-8000-000000000001",
+                "exam_codes": [
+                  "FICT-001",
+                  "FICT-002",
+                  "FICT-005"
+                ],
+                "catalog_version": "14d88a412b6fc7cee59867d312d22c25a1de2b4f7f7e16b25dc794470f229f3f"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentReceipt"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Replay idempotente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON invalido ou campos duplicados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidEnvelope"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "Timeout de leitura do corpo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BodyTimeout"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Corpo maior que 4096 bytes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BodyLimit"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-type application/json obrigatorio",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JSONRequired"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Chave reutilizada com outro corpo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Contrato sanitizado ou catalogo invalido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationFailure"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CatalogError"
+                    }
+                  ],
+                  "title": "Response 422 Create Appointments Post"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Ledger indisponivel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/appointments/by-request/{request_id}": {
+      "get": {
+        "tags": [
+          "agendamentos"
+        ],
+        "summary": "By Request",
+        "operationId": "by_request_appointments_by_request__request_id__get",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentReceipt"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Solicitacao inexistente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Identificador invalido, erro sanitizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationFailure"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Ledger indisponivel ou recibo invalido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/appointments/{appointment_id}": {
+      "get": {
+        "tags": [
+          "agendamentos"
+        ],
+        "summary": "Read",
+        "operationId": "read_appointments__appointment_id__get",
+        "parameters": [
+          {
+            "name": "appointment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Appointment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentReceipt"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Agendamento ficticio inexistente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Identificador invalido, erro sanitizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationFailure"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Ledger indisponivel ou recibo invalido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AppointmentReceipt": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "format": "uuid",
+            "title": "Request Id"
+          },
+          "exam_codes": {
+            "items": {
+              "type": "string",
+              "pattern": "^FICT-[0-9]{3}$",
+              "examples": [
+                "FICT-001"
+              ]
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "uniqueItems": true,
+            "title": "Exam Codes"
+          },
+          "catalog_version": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Catalog Version"
+          },
+          "appointment_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "format": "uuid",
+            "title": "Appointment Id"
+          },
+          "status": {
+            "type": "string",
+            "const": "REQUESTED",
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "request_id",
+          "exam_codes",
+          "catalog_version",
+          "appointment_id",
+          "status"
+        ],
+        "title": "AppointmentReceipt"
+      },
+      "AppointmentRequest": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "format": "uuid",
+            "title": "Request Id"
+          },
+          "exam_codes": {
+            "items": {
+              "type": "string",
+              "pattern": "^FICT-[0-9]{3}$",
+              "examples": [
+                "FICT-001"
+              ]
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "uniqueItems": true,
+            "title": "Exam Codes"
+          },
+          "catalog_version": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Catalog Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "request_id",
+          "exam_codes",
+          "catalog_version"
+        ],
+        "title": "AppointmentRequest"
+      },
+      "BodyLimit": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "REQUEST_SIZE_LIMIT",
+            "title": "Code"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "BodyLimit"
+      },
+      "BodyTimeout": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "REQUEST_BODY_TIMEOUT",
+            "title": "Code"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "BodyTimeout"
+      },
+      "CatalogError": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "const": "CATALOG_VERSION_MISMATCH",
+            "title": "Detail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "CatalogError"
+      },
+      "ConflictError": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "const": "IDEMPOTENCY_CONFLICT",
+            "title": "Detail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ConflictError"
+      },
+      "InvalidEnvelope": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "INVALID_JSON_ENVELOPE",
+            "title": "Code"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "InvalidEnvelope"
+      },
+      "JSONRequired": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "JSON_REQUIRED",
+            "title": "Code"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "JSONRequired"
+      },
+      "LedgerError": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "const": "LEDGER_UNAVAILABLE_RETRY_SAME_KEY",
+            "title": "Detail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "LedgerError"
+      },
+      "NotFoundError": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "const": "NOT_FOUND",
+            "title": "Detail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "NotFoundError"
+      },
+      "ValidationFailure": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "INVALID_REQUEST",
+            "title": "Code"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationIssue"
+            },
+            "type": "array",
+            "title": "Errors"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "errors"
+        ],
+        "title": "ValidationFailure"
+      },
+      "ValidationIssue": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "field",
+          "type"
+        ],
+        "title": "ValidationIssue"
+      }
+    }
+  }
+}

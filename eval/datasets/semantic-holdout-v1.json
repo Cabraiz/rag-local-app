@@ -1,0 +1,19 @@
+{
+  "scope":"authored_Portuguese_office_FAQ_holdout_not_independent_enterprise_benchmark",
+  "cases":[
+    {"question":"Qual o teto de gastos com comida durante uma viagem?","expected":"meal"},
+    {"question":"Quando devo mandar as notas fiscais ao financeiro?","expected":"receipts"},
+    {"question":"Em quais dias e horários consigo falar com a assistência?","expected":"support"},
+    {"question":"Quem autoriza a entrada de um funcionário na plataforma?","expected":"access"},
+    {"question":"Em qual entrada fica a vaga de carro dos convidados?","expected":"parking"},
+    {"question":"Onde deixo os pacotes e qual é o horário limite?","expected":"packages"},
+    {"question":"O que preciso conectar antes de usar os sistemas fora da empresa?","expected":"vpn"},
+    {"question":"Como peço reparo para a máquina de trabalho?","expected":"repair"},
+    {"question":"Quem ganhou o campeonato de futebol em Marte?","expected":null},
+    {"question":"Qual a receita de risoto com cogumelos?","expected":null},
+    {"question":"Qual é a chave pix para receber despesas?","expected":null},
+    {"question":"Qual o orçamento permitido para táxi ou Uber?","expected":null},
+    {"question":"Quanto custa a VPN corporativa por mês?","expected":null},
+    {"question":"Qual é a senha para entrar no sistema?","expected":null}
+  ]
+}

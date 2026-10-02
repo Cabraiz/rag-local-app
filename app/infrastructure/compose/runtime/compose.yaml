@@ -1,0 +1,92 @@
+name: rag-local-v2
+x-backend: &backend
+  image: rag-local-backend:0.1.0
+  build: {context: ., dockerfile: infrastructure/images/backend/Dockerfile}
+  environment:
+    RAG_MODE: lab
+  user: "10001:10001"
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 128
+  cpus: 1
+  mem_limit: 768m
+  tmpfs: ["/tmp:size=64m,mode=1777"]
+  networks: [data]
+  secrets: [db_app]
+  logging: {driver: json-file, options: {max-size: 5m, max-file: "3"}}
+  depends_on:
+    migrate: {condition: service_completed_successfully}
+services:
+  postgres:
+    image: postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+    environment:
+      POSTGRES_DB: rag
+      POSTGRES_USER: rag_bootstrap
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_admin
+    secrets: [db_admin]
+    volumes: [pgdata:/var/lib/postgresql]
+    networks: [data]
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1
+    shm_size: 128m
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U rag_bootstrap -d rag]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: {driver: json-file, options: {max-size: 5m, max-file: "3"}}
+  migrate:
+    <<: *backend
+    restart: "no"
+    command: [python, -m, rag_app.process, migrate]
+    secrets: [db_app, db_admin]
+    depends_on: {postgres: {condition: service_healthy}}
+  api:
+    <<: *backend
+    secrets: [db_app, jwt_lab]
+    networks: [edge, data]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready',timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+  worker:
+    <<: *backend
+    command: [python, -m, rag_app.process, worker]
+  control:
+    <<: *backend
+    command: [python, -m, rag_app.process, control]
+    mem_limit: 256m
+    cpus: 0.5
+  frontend:
+    image: rag-local-frontend:0.1.0
+    build: ../frontend
+    ports: [127.0.0.1:8840:8080]
+    networks: [edge]
+    restart: unless-stopped
+    read_only: true
+    user: "101:101"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+    depends_on: {api: {condition: service_healthy}}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/health/live]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+networks:
+  edge: {}
+  data: {internal: true}
+volumes:
+  pgdata: {}
+secrets:
+  db_admin: {file: .local/db_admin}
+  db_app: {file: .local/db_app}
+  jwt_lab: {file: .local/jwt_lab}

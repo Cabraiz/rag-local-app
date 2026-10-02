@@ -1,0 +1,24 @@
+services:
+  api:
+    environment:
+      RAG_DELIVERY: local_lab
+  worker:
+    environment:
+      RAG_DELIVERY: local_lab
+  delivery:
+    image: rag-local-backend:0.1.0
+    environment: {RAG_MODE: lab, RAG_DELIVERY: local_lab}
+    command: [python, -m, rag_app.process, delivery]
+    user: "10001:10001"
+    secrets: [db_app]
+    networks: [data]
+    depends_on: {migrate: {condition: service_completed_successfully}}
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    mem_limit: 192m
+    cpus: 0.5
+    pids_limit: 64
+    logging: {driver: json-file, options: {max-size: 5m, max-file: "3"}}

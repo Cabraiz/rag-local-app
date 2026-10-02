@@ -1,0 +1,7 @@
+{
+  "name": "clinic-real-browser-validation",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {"playwright": "1.62.1"},
+  "scripts": {"test": "node browser.cjs"}
+}

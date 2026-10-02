@@ -1,0 +1,19 @@
+{
+  "uid": "rag-overview", "title": "RAG local — pedidos e resiliencia",
+  "schemaVersion": 39, "version": 1, "editable": false,
+  "refresh": "5s", "time": {"from":"now-30m","to":"now"},
+  "tags": ["rag","local","laboratorio"], "timezone": "browser",
+  "description": "Metricas reais agregadas. SQL e a fonte da verdade. Uma maquina nao e HA. Sem perguntas, documentos ou segredos no painel.",
+  "panels": [
+    {"id":1,"type":"stat","title":"Pedidos pendentes (SQL)","gridPos":{"x":0,"y":0,"w":6,"h":5},"datasource":{"type":"prometheus","uid":"rag-prometheus"},"targets":[{"expr":"rag_pending_requests","refId":"A"}],"fieldConfig":{"defaults":{"unit":"short","thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":100},{"color":"red","value":1000}]}},"overrides":[]},"options":{"reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"colorMode":"value","graphMode":"area","textMode":"auto"}},
+    {"id":2,"type":"stat","title":"Maior espera na fila","gridPos":{"x":6,"y":0,"w":6,"h":5},"datasource":{"type":"prometheus","uid":"rag-prometheus"},"targets":[{"expr":"rag_queue_oldest_seconds","refId":"A"}],"fieldConfig":{"defaults":{"unit":"s"},"overrides":[]}},
+    {"id":3,"type":"stat","title":"Worker / controle desatualizados","gridPos":{"x":12,"y":0,"w":6,"h":5},"datasource":{"type":"prometheus","uid":"rag-prometheus"},"targets":[{"expr":"sum(rag_worker_stale)","refId":"A"}],"fieldConfig":{"defaults":{"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":1}]}},"overrides":[]}},
+    {"id":4,"type":"stat","title":"Scrapes indisponiveis","gridPos":{"x":18,"y":0,"w":6,"h":5},"datasource":{"type":"prometheus","uid":"rag-prometheus"},"targets":[{"expr":"sum(1-up)","refId":"A"}],"fieldConfig":{"defaults":{"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":1}]}},"overrides":[]}},
+    {"id":5,"type":"timeseries","title":"Estados dos pedidos — inclui historico","gridPos":{"x":0,"y":5,"w":12,"h":8},"datasource":{"type":"prometheus","uid":"rag-prometheus"},"targets":[{"expr":"rag_requests","legendFormat":"{{state}}","refId":"A"}],"fieldConfig":{"defaults":{"unit":"short"},"overrides":[]}},
+    {"id":6,"type":"timeseries","title":"Cache — hits, misses e falhas por segundo","gridPos":{"x":12,"y":5,"w":12,"h":8},"datasource":{"type":"prometheus","uid":"rag-prometheus"},"targets":[{"expr":"rate(rag_resilience_events_total{event=~\"cache_.*\"}[1m])","legendFormat":"{{event}}","refId":"A"}]},
+    {"id":7,"type":"timeseries","title":"Mensageria — publicacao, ACK e duplicatas","gridPos":{"x":0,"y":13,"w":12,"h":8},"datasource":{"type":"prometheus","uid":"rag-prometheus"},"targets":[{"expr":"rate(rag_resilience_events_total{event=~\"broker_.*\"}[1m])","legendFormat":"{{event}}","refId":"A"}]},
+    {"id":8,"type":"timeseries","title":"Circuit breakers — 1 significa aberto","gridPos":{"x":12,"y":13,"w":12,"h":8},"datasource":{"type":"prometheus","uid":"rag-prometheus"},"targets":[{"expr":"rag_dependency_open","legendFormat":"{{dependency}}","refId":"A"}]},
+    {"id":9,"type":"timeseries","title":"Broker — mensagens aguardando / em processamento","gridPos":{"x":0,"y":21,"w":12,"h":8},"datasource":{"type":"prometheus","uid":"rag-prometheus"},"targets":[{"expr":"rabbitmq_queue_messages_ready","legendFormat":"ready","refId":"A"},{"expr":"rabbitmq_queue_messages_unacked","legendFormat":"unacked","refId":"B"}]},
+    {"id":10,"type":"timeseries","title":"Bytes pendentes — orcamento SQL conservador","gridPos":{"x":12,"y":21,"w":12,"h":8},"datasource":{"type":"prometheus","uid":"rag-prometheus"},"targets":[{"expr":"rag_pending_bytes","refId":"A"}],"fieldConfig":{"defaults":{"unit":"bytes"},"overrides":[]}}
+  ]
+}

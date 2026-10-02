@@ -1,0 +1,17 @@
+{
+  "version":"synthetic-faithfulness-v1",
+  "scope":"small_authored_Portuguese_lab_not_general_judge_certification",
+  "threshold":1.0,
+  "calibration":[
+    {"id":"cal-1","question":"Qual o limite?","context":"O limite de alimentacao e 45 reais por pessoa.","answer":"O limite e 45 reais por pessoa.","expected_pass":true},
+    {"id":"cal-2","question":"Qual o limite?","context":"O limite de alimentacao e 45 reais por pessoa.","answer":"O limite e 90 reais por pessoa.","expected_pass":false},
+    {"id":"cal-3","question":"Qual o prazo?","context":"O prazo para notas e 12 dias uteis depois da viagem.","answer":"As notas devem ser enviadas em ate 12 dias uteis depois da viagem.","expected_pass":true},
+    {"id":"cal-4","question":"Qual o prazo?","context":"O prazo para notas e 12 dias uteis depois da viagem.","answer":"O prazo e 12 dias corridos depois da viagem.","expected_pass":false}
+  ],
+  "holdout":[
+    {"id":"hold-1","question":"Alcool pode ser reembolsado?","context":"Bebidas alcoolicas nao sao reembolsaveis.","answer":"Bebidas alcoolicas nao podem ser reembolsadas.","expected_pass":true},
+    {"id":"hold-2","question":"Alcool pode ser reembolsado?","context":"Bebidas alcoolicas nao sao reembolsaveis.","answer":"Bebidas alcoolicas podem ser reembolsadas.","expected_pass":false},
+    {"id":"hold-3","question":"Qual valor usar apos desconto?","context":"Descontos reduzem o valor efetivamente pago. Reembolse somente o valor efetivamente pago.","answer":"O reembolso considera o valor efetivamente pago depois dos descontos.","expected_pass":true},
+    {"id":"hold-4","question":"Qual valor usar apos desconto?","context":"Descontos reduzem o valor efetivamente pago. Reembolse somente o valor efetivamente pago.","answer":"O reembolso ignora descontos e usa o preco integral antes do desconto.","expected_pass":false}
+  ]
+}
