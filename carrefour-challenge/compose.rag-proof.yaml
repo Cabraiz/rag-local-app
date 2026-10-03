@@ -1,0 +1,18 @@
+# Dedicated, volume-free CF-APP-05 proof; never use the shared demo project.
+services:
+  proof:
+    image: ${CF05_IMAGE:-carrefour-cf05-proof:local}
+    build: .
+    user: "10001:10001"
+    init: true
+    network_mode: none
+    extra_hosts: ["rag:127.0.0.1"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 768m
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    environment:
+      CF_SEED: "1234"
+    volumes: ["${CF05_EVIDENCE:?Set an isolated absolute evidence path}:/evidence"]
+    command: ["python", "/app/tools/verify_catalog.py"]
