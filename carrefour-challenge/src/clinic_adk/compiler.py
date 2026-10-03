@@ -1,5 +1,6 @@
 """Small typed DSL -> validated IR -> deterministic Google ADK Python emitter."""
 import ast
+import builtins
 import hashlib
 import json
 import keyword
@@ -10,21 +11,28 @@ from .errors import SafeError
 from .validation import issues
 
 KINDS = ('ocr', 'retrieve', 'validate', 'schedule', 'format')
+IDENTIFIER_PATTERN = r'[a-z][a-z0-9_]{0,47}'
+RESERVED_NAMES = frozenset(name for name in
+    (set(dir(builtins)) | set(keyword.kwlist) | set(keyword.softkwlist) |
+     {'runtime', 'node_input', 'build_agent', 'root_agent', 'start', 'end', 'workflow', 'spec_sha256'})
+    if re.fullmatch(IDENTIFIER_PATTERN, name))
 class Stage(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
-    name: str = Field(min_length=1, max_length=48)
+    name: str = Field(min_length=1, max_length=48, pattern='^' + IDENTIFIER_PATTERN + '$',
+                      json_schema_extra={'not': {'enum': sorted(RESERVED_NAMES)}})
     kind: Literal['ocr', 'retrieve', 'validate', 'schedule', 'format']
     @field_validator('name')
     @classmethod
     def identifier(cls, value):
-        if not re.fullmatch(r'[a-z][a-z0-9_]{0,47}', value) or keyword.iskeyword(value) or value in ('runtime', 'node_input', 'build_agent'):
+        if not re.fullmatch(IDENTIFIER_PATTERN, value) or value in RESERVED_NAMES:
             raise ValueError('invalid stage identifier')
         return value
 
 class AgentSpec(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     schema_version: Literal[1]
-    name: str = Field(min_length=1, max_length=48)
+    name: str = Field(min_length=1, max_length=48, pattern='^' + IDENTIFIER_PATTERN + '$',
+                      json_schema_extra={'not': {'enum': sorted(RESERVED_NAMES)}})
     framework: Literal['google-adk']
     transport: Literal['sse']
     model_mode: Literal['offline']
@@ -59,7 +67,7 @@ def parse_spec(raw):
             result[key] = value
         return result
     try:
-        data = json.loads(raw, object_pairs_hook=unique, parse_constant=lambda _: (_ for _ in ()).throw(SafeError('SPEC_INVALID_NUMBER')))
+        data = json.loads(raw.decode('utf-8'), object_pairs_hook=unique, parse_constant=lambda _: (_ for _ in ()).throw(SafeError('SPEC_INVALID_NUMBER')))
         return AgentSpec.model_validate(data)
     except ValidationError as error:
         # Field/type only: never echo an arbitrary input value.
@@ -71,6 +79,15 @@ def parse_spec(raw):
         raise SafeError('SPEC_INVALID_JSON') from None
 
 def emit(spec):
+    # Pydantic models are mutable, and model_construct deliberately skips validation.
+    # Never let an unchecked IR reach Python interpolation, even through internal APIs.
+    if type(spec) is not AgentSpec:
+        raise SafeError('SPEC_INVALID_IR')
+    try:
+        raw = json.dumps(spec.model_dump(mode='json', warnings=False), allow_nan=False).encode('utf-8')
+    except (ValueError, TypeError, RecursionError):
+        raise SafeError('SPEC_INVALID_IR') from None
+    spec = parse_spec(raw)
     canonical = json.dumps(spec.model_dump(), sort_keys=True, separators=(',', ':')).encode()
     digest = hashlib.sha256(canonical).hexdigest()
     lines = ['# Generated deterministically by clinic_adk.compiler; do not edit.',

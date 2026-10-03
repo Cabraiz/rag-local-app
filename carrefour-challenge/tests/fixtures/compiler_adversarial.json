@@ -1,0 +1,22 @@
+{
+  "root_changes": [
+    {"schema_version": true}, {"schema_version": 1.0}, {"schema_version": 2},
+    {"timeout_seconds": true}, {"timeout_seconds": "45"},
+    {"timeout_seconds": 4}, {"timeout_seconds": 61},
+    {"name": "class"}, {"name": "match"}, {"name": "list"},
+    {"name": "root_agent"}, {"name": "workflow"},
+    {"name": "../outside"}, {"name": "café"},
+    {"name": "x');__import__('os').system('id');#"},
+    {"framework": "custom"}, {"transport": "stdio"}, {"model_mode": "paid"},
+    {"tools": ["shell"]}, {"imports": ["os"]},
+    {"python": "open('/outside','w').write('CANARY_CF02')"},
+    {"CANARY_CF02": "CANARY_CF02"}, {"stages": []}, {"stages": null}
+  ],
+  "stage_changes": [
+    {"name": "runtime"}, {"name": "node_input"}, {"name": "build_agent"},
+    {"name": "start"}, {"name": "root_agent"}, {"kind": "shell"},
+    {"kind": "unknown_tool"}, {"tool": "shell"},
+    {"next": "extract"}, {"ref": "missing"}, {"name": "../../outside"},
+    {"name": "x\nimport os"}, {"name": 5}, {"kind": true}
+  ]
+}
