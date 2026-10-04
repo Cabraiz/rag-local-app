@@ -13,12 +13,13 @@ def normalize(value):
                            if not unicodedata.combining(c)).split())
 
 PII = re.compile(r'(?i)([\w.+-]+@[\w.-]+\.[a-z]{2,}|\b\d[\d .()/+-]{7,}\d\b|https?://)')
-LABEL = re.compile(r'(?i)^\s*(paciente|nome|m[eé]dic[oa]|doutor|dra?|cpf|rg|documento|telefone|celular|email|e-mail|contato|endere[cç]o|nascimento)\b')
+LABEL = re.compile(r'(?i)^\s*(paciente|nome|m[eé]dic[oa]|doutor|dra?|cpf|rg|documento|telefone|celular|email|e-mail|contato|endere[cç]o|nascimento)\s*:')
 INJECTION = re.compile(r'(?i)(ignore|ignor[ea]|instru[cç]|system|prompt|execute|crie|agende|sudo|eval|__import__|<script|https?://|FICT-\d)')
 BANNERS = frozenset(('pedido medico ficticio', 'dados ficticios - demonstracao',
                      'clinica ficticia', 'demonstracao'))
 def query_safe(value):
     key = normalize(value)
+    value = unicodedata.normalize('NFKC', value)
     if not key or PII.search(value) or INJECTION.search(value) or not re.fullmatch(r'[a-z0-9 ()/.,+-]{1,100}', key):
         raise SafeError('UNSAFE_EXAM_QUERY')
     return key
@@ -28,9 +29,15 @@ def sanitize_ocr(raw, catalog):
         raise SafeError('OCR_EMPTY_OR_OVERSIZED')
     names, unresolved, redacted = [], 0, 0
     for line in raw.splitlines():
-        line = line.strip()
+        # Normalize before recognizing labels or inspecting PII. Fullwidth colons
+        # and decomposed accents must not turn personal headers into exam input.
+        line = unicodedata.normalize('NFKC', line).strip()
         if not line:
             continue
+        if any(unicodedata.category(c).startswith('C') and c != '\t' for c in line):
+            raise SafeError('OCR_UNRESOLVED_EXAMS')
+        # Require a complete personal label and colon, not just a matching first word.
+        # Otherwise "Nome do exame: unknown" could hide an unresolved exam.
         # Discard labelled sensitive headers before examining their text as commands.
         # They never reach a tool, LLM or exam list: a patient's name is not an instruction.
         if LABEL.search(line):
