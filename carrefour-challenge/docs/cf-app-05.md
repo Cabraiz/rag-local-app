@@ -45,6 +45,36 @@ Hemograma comple abstém por baixa confiança; Exame inexistente abstém por aus
 O cliente ADK recusa ok false e o Runtime compara versão, nomes, códigos e fichas
 com seu próprio snapshot antes de permitir a próxima etapa.
 
+O contrato CF03 também protege a fronteira anterior ao SDK: `mcp_call('rag',
+arguments)` só constrói o cliente após conferir uma lista de nomes/aliases
+presentes no catálogo confiável e projetá-los para nomes canônicos. Ambiguidade,
+baixa confiança, ausência, instrução adversarial, lista mista com item sem
+referência ou referência forjada em campo extra falham localmente com
+`EXAM_EVIDENCE_MISMATCH`, com zero construção, descoberta e execução MCP.
+O oráculo `test_adk_client_missing_trusted_reference_rejects_before_sdk` verifica
+esse código exato e spies de `McpToolset`, `get_tools`, `run_async` e `close`
+sem nenhuma chamada/await. Também exige zero `send` HTTP em `httpx2.AsyncClient`
+e `httpx2.Client`. Os 17 casos incluem os oito negativos anteriores e nove
+exemplos sintéticos dos testes CF03: nome canário, e-mail/CPF fictícios, Unicode
+fullwidth/zero-width, 21 nomes conhecidos, lista com tipo inválido e campo
+`patient` extra. Todos passam por `mcp_call`; helpers de outra fronteira não
+substituem essa prova. Isso é uma prova da barreira local, separada do transporte.
+
+A seleção qualificada une integralmente as seleções anteriores CF05/main e
+CF06, acrescentando o arquivo CF03 `test_journey_privacy.py` completo. Os 12
+arquivos são executados sem filtros; o manifesto de coleta e o JUnit devem
+conter todos os casos anteriores e os 17 casos com spies, sem skips, erros ou
+deselects. Perfis externos de OCR, produtor/CLI live, descoberta, empacotamento
+e certificação independente de privacidade continuam sendo gates dos seus
+owners; não se declara aprovação desses perfis por este segmento CF05.
+
+O teste SSE real continua enviando os três termos incertos diretamente à tool
+do servidor e exige `ok=false`, `exams=[]` e o motivo de abstenção correto. Só a
+decodificação dessas respostas remotas produz `MCP_TOOL_FAILED`. O teste positivo
+ADK real mantém IDs/fichas persistidos e rejeição de `FICT-999` no gate do agente.
+Não se aceita um conjunto de códigos alternativos para esconder a fronteira da
+falha, nem se autoriza construir o SDK para cumprir um oráculo antigo.
+
 O SDK instalado pode transportar esse dicionário em JSON TextContent sem
 structuredContent. A integração aceita o JSON estruturado validado dessa forma;
 se ambas as representações vierem, o cliente exige igualdade. Não interpreta
