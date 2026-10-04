@@ -1,0 +1,8 @@
+# Additive adapter for CF-APP-10; does not change owner service definitions.
+services:
+  ocr:
+    command: ["python", "-m", "uvicorn", "clinic_adk.security_profile:ocr_app", "--host", "0.0.0.0", "--port", "8081", "--no-access-log"]
+  rag:
+    command: ["python", "-m", "uvicorn", "clinic_adk.security_profile:rag_app", "--host", "0.0.0.0", "--port", "8082", "--no-access-log"]
+  runner:
+    command: ["python", "-m", "clinic_adk.secure_cli", "--help"]
