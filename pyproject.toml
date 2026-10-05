@@ -1,0 +1,57 @@
+[tool.ruff]
+line-length = 120
+cache-dir = "/tmp/.ruff_cache"  # the project files are read-only in the container
+extend-exclude = ["generated", "docs/evidencias", "docs/gravacoes"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "C901"]  # pycodestyle, pyflakes, import order, bugbear, complexity
+ignore = [
+    "E501",  # long lines: no formatter is used, and test data and regexes are long on purpose
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10  # a function with more branches than this is split
+
+[tool.ruff.lint.isort]
+known-first-party = ["api", "catalogo", "cli", "guardrails", "mcp_servers", "runtime", "tests", "transpiler"]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest fixtures imported from another test module and then requested by name.
+"tests/**" = ["F811"]
+# cli.py silences ADK's [EXPERIMENTAL] notices before importing ADK, so its imports follow code.
+"cli.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["api"]
+ignore_missing_imports = true
+explicit_package_bases = true  # api/, guardrails/... are packages without __init__.py
+cache_dir = "/tmp/.mypy_cache"  # the project files are read-only in the container
+
+[tool.coverage.run]
+data_file = "/tmp/.coverage"  # the project files are read-only in the container
+source = ["api"]
+
+[tool.coverage.report]
+skip_empty = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+# ADK 2.10 marks SequentialAgent as deprecated in favor of Workflow, but Workflow is not
+# a BaseAgent and cannot be a sub-agent yet; the spec asks for agents, so we keep it.
+# The experimental ADK features this project uses print an [EXPERIMENTAL] notice once per process;
+# with -n auto that is once per worker, and which notices show depends on which worker meets them
+# first. Each one is filtered by its own name, so a new experimental feature still shows.
+filterwarnings = [
+    "ignore:SequentialAgent is deprecated:DeprecationWarning",
+    'ignore:\[EXPERIMENTAL\] feature FeatureName\.PLUGGABLE_AUTH is enabled:UserWarning',
+    'ignore:\[EXPERIMENTAL\] feature FeatureName\.TOOL_CONFIRMATION is enabled:UserWarning',
+    'ignore:\[EXPERIMENTAL\] feature FeatureName\.AGENT_STATE is enabled:UserWarning',
+    'ignore:\[EXPERIMENTAL\] feature FeatureName\.JSON_SCHEMA_FOR_FUNC_DECL is enabled:UserWarning',
+    'ignore:\[EXPERIMENTAL\] ResumabilityConfig:UserWarning',
+    'ignore:\[EXPERIMENTAL\] feature FeatureName\.FALLBACK_MODEL is enabled:UserWarning',
+]
+# With -n (pytest-xdist), tests marked with the same xdist_group run on one worker, in order:
+# test_agent_mcp and test_alucinacao serve on the spec's own ports (8000-8002).
+addopts = "-p no:cacheprovider --dist loadgroup"
