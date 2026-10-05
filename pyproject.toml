@@ -23,7 +23,7 @@ known-first-party = ["api", "catalogo", "cli", "guardrails", "leitura", "mcp_ser
 
 [tool.mypy]
 python_version = "3.12"
-files = ["api"]
+files = ["api", "catalogo.py", "mcp_servers"]
 ignore_missing_imports = true
 check_untyped_defs = true  # the bodies of functions without annotations too
 explicit_package_bases = true  # api/, guardrails/... are packages without __init__.py
@@ -36,7 +36,7 @@ check_untyped_defs = false
 
 [tool.coverage.run]
 data_file = "/tmp/.coverage"  # the project files are read-only in the container
-source = ["api"]
+source = ["api", "catalogo", "mcp_servers"]
 
 [tool.coverage.report]
 skip_empty = true
