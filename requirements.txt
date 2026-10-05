@@ -1,0 +1,13 @@
+# What the services and the agent run with. Each Dockerfile stage installs only its part, pinned
+# with `-c requirements.txt -c constraints.txt` (what these pull in); the test tools are in requirements-dev.txt.
+google-adk==2.10.0
+google-genai==2.27.0
+mcp==2.2.0
+fastapi==0.141.1
+uvicorn==0.54.0
+pydantic==2.13.5
+cryptography==50.0.2
+httpx==0.28.1
+httpx2==2.13.1
+pillow==12.3.0
+pytesseract==0.3.13

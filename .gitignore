@@ -1,0 +1,18 @@
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*.json
+__pycache__/
+*.pyc
+.pytest_cache/
+generated/*
+!generated/.gitkeep
+!generated/README.md
+*.db
+*.sqlite3
+*.log
+.local/
+# Local network overrides (see docs/como-rodar.md, "Quando algo falha").
+docker-compose.override.yml
