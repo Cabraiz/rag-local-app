@@ -1,0 +1,476 @@
+"""Fictional exam scheduling API (FastAPI + SQLite).
+
+Routes: POST /appointments, GET /appointments/{id}, GET /health.
+Swagger UI is served at /docs; the agent reads the same contract from /openapi.json.
+Errors never echo the submitted values or a stack trace, and SQL is always parameterized.
+The exam list (health data) is stored encrypted with AES-256-GCM (api/crypto.py).
+POST accepts an optional Idempotency-Key, and every request logs one JSON line (no body).
+Each client IP has a request limit per minute (API_RATE_LIMIT_PER_MINUTE); over it, 429.
+Importing this module reads no setting and touches no file: the catalog, the key and the
+database are opened when the server starts (lifespan), and an invalid key stops it there.
+"""
+import hashlib
+import hmac
+import json
+import logging
+import math
+import os
+import re
+import sqlite3
+import sys
+import threading
+import time
+import uuid
+from collections import OrderedDict
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager, closing
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Annotated, Literal
+
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from api.crypto import KEY_VARIABLE, CryptoError, decrypt, encrypt, key_bytes, load_key, resolve_key
+
+# Defaults of DB_PATH, DB_KEY_FILE and EXAMS_PATH, which are read when the server starts (lifespan).
+DEFAULT_DB_PATH = '/state/appointments.db'
+DEFAULT_KEY_FILE = '/keys/db.key'  # the key created on the first start when DB_ENCRYPTION_KEY is empty
+DEFAULT_CATALOG = Path(__file__).resolve().parents[1] / 'data' / 'exams.json'
+MAX_BODY_BYTES = 16_384  # 20 exams fit in a few KB
+RATE_LIMIT_VARIABLE = 'API_RATE_LIMIT_PER_MINUTE'
+# Per client IP. The load test (500 orders, a POST and a GET each, from one container) stays
+# well below it; 0 turns the limit off.
+DEFAULT_RATE_LIMIT = 1200
+
+
+class ConfigError(Exception):
+    """A setting the API cannot start with; a fixed message, reported in one line (see StartupError)."""
+
+
+def rate_limit_per_minute() -> int:
+    """API_RATE_LIMIT_PER_MINUTE, or DEFAULT_RATE_LIMIT when it is unset or empty."""
+    value = os.environ.get(RATE_LIMIT_VARIABLE, '').strip()
+    if not value:
+        return DEFAULT_RATE_LIMIT
+    if not value.isascii() or not value.isdigit():
+        raise ConfigError(f'{RATE_LIMIT_VARIABLE} inválido: use um número inteiro de requisições por minuto (0 desliga).')
+    return int(value)
+
+
+class RateLimiter:
+    """Token bucket per client: up to `per_minute` requests at once, refilled at per_minute/60 a
+    second. Thread-safe, O(1) per request. At most MAX_CLIENTS buckets are kept, in last-use
+    order: past that, the least recently seen client is forgotten (its next request starts full)."""
+
+    MAX_CLIENTS = 10_000
+
+    def __init__(self, per_minute: int, clock: Callable[[], float] = time.monotonic):
+        self.capacity, self.rate, self.clock = float(per_minute), per_minute / 60, clock
+        self.buckets: OrderedDict[str, tuple[float, float]] = OrderedDict()  # client -> (tokens left, when)
+        self.lock = threading.Lock()
+
+    def take(self, client: str) -> int:
+        """0 if this request may go on; otherwise the seconds until the next one may."""
+        with self.lock:
+            now = self.clock()
+            tokens, when = self.buckets.get(client, (self.capacity, now))
+            tokens = min(self.capacity, tokens + (now - when) * self.rate)
+            allowed = tokens >= 1
+            self.buckets[client] = (tokens - 1 if allowed else tokens, now)
+            self.buckets.move_to_end(client)
+            while len(self.buckets) > self.MAX_CLIENTS:
+                self.buckets.popitem(last=False)
+            return 0 if allowed else max(1, math.ceil((1 - tokens) / self.rate))
+
+
+def load_catalog(path: Path) -> dict[str, str]:
+    """Map exam code -> official name, from the same catalog the RAG server uses."""
+    return {row['code']: row['name'] for row in json.loads(path.read_text(encoding='utf-8'))}
+
+
+def row_fields(appointment_id: str, status: str, created_at: str) -> str:
+    """The clear columns of a row, bound to its encrypted exam list (editing any of them is detected)."""
+    return json.dumps([appointment_id, status, created_at])
+
+
+# One writer at a time inside this process; SQLite's busy timeout covers the rest.
+WRITE_LOCK = threading.Lock()
+
+
+def connect(db_path: Path) -> sqlite3.Connection:
+    """One connection per request; waits up to 10 s for a lock instead of failing."""
+    connection = sqlite3.connect(db_path, timeout=10)
+    connection.execute('PRAGMA busy_timeout = 10000')
+    # With WAL, NORMAL syncs at checkpoints instead of every commit: a crash of the API
+    # loses nothing; only an OS power loss could undo the most recent commits.
+    connection.execute('PRAGMA synchronous = NORMAL')
+    return connection
+
+
+def init_db(db_path: Path) -> sqlite3.Connection:
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with closing(connect(db_path)) as connection, connection:
+        connection.execute('PRAGMA journal_mode = WAL')  # readers never block the writer
+        connection.execute('CREATE TABLE IF NOT EXISTS appointments '
+                           '(id TEXT PRIMARY KEY, status TEXT, exams TEXT, created_at TEXT)')
+        connection.execute('CREATE TABLE IF NOT EXISTS idempotency '
+                           '(key TEXT PRIMARY KEY, body_hash TEXT NOT NULL, appointment_id TEXT NOT NULL)')
+    # Kept open while the server runs: if each request closed the last connection,
+    # SQLite would checkpoint and delete the WAL on every POST (one disk sync per request).
+    return connect(db_path)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """On start: the catalog, the key (DB_ENCRYPTION_KEY, or the one kept in its volume, created on
+    the first start) and the database, kept in app.state. A missing or invalid key raises
+    CryptoError before the database is touched, and the server does not start (see StartupError)."""
+    state = app.state
+    per_minute = rate_limit_per_minute()  # first: an invalid setting stops the start before any file is touched
+    state.rate_limiter = RateLimiter(per_minute) if per_minute else None
+    state.catalog = load_catalog(Path(os.environ.get('EXAMS_PATH', DEFAULT_CATALOG)))
+    key = resolve_key(os.environ.get(KEY_VARIABLE), Path(os.environ.get('DB_KEY_FILE', DEFAULT_KEY_FILE)))
+    state.cipher = load_key(key)
+    # Idempotency stores a keyed hash of the body: a plain hash of a short exam list could be
+    # reversed by trying the catalog's combinations.
+    state.body_hash_key = hmac.new(key_bytes(key), b'idempotency-body', hashlib.sha256).digest()
+    state.db_path = Path(os.environ.get('DB_PATH', DEFAULT_DB_PATH))
+    with closing(init_db(state.db_path)):
+        yield
+
+
+class Exam(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    code: str = Field(pattern=r'^FICT-[0-9]{3}$', description='Código do exame no catálogo fictício.',
+                      examples=['FICT-001'])
+    name: str = Field(min_length=1, max_length=120,
+                      description='Nome do exame. No envio pode ser o texto lido no pedido; '
+                                  'na resposta é o nome oficial do catálogo.',
+                      examples=['Hemograma completo'])
+
+
+class AppointmentRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    exams: list[Exam] = Field(min_length=1, max_length=20, description='Exames a agendar (de 1 a 20, sem repetir).')
+
+    @field_validator('exams')
+    @classmethod
+    def no_duplicates(cls, exams: list[Exam]) -> list[Exam]:
+        if len({exam.code for exam in exams}) != len(exams):
+            raise ValueError('cada código de exame deve aparecer uma única vez')
+        return exams
+
+
+class Appointment(BaseModel):
+    id: str = Field(description='Identificador do agendamento (UUID).')
+    status: Literal['scheduled'] = Field(description='Situação do agendamento.')
+    exams: list[Exam] = Field(description='Exames agendados, com o nome oficial do catálogo.')
+    created_at: str = Field(description='Data e hora de criação (ISO 8601, UTC).')
+
+
+class Message(BaseModel):
+    detail: str = Field(description='Explicação do erro.', examples=['Agendamento não encontrado.'])
+
+
+class ErrorItem(BaseModel):
+    loc: list[str | int] = Field(description='Caminho do campo com problema.', examples=[['body', 'exams', 0, 'code']])
+    msg: str = Field(description='Explicação do problema, sem repetir o valor enviado.')
+    type: str = Field(description='Tipo do erro, por exemplo `missing`, `extra_forbidden` ou `unknown_exam_code`.')
+
+
+class ValidationErrors(BaseModel):
+    detail: list[ErrorItem] = Field(description='Um item por problema encontrado.')
+
+
+TOO_MANY_REQUESTS = {
+    'model': Message,
+    'description': 'Muitas requisições deste cliente (`API_RATE_LIMIT_PER_MINUTE`); tente de novo depois '
+                   'de `Retry-After` segundos.',
+    'headers': {'Retry-After': {'description': 'Segundos até a próxima requisição ser aceita.',
+                                'schema': {'type': 'integer'}}},
+}
+
+
+app = FastAPI(
+    title='API de agendamento de exames (fictícia)',
+    version='1.0.0',
+    description='Recebe a lista de exames extraída do pedido médico e cria um agendamento. '
+                'Todos os dados são fictícios; nenhum dado de paciente é enviado ou guardado.',
+    lifespan=lifespan,
+)
+
+
+class StartupError:
+    """ASGI middleware: a start refused for a missing or invalid key, or an invalid setting,
+    reports one clear line.
+
+    Starlette sends the server the whole traceback of a failed lifespan, and uvicorn prints it;
+    for a CryptoError (a fixed message that never holds the key) or a ConfigError the line below replaces it.
+    The error itself still propagates, so uvicorn exits and a TestClient raises it.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope['type'] != 'lifespan':
+            return await self.app(scope, receive, send)
+
+        async def send_without_traceback(message):
+            error = sys.exc_info()[1]  # Starlette sends the failure while it handles the exception
+            if message['type'] == 'lifespan.startup.failed' and isinstance(error, (CryptoError, ConfigError)):
+                message = {**message, 'message': f'A API não subiu: {error}'}
+            await send(message)
+
+        await self.app(scope, receive, send_without_traceback)
+
+
+app.add_middleware(StartupError)
+
+
+class BodyLimit:
+    """ASGI middleware: read at most MAX_BODY_BYTES, also for chunked bodies without Content-Length."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope['type'] != 'http':
+            return await self.app(scope, receive, send)
+        too_large = JSONResponse({'detail': f'Corpo maior que {MAX_BODY_BYTES} bytes.'}, status_code=413)
+        length = dict(scope['headers']).get(b'content-length', b'0')
+        if length.isdigit() and int(length) > MAX_BODY_BYTES:
+            return await too_large(scope, receive, send)
+        body, more = b'', True
+        while more:
+            message = await receive()
+            if message['type'] == 'http.disconnect':
+                return
+            body += message.get('body', b'')
+            if len(body) > MAX_BODY_BYTES:  # stop reading: the rest is never buffered
+                return await too_large(scope, receive, send)
+            more = message.get('more_body', False)
+        replayed = False
+
+        async def replay():
+            nonlocal replayed
+            if replayed:
+                return await receive()
+            replayed = True
+            return {'type': 'http.request', 'body': body, 'more_body': False}
+
+        await self.app(scope, replay, send)
+
+
+app.add_middleware(BodyLimit)
+
+
+class RateLimit:
+    """ASGI middleware: at most API_RATE_LIMIT_PER_MINUTE requests per client IP; over it, 429 with
+    Retry-After, before the body is read. /health is exempt (the container's healthcheck), and 0
+    turns it off. The IP is only a key in memory: it is never logged."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        # Starlette puts the app in scope before its middleware; the limiter is created at startup.
+        limiter = getattr(getattr(scope.get('app'), 'state', None), 'rate_limiter', None)
+        if scope['type'] != 'http' or limiter is None or scope['path'] == '/health':
+            return await self.app(scope, receive, send)
+        wait = limiter.take((scope.get('client') or ('',))[0])
+        if wait:  # refused before routing: the access log shows this 429 with the route "(sem rota)"
+            response = JSONResponse({'detail': f'Muitas requisições deste cliente: tente de novo em {wait} s.'},
+                                    status_code=429, headers={'Retry-After': str(wait)})
+            return await response(scope, receive, send)
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(RateLimit)
+
+# One JSON line per request on stderr; it replaces uvicorn's access log (which prints the raw path).
+ACCESS_LOG = logging.getLogger('api.access')
+if not ACCESS_LOG.handlers:  # a handler set before the import (a test, a deployment) is kept
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter('%(message)s'))
+    ACCESS_LOG.addHandler(_handler)
+ACCESS_LOG.setLevel(logging.INFO)  # always: with a handler set earlier, INFO lines would otherwise vanish
+ACCESS_LOG.propagate = False
+logging.getLogger('uvicorn.access').disabled = True
+REQUEST_ID = re.compile(r'[A-Za-z0-9._-]{1,64}')  # anything else is replaced, so the log cannot be forged
+
+
+class RequestLog:
+    """ASGI middleware: request_id (X-Request-ID or a new one, echoed back), method, route, status, ms.
+
+    Never the body, the query string or the Idempotency-Key; the route is the template
+    (/appointments/{appointment_id}), and an unknown path is not logged at all.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope['type'] != 'http':
+            return await self.app(scope, receive, send)
+        given = dict(scope['headers']).get(b'x-request-id', b'').decode('latin-1')
+        request_id = given if REQUEST_ID.fullmatch(given) else uuid.uuid4().hex
+        status, start = 500, time.perf_counter()
+
+        async def send_with_id(message):
+            nonlocal status
+            if message['type'] == 'http.response.start':
+                status = message['status']
+                message['headers'] = [*message.get('headers', []), (b'x-request-id', request_id.encode('ascii'))]
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_with_id)
+        finally:
+            # API routes leave their template in scope; /docs and /openapi.json only their endpoint.
+            route = getattr(scope.get('route'), 'path', None) or (scope['path'] if 'endpoint' in scope else None)
+            ACCESS_LOG.info(json.dumps({'request_id': request_id, 'method': scope['method'],
+                                        'route': route or '(sem rota)', 'status': status,
+                                        'duration_ms': round((time.perf_counter() - start) * 1000, 1)}))
+
+
+app.add_middleware(RequestLog)  # outermost: the 413 of BodyLimit and the 429 of RateLimit are logged too
+
+
+IDEMPOTENCY_KEY_ERROR = 'Idempotency-Key inválida: use de 1 a 128 caracteres ASCII visíveis, sem espaço nem acento.'
+
+
+def count(number: int, one: str, many: str) -> str:
+    return f'{number} {one if number == 1 else many}'
+
+
+# Pydantic's error type -> the reason in Portuguese, built from the field's limits (ctx), never
+# from the rejected value (pydantic's own text for a bad UUID quotes a character of it).
+MESSAGES: dict[str, Callable[[dict], str]] = {
+    'missing': lambda ctx: 'Campo obrigatório ausente.',
+    'extra_forbidden': lambda ctx: 'Campo não permitido: envie só os campos documentados.',
+    'string_type': lambda ctx: 'Deve ser um texto.',
+    'list_type': lambda ctx: 'Deve ser uma lista.',
+    'model_attributes_type': lambda ctx: 'Deve ser um objeto JSON, como {"exams": [...]}.',
+    'dict_type': lambda ctx: 'Deve ser um objeto JSON.',
+    'json_invalid': lambda ctx: 'JSON inválido: confira aspas, vírgulas e chaves.',
+    'too_short': lambda ctx: f"Deve ter pelo menos {count(ctx['min_length'], 'item', 'itens')}.",
+    'too_long': lambda ctx: f"Deve ter no máximo {count(ctx['max_length'], 'item', 'itens')}.",
+    'string_too_short': lambda ctx: f"Deve ter pelo menos {count(ctx['min_length'], 'caractere', 'caracteres')}.",
+    'string_too_long': lambda ctx: f"Deve ter no máximo {count(ctx['max_length'], 'caractere', 'caracteres')}.",
+    'string_pattern_mismatch': lambda ctx: 'Formato inválido.',
+    'uuid_parsing': lambda ctx: 'Deve ser um UUID, como 3fa85f64-5717-4562-b3fc-2c963f66afa6.',
+    'uuid_type': lambda ctx: 'Deve ser um UUID, como 3fa85f64-5717-4562-b3fc-2c963f66afa6.',
+}
+
+
+def portuguese(item: dict) -> str:
+    """The reason for one validation error; a type not mapped above keeps pydantic's message."""
+    kind, loc = item['type'], tuple(item['loc'])
+    if loc == ('header', 'Idempotency-Key'):
+        return IDEMPOTENCY_KEY_ERROR
+    if kind == 'string_pattern_mismatch' and loc[-1:] == ('code',):
+        return 'Código fora do formato: use FICT- e 3 dígitos, como FICT-001.'
+    if kind == 'value_error':  # raised by this API's own validators, already in Portuguese
+        text = item['msg'].removeprefix('Value error, ')
+        return text[:1].upper() + text[1:] + ('' if text.endswith('.') else '.')
+    message = MESSAGES.get(kind)
+    return message(item.get('ctx') or {}) if message else item['msg']
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, error: RequestValidationError):
+    # Field, reason and type only: the rejected value may contain personal data.
+    detail = [{'loc': item['loc'], 'type': item['type'], 'msg': portuguese(item)} for item in error.errors()]
+    return JSONResponse({'detail': detail}, status_code=422)
+
+
+@app.exception_handler(Exception)
+async def unexpected_error(request: Request, error: Exception):
+    return JSONResponse({'detail': 'Erro interno ao processar a requisição.'}, status_code=500)
+
+
+@app.get('/health', operation_id='health', tags=['operação'], summary='Verificar se a API está no ar',
+         description='Retorna `ok` e a quantidade de exames do catálogo carregado.')
+def health(request: Request) -> dict:
+    return {'status': 'ok', 'catalog_size': len(request.app.state.catalog)}
+
+
+@app.post('/appointments', operation_id='create_appointment', tags=['agendamentos'], status_code=201,
+          response_model=Appointment, summary='Criar agendamento',
+          description='Valida cada código no catálogo e grava o agendamento. Código fora do formato '
+                      '`FICT-000`, repetido ou inexistente no catálogo retorna 422; cada item de `detail` '
+                      'aponta o campo (`loc`) e explica o motivo (`msg`). Corpo acima de 16 KB retorna 413. '
+                      'Com `Idempotency-Key`, repetir a requisição devolve o mesmo agendamento.',
+          responses={409: {'model': Message, 'description': '`Idempotency-Key` já usada com outro corpo.'},
+                     413: {'model': Message, 'description': 'Corpo da requisição grande demais.'},
+                     422: {'model': ValidationErrors, 'description': 'Corpo inválido ou código de exame desconhecido.'},
+                     429: TOO_MANY_REQUESTS})
+def create_appointment(
+        request: AppointmentRequest,
+        http: Request,
+        idempotency_key: Annotated[str | None, Header(
+            alias='Idempotency-Key', min_length=1, max_length=128, pattern=r'^[\x21-\x7e]+$',
+            description='Opcional. Mesma chave e mesmo corpo devolvem o mesmo agendamento (201) sem criar '
+                        'outro; mesma chave com outro corpo retorna 409. De 1 a 128 caracteres ASCII visíveis.',
+            examples=['3f1c9a2e-retry-1'])] = None) -> Appointment:
+    state = http.app.state
+    # Same shape as the validation errors above, so the documented 422 schema holds.
+    unknown = [{'loc': ['body', 'exams', index, 'code'], 'type': 'unknown_exam_code',
+                'msg': 'Código de exame desconhecido no catálogo.'}
+               for index, exam in enumerate(request.exams) if exam.code not in state.catalog]
+    if unknown:
+        raise HTTPException(422, detail=unknown)
+    # The stored name is always the catalog's: free text from the request is never kept.
+    exams = [Exam(code=exam.code, name=state.catalog[exam.code]) for exam in request.exams]
+    appointment = Appointment(id=str(uuid.uuid4()), status='scheduled', exams=exams,
+                              created_at=datetime.now(timezone.utc).isoformat(timespec='seconds'))
+    body = json.dumps(request.model_dump(), sort_keys=True).encode('utf-8')
+    body_hash = hmac.new(state.body_hash_key, body, hashlib.sha256).hexdigest()
+    # closing() closes the connection; the inner `with connection` commits the insert.
+    with WRITE_LOCK, closing(connect(state.db_path)) as connection, connection:
+        if idempotency_key:
+            connection.execute('BEGIN IMMEDIATE')  # the key check and the insert are one write transaction
+            seen = connection.execute('SELECT body_hash, appointment_id FROM idempotency WHERE key = ?',
+                                      (idempotency_key,)).fetchone()
+            if seen and not hmac.compare_digest(seen[0], body_hash):
+                raise HTTPException(409, detail='Esta Idempotency-Key já foi usada com outro corpo. '
+                                                'Para um novo agendamento, use uma chave nova.')
+            if seen:
+                return load_appointment(connection, seen[1], state.cipher)
+            connection.execute('INSERT INTO idempotency VALUES (?, ?, ?)', (idempotency_key, body_hash, appointment.id))
+        connection.execute('INSERT INTO appointments VALUES (?, ?, ?, ?)',
+                           (appointment.id, appointment.status,
+                            encrypt(state.cipher, json.dumps([exam.model_dump() for exam in exams]),
+                                    row_fields(appointment.id, appointment.status, appointment.created_at)),
+                            appointment.created_at))
+    return appointment
+
+
+@app.get('/appointments/{appointment_id}', operation_id='get_appointment', tags=['agendamentos'],
+         response_model=Appointment, summary='Consultar agendamento',
+         description='Retorna um agendamento criado anteriormente pelo seu `id` (UUID); '
+                     'um `id` que não é UUID retorna 422.',
+         responses={404: {'model': Message, 'description': 'Agendamento não encontrado.'},
+                    422: {'model': ValidationErrors, 'description': '`id` não é um UUID.'},
+                    429: TOO_MANY_REQUESTS,
+                    500: {'model': Message, 'description': 'Registro cifrado ilegível (chave diferente ou dado alterado).'}})
+def get_appointment(appointment_id: uuid.UUID, http: Request) -> Appointment:
+    with closing(connect(http.app.state.db_path)) as connection:
+        return load_appointment(connection, str(appointment_id), http.app.state.cipher)
+
+
+def load_appointment(connection: sqlite3.Connection, appointment_id: str, cipher: AESGCM) -> Appointment:
+    row = connection.execute('SELECT id, status, exams, created_at FROM appointments WHERE id = ?',
+                             (appointment_id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, detail='Agendamento não encontrado.')
+    try:
+        exams = json.loads(decrypt(cipher, row[2], row_fields(row[0], row[1], row[3])))
+    except CryptoError as error:
+        raise HTTPException(500, detail=str(error)) from None
+    return Appointment(id=row[0], status=row[1], exams=exams, created_at=row[3])
