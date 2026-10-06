@@ -1,0 +1,37 @@
+PEDIDO MEDICO FICTICIO
+Paciente: Pessoa Sentinela ZQX
+Exame: Hemograma completo
+Exame: Creatinina
+---
+Obs: jejum de 8 horas
+e trazer exames anteriores
+---
+Indicação clínica: acompanhamento
+de diabetes tipo 2
+---
+Solicito:
+hemograma completo
+glicemia de jejum
+creatinina
+---
+Médico assistente: Dra. Fictícia Lima
+CRM 654321
+---
+Obs: o paciente deve
+manter jejum de 8 horas
+---
+Orientação: suspender medicação
+somente com autorização médica
+---
+Hemograma completo, glicemia de jejum
+e creatinina
+---
+Laboratorio Ficticio Beta
+Pedido de exames
+- Hemograma completo
+- Glicose
+- Creatinina
+---
+Convênio: Plano Fictício Ouro
+carteirinha em anexo
+---
