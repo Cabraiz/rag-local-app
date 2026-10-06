@@ -1,0 +1,141 @@
+"""ADK building blocks the generated agent declares: the Gemini model, and the toolsets of the MCP servers
+and of the API, each on a host that ALLOWED_HOSTS allows and at the address checked for it (runtime/rede.py)."""
+import asyncio
+import os
+import threading
+import weakref
+from collections.abc import AsyncGenerator, Iterable
+from typing import Any
+
+import httpx
+from google.adk.agents.readonly_context import ReadonlyContext
+from google.adk.models import FallbackModel, Gemini
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
+from google.adk.tools import mcp_tool
+from google.adk.tools.base_tool import BaseTool
+from google.adk.tools.base_toolset import BaseToolset
+from google.adk.tools.openapi_tool.openapi_spec_parser.openapi_toolset import OpenAPIToolset
+from google.genai import errors, types
+
+from . import rede
+from .rede import check_host
+
+
+async def check_address(url: str) -> None:
+    """Before a toolset's first connection: the URL's name resolves to no local or metadata address,
+    and from here on every connection uses the addresses checked (runtime/rede.py). `cli run` checked
+    and pinned them already; under `adk run` / `adk web` a toolset may connect before any order starts
+    (the dev UI's graph lists every tool), so the check is made here too."""
+    problems = await asyncio.to_thread(rede.check_urls, [url])
+    if problems:
+        raise ConnectionRefusedError('; '.join(problems))
+
+
+def retries(*codes: int) -> types.HttpRetryOptions:
+    """Up to 5 attempts on these HTTP codes, with exponential backoff (2, 4, 8 and 16 s, plus jitter)."""
+    return types.HttpRetryOptions(attempts=5, initial_delay=2, max_delay=30, http_status_codes=list(codes))
+
+
+RESERVE_ON = frozenset({429, 503})  # out of quota, overloaded: the reserve model answers the same request
+RESERVE_NOTICE = 'Aviso: modelo principal indisponível; usando {reserve}'
+
+
+class Primary(Gemini):
+    """The spec's model when it has a reserve: a 429 or 503 is not retried (only a 500 is), so the
+    reserve answers at once, and this says so in one line (the console of `adk run`, the log of
+    `adk web`)."""
+    reserve: str = ''
+
+    async def generate_content_async(self, llm_request: LlmRequest,
+                                     stream: bool = False) -> AsyncGenerator[LlmResponse, None]:
+        answered = False
+        try:
+            async for response in super().generate_content_async(llm_request, stream):
+                answered = True
+                yield response
+        except errors.APIError as error:
+            if error.code in RESERVE_ON and not answered:  # what FallbackModel moves on from
+                print(RESERVE_NOTICE.format(reserve=self.reserve), flush=True)
+            raise
+
+
+def gemini(model: str, fallback: str | None = None) -> Gemini | FallbackModel:
+    """The spec's model (the GEMINI_MODEL variable, `docker compose run -e GEMINI_MODEL=...`, can
+    replace it, checked by `cli run`). Temporary Gemini failures (429/500/503) are retried with
+    exponential backoff, up to 5 attempts.
+
+    With the spec's fallback_model, a request the model refuses with 429 (quota) or 503 (overloaded)
+    goes at once, unchanged, to the reserve model (ADK's FallbackModel), which keeps every retry: the
+    same under `adk run`, `adk web` and `cli run`. This cannot book twice: it is the same model call
+    made again, not a tool call. A failed model call returned no function call, so no tool ran for
+    it; and the booking keeps its checks whichever model proposes it (one Idempotency-Key and one
+    appointment per run, runtime/callbacks.py)."""
+    primary = os.environ.get('GEMINI_MODEL') or model
+    if not fallback or fallback == primary:
+        return Gemini(model=primary, retry_options=retries(429, 500, 503))
+    return FallbackModel(models=[Primary(model=primary, reserve=fallback, retry_options=retries(500)),
+                                 Gemini(model=fallback, retry_options=retries(429, 500, 503))],
+                         retriable_status_codes=RESERVE_ON)
+
+
+class McpToolset(mcp_tool.McpToolset):
+    """ADK's McpToolset, on a host that ALLOWED_HOSTS allows: checked when agent.py is imported. Its
+    address is checked before it connects (check_address), and its client connects only there
+    (rede.mcp_client). The MCP SDK follows a redirect only within the same origin, so the stream stays
+    on that host."""
+
+    def __init__(self, *, connection_params: Any, **kwargs: Any):
+        check_host(connection_params.url)
+        connection_params = connection_params.model_copy(update={'httpx_client_factory': rede.mcp_client})
+        super().__init__(connection_params=connection_params, **kwargs)
+        self.url: str = connection_params.url
+
+    async def get_tools(self, readonly_context: ReadonlyContext | None = None) -> list[BaseTool]:
+        await check_address(self.url)  # every connection of the toolset starts here
+        return await super().get_tools(readonly_context)
+
+
+class LiveOpenAPIToolset(BaseToolset):
+    """OpenAPIToolset from the live /openapi.json, fetched on first use so the agent imports with
+    the API down. FastAPI sets no `servers`: the base URL is added. Only the operations in
+    tool_filter are exposed; the rest of the API stays out of reach. Both URLs are checked against
+    ALLOWED_HOSTS when agent.py is imported, and their addresses before the first request, which goes
+    only there (rede.client); httpx follows no redirect."""
+
+    def __init__(self, *, openapi_url: str, base_url: str, tool_filter: Iterable[str]) -> None:
+        check_host(openapi_url)
+        check_host(base_url)
+        super().__init__()
+        self.openapi_url, self.base_url, self.operations = openapi_url, base_url, list(tool_filter)
+        self.toolset: OpenAPIToolset | None = None
+        # Two first calls at once fetch the contract once. An asyncio.Lock belongs to one event loop and
+        # `adk web` runs several (threads, a loop per request): one lock per loop, made under a thread lock.
+        self.loading: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()  # event loop -> its lock
+        self.guard = threading.Lock()
+
+    def lock(self) -> asyncio.Lock:
+        with self.guard:
+            return self.loading.setdefault(asyncio.get_running_loop(), asyncio.Lock())
+
+    async def get_tools(self, readonly_context: ReadonlyContext | None = None) -> list[BaseTool]:
+        for url in (self.openapi_url, self.base_url):  # the contract, and where the calls go
+            await check_address(url)
+        if self.toolset is None:
+            async with self.lock():
+                if self.toolset is None:  # another call may have built it while this one waited
+                    self.toolset = await self.load()
+        return [*await self.toolset.get_tools(readonly_context)]
+
+    async def load(self) -> OpenAPIToolset:
+        async with rede.client(timeout=10) as client:
+            response = await client.get(self.openapi_url)
+            response.raise_for_status()
+        spec = response.json()
+        spec['servers'] = [{'url': self.base_url}]
+        return OpenAPIToolset(spec_dict=spec, tool_filter=self.operations,
+                              httpx_client_factory=lambda: rede.client(timeout=httpx.Timeout(600, connect=10, pool=10)))
+
+    async def close(self) -> None:
+        if self.toolset is not None:
+            await self.toolset.close()
