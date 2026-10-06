@@ -1,0 +1,13 @@
+.git
+.env
+**/__pycache__
+**/*.pyc
+.pytest_cache
+generated/*
+*.db
+*.sqlite3
+*.log
+.github
+# docs/, videos-do-desafio/ and evidencias/ stay in the context: only the `test` stage copies the
+# whole tree (tests/test_readme.py checks the links, paths and numbers in them); every other stage,
+# the agent included, copies only what it runs.
