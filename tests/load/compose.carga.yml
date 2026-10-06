@@ -1,0 +1,20 @@
+# Teste de carga de dados sensíveis (tests/load/carga.py), por cima do docker-compose.yml.
+# Na raiz do repositório (o Compose resolve os caminhos a partir do primeiro arquivo):
+#   docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga --profile test build
+#   docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga run --rm tests \
+#       python -m tests.load.carga --n 500 --concorrencia 8
+# As imagens geradas ficam num volume em memória (tmpfs) só desta carga: o tests grava,
+# o ocr o vê como /data/samples, só para ler. A regra do OCR (só um nome de arquivo
+# dentro de /data/samples) não muda, e nada gerado vai para o disco ou para o git.
+services:
+  ocr:
+    volumes: ["carga:/data/samples:ro"]  # substitui ./samples só neste projeto
+  api:
+    ports: !reset []  # a carga fala com a API pela rede interna: nenhuma porta no host
+  tests:
+    # api-data só para ler: a carga confere uma cópia do SQLite da API no fim.
+    volumes: ["carga:/data/carga", "api-data:/data/api:ro"]
+
+volumes:
+  carga:
+    driver_opts: {type: tmpfs, device: tmpfs, o: "size=512m,uid=10001,gid=10001"}
