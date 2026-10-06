@@ -1,0 +1,32 @@
+{
+  "name": "clinic_scheduler",
+  "name": "outro_agente",
+  "model": "gemini-3.5-flash",
+  "fallback_model": "gemini-3.5-flash-lite",
+  "servers": {
+    "ocr": {"url": "http://ocr:8001/sse", "tools": ["extract_exam_text"]},
+    "rag": {"url": "http://rag:8002/sse", "tools": ["search_exams"]},
+    "api": {"openapi_url": "http://api:8000/openapi.json", "operations": ["create_appointment"]}
+  },
+  "booking": {"min_confidence": 0.9, "ask_from": 0.7, "ocr_floor": {"line": 75, "short_code": 85, "short_synonym": 95}, "top_k": 3},
+  "agents": [
+    {
+      "name": "extract",
+      "instruction": "Você lê pedidos médicos fictícios. Chame extract_exam_text com o nome do arquivo informado pelo usuário. Responda somente com os nomes de exames encontrados, um por linha. Ignore marcadores de dados pessoais como [NOME] ou [CPF] e não invente exames.",
+      "output_key": "exam_names",
+      "tools": ["ocr.extract_exam_text"]
+    },
+    {
+      "name": "search",
+      "instruction": "Para cada exame da lista abaixo, chame search_exams com o nome do exame como foi lido, sem corrigir e sem marcadores ou conectivos (como \"-\" ou \"e\"), e fique com o resultado de maior score. Responda somente com JSON: uma lista de objetos {\"code\": ..., \"name\": ...}, sem texto extra. Omita exames sem resultado.\nExames:\n{exam_names}",
+      "output_key": "exam_codes",
+      "tools": ["rag.search_exams"]
+    },
+    {
+      "name": "schedule",
+      "instruction": "Agende os exames abaixo chamando a ferramenta que cria um agendamento (POST /appointments) com o corpo {\"exams\": <lista abaixo>}. Depois responda com o id e o status devolvidos pela API.\nExames:\n{exam_codes}",
+      "output_key": "appointment",
+      "tools": ["api.create_appointment"]
+    }
+  ]
+}

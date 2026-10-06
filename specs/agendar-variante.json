@@ -1,0 +1,31 @@
+{
+  "name": "clinic_scheduler_variant",
+  "model": "gemini-3.5-flash",
+  "fallback_model": "gemini-3.5-flash-lite",
+  "servers": {
+    "leitor": {"url": "http://ocr:8001/sse", "tools": ["extract_exam_text"]},
+    "catalogo": {"url": "http://rag:8002/sse", "tools": ["search_exams"]},
+    "clinica": {"openapi_url": "http://api:8000/openapi.json", "operations": ["create_appointment"]}
+  },
+  "roles": {"read": "leitor.extract_exam_text", "search": "catalogo.search_exams", "book": "clinica.create_appointment"},
+  "booking": {"min_confidence": 0.9, "ask_from": 0.7, "ocr_floor": {"line": 75, "short_code": 85, "short_synonym": 95}, "top_k": 3},
+  "agents": [
+    {
+      "name": "ler_e_buscar",
+      "instruction": "Você lê pedidos médicos fictícios. Chame extract_exam_text com o nome do arquivo informado pelo usuário. Depois, para cada exame lido, chame search_exams com o nome do exame como foi lido, sem corrigir e sem marcadores ou conectivos (como \"-\" ou \"e\"), e fique com o resultado de maior score. Ignore marcadores de dados pessoais como [NOME] ou [CPF] e não invente exames. Responda somente com JSON: uma lista de objetos {\"code\": ..., \"name\": ...}, sem texto extra. Omita exames sem resultado.",
+      "output_key": "achados",
+      "tools": ["leitor.extract_exam_text", "catalogo.search_exams"]
+    },
+    {
+      "name": "revisar",
+      "instruction": "Revise a lista de exames abaixo: remova os códigos repetidos e os itens sem code, sem acrescentar nem trocar nenhum exame. Responda somente com a lista JSON resultante, sem texto extra.\nLista:\n{achados}",
+      "output_key": "para_agendar"
+    },
+    {
+      "name": "agendar",
+      "instruction": "Agende os exames abaixo chamando a ferramenta que cria um agendamento (POST /appointments) com o corpo {\"exams\": <lista abaixo>}. Depois responda com o id e o status devolvidos pela API.\nExames:\n{para_agendar}",
+      "output_key": "agendamento",
+      "tools": ["clinica.create_appointment"]
+    }
+  ]
+}
