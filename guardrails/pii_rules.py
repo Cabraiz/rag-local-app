@@ -1,0 +1,205 @@
+"""The vocabularies and patterns of the OCR's rules: one regex per type of personal data, the name labels and the word
+lists that tell names from exams and from the order's structure (guardrails/pii.py applies them, in the order of its
+docstring), the one vocabulary of a negation, and the labels of a page (guardrails/intent.py). Those every image shares
+(the runtime's too) are in catalogo.py. Nothing here runs on its own.
+"""
+import re
+from pathlib import Path
+
+from catalogo import NOTE_LABELS, QUALIFIERS, fold
+
+# --- 1. One regex per type -------------------------------------------------------------
+# "[ \t]" (space or tab) instead of "\s": a value never continues on the next line.
+SEP = r'[ \t]?[.,/\-]?[ \t]?'  # between two digits of a document: "123.456", "123 456", "123,456" (OCR)
+AFTER_LABEL = r'[ \t]*(?:n[º°o]\.?[ \t]*)?[:;]?[ \t]*'  # "CPF: ", "RG nº ", "cpf ", "CID;" (OCR)
+REST_OF_LINE = r'[^\n]*[^\s]'
+MONTHS = 'janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro'
+MONTH_ABBR = 'jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez'
+UF = 'ac|al|ap|am|ba|ce|df|es|go|ma|mt|ms|mg|pa|pb|pr|pe|pi|rj|rn|rs|ro|rr|sc|sp|se|to'
+# Up to 3 lower-case pieces the OCR split off an e-mail's user name, each ending in a dot, a
+# glued mark or one space: "raimundo. gomes 80@...", "joaquim/silva@...". A mark between
+# spaces ends it, so "Bilirrubina indireta - e-mail ..." keeps the exam.
+EMAIL_PIECES = r'\b(?:[a-zà-ÿ][a-zà-ÿ0-9_+-]*(?:[ \t]?\.[ \t]?|[^\w\s\[\]]|[ \t])){0,3}'
+
+
+def after_label(labels: str, value: str = REST_OF_LINE, group: str = 'value_after_label') -> str:
+    """Regex for `value` after one of `labels` (case-insensitive), captured in `group`."""
+    return r'(?i:\b(?:' + labels + '))' + AFTER_LABEL + '(?P<' + group + '>' + value + ')'
+
+
+PATTERNS = [
+    ('EMAIL', r'''
+        (?P<value> ''' + EMAIL_PIECES + r''' [\w.+-]+ @ [\w-]+ (?:\.[\w-]+)+ )  # maria@example.com, "maria. souza 80@..."
+      | ''' + after_label(r'e-?mail') + r'''                                  # E-mail: mariaQgexample.com
+      | (?P<value_spelled> [\w.+-]+ [ \t]* (?i:arroba|\(at\)|\[at\]) [ \t]* [\w-]+    # maria arroba example ponto com
+            (?:[ \t]* (?i:ponto|\(dot\)|\[dot\]|\.) [ \t]* [\w-]+)+ )
+      | (?P<value_domain> ''' + EMAIL_PIECES + r'''                           # no label and the "@" misread:
+            [\w+-]+ (?:[ \t]*\.[ \t]*[\w+-]+)* [ \t]*                           # "souza96gexemplo. invalid", only
+            (?:\.[ \t]*com | [.,][ \t]*(?:br|org|net|edu|gov|invalid|example)) \b ) # if looks_like_email (see mask)
+    '''),
+
+    ('ENDERECO', after_label(r'endere[çc]o|logradouro|resid[êe]ncia')            # Endereço: Rua X, 10
+                 + '|' + after_label('cep', r'\d{5}-?\d{3}', 'value_cep') + r'''  # CEP 01310-100
+      | (?P<value> (?i:\b(?:rua|r\.|avenida|av\.|travessa|alameda|rodovia)) [ \t] ''' + REST_OF_LINE + r'''  # Av. Paulista, 1000
+      | \b\d{5}-\d{3}\b )                                                       # 01310-100
+      | (?P<value_unit>                                                         # ap 302, casa 3, bloco B,
+          (?: (?i:\b(?:ap|apto|apt|apartamento|casa|lote|quadra|qd|conjunto|cj|sala|andar))  # apto 12 - bloco C
+              \.?[ \t]*(?:n[º°o]\.?[ \t]*)? \d{1,5}[A-Za-z]?\b
+            | (?i:\b(?:bloco|torre))\.?[ \t]*(?:[A-Za-z]\d{0,3}|\d{1,4}[A-Za-z]?)\b )
+          (?:[ \t]*[-,/]?[ \t]*(?i:bloco|torre)\.?[ \t]*[A-Za-z0-9]{1,3}\b)? )
+    '''),
+
+    ('CRM', r'''
+        (?P<value>
+          (?i:\bcrm) [ \t]*[-/:=.]?[ \t]*                  # CRM-SP 123456, CRM=SP, CRMSP
+          (?:[A-Za-z][^\s\d] [ \t]*[-/:=.]?[ \t]*)?         # the state, one letter possibly misread: "CRM-R]"
+          (?:n[º°o]\.?[ \t]*)? \d{4,7}
+          (?:[ \t]*[-/][ \t]*[A-Za-z]{2}\b)?                # 123456/SP
+        | (?i:\b(?:crn|grm|grn|cbm)) [ \t]*[-/:=.]?[ \t]*   # OCR misreads of CRM, only with state and number
+          [A-Za-z]{2} [ \t]*[-/:=.]?[ \t]* \d{4,7}\b
+        | (?i:\b[a-z]{1,3} [ \t]*-[ \t]* (?:''' + UF + r''')) [ \t]+ \d{4,7}\b  # deformed: "a RM-SP 651813", "CRu-sp 767396"
+        )
+    '''),
+
+    ('SUS', after_label(r'cart[ãa]o(?:[ \t]+do)?[ \t]+sus|cart[ãa]o[ \t]+nacional[ \t]+de[ \t]+sa[úu]de|cns',
+                        r'\d[\d \t]{13,20}\d')                                  # Cartão SUS: 898 0010 0123 4567
+            + r'| (?P<value> \b\d{3}[ \t]?\d{4}[ \t]?\d{4}[ \t]?\d{4}\b )'),    # 15 digits in 3-4-4-4 groups
+
+    ('PRONTUARIO', after_label(r'(?:n[º°o]\.?[ \t]*(?:do[ \t]+)?)?prontu[áa]rio|registro[ \t]+do[ \t]+paciente',
+                               r'(?:[A-Za-z]{1,3}[-. ]?)?\d[\d.\-/]{2,20}')),   # Prontuário: AB-12345
+
+    ('CPF', r'''
+        (?P<value>
+          (?<!\+55[ ]) (?<!\d)                              # after "+55 " the digits are a phone
+          (?!\d{2}[ \t]+9[ \t]?\d{4}[- \t]?\d{4}(?!\d))     # "11 96101-0282" is a phone too
+          \d (?:''' + SEP + r'''\d){10} (?!\d) )            # 11 digits: 123.456.789-00, 123.456,789-00 (OCR), 081,737.428/11
+      | ''' + after_label(r'c\.?p\.?f\.?', r'''              # after the label, 3 to 11 digits: "CPF: 517.916."
+            \d (?:''' + SEP + r'''\d){2,10} (?!''' + SEP + r'''\d) [.,/\-]?''') + r'''  # (the rest is on the next line)
+    '''),
+
+    ('RG', r'''
+        (?P<value> \b\d{1,2}[.,]\d{3}[.,]\d{3}-[\dXx]\b )   # 12.345.678-9, 12,345.678-9 (OCR)
+      | ''' + after_label(r'r\.?g\.?', r'''                  # RG: 1234567, RG MG-15.912.070, RG nº 31 270 551 X
+            (?:[A-Za-z]{2}[ \t]*[-/]?[ \t]*)? \d (?:[ \t]?[\d.,\-]){3,14} [ \t]?[\dXx]\b''')),
+
+    ('CID', after_label(r'cid(?:-?10)?', r'[A-Za-z]\d{2}(?:\.?\d{1,2})?\b')),  # CID-10: E11.9
+    ('CLINICO', after_label(r'indica[çc][ãa]o(?:[ \t]+cl[íi]nica)?|hip[óo]tese[ \t]+diagn[óo]stica|diagn[óo]stico')),
+    ('CONVENIO', after_label(r'conv[êe]nio|carteirinha|carteira(?:[ \t]+do[ \t]+conv[êe]nio)?|matr[íi]cula')),
+    ('IDADE', after_label('idade', r'\d{1,3}(?:[ \t]*anos)?')),                 # Idade: 45 anos
+
+    ('DATA', r'''
+        (?P<value>
+          \b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b               # 05/10/2026
+        | \b\d{4}-\d{2}-\d{2}\b                             # 2026-10-05
+        | (?i:\b\d{1,2} [ \t]*(?:de|[/.-])?[ \t]*            # 5 de outubro de 2026, 27/agosto/1954,
+              (?:''' + MONTHS + '|' + MONTH_ABBR + r''')\.?  # 2 set. 1963, 15-setembro-1957
+              [ \t]*(?:de|[/.-])?[ \t]* \d{4}\b)
+        | (?i:\b(?:''' + MONTHS + r''') [ \t]+(?:de[ \t]+)? \d{4}\b)  # outubro de 1997
+        )
+    '''),
+
+    ('TELEFONE', r'''
+        (?P<value>
+          (?: \+\d{1,3}[ \t]*(?:\(\d{1,4}\)|\d{1,4})        # +55 11, +1 (415)
+            | \(\d{2}\) | \b\d{2} )                         # (11), 11
+          [ \t]* (?:9[ \t]?)? \d{3,4} [- \t]? \d{4}\b       # 98765-4321, 9 0933 0160, 555-0339
+        | \b9?\d{4}-\d{4}\b                                 # 3333-4444
+        )
+    '''),
+]
+COMPILED = [(kind, re.compile(pattern, re.VERBOSE)) for kind, pattern in PATTERNS]
+# A CPF split in two lines: "CPF: 517.916." then "257-38".
+CPF_START = re.compile(r'(?i:\bc\.?p\.?f\.?)' + AFTER_LABEL + r'(?P<part>\d(?:' + SEP + r'\d){2,9})[.,/\-]?[ \t]*$')
+CPF_REST = re.compile(r'^[ \t]*(?P<part>\d(?:' + SEP + r'\d){0,9})(?!\d)')
+
+# --- 2. Names, word by word ------------------------------------------------------------
+WORD = re.compile(r"[^\W\d_]+(?:['’-][^\W\d_]+)*")  # letters only: "Sant'Anna", "Anne-Louise"
+# A value masked by type ([CPF]); a removal (catalogo.MASK_TAG) is text here, so [INSTRUCAO_REMOVIDA] never leaves.
+TYPED_TAG = re.compile(r'\[[A-Z]+\]')
+NAME_TAG, REMOVED_TAG = '[NOME]', '[TEXTO_REMOVIDO]'
+NEXT_LABEL = re.compile(r'[^\W\d_][\w.]*[ \t]*:')   # "CPF:", "Data:": where a labelled name ends
+# Name labels: "Paciente:" needs the colon ("PEDIDO MEDICO" is no label); "paciente", "mãe", "pai" and titles do not.
+LABEL = re.compile(r'''(?ix)
+    \b (?: paciente | nome (?:\s+do\s+paciente)? | m[ée]dic[oa] (?:\s+solicitante)? | respons[áa]vel
+         | solicitante | assinatura | acompanhante | m[ãa]e | pai ) [ \t]*: (?P<colon>)
+  | \b (?: paciente | m[ãa]e | pai ) [ \t]
+  | \b (?: dr | doutor | sr | senhor ) (?: \(a\) | a | ª | ta )? [.,]? ª? (?=[\s:]|$) :? (?P<title>)  # Dr., Dra, Sr(a).
+''')
+
+NAME_PARTICLES = frozenset(('da', 'de', 'do', 'das', 'dos', 'e'))
+# Words of a sentence, never of a name: "coletar em março", "ana com dor".
+PHRASE_WORDS = frozenset(('em', 'no', 'na', 'nos', 'nas', 'com', 'por', 'para', 'pela', 'pelo', 'os', 'as',
+                          'um', 'uma', 'ao', 'sem', 'que', 'se', 'ou'))
+PARTICLES = NAME_PARTICLES | PHRASE_WORDS | {'a', 'o'}
+# Words of an order that are never names ("NAO realizar", "Favor repetir"): they break a run of capitals. Not
+# structure: the safety net still removes them, as [TEXTO_REMOVIDO], never counted as a name.
+ORDINARY_WORDS = frozenset((
+    'nao', 'sim', 'tambem', 'ja', 'favor', 'realizar', 'realizado', 'realizada', 'fazer', 'feito', 'feita',
+    'repetir', 'refazer', 'incluir', 'acrescentar', 'adicionar', 'dosar', 'colher', 'coletar', 'pedir', 'solicitar',
+    'autoriza', 'autorizo', 'considere', 'considerar', 'leve', 'levar', 'conta', 'evitar', 'suspender', 'suspenso',
+    'suspensa', 'cancelar', 'cancelado', 'cancelada', 'dispensar', 'dispensado', 'agendar', 'marcar', 'nota',
+    'leitor', 'automatizado', 'anterior', 'resultado', 'ultimo', 'reagiu', 'mal', 'urgente',
+    'pede', 'pediu', 'solicita', 'solicitou', 'requer', 'agregar', 'agregue', 'anadir', 'anada', 'incluya', 'tambien', 'favor',  # Spanish: "Agregar também"
+    'todos', 'todas', 'menos', 'exceto', 'sem', 'trouxe', 'item', 'controle', 'necessario', 'precisa', 'conforme',
+    'verbal', 'orientacao', 'combinado', 'apenas', 'somente'))
+# Field names: right before a masked value they are labels ("CPF [CPF]"), not names.
+FIELD_NAMES = frozenset(('cpf', 'rg', 'crm', 'cep', 'cid', 'cns', 'sus', 'data', 'nascimento', 'nasc', 'telefone',
+                         'tel', 'celular', 'whatsapp', 'contato', 'email', 'endereco', 'idade', 'convenio',
+                         'carteirinha', 'prontuario', 'identidade'))
+# Header words: a line with one of them is a header, not a name.
+NOT_NAMES = frozenset(('pedido', 'exame', 'exames', 'solicitacao', 'requisicao', 'laboratorio', 'clinica',
+                       'hospital', 'centro', 'unidade', 'medico', 'medica', 'assinatura', 'diagnostico',
+                       'indicacao', 'observacao', 'urgente', 'rotina', 'paciente', 'nome'))
+FIRST_NAMES = frozenset(fold(line.strip()) for line in Path(__file__).with_name('prenomes.txt').read_text(encoding='utf-8')
+                        .splitlines() if line.strip() and not line.startswith('#')) - set(fold(MONTHS).split('|'))
+
+# --- 4. Safety net: only what looks like an exam leaves the OCR ----------------------------
+# A line is split in pieces; a piece that fails is split again where two exams may be joined
+# by the OCR ("Acido urlco e Vitamlna D"): the whole piece first keeps "HIV antigeno e anticorpos".
+PIECES = re.compile(r'([,;():]|\s[-–—]\s)')
+# The one vocabulary of a negation, history or exception: guardrails/intent.py builds its cues on it, and the safety net
+# never removes a VISIBLE word ("Obs: NAO realizar Ferritina" stays). Only STOP_CUE has "remov-" and "desconsider-".
+NOT = r'n[a4][o0]'  # "não", also read "NA0"
+DONE = r'(?:r[e3]a[l1i]{1,2}[zs]ad[oa]s?|feit[oa]s?|colhid[oa]s?|coletad[oa]s?|dosad[oa]s?)'  # "realizado", "feita"
+STOP = (r'(?:suspen[ds]\w*|susp\b|canc\b|cancel\w*|desmarc\w*|dispens\w*|evit\w*|vet(?:ad[oa]s?|ar|e|ou)\b|'  # on their own:
+        r'exclu(?:a|am|ir|ido|ida|idos|idas)\b|retir(?:ar|e|ado|ada)\b|contra\W?indicad\w*|'  # "TSH (suspenso)"
+        r'desnecessari\w*|nunca|jamais|anulad[oa]s?|elimin\w*)')
+STOP_CUE = rf'(?:{STOP}|desconsider\w*|remov\w*)'
+EXCEPT = r'(?:sem|exceto|excluindo|tirando|(?<!pelo )menos)'  # "todos menos PSA"
+# The short "não" and "sem" ("n/ realizar", "ñ fazer", "s/ necessidade"), visible only written so: "D.N." still goes.
+SHORT_CUE = re.compile(r'(?<![^\s(\[-])(?:[nNsS]/|[ñÑ])(?=\s)')
+VISIBLE = re.compile(rf'(?:{NOT}|nr|{STOP}|{EXCEPT}|{DONE}|apenas|somente|seguintes?|seguir|exclu\w*|retir\w*|necessari\w*|'
+                     r'necessidade|precis\w*|realiz\w*|fez|fazer|faca|ja|resultados?|trouxe|anterior\w*|ultim[oa]s?|repetir|'
+                     r'refazer|controle|deixar|esquecer|itens|item|acima|abaixo|todos|todas|autorizad[oa]s?|liberad[oa]s?|indicad[oa]s?)')
+JOINED = re.compile(r'(\s(?:e|E|\+|/)\s)')
+# Words of an order's structure: with labels and masked values they make a piece that may leave.
+STRUCTURE = NOT_NAMES | FIELD_NAMES | PARTICLES | frozenset((
+    'pedidos', 'medicos', 'solicito', 'solicita', 'solicitados', 'solicitado', 'laboratoriais', 'laboratorial',
+    'clinico', 'receituario', 'obs', 'observacoes', 'carimbo', 'dr', 'dra', 'sr', 'sra', 'doutor', 'doutora',
+    'responsavel', 'solicitante', 'cartao', 'plano', 'fone', 'mail', 'preparo', 'nota', 'orientacao', 'orientacoes'))
+
+UNITS = frozenset(('mg', 'ml', 'dl', 'ui', 'h', 'hs', 'hrs', 'min', 'x'))
+AMOUNT = re.compile(r'\d+(?:' + '|'.join(UNITS) + r')?')  # "100", "8h", "12hs"
+# A long number on an exam line is a document or phone ("TSH 898*0010*0123*4567"): 5+ digits, one mark between two.
+DIGIT = r'(?:[^\w\n]|_)?\d'  # the next digit of a number: "898*0010", "9_8765", "123/456"
+LONG_NUMBER = re.compile(rf'(?<![\w.,/-])\d(?:{DIGIT}){{4,}}(?!\w)')
+OCR_DIGITS = str.maketrans('0158', 'olsb')  # digits the OCR reads for letters: "25(0H)D", "Lipa5e"
+MARKS_BEFORE, MARKS_AFTER = re.compile(r'[^\w\[\]]*'), re.compile(r'[^\w\[\]]*$')  # marks around a piece
+
+# 5. By shape: a capitalized word after a masked name or a line's initial, up to the line's end, a mark or another one.
+NAME_TAIL = re.compile(r"(?:\[NOME\]|^[^\w\[]*[A-Z]\.)(?:[ \t]+[A-ZÀ-Ý][^\W\d_]*(?:['’-][^\W\d_]+)*)+"
+                       r"(?=[ \t]*(?:$|[,;|–—-]))")
+HOUR_UNIT = r'(?:h|hs|hrs|horas?)'  # "8h", "12 hs", "24 horas"
+TOKEN, HOURS = re.compile(r'(?<!\[)\b[^\W_]+'), re.compile(rf'\d{{1,2}}[ \t]*{HOUR_UNIT}\b')
+KEPT = QUALIFIERS | UNITS | PARTICLES  # after an exam's name: what qualifies it ("Livre", "8h", "E")
+
+# --- 6. The labels of a page (guardrails/intent.py), on catalogo's ------------------------------------------------------
+# A label of the list, or the doctor's verb, opening a line ("Exames solicitados:", "Realizar:"); misread, a LABEL_WORDS.
+LIST_LABEL = re.compile(r'^\s*(?:(?:exames?|pedido|requisicao|solicitacao)(?:\s+(?:de\s+)?(?:exames?|solicitad[oa]s?|'
+                        r'laboratoria(?:l|is)|de\s+rotina))*\s*:|(?:solicito|solicitamos|peco)'
+                        r'(?:\s+(?:os\s+)?(?:seguintes\s+)?exames)?\s*:?|(?:realizar|fazer|dosar|repetir|refazer|coletar|colher|novo|nova)\b\s*:?)\s*')
+LABEL_WORDS = ('solicito', 'exames', 'exame', 'pedido')
+PREP_LABEL = re.compile(r'^\W*(?:regras?\s+de\s+|orientac\w*\s+de\s+)?(?:preparo|prep)\b')  # "Preparo:", "Regras de preparo"
+NOTE_LABEL = re.compile(r'^\W*(?:obs|observa\w*|preparo|orienta\w*)\b')  # catalogo.NOTE_LABELS as a line starts with them
+FIELDS = (STRUCTURE | {'sexo', 'local', 'hipotese'}) - NOTE_LABELS - {'nota'}
+HEADER = NOT_NAMES | FIELD_NAMES | {'receituario', 'dados', 'ficticio', 'ficticios', 'demonstracao', 'documento'}
