@@ -63,6 +63,9 @@ services:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-}  # empty: the compose services (transpiler/spec.py)
       GEMINI_MODEL: ${GEMINI_MODEL:-}  # empty: the spec's model
+      # ADK's MCP client otherwise looks for Google credentials (and the cloud metadata server,
+      # 169.254.169.254) on every MCP connection, to try mTLS; the MCP servers here are plain HTTP.
+      GOOGLE_API_USE_CLIENT_CERTIFICATE: "false"
     # specs/ is mounted read-only: a spec saved there is transpiled without rebuilding the image.
     volumes: ["generated:/app/generated", "./specs:/app/specs:ro"]
     # default: internet access for Gemini; internal: reaches ocr, rag and api.
@@ -80,6 +83,8 @@ services:
     build: {context: ., target: test}
     profiles: [test]
     restart: "no"
+    environment:
+      GOOGLE_API_USE_CLIENT_CERTIFICATE: "false"  # as for the agent: no credential or metadata lookup per MCP connection
     networks: [internal]
     depends_on:
       ocr: {condition: service_healthy}
@@ -95,6 +100,7 @@ services:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-}  # empty: the spec's model, as for the agent
       E2E_REQUIRED: "1"
+      GOOGLE_API_USE_CLIENT_CERTIFICATE: "false"
     networks: [default, internal]  # default: internet, for Gemini
     command: ["pytest", "-q", "-rs", "tests/test_e2e.py"]
 
