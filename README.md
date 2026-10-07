@@ -29,6 +29,7 @@ docker compose run --rm agent python -m cli run --image pedido.png       # image
 - **Sua própria spec, sem rebuild:** salve-a em `specs/`, montada só para leitura no `agent`, e rode `docker compose run --rm agent python -m cli transpile specs/<sua-spec>.json`. O que você editar ali vale no próximo comando ([campos da spec](docs/transpilador.md#campos-da-spec)).
 - **Onde fica o `agent.py`:** no volume Docker `generated`, não na pasta `generated/` do host, que fica vazia. Para vê-lo: `docker compose run --rm agent cat generated/agent.py`.
 - **Swagger:** com o `up` no ar, em <http://127.0.0.1:8765/docs> (ou na porta de `API_PORT`).
+- **Sem a CLI, com o próprio ADK:** `docker compose run --rm agent adk run --in_memory generated` e digite `pedido.png`; o `adk web` também funciona ([como, e o que fica só na CLI](docs/como-rodar.md#4-rodar-com-adk-run-ou-adk-web)).
 
 https://github.com/user-attachments/assets/a6e9fd9e-be6f-48ed-ba4e-356cc72f631b
 
@@ -126,13 +127,13 @@ Etapas, rede, fluxo de dados, decisões técnicas e erros: [docs/arquitetura.md]
 
 ### O que o `agent.py` usa
 
-- **Classes do Google ADK:** `LlmAgent` (uma por etapa), `SequentialAgent` (a ordem), `McpToolset` (OCR e RAG) e `OpenAPIToolset` (a API). Os dois toolsets passam por uma camada fina do runtime, que confere o host.
+- **Classes do Google ADK:** `LlmAgent` (uma por etapa), `SequentialAgent` (a ordem), `McpToolset` (OCR e RAG), `OpenAPIToolset` (a API) e `App` (retomável, o que o `adk run` e o `adk web` carregam). Os dois toolsets passam por uma camada fina do runtime, que confere o host.
 - **A biblioteca de runtime do projeto, [`runtime/`](runtime/)** (que usa o [`catalogo.py`](catalogo.py)), com as regras, iguais para toda spec:
   - os callbacks da política de agendamento: só códigos que a busca devolveu, um trecho do pedido por exame e as faixas de confiança;
   - o que é permitido: os hosts de `ALLOWED_HOSTS` e só as ferramentas que têm papel na spec;
   - a confirmação `[s/N]`, decidida em código e pedida pela confirmação nativa do ADK.
-- **Versão da biblioteca:** o `agent.py` grava a versão do runtime para a qual foi gerado (`API_VERSION`, hoje 3). Com um runtime de outra versão, a importação para com uma mensagem clara.
-- **A CLI ([`cli.py`](cli.py))** cria a sessão do ADK e põe no estado dela o apelido da imagem (`pedido-1.png`), para o modelo nunca ver o nome real do arquivo.
+- **Versão da biblioteca:** o `agent.py` grava a versão do runtime para a qual foi gerado (`API_VERSION`, hoje 4). Com um runtime de outra versão, a importação para com uma mensagem clara.
+- **O apelido da imagem (`pedido-1.png`):** a CLI ([`cli.py`](cli.py)) o põe no estado da sessão; no `adk run` e no `adk web`, o callback que abre o pedido o tira da 1ª mensagem. Nos dois casos, o modelo nunca vê o nome real do arquivo.
 - **[Um teste](tests/test_runtime.py)** gera o `agent.py` e o copia, com o `runtime/` e o `catalogo.py`, para uma pasta fora do repositório. Num Python limpo, importa o agente e chama os callbacks direto, com um contexto falso e respostas simuladas do OCR e da busca.
 - **O que esse teste confere:** o exame lido com clareza fica na chamada de agendamento, e o da faixa do meio sai, porque não há quem responda. Ele não roda o agente, não agenda nada e não chama nenhuma API.
 

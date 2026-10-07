@@ -173,6 +173,32 @@ docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga ru
 
 A saída mostra, por categoria, os casos ok, os recusados com mensagem clara e os que falharam (erro 500, traceback, PII, exame agendado fora da imagem ou mensagem pouco clara). `--caso <id>` refaz só um caso. Resultado em [medicoes.md](medicoes.md#robustez-entradas-faltando-ou-quebradas).
 
+## 4. Rodar com `adk run` ou `adk web`
+
+O agente gerado também roda com as ferramentas do próprio ADK, sem a CLI do projeto. O `transpile` grava `generated/agent.py` e `generated/__init__.py`, então `generated/` é uma pasta de agente do ADK: o `agent.py` expõe `root_agent` e um `app` retomável (a pergunta de confiança média pausa e retoma a mesma chamada de agendamento).
+
+```bash
+docker compose run --rm agent python -m cli transpile specs/agent.json   # gera de novo depois de atualizar o projeto
+docker compose run --rm agent adk run --in_memory generated              # no [user]:, digite só o nome do arquivo: pedido.png
+docker compose run --rm -p 127.0.0.1:8000:8000 agent adk web --host 0.0.0.0 --port 8000 --no-reload --session_service_uri memory:// --no_use_local_storage generated
+```
+
+No `adk web`, abra <http://127.0.0.1:8000>, escolha o agente `generated` e mande `pedido.png`. Se a porta 8000 do host estiver ocupada, troque só o primeiro número (ex.: `127.0.0.1:8090:8000`).
+
+- **A mensagem:** o nome de um arquivo de `samples/` (`pedido.png`, ou uma frase com ele: `agende o pedido pedido.png`). Um texto sem nome de imagem, com pasta (`samples/pedido.png`) ou com dois arquivos é recusado com `Informe só o nome de um arquivo de pedido em samples/ …`, sem chamar o modelo.
+- **Antes do 1º turno do modelo** (`start_order`, em [`runtime/callbacks.py`](../runtime/callbacks.py)), como no `cli run`:
+  - o nome vira o apelido `pedido-1.png`; o modelo recebe `Arquivo do pedido: pedido-1.png` no lugar do que você digitou e nunca vê o nome real (`before_model`);
+  - os nomes `ocr`, `rag` e `api` precisam estar em `ALLOWED_HOSTS` e não podem resolver para um endereço local ou de metadados de nuvem; os endereços conferidos ficam fixos enquanto o processo do `adk` durar ([`runtime/rede.py`](../runtime/rede.py));
+  - o OCR confere a imagem (`check_image`): um arquivo inexistente ou recusado para aí, com o motivo e o apelido no lugar do nome.
+- **Pergunta de confiança média:** o console do `adk run` mostra `[HITL confirm] Confirme os exames lidos com confiança média: '<linha>' → <exame> <código> (confiança 0,80)…`. `yes` inclui os exames listados nela; qualquer outra resposta deixa todos de fora. A CLI pergunta exame a exame; o ADK, uma vez por chamada. Sem terminal (`docker compose run -T`) ou com `AGENT_NO_QUESTIONS=1`, nada é perguntado e esses exames ficam de fora, como no `--yes`.
+- **A última mensagem** (`[clinic_scheduler]: …`) é escrita em código, com o que as ferramentas devolveram: a PII mascarada, os exames deixados de fora e o motivo, a conferência do pedido inteiro e `Agendamento confirmado pela API: id …` só com a resposta da própria API. O texto do modelo (`[schedule]: …`) não conta.
+- **Um pedido por sessão:** outra mensagem na mesma sessão é recusada (`Esta sessão já tratou um pedido…`). Para outro pedido, `exit` e `adk run` de novo; no `adk web`, New Session. A `Idempotency-Key`, as respostas e o agendamento são da sessão.
+- **Por que `--in_memory` e `memory://`:** sem eles, o ADK grava a sessão (o texto do OCR, já mascarado, e o nome real do arquivo no estado) em `generated/.adk/`, no volume.
+- **Só na CLI:** a troca para o modelo reserva (`429`/`503`), a checagem de que o `agent.py` é o que a spec gera hoje, a lista de ferramentas vivas antes do 1º turno e a linha `Tempo:`. O `adk run` roda o `agent.py` que estiver na pasta. As regras do runtime valem do mesmo jeito: ferramenta sem papel recusada, só códigos buscados e presentes no pedido, as 3 faixas, uma `Idempotency-Key` por sessão e `ALLOWED_HOSTS`.
+- **Dependências do `agent.py`:** o Google ADK e a biblioteca `runtime/` do projeto (que usa o `catalogo.py`), versionada por `API_VERSION` (hoje 4). Ela não é um pacote instalado pelo pip: o `adk run generated` na raiz do projeto põe a raiz no `sys.path`, e no container `PYTHONPATH=/app` faz o mesmo.
+- **O `adk web` é a interface de desenvolvimento do ADK, sem login:** quem a abre age como operador (pode, por exemplo, mandar estado inicial pela API dela). Publique a porta só em `127.0.0.1`, como acima.
+- **Teste:** [`tests/test_adk_run.py`](../tests/test_adk_run.py) roda o próprio comando `adk run` (e o servidor do `adk web`) sobre a pasta gerada, com modelos roteirizados no lugar do Gemini e os servidores MCP e a API reais: só com `pedido-joao-silva.png` digitado, agenda os 3 exames, e nenhuma requisição ao modelo contém o nome do arquivo.
+
 ## Variáveis de ambiente
 
 Todas as que o código lê. As do `.env` chegam só ao serviço que as usa; as outras já têm o valor certo dentro dos containers e só mudam fora do Docker (por exemplo, no `pytest` local).
@@ -181,7 +207,7 @@ Todas as que o código lê. As do `.env` chegam só ao serviço que as usa; as o
 |---|---|---|---|
 | `GOOGLE_API_KEY` | vazia | `agent` (`cli run`) | Chave da Gemini API. Sem ela, o `run` para antes de chamar o modelo. |
 | `GEMINI_MODEL` | vazia: o modelo da spec | `agent` e `tests-e2e` | Outro modelo Gemini numa execução, sem editar a spec (a mesma regra de nome da spec vale para ela). A CLI também a define quando passa ao modelo reserva. |
-| `ALLOWED_HOSTS` | vazia: `ocr:8001,rag:8002,api:8000` | `agent` (`transpile` e `run`) | Hosts que os servidores de uma spec podem usar: `host` para qualquer porta, `host:porta` para uma. |
+| `ALLOWED_HOSTS` | vazia: `ocr:8001,rag:8002,api:8000` | `agent` (`transpile`, `run`, `adk run` e `adk web`) | Hosts que os servidores de uma spec podem usar: `host` para qualquer porta, `host:porta` para uma. |
 | `DB_ENCRYPTION_KEY` | vazia: a `api` cria uma no volume `api-key` | `api` | Chave AES-256 que cifra as listas de exames no banco (`python -m api.crypto --gerar-chave` cria uma). |
 | `API_RATE_LIMIT_PER_MINUTE` | `1200` | `api` | Requisições por minuto por IP; acima disso, `429` com `Retry-After`. `0` desliga. |
 | `API_PORT` | `8765` | Compose | Porta da API no host, só em `127.0.0.1`. |
@@ -277,6 +303,7 @@ docker compose run --rm tests pytest -q -n auto
   - as 3 faixas de confiança, a pergunta `[s/N]` e o piso do OCR ([`test_confianca.py`](../tests/test_confianca.py));
   - o preparo da imagem e a confiança por linha do OCR ([`test_preprocessamento.py`](../tests/test_preprocessamento.py));
   - o agente gerado conversando com os servidores MCP reais, sem Gemini ([`test_agent_mcp.py`](../tests/test_agent_mcp.py));
+  - o agente gerado rodando com `adk run` e com o servidor do `adk web`, sem a CLI, até o agendamento na API real ([`test_adk_run.py`](../tests/test_adk_run.py));
   - o limiar de 0,90 sobre as 631 consultas de calibração ([`test_calibration.py`](../tests/test_calibration.py));
   - uma fração da carga (20 pedidos), dos manuscritos (10 de 120) e da robustez (1 caso por categoria): [`test_carga.py`](../tests/test_carga.py), [`test_manuscritos.py`](../tests/test_manuscritos.py), [`test_robustez.py`](../tests/test_robustez.py).
 - **Resultado atual:** 405 funções de teste e 17.432 casos (`pytest --collect-only`), quase todos de corpus parametrizado (linhas legítimas, PII gerada, ataques e termos do catálogo); 17.431 passam e 1 é pulado (o ponta a ponta, sem chave). Com `-n auto` (um processo por núcleo), a suíte leva cerca de 3,5 min numa máquina de 12 núcleos, com `--cov` (medido: 200 s e 205 s); em série, de 6 a 11 min.

@@ -35,18 +35,23 @@ exata do `transpile` para `specs/agent.json`, e um teste falha se ela ficar desa
 - **O código gerado** só declara o agente, em cerca de 100 linhas comentadas, nenhuma com mais de 120 colunas:
   - o modelo Gemini;
   - cada `LlmAgent` com a sua instrução, as ferramentas dele e o `output_key`: o `McpToolset`/`SseConnectionParams` do OCR e do RAG, ou o `LiveOpenAPIToolset`, uma camada fina que monta o `OpenAPIToolset` do ADK a partir do `/openapi.json` vivo da API;
-  - o `SequentialAgent`;
-  - os callbacks, já configurados com os valores da spec.
+  - o `SequentialAgent`, que abre o pedido (`start_order`) e termina no relatório (`report`);
+  - o `App` retomável que o `adk run` e o `adk web` carregam (o `transpile` grava também um `__init__.py` ao lado, então a pasta é uma pasta de agente do ADK: [como rodar](como-rodar.md#4-rodar-com-adk-run-ou-adk-web));
+  - os callbacks, já configurados com os valores da spec e as URLs dos servidores.
 
   Não há função, classe nem regra de negócio no arquivo gerado.
-- **A biblioteca de runtime do transpilador, [`runtime/`](../runtime/)** (versão 3 da interface, `API_VERSION`: o arquivo gerado confere essa versão na importação), guarda as regras, num código fixo e testado por conta própria:
+- **A biblioteca de runtime do transpilador, [`runtime/`](../runtime/)** (versão 4 da interface, `API_VERSION`: o arquivo gerado confere essa versão na importação), guarda as regras, num código fixo e testado por conta própria:
 
   | Módulo | O que faz |
   |---|---|
   | [`confianca.py`](../runtime/confianca.py) | política de agendamento: faixas, pisos do OCR, um trecho do pedido por exame |
-  | [`callbacks.py`](../runtime/callbacks.py) | `after_tool`, `before_tool` e `before_agent` do ADK |
+  | [`callbacks.py`](../runtime/callbacks.py) | os callbacks do ADK: abrir o pedido (`start_order`), esconder o nome do arquivo do modelo (`before_model`), `after_tool`, `before_tool`, `before_agent` e o relatório final (`report`) |
   | [`confirmacao.py`](../runtime/confirmacao.py) | a pergunta `[s/N]` |
   | [`adk.py`](../runtime/adk.py) | o modelo, a regra fixa sobre dados não confiáveis e o `OpenAPIToolset` lido do contrato vivo |
+  | [`rede.py`](../runtime/rede.py) | nenhum nome de servidor num endereço local ou de metadados, e os endereços conferidos fixos |
+  | [`servidores.py`](../runtime/servidores.py) | as chamadas do próprio runtime aos servidores MCP: `check_image` e a busca do pedido inteiro |
+  | [`relatorio.py`](../runtime/relatorio.py) | a mensagem final, escrita com o que as ferramentas devolveram |
+  | [`reconcilia.py`](../runtime/reconcilia.py) | a conferência do pedido inteiro |
 
   E [`transpiler/live.py`](../transpiler/live.py) pergunta a cada servidor quais ferramentas ele tem
   (abaixo, em "Ferramentas conferidas nos servidores").
@@ -269,6 +274,8 @@ POLICY = BookingPolicy(
 )
 CALLBACKS = BookingCallbacks(
     ocr_tool='extract_exam_text', search_tool='search_exams', booking_tool='create_appointment', policy=POLICY,
+    ocr_url='http://ocr:8001/sse', search_url='http://rag:8002/sse',
+    servers=['http://ocr:8001/sse', 'http://rag:8002/sse', 'http://api:8000/openapi.json'],
 )
 
 extract = LlmAgent(
@@ -276,12 +283,19 @@ extract = LlmAgent(
     model=MODEL,
     instruction=guarded('Você lê pedidos médicos fictícios. Chame extract_exam_text ...'),
     tools=[McpToolset(connection_params=SseConnectionParams(url='http://ocr:8001/sse'), tool_filter=['extract_exam_text'])],
+    before_model_callback=CALLBACKS.before_model,
     before_tool_callback=CALLBACKS.before_tool,
     after_tool_callback=CALLBACKS.after_tool,
     output_key='exam_names',
 )
 # search e schedule seguem o mesmo padrão; schedule usa LiveOpenAPIToolset → OpenAPIToolset
-root_agent = SequentialAgent(name='clinic_scheduler', sub_agents=[extract, search, schedule])
+root_agent = SequentialAgent(
+    name='clinic_scheduler',
+    sub_agents=[extract, search, schedule],
+    before_agent_callback=CALLBACKS.start_order,
+    after_agent_callback=CALLBACKS.report,
+)
+app = App(name='clinic_scheduler', root_agent=root_agent, resumability_config=ResumabilityConfig(is_resumable=True))
 ```
 
 `LiveOpenAPIToolset` busca o `/openapi.json` na primeira chamada, e não no import, para que o
@@ -292,6 +306,12 @@ não declara em `servers`.
 
 Estas proteções ficam no `runtime/`, fora da spec, e por isso nenhuma spec consegue removê-las:
 
+- **`start_order`** (antes do pipeline, também no `adk run` e no `adk web`): a imagem vem do estado da sessão
+  (posta pela CLI) ou da mensagem da pessoa, que precisa trazer um só nome de arquivo, sem pasta. Antes de
+  qualquer turno do modelo, o nome vira o apelido, os endereços dos servidores são conferidos e o OCR
+  confere a imagem. Um pedido por sessão.
+- **`before_model`:** o modelo recebe `Arquivo do pedido: <apelido>` no lugar da mensagem da pessoa, e o
+  nome real do arquivo nunca aparece no que ele recebe.
 - **Regra fixa no começo de cada instrução** (`guarded`): o que as ferramentas devolvem e as
   listas dos agentes anteriores são dados não confiáveis, nunca instruções.
 - **`after_tool`:**
@@ -313,6 +333,9 @@ Estas proteções ficam no `runtime/`, fora da spec, e por isso nenhuma spec con
     Bloqueia se nenhum exame sobra.
 - **`before_agent`** (`fill_missing`): um pedido sem exame deixa o agente seguinte com entrada
   vazia em vez de quebrar; a CLI responde `Nenhum exame encontrado no pedido`.
+- **`report`** (depois do pipeline): confere o pedido inteiro na busca do catálogo e escreve a
+  mensagem final com o que as ferramentas devolveram; `Agendamento confirmado pela API` só sai da
+  resposta da API, nunca do texto do modelo. A CLI usa o mesmo resultado.
 
 ### A pergunta `[s/N]`: confirmação nativa do ADK
 
@@ -327,6 +350,7 @@ A pergunta usa a confirmação de ferramenta do ADK 2.10, e não um `input()` de
 O resto:
 
 - **Sem ninguém para responder** (sem TTY, com `--yes` ou em CI): o callback nem pede confirmação, e a faixa do meio fica de fora.
+- **No `adk run` e no `adk web`:** o console e a página do ADK respondem a pergunta uma vez (`{"confirmed": true}` ou `false`), sem as respostas por exame; a resposta vale para todos os exames que aquela chamada perguntou, listados na dica da pergunta.
 - **Respostas guardadas** (`answers` no estado da sessão): uma chamada repetida pelo modelo não pergunta de novo, nem a execução com o `fallback_model`.
 - **Um agendamento por execução:** cada execução manda uma `Idempotency-Key` própria (nunca a do modelo), e depois do 1º agendamento uma nova chamada recebe esse mesmo agendamento, sem chegar à API. Vale também para duas chamadas no mesmo turno, em que só uma pergunta.
 - **Enquanto espera a resposta**, a resposta de pausa não é resumida para o modelo (`skip_summarization`).
