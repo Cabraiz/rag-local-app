@@ -29,7 +29,7 @@ docker compose run --rm agent python -m cli run --image pedido.png       # image
 - **Onde fica o `agent.py`:** no volume Docker `generated`, não na pasta `generated/` do host, que fica vazia. Para vê-lo: `docker compose run --rm agent cat generated/agent.py`.
 - **Swagger:** com o `up` no ar, em <http://127.0.0.1:8765/docs> (ou na porta de `API_PORT`).
 
-https://github.com/user-attachments/assets/71003c50-f603-4dcb-babe-4569b4734ed9
+https://github.com/user-attachments/assets/a6e9fd9e-be6f-48ed-ba4e-356cc72f631b
 
 <sub>Todos os pontos do desafio em um vídeo, gravado numa execução real ([mp4](videos-do-desafio/00-desafio-completo.mp4)).</sub>
 
@@ -61,7 +61,7 @@ Tempo: OCR 6,1 s · busca 35 s · agendamento 51 s · total 232 s (modelo gemini
 ```
 
 - **Tempo:** o total inclui os turnos do Gemini ([como é medido](docs/como-rodar.md#3-executar-o-agente)).
-- **Modelo reserva:** se o `gemini-3.5-flash` da spec continuar indisponível (`429` ou `503`) depois de 5 tentativas, e nada tiver ido à API, a CLI avisa e roda de novo com o modelo reserva da spec, `gemini-3.5-flash-lite`.
+- **Modelo reserva:** se o `gemini-3.5-flash` da spec responder sobrecarregado (`503`) ou sem cota (`429`), e nada tiver ido à API, a CLI avisa na hora e roda de novo com o modelo reserva da spec, `gemini-3.5-flash-lite`, sem esperar novas tentativas do principal.
 - **Pergunta `[s/N]`:** um exame de confiança média gera `Incluir? [s/N]`, só num terminal interativo.
 - **Parar e limpar:** `docker compose --profile cli --profile test down -v` remove os containers, as redes e os volumes (o banco, a chave dele e o `agent.py` gerado). As imagens ficam; para apagá-las também, acrescente `--rmi local`.
 
@@ -71,7 +71,7 @@ Tempo: OCR 6,1 s · busca 35 s · agendamento 51 s · total 232 s (modelo gemini
 - **Agentes do Google ADK, regras do projeto:** os agentes são instanciados só com classes do ADK. O `agent.py` também importa a pequena biblioteca de runtime do projeto, [`runtime/`](runtime/), com as regras de agendamento ([o que o `agent.py` usa](#o-que-o-agentpy-usa)).
 - **OCR e RAG como servidores MCP, exclusivamente via SSE.** A base tem 120 exames fictícios.
 - **Busca lexical:** palavras em comum + `difflib`, determinística, sem embeddings ([por quê](docs/arquitetura.md#decisões-técnicas-em-detalhe)). A busca semântica foi avaliada e medida, mas não adotada ([medições](docs/medicoes.md#busca-semântica-avaliada-não-adotada)).
-- **Testes:** 369 funções (17,3 mil casos), ruff, mypy (checagem leve) e 98% de cobertura na CI ([números](docs/medicoes.md)).
+- **Testes:** 397 funções (17,4 mil casos), ruff, mypy (checagem leve) e 98% de cobertura na CI ([números](docs/medicoes.md)).
 - **Rodar os testes:** `docker compose run --rm tests pytest -q -n auto`, cerca de 3,5 min em 12 núcleos, sempre sem a chave. O ponta a ponta real com o Gemini é à parte: `docker compose run --rm tests-e2e` ([testes](docs/como-rodar.md#testes)).
 
 ## Onde está cada parte
