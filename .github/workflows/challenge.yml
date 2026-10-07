@@ -20,6 +20,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Known vulnerabilities in the pinned requirements and everything they pull in, before the
+      # long build. The Python of the Dockerfile, so the same versions resolve.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # pip-audit fails on any vulnerability, and has no flag to skip the ones without a fixed
+      # version (--ignore-vuln takes one ID at a time). So it writes JSON, and this step fails only
+      # on a vulnerability with `fix_versions` (bump that pin); one with no fix yet, which no pin
+      # change could clear, is a warning. --strict: a dependency that could not be audited fails
+      # instead of being skipped. A reviewed, not applicable advisory: --ignore-vuln <ID> here.
+      - name: Audit dependencies (pip-audit)
+        run: |
+          python -m pip install --quiet --disable-pip-version-check pip-audit==2.10.1
+          pip-audit -r requirements.txt -r requirements-dev.txt --strict --progress-spinner off \
+            --desc off -f json -o pip-audit.json || true
+          python - <<'EOF'
+          import json
+          import sys
+          found = sorted({(dep['name'], dep['version'], vuln['id'], ', '.join(vuln['fix_versions']))
+                          for dep in json.load(open('pip-audit.json'))['dependencies']
+                          for vuln in dep.get('vulns', [])})
+          for name, version, vuln_id, fixes in found:
+              print(f'::error::{name} {version}: {vuln_id}, fixed in {fixes}' if fixes else
+                    f'::warning::{name} {version}: {vuln_id}, no fixed version yet')
+          print(f'pip-audit: {len(found)} known vulnerabilities, {sum(bool(f[3]) for f in found)} with a fix')
+          sys.exit(any(fixes for *_, fixes in found))
+          EOF
+
       # Tests never call Gemini: the example env file has an empty key.
       - name: Prepare env file
         run: cp .env.example .env

@@ -1,0 +1,13 @@
+# Weekly update PRs for the pinned Python dependencies and the GitHub Actions of the CI.
+# pip: requirements.txt (what the services run) and requirements-dev.txt (tests and checks), both
+# at the root. The CI's pip-audit step is what blocks a known vulnerability with a fix.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
