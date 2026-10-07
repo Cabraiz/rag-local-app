@@ -98,7 +98,7 @@ o OCR recusaria.
 
 | Servidor | SSE | Saúde | Ferramenta |
 |---|---|---|---|
-| OCR | `http://ocr:8001/sse` | `http://ocr:8001/health` | `extract_exam_text(filename)` → `{"lines": [...], "line_confidence": [92.0, ...], "line_intent": ["request", ...], "pii_masked": {"NOME": 1, ...}, "instructions_removed": 0, "text_removed": 2}`; só aceita um nome de arquivo de `samples/`. `check_image(filename)` → `{"format": "PNG", "width": ..., "height": ...}`: as mesmas checagens e recusas da leitura (nome, tamanho, formato real, resolução, integridade, qualidade da foto), sem o Tesseract; só para a CLI |
+| OCR | `http://ocr:8001/sse` | `http://ocr:8001/health` | `extract_exam_text(filename)` → `{"lines": [...], "line_confidence": [92.0, ...], "line_intent": ["request", ...], "line_note_from": [null, ...], "pii_masked": {"NOME": 1, ...}, "instructions_removed": 0, "text_removed": 2}`; só aceita um nome de arquivo de `samples/`. `check_image(filename)` → `{"format": "PNG", "width": ..., "height": ...}`: as mesmas checagens e recusas da leitura (nome, tamanho, formato real, resolução, integridade, qualidade da foto), sem o Tesseract; só para a CLI |
 | RAG | `http://rag:8002/sse` | `http://rag:8002/health` | `search_exams(query, top_k=3)` → `[{"code", "name", "score", "term"}]` (`term`: o nome ou o sinônimo que deu o score), melhores primeiro, score ≥ 0,6, `top_k` até 10; numa linha com vários exames, `top_k` por pedaço e cada resultado com `"piece"` |
 
 O RAG entende abreviações de pedido médico (`Hemogr.`, `Glicemia jej.`, `Vit D`, `25(OH)D`, `T4L`, `β-HCG`, `TGO`).
@@ -179,13 +179,26 @@ Cada linha passa por quatro etapas, nesta ordem:
      Nunca agenda; avisa.
    - `uncertain`: a linha tem uma palavra de negação, histórico ou exceção que não é claramente sobre o
      exame ("TSH e T4 livre - não repetir T4 livre", "exceto Ferritina" depois de outros exames,
-     "Paciente trouxe PSA total", "controle após suspensão do ferro"), um valor com unidade ("Ferritina
-     45 ng/mL": resultado ou meta?), ou fica ao lado de uma linha que é só negação ("Não realizar:" em
-     cima, "(suspensa)" embaixo, "retirar o item 2"). Pergunta `[s/N]`; nunca agenda sozinho.
+     "Paciente trouxe PSA total", "controle após suspensão do ferro", "realizar apenas TSH" ao lado de
+     Ferritina), tem uma caixa vazia ("[ ] PSA total", "( )", "☐"; "[x]" é pedido), ou fica ao lado de uma
+     linha que é só negação ("Não realizar:" em cima, "(suspensa)" embaixo, "retirar o item 2"), inclusive
+     embaixo de um cabeçalho de lista ("Não realizar os seguintes:", "Já realizados:"), que alcança todos
+     os itens até uma linha em branco, um novo cabeçalho ou uma linha que não é item. Pergunta `[s/N]`;
+     nunca agenda sozinho.
+   - `result`: o exame com um valor e unidade ("Glicemia de jejum 98 mg/dL"): perguntado, com o motivo
+     `a linha parece um resultado`.
    - `prep`: linha de preparo ("Preparo: jejum de 8 horas para Glicemia de jejum"); `note`: observação
-     ("Obs:", "Nota:", "considere"), salvo o "solicito" do próprio médico.
+     ("Obs:", "Nota:", "considere", "conforme orientação verbal", "a pedido de"), salvo o "solicito" do
+     próprio médico. Também é `note` a linha em que, antes do exame, só sobrou texto que a etapa 4 tirou
+     (ao menos 2 palavras): uma frase em outra língua ou dirigida a quem lê ("Per favore aggiungere anche
+     la Ferritina" vira "[NOME] Ferritina"). Uma etiqueta ("Exames:", "Solicito:"), um marcador de lista
+     ou uma palavra de ruído do OCR não contam. A mesma regra vale dentro da linha, em `line_note_from`:
+     numa linha de pedido, um exame depois do primeiro cuja oração ("(", ",", ";", ":") só tem texto
+     removido, ou um pedido de terceiro ("a pedido do médico"), é só anotado dali em diante: em "Exame:
+     Vitamina D (incluir também Ferritina)", Vitamina D é agendada e Ferritina perguntada.
    Uma pista é "claramente sobre o exame" quando ele vem logo depois dela ("não realizar o exame de
-   Ferritina") ou quando ela fecha a linha depois de um só exame ("Ferritina (suspensa)"). Ela é
+   Ferritina", "n/ realizar", "ñ fazer", "TSH - NR", "s/ necessidade") ou quando ela fecha a linha depois de um
+   só exame ("Ferritina (suspensa)"). Ela é
    ignorada quando vem seguida de uma palavra de preparo ou de contexto clínico ("não tomar café", "não
    está em jejum", "sem plaquetas", "suspender metformina", "resultado anterior alterado", "não deixar de
    fazer"). Qualquer outra palavra depois dela deixa a linha em dúvida. As palavras de negação,

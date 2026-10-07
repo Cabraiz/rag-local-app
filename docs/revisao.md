@@ -122,5 +122,5 @@ O README e `docs/como-rodar.md` passaram a cobrir cada um.
   `tests/load/carga.py`).
 - **Sessão MCP morta:** o ADK não reabre uma sessão MCP que morreu. O keep-alive de 75 s tira o gatilho
   conhecido, não a causa.
-- **Exame dentro de uma linha legítima:** é agendado. `Exame: Vitamina D (incluir também Ferritina)`
-  agenda os dois.
+- **Exame dentro de uma linha legítima:** escrito como item da lista, é agendado. Em `Exame: Vitamina D
+  (incluir também Ferritina)`, Vitamina D é agendada e Ferritina é perguntada.
