@@ -3,6 +3,7 @@ import ast
 import asyncio
 import copy
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -351,6 +352,54 @@ def test_an_unavailable_primary_switches_to_the_reserve_at_once(ready_run, monke
     assert FakeGemini.models == ['gemini-test-main', SPEC['fallback_model']]  # the primary once, no retry
     assert f'Aviso: modelo principal indisponível; usando {SPEC["fallback_model"]}' in out
     assert err.startswith('Erro: o Gemini recusou a chamada (HTTP 404: fake)')
+
+
+@pytest.fixture
+def logging_restored():
+    """cli.main() changes the process's logging (off, or on with --verbose): back as it was after the test."""
+    root = logging.getLogger()
+    level, disabled = root.level, logging.root.manager.disable
+    yield
+    cli.show_logs(False)  # drops the --verbose handler
+    root.setLevel(level)
+    logging.disable(disabled)
+
+
+def logging_run(found):
+    async def run_agent(root_agent, image, spec, found_now):
+        logging.getLogger('google_adk.fake').warning('Retrying in 2 s; key %s', os.environ['GOOGLE_API_KEY'])
+        found_now.update(found)
+    return run_agent
+
+
+@pytest.mark.parametrize('verbose', [False, True])
+def test_library_logs_show_only_with_verbose_and_never_the_key(ready_run, monkeypatch, capsys, logging_restored,
+                                                                verbose):
+    monkeypatch.setenv('GOOGLE_API_KEY', 'AIza-fake-key-for-the-test')
+    appointment = {'id': 'a1', 'status': 'scheduled', 'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo'}]}
+    monkeypatch.setattr(cli, 'run_agent', logging_run({'appointment': appointment}))
+    assert cli.main([*ready_run, *(['--verbose'] if verbose else [])]) == 0
+    out, err = capsys.readouterr()
+    assert 'id a1, status scheduled' in out and 'AIza-fake-key' not in out + err
+    # The default output stays clean: no log line at all.
+    assert err == ('WARNING google_adk.fake: Retrying in 2 s; key [GOOGLE_API_KEY]\n' if verbose else '')
+
+
+def test_verbose_shows_the_traceback_behind_an_unexpected_failure(ready_run, monkeypatch, capsys, logging_restored):
+    def broken(*args, **kwargs):
+        raise ValueError('quebrou')
+    monkeypatch.setattr(cli, 'load_checked_spec', broken)
+    assert cli.main([*ready_run, '--verbose']) == 2
+    err = capsys.readouterr().err
+    assert 'ERROR cli: falha inesperada\nTraceback' in err and "raise ValueError('quebrou')" in err
+    assert err.endswith('Erro: falha inesperada (ValueError: quebrou)\n')
+    assert cli.main([*ready_run]) == 2
+    assert capsys.readouterr().err == 'Erro: falha inesperada (ValueError: quebrou)\n'
+
+
+def test_transpile_takes_verbose_too(tmp_path, capsys, logging_restored):
+    assert cli.main(['transpile', str(SPEC_FILE), '--output', str(tmp_path / 'agent.py'), '--verbose']) == 0
+    assert 'root_agent "clinic_scheduler"' in capsys.readouterr().out
 
 
 def test_no_second_run_after_the_api_was_called(ready_run, monkeypatch, capsys):

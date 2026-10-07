@@ -95,6 +95,8 @@ Tempo: OCR 6,1 s · busca 35 s · agendamento 51 s · total 232 s (modelo gemini
 - **Última linha:** `Tempo:` mostra quanto levou cada ferramenta (buscas em paralelo contam uma vez), o total e o modelo usado. O tempo de cada etapa conta da vez do modelo que pede a ferramenta até a resposta dela (é o horário que o ADK grava no evento), então inclui o tempo do Gemini para gerar aquela chamada. O tempo de cada ferramenta é o da execução que terminou e não conta a espera pela resposta `[s/N]`. O total é o relógio do `run` inteiro: inclui os turnos do modelo entre as chamadas, as novas tentativas do Gemini (até 5, com espera crescente) e, quando o modelo principal falha e a CLI passa ao reserva, a 1ª execução inteira, além da espera pela resposta `[s/N]`. Por isso pode passar bem da soma das etapas. Ela aparece também quando nada é agendado, antes da linha `Erro:`, e não traz nenhum dado do pedido.
 - **Outro modelo numa execução, sem editar a spec:**
   `docker compose run --rm -e GEMINI_MODEL=<modelo> agent python -m cli run --image pedido.png` (ou `GEMINI_MODEL=` no `.env`, para todas).
+- **Ver os logs:** por padrão a saída é só a de cima, e cada falha termina numa linha `Erro: ...`. Com `--verbose` (em `run` ou `transpile`), a CLI mostra também, no stderr, os logs das bibliotecas (ADK, MCP, as novas tentativas do cliente do Gemini) e, numa falha inesperada, o traceback, com a chave da API trocada por `[GOOGLE_API_KEY]`:
+  `docker compose run --rm agent python -m cli run --image pedido.png --verbose`
 - Antes da saída de cada `run`, o Compose mostra o status dos containers (`Waiting`, `Healthy`).
 
 ### Testar outra imagem
@@ -168,7 +170,7 @@ Todas as que o código lê. As do `.env` chegam só ao serviço que as usa; as o
 
 ## Quando algo falha
 
-Erros saem como uma linha `Erro: ...`, com código 2. Por exemplo: serviço fora do ar ou chave ausente.
+Erros saem como uma linha `Erro: ...`, com código 2. Por exemplo: serviço fora do ar ou chave ausente. Para ver o que aconteceu por trás dela, rode de novo com `--verbose`.
 
 - **Imagem recusada pelo OCR:** o OCR recusa com uma mensagem clara. Por exemplo: `Arquivo "x.png" não encontrado em /data/samples.`, `Imagem corrompida ou incompleta.`, `O conteúdo do arquivo não corresponde à extensão (use PNG ou JPEG).` (um GIF renomeado para `.png`) ou `Arquivo grande demais (máximo 5 MB).`. A CLI repete o motivo: `Erro: OCR recusou a imagem: <motivo>; nada foi agendado`. Ela pergunta ao OCR antes de chamar o Gemini, então essa linha sai em segundos; só uma página que o Tesseract não consegue endireitar é recusada durante a execução, com a mesma linha.
 - **Fora da pasta do repositório:** `no configuration file provided: not found`. Entre em `rag-local-app`, onde está o `docker-compose.yml`.

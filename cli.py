@@ -565,6 +565,32 @@ def checked_run(args):
         print(timing(found, spec, time.monotonic() - start))
 
 
+class Redacted(logging.Formatter):
+    """A log line with the Gemini key hidden, like every line the CLI prints."""
+
+    def format(self, record):
+        return redact(super().format(record))
+
+
+LOGS: dict[str, logging.Handler] = {}  # the --verbose handler of the last main(), replaced by the next one
+
+
+def show_logs(verbose):
+    """Library logs (ADK, the Gemini client's retries, MCP) and the CLI's own, on stderr, only with
+    --verbose. By default they are off: every failure ends in one "Erro: ..." line instead."""
+    root = logging.getLogger()
+    if 'handler' in LOGS:  # main() runs many times in one process (tests): one handler, on today's stderr
+        root.removeHandler(LOGS.pop('handler'))
+    if not verbose:
+        logging.disable(logging.CRITICAL)
+        return
+    logging.disable(logging.NOTSET)
+    handler = LOGS['handler'] = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(Redacted('%(levelname)s %(name)s: %(message)s'))
+    root.addHandler(handler)
+    root.setLevel(logging.INFO)
+
+
 class Parser(argparse.ArgumentParser):
     """argparse with its usage errors in Portuguese, as one "Erro: ..." line like the rest."""
 
@@ -582,14 +608,18 @@ class Parser(argparse.ArgumentParser):
 def main(argv=None):
     # Library notices and their tracebacks (ADK flags, auth probes, MCP reconnects)
     # are not for the user: every failure ends in one "Erro: ..." line instead.
+    # --verbose shows the logs (show_logs).
     warnings.filterwarnings('ignore', message=r'\[EXPERIMENTAL\]')
     logging.disable(logging.CRITICAL)
     parser = Parser(prog='python -m cli', description='Transpilador JSON -> agente Google ADK.')
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument('--verbose', action='store_true',
+                        help='mostra no stderr os logs das bibliotecas (ADK, Gemini, MCP), sem a chave da API')
     commands = parser.add_subparsers(dest='command', required=True)
-    transpile_cmd = commands.add_parser('transpile', help='gera e valida o agente a partir da spec')
+    transpile_cmd = commands.add_parser('transpile', parents=[common], help='gera e valida o agente a partir da spec')
     transpile_cmd.add_argument('spec', nargs='?', default=DEFAULT_SPEC)
     transpile_cmd.add_argument('--output', default=DEFAULT_AGENT)
-    run_cmd = commands.add_parser('run', help='executa o agente gerado sobre uma imagem de pedido')
+    run_cmd = commands.add_parser('run', parents=[common], help='executa o agente gerado sobre uma imagem de pedido')
     run_cmd.add_argument('--image', required=True, help='nome do arquivo em samples/, ex.: pedido.png')
     run_cmd.add_argument('--agent', default=DEFAULT_AGENT)
     run_cmd.add_argument('--spec', default=DEFAULT_SPEC, help='spec usada no transpile (URLs dos serviços)')
@@ -598,12 +628,14 @@ def main(argv=None):
                               'confirmação ficam de fora')
     try:
         args = parser.parse_args(argv)
+        show_logs(args.verbose)
         return cmd_transpile(args) if args.command == 'transpile' else cmd_run(args)
     except TranspileError as error:
         problems = error.problems
     except RunError as error:
         problems = [str(error)]
     except Exception as error:  # anything unexpected is still one line, never a traceback
+        logging.getLogger('cli').exception('falha inesperada')  # the traceback, only with --verbose
         problems = [f'falha inesperada ({type(error).__name__}: {redact(str(error))[:500]})']
     print('\n'.join(redact(f'Erro: {problem}') for problem in problems), file=sys.stderr)
     return 2
