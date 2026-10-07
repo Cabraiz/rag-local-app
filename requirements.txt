@@ -3,7 +3,7 @@
 google-adk==2.10.0
 google-genai==2.27.0
 mcp==2.2.0
-fastapi==0.141.1
+fastapi==0.142.2
 uvicorn==0.54.0
 pydantic==2.13.5
 cryptography==50.0.2
