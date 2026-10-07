@@ -46,15 +46,15 @@ GLUED = 2  # letters the OCR may glue to a word ("TSH e" read "TSHe"): "tsh" sti
 # What a line asks for (the OCR's line_intent). Nothing is booked from a NOT_ANCHORS line; an exam whose
 # words are also on a BLOCKING line ("- Ferritina" and "Obs: não realizar Ferritina") is at most asked,
 # and so is one on a note.
-INTENTS = {'request', 'negated', 'history', 'note', 'prep', 'unrecognized'}
+INTENTS = {'request', 'negated', 'history', 'uncertain', 'note', 'prep', 'unrecognized'}
 BLOCKING = {'negated', 'history'}
 NOT_ANCHORS = BLOCKING | {'prep'}
 
 
 def intent_of(state, line):
-    """The kind of a line read; 'note' without a usable line_intent (fail closed: asked at most)."""
+    """The kind of a line read; 'unknown' without a usable line_intent (fail closed: asked at most)."""
     intents = state.get('ocr_intent')
-    return intents[line] if intents is not None and line is not None and line < len(intents) else 'note'
+    return intents[line] if intents is not None and line is not None and line < len(intents) else 'unknown'
 
 
 @dataclass(frozen=True)
@@ -136,7 +136,7 @@ def remember_ocr(state, reply):
     valid = isinstance(intents, list) and len(intents) == len(state['ocr_read']) and all(
         isinstance(value, str) for value in intents)
     # None: no usable kind, every line a note; a kind this runtime does not know is a note too
-    state['ocr_intent'] = [value if value in INTENTS else 'note' for value in intents] if valid else None
+    state['ocr_intent'] = [value if value in INTENTS else 'unknown' for value in intents] if valid else None
     state['text_removed'] = reply.get('text_removed', 0)
 
 
@@ -252,18 +252,19 @@ def best_spot(candidate, taken, state, policy):
         else:  # below the floor a line is never booked alone, even a reading of 93 under a floor of 95
             reading = 1.0 if readings[line] >= candidate['floor'] else min(readings[line] / 100, policy.below_booking)
         if kind not in ('request', 'unrecognized'):
-            reading = min(reading, policy.below_booking)  # a note, or no line_intent: asked at most
+            reading = min(reading, policy.below_booking)  # a note, a doubt, or no line_intent: asked at most
         if holder:
             holders.append(holder)
         else:
-            free.append((round(min(candidate['score'], support, reading), 2), line, start, end))
+            doubt = kind if kind in ('note', 'uncertain') else None
+            free.append((round(min(candidate['score'], support, reading), 2), line, start, end, doubt))
     if free and any(kind in BLOCKING for kind, _ in refused):  # "- Ferritina", then "não realizar Ferritina"
-        free = [(min(spot[0], policy.below_booking), *spot[1:]) for spot in free]
+        free = [(min(spot[0], policy.below_booking), *spot[1:4], 'uncertain') for spot in free]
     if holders and not free:
         return None, holders[0], None
     if refused and not free:  # a negation or a history first: the reason that matters most
         return None, None, min(refused, key=lambda item: (item[0] not in BLOCKING, item[0] != 'negated', item[1]))
-    return max(free, key=lambda spot: spot[0], default=(0.0, index, 0, 0)), None, None  # on a tie, the first
+    return max(free, key=lambda spot: spot[0], default=(0.0, index, 0, 0, None)), None, None  # on a tie, the first
 
 
 def sort_out(codes, candidates, answers, state, policy, accounted=None):
@@ -284,8 +285,10 @@ def sort_out(codes, candidates, answers, state, policy, accounted=None):
         if spot is None:
             bands[None].append(item | {'reason': 'line_used', 'used_by': holder})
             continue
-        item['confidence'], line, start, end = spot
+        item['confidence'], line, start, end, doubt = spot
         item['line'], item['read'] = line, state.get('ocr_read', [])[line] if line is not None else item['read']
+        if doubt:  # why it is asked and not booked: the line is a note, or says something against it
+            item['why'] = doubt
         if accounted is not None and line is not None:
             accounted.append((line, start, end, None if candidate['span'] else words(candidate['name']),
                               words(candidate['name'])))  # and the exam's own words, for the check of the order
@@ -334,14 +337,14 @@ def omitted(proposed, accounted, state, policy):
         return len(covered) / max(len(lines[line]), 1)
 
     for find in sorted(finds, key=lambda find: (find['pieces'][0][1] - find['pieces'][0][2], -find['score'])):
-        free = [piece for piece in find['pieces'] if not held(claimed, find['query'], *piece[:3])
-                and intent_of(state, piece[0]) != 'prep']  # a preparation line names an exam, never asks for it
+        free = [piece for piece in find['pieces'] if not held(claimed, find['query'], *piece[:3])]
         if find['code'] in proposed or not free:
             continue
-        wanted = [piece for piece in free if intent_of(state, piece[0]) not in BLOCKING]
+        wanted = [piece for piece in free if intent_of(state, piece[0]) not in NOT_ANCHORS]
         line, start, end, support = max(wanted or free, key=lambda piece: listing(*piece[:3]))  # on a tie, the first
         reading = reading_at(readings, line, find['floor'], policy)
-        reason = 'omitted' if wanted else intent_of(state, line)  # the order says not to do it: not a warning
+        # the order says not to do it, or only prepares for it: reported with that reason, not as a warning
+        reason = 'omitted' if wanted else intent_of(state, line)
         reported.append({'code': find['code'], 'name': find['name'], 'line': line, 'reason': reason,
                          'confidence': round(min(find['score'], support, reading), 2),
                          'read': state.get('ocr_read', [])[line]})

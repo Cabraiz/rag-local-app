@@ -24,9 +24,11 @@ from mcp.server.transport_security import TransportSecuritySettings
 from PIL import Image, UnidentifiedImageError
 from starlette.responses import JSONResponse
 
+from catalogo import words
 from guardrails import intent
 from guardrails.injection import MARKER, join_split_orders, neutralize_joined
-from guardrails.pii import mask_page
+from guardrails.pii import exams_on, mask_page
+from guardrails.pii_rules import EXAM_MODIFIERS
 from mcp_servers.arguments import or_default
 from mcp_servers.preprocessamento import ImagemGirada, confianca_por_linha, ler_linhas, sobre_branco
 from mcp_servers.qualidade import quality_problem
@@ -100,9 +102,10 @@ def mask_lines(lines: list[str], joined: list[str] | None = None) -> dict:
     line, plus a CPF split in two lines).
 
     line_intent holds one kind per returned line (guardrails/intent.py: request, negated, history,
-    note, prep), read before the mask strips the words that carry it; a negation or history cue
-    stays in the line as a marker ([NAO_REALIZAR], [JA_REALIZADO]). A list item whose text the
-    safety net removed whole is 'unrecognized' (unrecognized_request). pii_masked counts personal
+    uncertain, note, prep), read from the whole page before the mask; the negation and history words
+    stay in the line (the mask keeps them). A list item whose text the safety net removed whole, or
+    whose exam name it removed leaving only a modifier ("[TEXTO_REMOVIDO] total"), is 'unrecognized'
+    (unrecognized_request). pii_masked counts personal
     data by type. Kept apart, as they are not PII: instructions_removed, the lines where an order
     to the model was replaced, and text_removed, the pieces that did not look like an exam
     ([TEXTO_REMOVIDO]). `joined` is join_split_orders(lines)[0] when the caller already has it.
@@ -110,10 +113,9 @@ def mask_lines(lines: list[str], joined: list[str] | None = None) -> dict:
     if joined is None:
         joined = join_split_orders(lines)[0]
     lines, removed = neutralize_joined(joined)  # prompt injection: the text goes to the LLM
-    read = [intent.read_line(line) for line in lines]  # (kind, line with its cue as a marker)
-    masked, counts = mask_page([marked for _, marked in read])
+    masked, counts = mask_page(lines)
     kinds = ['unrecognized' if kind == 'request' and unrecognized_request(line, safe) else kind
-             for (kind, _), line, safe in zip(read, lines, masked, strict=True)]
+             for kind, line, safe in zip(intent.read_page(lines), lines, masked, strict=True)]
     text_removed = counts.pop('TEXTO_REMOVIDO', 0)
     return {'lines': masked, 'line_intent': kinds, 'pii_masked': counts, 'instructions_removed': removed,
             'text_removed': text_removed}
@@ -127,7 +129,12 @@ def unrecognized_request(line: str, masked: str) -> bool:
     but [TEXTO_REMOVIDO]: a request the catalog does not know, which the CLI must not drop in silence.
     Only the line's number is reported, never its text. An order to the model already removed
     (instructions_removed), a name or other personal data masked on the line, or a few letters of
-    junk are not one."""
+    junk are not one. Nor is it silent when only the exam's name went and its modifier stayed
+    ("[TEXTO_REMOVIDO] total", "- [TEXTO_REMOVIDO] livre"): that is a request too."""
+    left = words(LIST_ITEM.sub('', masked).replace('[TEXTO_REMOVIDO]', ' '))
+    if MARKER not in line and '[TEXTO_REMOVIDO]' in masked and not re.search(r'\[[A-Z_]+\]', line) and left \
+            and all(word in EXAM_MODIFIERS for word in left.split()) and not exams_on(left):
+        return True
     item = LIST_ITEM.match(line)
     letters = re.findall(r'[^\W\d_]', re.sub(r'\[[A-Z_]+\]', ' ', line[item.end():])) if item else []
     if not item or MARKER in line or len(letters) < 6:

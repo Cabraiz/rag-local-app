@@ -11,15 +11,15 @@ least 0,80: "laboratorio" is 0,70 like "paratormonio"), is an exam of the order,
 one reported state: booked, asked, left out for its
 confidence, line already used, left out by the agent, or, when no exam holds its text and its
 code was neither booked nor reported, "não buscado pelo agente". On a line that says not to do the
-exam, or that it was done already (the OCR's line_intent), it is reported with that reason instead,
-which is no warning about the agent; a preparation line ("Preparo: jejum de 8 horas para Glicemia de
-jejum") names an exam without asking for it and is not checked. Nothing is booked here.
+exam, or that it was done already, or that only prepares for it (the OCR's line_intent), it is
+reported with that reason instead, which is no warning about the agent. No exam the search finds
+ends in silence. Nothing is booked here.
 """
 import re
 
 from catalogo import words
 
-from .confianca import BLOCKING, CONNECTIVES, FIND_FLOOR, RESEMBLANCE, intent_of, pieces_of, reading_at
+from .confianca import CONNECTIVES, FIND_FLOOR, NOT_ANCHORS, RESEMBLANCE, intent_of, pieces_of, reading_at
 
 MARKER = re.compile(r'^\s*(?:[-–•*·>]+|\(?\d{1,2}[.)-]|\d{1,2}\s+(?=[^\W\d_])|[A-Za-z][.)])\s*')  # "2.", "1 TGP", "A."
 MASKED = re.compile(r'\[[A-Z_]+\]')  # what the OCR masked: [NOME], [CPF], [TEXTO_REMOVIDO]...
@@ -38,6 +38,12 @@ LABELS = LISTS | NOTES | DATA
 # Ferritina"): a separator, so the exam's name reaches the search alone.
 REQUEST = re.compile(r'\b(?:solicit[oa]|solicitamos|pe[cç]o|pede|acrescentar|tamb[eé]m|realizar|repetir|refazer|'
                      r'incluir|adicionar|dosar)\b', re.IGNORECASE)
+# The words of a negation, history or exception ("Não deixar de fazer TSH", "Paciente trouxe PSA total",
+# "exceto Ferritina") are separators too: the exam they talk about is checked on its own, never dropped.
+CUE = re.compile(r'\b(?:n[aã]o|nunca|sem|exceto|menos|suspen[ds]\w*|cancel\w*|retir\w*|desmarc\w*|vetad[oa]s?|'
+                 r'dispens\w*|evit\w*|feit[oa]s?|realizad[oa]s?|fez|fazer|deixar|esquecer|trouxe|j[aá]|precisa|'
+                 r'(?:des)?necess[aá]ri[oa]s?|controle|resultados?|valor(?:es)?|anterior(?:es)?|[uú]ltim[oa]s?)\b',
+                 re.IGNORECASE)
 # A time after an exam ("TSH em 30 dias", "após 3 meses") is not part of its name: a separator too.
 WHEN = re.compile(r'\b(?:em|ap[oó]s|daqui a|dentro de)\s+\d+\s*(?:dias?|semanas?|m[eê]s(?:es)?|anos?|horas?)\b',
                   re.IGNORECASE)
@@ -75,7 +81,7 @@ def order_lines(read):
         for label, value in parts(MARKER.sub('', MASKED.sub(' ', str(line)))):
             if first_word(label) in DATA or words(label) == 'e mail':
                 continue
-            text = WHEN.sub(',', REQUEST.sub(',', MARKER.sub('', value).replace(':', ',')))
+            text = WHEN.sub(',', CUE.sub(',', REQUEST.sub(',', MARKER.sub('', value).replace(':', ','))))
             if not label and first_word(text) in DATA:  # "Dr. [NOME] - [CRM]": the label without a colon
                 text = text.split(None, 1)[1] if len(text.split()) > 1 else ''
             text = MARKER.sub('', text).strip(' ,')
@@ -112,7 +118,7 @@ def unreported(state, hits_of, policy, settled):
     claimed = [tuple(entry) for entry in state.get('accounted', [])]  # the text the proposed exams stand on
     candidates, settled, reported = state.get('candidates', {}), set(settled), []
     for index, text, note, hits in ((index, piece, note, hits) for index, line, note in order_lines(read)
-                                    if intent_of(state, index) != 'prep' for piece, hits in by_piece(line, hits_of(line))):
+                                    for piece, hits in by_piece(line, hits_of(line))):
         scores = sorted((float(hit.get('score', 0)) for hit in hits), reverse=True)
         if not scores or scores[0] < FIND_FLOOR or (len(scores) > 1 and scores[1] == scores[0]):
             continue
@@ -121,6 +127,8 @@ def unreported(state, hits_of, policy, settled):
         name = words(best.get('name', ''))
         shared = (set(query.split()) & set(name.split())) - CONNECTIVES
         starts = f'{query} '.startswith(f'{name} ')  # "TSH em 30 dias"
+        # a line that says something of its exam is checked in full, even under a note's label ("Preparo:")
+        note = note and intent_of(state, index) not in (*NOT_ANCHORS, 'uncertain')
         if scores[0] < RESEMBLANCE and not starts and (note or not shared):  # in a note, a close match or the name first
             continue
         spots = pieces_of(query, [lines[index]]) if index < len(lines) else []
@@ -130,7 +138,7 @@ def unreported(state, hits_of, policy, settled):
         reading = reading_at(readings, index, policy.ocr_floor(query, words(best.get('name', ''))), policy)
         kind = intent_of(state, index)
         reported.append({'code': best['code'], 'name': str(best.get('name', '')), 'line': index,
-                         'reason': kind if kind in BLOCKING else 'omitted' if best['code'] in candidates else 'not_searched',
+                         'reason': kind if kind in NOT_ANCHORS else 'omitted' if best['code'] in candidates else 'not_searched',
                          'confidence': round(min(scores[0], reading), 2), 'read': read[index]})
         settled.add(best['code'])
         claimed.append((index, start, end, None, words(best.get('name', ''))))

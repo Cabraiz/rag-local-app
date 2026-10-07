@@ -57,6 +57,7 @@ from guardrails.pii_rules import (
     STRUCTURE,
     TAG,
     UNITS,
+    VISIBLE,
     WORD,
 )
 
@@ -98,7 +99,7 @@ def kind(word: str, vocabulary: frozenset[str], label: bool = False, line_exams:
         return 'header'
     if label:
         return 'label'
-    if folded in PHRASE_WORDS or folded in ORDINARY_WORDS:
+    if folded in PHRASE_WORDS or folded in ORDINARY_WORDS or VISIBLE.fullmatch(folded):
         return 'phrase'  # "NAO realizar", "autoriza incluir": words of the order, never a name
     if word[0].isupper() or fold(re.split(r"['’-]", word)[0]) in FIRST_NAMES:
         return 'name'
@@ -211,20 +212,32 @@ def mask(text: str, vocabulary: frozenset[str] = VOCABULARY) -> tuple[str, dict[
     return '\n'.join(mask_names(line, counts, vocabulary) for line in text.split('\n')), counts
 
 
+COUNTED = frozenset(kind for kind, _ in COMPILED) | {'NOME', 'TEXTO_REMOVIDO'}
+
+
 def mask_page(lines: list[str]) -> tuple[list[str], dict[str, int]]:
     """mask() line by line, plus a CPF the OCR split in two lines ("CPF: 517.916." / "257-38"),
-    then the safety net of rule 4: a line that does not look like an exam does not leave."""
+    then the safety net of rule 4: a line that does not look like an exam does not leave.
+
+    The counts are the markers each line leaves the OCR with, so a value the safety net then took
+    with the text around it counts as the [TEXTO_REMOVIDO] that stays, not as the type it first got;
+    a marker already written in the order counts for nothing; the 2nd half of a split CPF is the
+    same CPF."""
     masked: list[str] = []
     counts: dict[str, int] = {}
     for index, line in enumerate(lines):
         safe, found = mask(line)
         previous = CPF_START.search(lines[index - 1]) if index else None
         rest = CPF_REST.match(safe)
-        if previous and rest and sum(c.isdigit() for c in previous.group('part') + rest.group('part')) == 11:
+        split_cpf = bool(previous and rest and sum(c.isdigit() for c in previous.group('part') + rest.group('part')) == 11)
+        if split_cpf and rest:
             safe = safe[:rest.start('part')] + '[CPF]' + safe[rest.end('part'):]
         masked.append(only_what_may_leave(safe, found))
-        for kind_, amount in found.items():
-            counts[kind_] = counts.get(kind_, 0) + amount
+        written, left = (re.findall(r'\[([A-Z_]+)\]', text) for text in (line, masked[-1]))
+        for kind_ in COUNTED:
+            amount = left.count(kind_) - written.count(kind_) - (kind_ == 'CPF' and split_cpf)
+            if amount > 0:
+                counts[kind_] = counts.get(kind_, 0) + amount
     return masked, counts
 
 
@@ -259,7 +272,11 @@ def only_exam_words(piece: str, counts: dict[str, int]) -> str:
     outside = [token for token in tokens if not TAG.fullmatch(token.group()) and (
         any(start < token.end() and token.start() < end for start, end in long_numbers) or not all(
             word in STRUCTURE or word in UNITS or AMOUNT.fullmatch(word) or exam_like(word) or short_exam_word(word)
-            for word in words(token.group()).split()))]
+            or visible(word) for word in words(token.group()).split()))]
+    # An exam word the OCR split in two ("Colesti erol total"): glued again, it is exam-like, and stays.
+    split = {index for index, (first, second) in enumerate(zip(outside, outside[1:], strict=False))
+             if not piece[first.end():second.start()].strip() and exam_like(words(first.group() + second.group()))}
+    outside = [token for index, token in enumerate(outside) if index not in split and index - 1 not in split]
     runs: list[list[re.Match[str]]] = []
     for token in outside:  # tokens in a row, with only spaces between them, form one run
         if runs and not piece[runs[-1][-1].end():token.start()].strip():
@@ -282,8 +299,15 @@ def short_exam_word(word: str) -> bool:
 
 
 def is_structure(piece: str) -> bool:
-    """Only the order's structure around masked values: "Solicito:", "CPF: [CPF]"."""
-    return all(word in STRUCTURE or (word.isdigit() and len(word) <= 2) for word in words(TAG.sub(' ', piece)).split())
+    """Only the order's structure around masked values, or what it says of its exams: "Solicito:",
+    "CPF: [CPF]", "não precisa"."""
+    return all(word in STRUCTURE or (word.isdigit() and len(word) <= 2) or visible(word)
+               for word in words(TAG.sub(' ', piece)).split())
+
+
+def visible(word: str) -> bool:
+    """A negation, history or exception word (pii_rules.VISIBLE): never removed, never a name."""
+    return bool(VISIBLE.fullmatch(fold(word)))
 
 
 def may_leave(piece: str) -> bool:
@@ -320,6 +344,19 @@ def has_first_name(text: str) -> bool:
 
 
 def removed(piece: str, counts: dict[str, int]) -> str:
+    """The piece without its text, but for the negation, history and exception words in it: "não
+    tomar café" -> "não [TEXTO_REMOVIDO]". Each stretch between them is replaced."""
+    kept = [match for match in WORD.finditer(piece) if visible(match.group())]
+    out, at = [], 0
+    for start, end in [(match.start(), match.end()) for match in kept] + [(len(piece), len(piece))]:
+        stretch = piece[at:start]
+        out.append(replaced(stretch, counts) if re.search(r'[^\W_]', stretch) else stretch)
+        out.append(piece[start:end])
+        at = end
+    return ''.join(out)
+
+
+def replaced(piece: str, counts: dict[str, int]) -> str:
     """[NOME] if the piece has a common first name, else [TEXTO_REMOVIDO]; marks around it stay."""
     tag = 'NOME' if has_first_name(piece) else 'TEXTO_REMOVIDO'
     counts[tag] = counts.get(tag, 0) + 1

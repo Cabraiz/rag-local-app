@@ -394,6 +394,8 @@ def print_reading(found):
         confidence = f'{item["confidence"]:.2f}'.replace('.', ',')
         seen = f"'{item['read']}' → {item['name']} {item['code']}"
         guess = f'{seen} (confiança {confidence})'
+        if item.get('why') in confirmacao.WHY:  # asked, not booked, for what its line says
+            guess += f'{confirmacao.WHY[item["why"]]}, confirme'
         if item.get('reason') in REFUSED:
             print(REFUSED[item['reason']].format(seen=seen, used_by=item.get('used_by')))
         else:

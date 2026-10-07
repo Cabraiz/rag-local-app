@@ -6,6 +6,9 @@ receives the request from the runner, asks here and resumes the call with the an
 import os
 import sys
 
+# Why an exam is asked although it is written clearly: what its line says (runtime/confianca.py, 'why').
+WHY = {'uncertain': '; a linha tem uma negação ou histórico', 'note': '; a linha é uma observação'}
+
 
 def can_ask():
     """False with no interactive terminal, `cli run --yes` or CI: the middle band is then left out."""
@@ -20,8 +23,9 @@ def ask_person(items):
     for item in items:
         read = ''.join(char for char in item['read'] if char.isprintable())  # OCR text: no terminal codes
         confidence = f'{item["confidence"]:.2f}'.replace('.', ',')
+        why = WHY.get(item.get('why'), '')
         try:
-            answer = input(f'Li "{read}" → {item["name"]} {item["code"]} (confiança {confidence}). Incluir? [s/N] ')
+            answer = input(f'Li "{read}" → {item["name"]} {item["code"]} (confiança {confidence}){why}. Incluir? [s/N] ')
         except EOFError:
             answer = ''
         answers[item['code']] = answer.strip().lower() in ('s', 'sim')

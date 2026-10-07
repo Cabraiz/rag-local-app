@@ -115,9 +115,7 @@ CPF_REST = re.compile(r'^[ \t]*(?P<part>\d(?:' + SEP + r'\d){0,9})(?!\d)')
 
 # --- 2. Names, word by word ------------------------------------------------------------
 WORD = re.compile(r"[^\W\d_]+(?:['’-][^\W\d_]+)*")  # letters only: "Sant'Anna", "Anne-Louise"
-# A value already masked, or the marker of a negation or history cue (guardrails/intent.py), which the
-# safety net keeps so the model reads it.
-TAG = re.compile(r'\[(?:[A-Z]+|NAO_REALIZAR|JA_REALIZADO)\]')
+TAG = re.compile(r'\[[A-Z]+\]')                      # a value already masked
 NEXT_LABEL = re.compile(r'[^\W\d_][\w.]*[ \t]*:')   # "CPF:", "Data:": where a labelled name ends
 # Name labels. "Paciente:" needs the colon (a header like "PEDIDO MEDICO" is not a label);
 # "paciente", "mãe" and "pai" without it, and the titles, do not.
@@ -141,7 +139,9 @@ ORDINARY_WORDS = frozenset((
     'repetir', 'refazer', 'incluir', 'acrescentar', 'adicionar', 'dosar', 'colher', 'coletar', 'pedir', 'solicitar',
     'autoriza', 'autorizo', 'considere', 'considerar', 'leve', 'levar', 'conta', 'evitar', 'suspender', 'suspenso',
     'suspensa', 'cancelar', 'cancelado', 'cancelada', 'dispensar', 'dispensado', 'agendar', 'marcar', 'nota',
-    'leitor', 'automatizado', 'anterior', 'resultado', 'ultimo', 'reagiu', 'mal', 'urgente'))
+    'leitor', 'automatizado', 'anterior', 'resultado', 'ultimo', 'reagiu', 'mal', 'urgente',
+    'agregar', 'agregue', 'anadir', 'anada', 'incluya', 'tambien', 'favor',  # Spanish: "Agregar também"
+    'todos', 'todas', 'menos', 'exceto', 'sem', 'trouxe', 'item', 'controle', 'necessario', 'precisa'))
 # Field names: right before a masked value they are labels ("CPF [CPF]"), not names.
 FIELD_NAMES = frozenset(('cpf', 'rg', 'crm', 'cep', 'cid', 'cns', 'sus', 'data', 'nascimento', 'nasc', 'telefone',
                          'tel', 'celular', 'whatsapp', 'contato', 'email', 'endereco', 'idade', 'convenio',
@@ -161,8 +161,15 @@ FIRST_NAMES = frozenset(fold(line.strip()) for line in FIRST_NAMES_FILE.read_tex
 # --- 4. Safety net: only what looks like an exam leaves the OCR ----------------------------
 # A line is split in pieces; a piece that fails is split again where two exams may be joined
 # by the OCR ("Acido urlco e Vitamlna D"): the whole piece first keeps "HIV antigeno e anticorpos".
-# The marker of a negation or history cue is a separator too: it stays as is, between the pieces it cuts.
-PIECES = re.compile(r'([,;():]|\s[-–—]\s|\[(?:NAO_REALIZAR|JA_REALIZADO)\])')
+PIECES = re.compile(r'([,;():]|\s[-–—]\s)')
+# Words of a negation, history or exception ("não", "exceto", "suspenso", "já realizado", "trouxe"): no
+# personal data, and what the order says of its exams (guardrails/intent.py). The safety net never
+# removes them, so the model and the CLI read "Obs: NAO realizar Ferritina" as written.
+VISIBLE = re.compile(r'(?:nao|na0|nunca|jamais|sem|exceto|menos|excluindo|tirando|suspen[ds]\w*|cancel\w*|retir\w*|'
+                     r'desmarc\w*|vet(?:ad[oa]s?|ar|e|ou)|dispens\w*|evit\w*|exclu\w*|contra\w*indicad\w*|'
+                     r'desnecessari\w*|necessari\w*|precis\w*|realiz\w*|feit[oa]s?|fez|fazer|faca|ja|resultados?|trouxe|'
+                     r'anterior\w*|ultim[oa]s?|colhid[oa]s?|coletad[oa]s?|repetir|refazer|controle|deixar|esquecer|'
+                     r'itens|item|acima|abaixo|todos|todas|autorizad[oa]s?|liberad[oa]s?|indicad[oa]s?)')
 JOINED = re.compile(r'(\s(?:e|E|\+|/)\s)')
 # Words of an order's structure: with labels and masked values they make a piece that may leave.
 STRUCTURE = NOT_NAMES | FIELD_NAMES | PARTICLES | frozenset((

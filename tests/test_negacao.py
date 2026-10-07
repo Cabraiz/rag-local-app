@@ -66,6 +66,35 @@ NOT_REQUESTS = [
     ('Preparo: jejum de 8 horas para Glicemia de jejum', 'prep', 'Glicemia de jejum'),
     ('Jejum de 12 horas para Colesterol total', 'prep', 'Colesterol total'),
     ('Obs: jejum de 8 horas para glicose', 'prep', 'glicose'),
+    # A second round: a bare "não" at the end, "não necessário", a hyphen, a result, more verbs, a time.
+    ('Ferritina: não', 'negated', 'Ferritina'),
+    ('Ferritina — NÃO', 'negated', 'Ferritina'),
+    ('Ferritina? Não.', 'negated', 'Ferritina'),
+    ('Ferritina - não necessário', 'negated', 'Ferritina'),
+    ('Ferritina: não precisa', 'negated', 'Ferritina'),
+    ('não-realizar Ferritina', 'negated', 'Ferritina'),
+    ('Ferritina (desmarcar)', 'negated', 'Ferritina'),
+    ('Ferritina - vetado pelo médico', 'negated', 'Ferritina'),
+    ('Ferritina - não autorizado', 'negated', 'Ferritina'),
+    ('Ferritina contraindicada', 'negated', 'Ferritina'),
+    ('Retirar Ferritina', 'negated', 'Ferritina'),
+    ('Todos menos PSA total', 'negated', 'PSA total'),
+    ('Resultado de Ferritina: 45 ng/mL', 'history', 'Ferritina'),
+    ('Valor de TSH: 4,5', 'history', 'TSH'),
+    ('Ferritina feita mês passado', 'history', 'Ferritina'),
+    ('PSA total realizado dia 10/03', 'history', 'PSA total'),
+    ('PSA total realizado há 2 meses', 'history', 'PSA total'),
+    ('TSH feito ontem', 'history', 'TSH'),
+    ('Vitamina B12: já tem (05/2026)', 'history', 'Vitamina B12'),
+    # A doubt: asked, never booked alone.
+    ('Exames: Hemograma completo, Ferritina e TSH, exceto Ferritina', 'uncertain', 'Ferritina'),
+    ('TSH e T4 livre - não repetir T4 livre', 'uncertain', 'T4 livre'),
+    ('Ferritina - controle após suspensão do ferro', 'uncertain', 'Ferritina'),
+    ('Paciente trouxe PSA total de agosto', 'uncertain', 'PSA total'),
+    ('Ferritina 45 ng/mL (03/2025)', 'uncertain', 'Ferritina'),
+    ('Glicemia de jejum 98 mg/dL', 'uncertain', 'Glicemia de jejum'),
+    ('Ferritina - não, nunca', 'negated', 'Ferritina'),
+    ('Lipase - cancelar se amilase normal', 'uncertain', 'Lipase'),
 ]
 
 # (line, the exam as written there): legitimate lines with words a negation rule could take for one.
@@ -90,7 +119,6 @@ REQUESTS = [
     ('PSA total (paciente sem sintomas)', 'PSA total'),
     ('Acido urico (evitar carne vermelha 24h antes)', 'Acido urico'),
     ('Ureia - dispensar jejum', 'Ureia'),
-    ('Lipase - cancelar se amilase normal', 'Lipase'),
     ('Proteina C reativa - sem urgência', 'Proteina C reativa'),
     ('Insulina - colher em jejum', 'Insulina'),
     ('Solicito também Ferritina', 'Ferritina'),
@@ -105,6 +133,23 @@ REQUESTS = [
     ('Coletar em jejum: Glicemia de jejum', 'Glicemia de jejum'),
     ('Jejum de 12 horas: Colesterol total', 'Colesterol total'),
     ('Hemograma completo - urgente', 'Hemograma completo'),
+    # Words of a negation or history about something else: a preparation, the context, a double negation.
+    ('Obs.: solicito também Ferritina', 'Ferritina'),
+    ('Ferritina - se necessário repetir', 'Ferritina'),
+    ('Ferritina - sem falta', 'Ferritina'),
+    ('Ferritina (já em jejum)', 'Ferritina'),
+    ('Último exame há 2 anos: repetir Ferritina', 'Ferritina'),
+    ('Exames anteriores normais; solicito TSH', 'TSH'),
+    ('Hemograma completo - feito em laboratório credenciado', 'Hemograma completo'),
+    ('Não deixar de fazer TSH', 'TSH'),
+    ('TSH (não esquecer)', 'TSH'),
+    ('Glicemia de jejum (não tomar café)', 'Glicemia de jejum'),
+    ('Ferritina e Ferro sérico - suspender sulfato ferroso 7 dias antes', 'Ferro sérico'),
+    ('Repetir TSH (resultado anterior alterado)', 'TSH'),
+    ('Ferritina - paciente não fez exames anteriores', 'Ferritina'),
+    ('PSA total - não ejacular 48h antes', 'PSA total'),
+    ('Vitamina B12 (já em uso de metformina)', 'Vitamina B12'),
+    ('Colesterol total 180 (03/2026)', 'Colesterol total'),
 ]
 
 
@@ -148,8 +193,8 @@ def check(agent, context, booked):
 
 def test_the_reviews_order_leaves_the_ocr_with_its_negations_and_no_name():
     reply = ocr_read(REVIEW)
-    assert reply['lines'] == ['Hemograma completo', 'TSH', 'Obs: [NAO_REALIZAR] Ferritina ([TEXTO_REMOVIDO])',
-                              'Exame [JA_REALIZADO] [TEXTO_REMOVIDO]: PSA total - [NAO_REALIZAR]', '[TEXTO_REMOVIDO]']
+    assert reply['lines'] == ['Hemograma completo', 'TSH', 'Obs: NAO realizar Ferritina ([TEXTO_REMOVIDO])',
+                              '[TEXTO_REMOVIDO] ja realizado [TEXTO_REMOVIDO]: PSA total - nao repetir', '[TEXTO_REMOVIDO]']
     assert reply['line_intent'] == ['request', 'request', 'negated', 'negated', 'request']
     assert reply['instructions_removed'] == 1  # the note to the "automated reader" is an order to add an exam
     assert 'NOME' not in reply['pii_masked']  # "NAO realizar" and "considere tambem" are no names
@@ -174,10 +219,10 @@ def test_the_cli_says_why_each_exam_of_the_reviews_order_was_not_booked(agent, r
         'pii_masked': reply['pii_masked'], 'instructions_removed': reply['instructions_removed']}))
     assert cli.main(ready_run) == 0
     out = capsys.readouterr().out
-    assert ("não agendado: 'Obs: [NAO_REALIZAR] Ferritina ([TEXTO_REMOVIDO])' → Ferritina FICT-018; "
+    assert ("não agendado: 'Obs: NAO realizar Ferritina ([TEXTO_REMOVIDO])' → Ferritina FICT-018; "
             'o pedido diz para não realizar') in out
-    assert ("não agendado: 'Exame [JA_REALIZADO] [TEXTO_REMOVIDO]: PSA total - [NAO_REALIZAR]' → PSA total FICT-048; "
-            'o pedido diz para não realizar') in out
+    assert ("não agendado: '[TEXTO_REMOVIDO] ja realizado [TEXTO_REMOVIDO]: PSA total - nao repetir' → PSA total "
+            'FICT-048; o pedido diz para não realizar') in out
     assert '→ Vitamina D FICT-023; o mesmo trecho da linha já foi usado por' in out  # not booked silently
     assert 'Instruções neutralizadas no OCR: 1' in out and 'ATENÇÃO' not in out
 
@@ -186,12 +231,12 @@ def test_the_cli_says_why_each_exam_of_the_reviews_order_was_not_booked(agent, r
 
 @pytest.mark.parametrize('line, kind, exam', NOT_REQUESTS)
 def test_lines_that_do_not_request_their_exam_are_read_as_such(line, kind, exam):
-    assert intent.read_line(line)[0] == kind
+    assert intent.read_line(line) == kind
 
 
 @pytest.mark.parametrize('line, exam', REQUESTS)
 def test_request_lines_stay_requests(line, exam):
-    assert intent.read_line(line) == ('request', line)
+    assert intent.read_line(line) == 'request'
 
 
 @pytest.mark.parametrize('line, kind, exam', NOT_REQUESTS)
@@ -202,8 +247,8 @@ def test_an_exam_on_a_line_that_does_not_request_it_is_never_booked_alone(agent,
     assert 'FICT-003' in booked and code not in booked
     if kind in intent.BLOCKING:
         assert left_out[code] == reply['line_intent'][2] == kind
-    elif kind == 'note':  # at most asked: nobody answers here, so it is left out with the question's reason
-        assert left_out[code] in ('needs_confirmation', 'score')
+    elif kind in ('note', 'uncertain'):  # at most asked: nobody answers here, so left out with the question's reason
+        assert left_out[code] in ('needs_confirmation', 'score', 'line_used')
     else:
         assert left_out[code] == 'prep'
 
@@ -252,7 +297,8 @@ def test_a_preparation_line_does_not_book_its_exam_but_its_own_request_line_does
 def test_a_preparation_line_is_no_alarm_when_its_exam_is_not_requested(agent):
     context, _ = agent_read(agent, ['Solicito:', '- Hemograma completo', PREP])
     booked, left_out = outcome(agent, context, 'Hemograma completo')
-    assert booked == ['FICT-001'] and left_out == {} and check(agent, context, booked) == []
+    # reported with its reason, never in silence, and no warning about the agent
+    assert booked == ['FICT-001'] and left_out == {} and check(agent, context, booked) == [('FICT-002', 'prep')]
     context, _ = agent_read(agent, ['Solicito:', '- Hemograma completo', PREP])  # the model proposes it anyway
     booked, left_out = outcome(agent, context, 'Hemograma completo', 'Glicemia de jejum')
     assert booked == ['FICT-001'] and left_out == {'FICT-002': 'prep'}
@@ -275,17 +321,35 @@ def test_an_unknown_kind_counts_as_a_note(agent):
     assert booked == ['FICT-024'] and left_out == {'FICT-005': 'needs_confirmation'}
 
 
-def test_the_markers_survive_the_safety_net_and_nothing_else_does():
-    assert mask_page(['Obs: [NAO_REALIZAR] Ferritina ([JA_REALIZADO])'])[0] == [
-        'Obs: [NAO_REALIZAR] Ferritina ([JA_REALIZADO])']
-    assert mask_page(['[OUTRO_MARCADOR] Ferritina'])[0] == ['[TEXTO_REMOVIDO] Ferritina']
+@pytest.mark.parametrize('line, masked', [
+    ('Obs: NAO realizar Ferritina (paciente reagiu mal)', 'Obs: NAO realizar Ferritina ([TEXTO_REMOVIDO])'),
+    ('Ferritina: não precisa', 'Ferritina: não precisa'),
+    ('Ferritina - não necessário', 'Ferritina - não necessário'),
+    ('Exames: Hemograma completo, Ferritina e TSH, exceto Ferritina',
+     'Exames: Hemograma completo, Ferritina e TSH, exceto Ferritina'),
+    ('Todos menos PSA total', 'Todos menos PSA total'),
+    ('Paciente trouxe PSA total de agosto', 'Paciente trouxe PSA total de [TEXTO_REMOVIDO]'),
+    ('Glicemia de jejum (não tomar café)', 'Glicemia de jejum (não [TEXTO_REMOVIDO])'),
+    ('Obs.: retirar o item 2', 'Obs.: retirar o item 2'),
+])
+def test_the_words_of_a_negation_or_history_stay_in_the_line_and_count_for_nothing(line, masked):
+    # They are no personal data, and what the order says of its exams: the model and the CLI read them.
+    lines, counts = mask_page([line])
+    assert lines == [masked] and 'NOME' not in counts
+
+
+def test_a_printed_marker_only_suppresses():
+    # A marker written on the image is only words: it leaves as written, counts for nothing, and can only negate.
+    assert mask_page(['[NAO_REALIZAR] PSA total']) == (['[NAO_REALIZAR] PSA total'], {})
+    assert intent.read_line('[NAO_REALIZAR] PSA total') == 'negated'
 
 
 # --- Honest counts ------------------------------------------------------------------------------
 
 @pytest.mark.parametrize('line', ['Obs: NAO realizar Ferritina', 'Considerar tambem Vitamina D',
                                   'O medico autoriza incluir Beta HCG', 'Favor Realizar TSH',
-                                  'Glicose bloco B', 'NAO REPETIR Hemograma completo'])
+                                  'Glicose bloco B', 'NAO REPETIR Hemograma completo', 'Todos menos PSA total',
+                                  'Agregar también PSA total'])
 def test_ordinary_words_are_never_counted_as_names(line):
     assert 'NOME' not in ocr_read([line])['pii_masked']
 
@@ -349,6 +413,20 @@ def test_a_list_item_the_catalog_does_not_know_is_reported_by_its_number_only():
     reply = ocr_read(['Exames:', '- Hemograma completo', '4) Ressonancia magnetica de cranio', 'Dr. Carlos Lima'])
     assert reply['lines'][2] == '4) [TEXTO_REMOVIDO]'
     assert reply['line_intent'] == ['request', 'request', 'unrecognized', 'request']
+
+
+def test_an_exam_whose_name_the_safety_net_removed_but_its_modifier_is_not_silent():
+    # A handwritten order: the name read as junk, its "total" kept. Reported by its line number.
+    ocr = pytest.importorskip('mcp_servers.ocr')
+    assert ocr.unrecognized_request('Qwxzk total', '[TEXTO_REMOVIDO] total')
+    assert ocr.unrecognized_request('- Qwxzk livre', '- [TEXTO_REMOVIDO] livre')
+    assert not ocr.unrecognized_request('Qwxzk Colesterol total', '[TEXTO_REMOVIDO] Colesterol total')  # an exam stays
+    assert not ocr.unrecognized_request('Paciente: Ana total', 'Paciente: [NOME] total')  # personal data, not junk
+
+
+def test_an_exam_word_the_ocr_split_in_two_is_kept():
+    # The 120 handwritten orders: "Colesterol total" read "Colesti erol total" became "[NOME] total".
+    assert mask_page(['Colesti erol total']) == (['Colesti erol total'], {})
 
 
 @pytest.mark.parametrize('line', [

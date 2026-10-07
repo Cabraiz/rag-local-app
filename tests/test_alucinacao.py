@@ -390,11 +390,11 @@ def test_exams_the_order_says_not_to_do_are_never_booked(run, services, monkeypa
                                'schedule': schedule(proposed)}, image=NEGATED)
     assert code == 0, out + err
     assert new == [[('FICT-001', 'Hemograma completo'), ('FICT-024', 'TSH')]]
-    assert ("não agendado: 'Obs: [NAO_REALIZAR] Ferritina ([TEXTO_REMOVIDO])' → Ferritina FICT-018; "
+    assert ("não agendado: 'Obs: NAO realizar Ferritina ([TEXTO_REMOVIDO])' → Ferritina FICT-018; "
             'o pedido diz para não realizar') in out
-    assert ("não agendado: 'Exame [JA_REALIZADO] [TEXTO_REMOVIDO]: PSA total - [NAO_REALIZAR]' → PSA total FICT-048; "
-            'o pedido diz para não realizar') in out
+    assert ("não agendado: '[TEXTO_REMOVIDO] ja realizado [TEXTO_REMOVIDO]: PSA total - nao repetir' → PSA total "
+            'FICT-048; o pedido diz para não realizar') in out
     assert 'Instruções neutralizadas no OCR: 1' in out and '→ Vitamina D FICT-023' in out  # reported, not booked
     assert 'PII mascarada pelo OCR: nenhuma' in out and 'ATENÇÃO' not in out
     seen = ''.join(SEEN)
-    assert '[NAO_REALIZAR]' in seen and 'reagiu' not in seen and 'leitor' not in seen  # what reached the model
+    assert 'NAO realizar Ferritina' in seen and 'reagiu' not in seen and 'leitor' not in seen  # what reached the model
