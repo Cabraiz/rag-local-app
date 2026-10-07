@@ -86,7 +86,7 @@ exata do `transpile` para `specs/agent.json`, e um teste falha se ela ficar desa
 |---|---|---|
 | `name` | identificador: minúsculas, dígitos e `_`, começando por letra | `SequentialAgent(name=...)` |
 | `model` | `gemini-<versão>`; numa execução, pode ser trocado com `-e GEMINI_MODEL=<modelo>` (validado pela mesma regra) | `gemini(...)`: o `Gemini` de cada agente sem `model` próprio, com 5 tentativas automáticas em `429`/`500`/`503` |
-| `fallback_model` | opcional, `gemini-<versão>` | não entra no código gerado: é da CLI, que roda de novo com ele, na hora, só se o modelo principal falhar com `429`/`503` antes de qualquer chamada à API |
+| `fallback_model` | opcional, `gemini-<versão>` | `gemini(<modelo>, fallback=<reserva>)`: no `adk run` e no `adk web`, a mesma requisição vai ao reserva se o principal responder `429`/`503`; o `cli run` roda de novo com ele, na hora, antes de qualquer chamada à API |
 | `servers.<nome>` | de 1 a 10; nome identificador, escolhido pela spec (`ocr`, `leitor`, `catalogo`...); cada servidor é **ou** MCP **ou** OpenAPI; o host da URL precisa estar em `ALLOWED_HOSTS` (abaixo) | um toolset por servidor usado por um agente |
 | `servers.<nome>.url` + `tools` | servidor MCP por SSE: `http://host:porta/sse` e os nomes das ferramentas que os agentes podem chamar | `McpToolset(SseConnectionParams(url=...), tool_filter=[...])` |
 | `servers.<nome>.openapi_url` + `operations` | API descrita por OpenAPI: `http://host:porta/openapi.json` e os `operationId` que os agentes podem chamar | `LiveOpenAPIToolset` → `OpenAPIToolset` montado desse contrato, só com essas operações |
@@ -133,7 +133,7 @@ ferramentas: um que responde ao GET mas não termina o `list_tools` (ou não ser
 para a execução com `servers.<nome>: <url> respondeu, mas não listou as ferramentas`. A mesma consulta confere o contrato dos papéis: a ferramenta de
 `read` recebe `filename`, a de `search` recebe `query` e `top_k`.
 
-**`fallback_model` é da CLI.** O código gerado não o usa: é o `cli run` que, uma vez, roda de novo com ele se o modelo principal falhar com `429`/`503` antes de qualquer chamada à API. Com ele na spec, o principal não repete `429` nem `503` (só `500`): a troca para o reserva é imediata, em vez de esperar cerca de 1 minuto de tentativas.
+**`fallback_model`, por requisição ou por execução.** No código gerado, o modelo é o `FallbackModel` do ADK: uma requisição que o principal recusa com `429`/`503` vai, igual, ao reserva (assim no `adk run` e no `adk web`). Não agenda em dobro: a chamada que se repete é ao modelo, e uma chamada ao modelo que falhou não rodou nenhuma ferramenta. O `cli run` troca esse modelo pelo principal sozinho e, uma vez, roda de novo com o reserva se o principal falhar com `429`/`503` antes de qualquer chamada à API, levando as respostas e a `Idempotency-Key`. Com ele na spec, o principal não repete `429` nem `503` (só `500`): a troca para o reserva é imediata, em vez de esperar cerca de 1 minuto de tentativas.
 
 **Papéis: quem lê, quem busca e quem agenda.** A política de agendamento ([`runtime/`](../runtime/))
 não conhece nomes de servidor nem de ferramenta: a spec diz qual ferramenta faz cada papel em `roles`.

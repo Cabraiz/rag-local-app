@@ -101,8 +101,8 @@ O README e `docs/como-rodar.md` passaram a cobrir cada um.
 
 ## Ainda em aberto
 
-- **`fallback_model` só na CLI:** o modelo reserva da spec não entra no código gerado; é a CLI que roda de
-  novo com ele, uma vez, se o modelo principal falhar com `429`/`503` antes de qualquer chamada à API.
+- **`fallback_model`:** no código gerado, o reserva da spec responde a mesma requisição quando o principal
+  falha com `429`/`503` (`adk run`, `adk web`); a CLI roda de novo com ele, uma vez, antes de qualquer chamada à API.
 - **`SequentialAgent` obsoleto:** no ADK 2.10 ele é marcado como obsoleto em favor de `Workflow`. Ficou
   porque `Workflow` ainda não é um `BaseAgent`, e a CLI usa o agente raiz como um
   ([decisão](arquitetura.md#decisões-técnicas-em-detalhe)).
