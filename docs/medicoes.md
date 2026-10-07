@@ -92,9 +92,10 @@ e 1 de controle, em 15 testes e 20 casos (alguns cenários rodam com 2 ou 3 vari
 
 ## Dados sensíveis: como contornamos
 
-- **Dados 100% fictícios:** nomes são combinações de nomes e sobrenomes brasileiros comuns, os e-mails usam o domínio reservado `.invalid` e os exames têm códigos `FICT-xxx`. Nos pedidos da carga, o CPF tem formato real e o 2º dígito verificador **errado de propósito**: nenhum é válido, então nenhum pode ser de uma pessoa real (um teste confere).
-- **Máscara na origem:** o OCR mascara a PII dentro do próprio container, antes de devolver o texto. LLM, logs, API e SQLite só recebem `[NOME]`, `[CPF]`…
-As imagens ficam num volume em memória (tmpfs) só da carga, que o OCR vê como `/data/samples`, somente leitura. Assim a regra do OCR (só um nome de arquivo dentro de `/data/samples`) não muda e nada gerado vai para o disco ou para o git. Na CI, [`test_carga.py`](../tests/test_carga.py) roda 20 pedidos com o OCR em processo e falha se um valor vazar.
+- **Dados 100% fictícios:** nomes são combinações de nomes e sobrenomes brasileiros comuns, os e-mails usam o domínio `.invalid`, reservado pela RFC 2606 para nunca existir, e os exames têm códigos `FICT-xxx`. Nos pedidos da carga, o CPF tem formato real e o 2º dígito verificador **errado de propósito**: nenhum é válido, então nenhum pode ser de uma pessoa real (um teste confere).
+- **Máscara na origem:** o OCR mascara a PII dentro do próprio container, antes de devolver o texto. O LLM e os logs do agente só recebem `[NOME]`, `[CPF]`…
+- **Banco sem PII, por construção:** a API só aceita código e nome de cada exame e grava o nome do catálogo, então nenhum dado pessoal chega ao SQLite. A carga confere isso nos bytes do banco.
+- **Imagens da carga:** ficam num volume em memória (tmpfs) só da carga, que o OCR vê como `/data/samples`, somente leitura. Assim a regra do OCR (só um nome de arquivo dentro de `/data/samples`) não muda e nada gerado vai para o disco ou para o git. Na CI, [`test_carga.py`](../tests/test_carga.py) roda 20 pedidos com o OCR em processo e falha se um valor vazar.
 - **O que a carga achou e corrigiu:** 13 formas de vazamento causadas por erros de leitura do OCR, cada uma com teste de regressão em [`test_pii.py`](../tests/test_pii.py). Entre elas: e-mail sem rótulo com o "@" lido como "g", "Q" ou "€" e partido em pedaços, CPF e RG lidos com vírgula, CPF colado ao rótulo (`CPF1 14.…`), `CID-10;`, `CRM-R]`, `Dra,` e nome seguido de `|`. A carga também mostrou que 8 leituras em paralelo levavam 88 s em vez de 2 s, porque o Tesseract usava todos os núcleos em cada chamada; agora cada chamada usa uma thread.
 
 ## Pedidos manuscritos simulados

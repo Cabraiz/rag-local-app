@@ -21,25 +21,29 @@ cp .env.example .env          # preencha GOOGLE_API_KEY=; a chave só vai para o
 docker compose up -d --wait   # sobe ocr, rag e api; na 1ª vez a api cria a chave do banco
 ```
 
-- **Tempo:** o primeiro build leva de 10 a 20 minutos, por causa do Tesseract; os builds seguintes usam cache.
+- **Tempo:** o primeiro build, sem cache, leva de 10 a 20 minutos, por causa do Tesseract; os builds seguintes usam cache.
 - **Chave do banco:** com `DB_ENCRYPTION_KEY` vazia no `.env`, a API cria a chave na 1ª subida e a guarda no volume `api-key`, separado do banco (o log da `api` mostra `chave do banco criada em /keys/db.key`, nunca a chave). Para usar a sua, gere uma com `docker compose run --rm --no-deps api python -m api.crypto --gerar-chave` e coloque em `DB_ENCRYPTION_KEY=` antes do 1º `up`; definida, ela tem precedência sobre o volume.
 - **Pasta:** rode tudo dentro de `rag-local-app`, onde está o `docker-compose.yml`. Fora dela, o Compose responde `no configuration file provided: not found`.
 - **Saída esperada:** `ocr`, `rag` e `api` como `Healthy`. Swagger em `http://127.0.0.1:<API_PORT>/docs` (padrão 8765; a porta real sai de `docker compose port api 8000`, em que 8000 é a porta interna do container). A página certa se chama "API de agendamento de exames (fictícia)". O `/openapi.json` é o mesmo que o agente consome. Operações: `create_appointment` (`POST /appointments`), `get_appointment` (`GET /appointments/{appointment_id}`) e `health` (`GET /health`). Corpo de exemplo: `{"exams": [{"code": "FICT-001", "name": "Hemograma completo"}]}`. As capturas em [`evidencias/`](../evidencias/) mostram a porta 18904 da gravação.
 - **Porta:** a API só escuta em `127.0.0.1`. A porta do host é a 8765. Antes do `up`, confira se ela está livre (`netstat -ano | findstr :8765`). Se estiver em uso, defina outra em `API_PORT` no `.env` (ex.: `API_PORT=8766`): no Windows, o Docker pode não acusar o conflito, e outro programa continua respondendo nessa porta.
 - **`.env`:** para a chave e a porta, edite o arquivo `.env`. Não use `export`, `$env:` nem `echo > .env`, que sobrescreve o arquivo e apaga o `API_PORT`.
 - **Logs dos serviços:** `docker compose logs -f ocr rag api`.
-- **Parar:** `docker compose down`. Para apagar também o banco, a chave do banco e o código gerado: `docker compose --profile cli down -v` (sem `--profile cli`, o volume `generated` do agent fica). Com `--rmi local`, apaga também as imagens.
+- **Parar:** `docker compose down`.
+- **Parar e limpar:** `docker compose --profile cli --profile test down -v` remove os containers, as redes e os volumes: o banco, a chave do banco e o código gerado. Sem `--profile cli`, o volume `generated` do agent fica.
+- **Imagens:** o `down -v` não apaga as imagens. Para apagá-las também, acrescente `--rmi local`.
 
 ## 2. Rodar o transpilador
 
 ```bash
-docker compose run --rm agent python -m cli transpile specs/agent.json   # 1º run constrói a imagem do agent
+docker compose run --rm agent python -m cli transpile specs/agent.json   # 1º run constrói a imagem do agent (sem cache: 2 a 6 min)
 docker compose run --rm agent cat generated/agent.py                     # o arquivo fica no volume "generated"
 ```
 
 ```text
 OK: generated/agent.py gerado e importado; root_agent "clinic_scheduler" (SequentialAgent: extract -> search -> schedule)
 ```
+
+A pasta `generated/` do host fica vazia: o arquivo está no volume Docker `generated`, que só os containers do `agent` montam. O 2º comando acima o mostra.
 
 Campos da spec, mensagens de erro e o código gerado comentado: [transpilador.md](transpilador.md).
 
@@ -66,7 +70,26 @@ Agendamento confirmado pela API: id a05f0421…, status scheduled
 Tempo: OCR 6,1 s · busca 35 s · agendamento 51 s · total 232 s (modelo gemini-3.5-flash)
 ```
 
-- **Linhas antes da tabela:** `PII mascarada pelo OCR` conta só dados pessoais. Se o OCR removeu instruções escondidas, aparece também `Instruções neutralizadas no OCR: N`. Um exame com confiança de 0,70 a 0,90 é perguntado no terminal: `Li "<linha lida>" → <exame> <código> (confiança 0,82). Incluir? [s/N]`. Só entra o que você confirmar. Com `--yes` (ou sem terminal interativo, como em CI), esses exames ficam de fora e aparecem como `não agendado sem confirmação`. Abaixo de 0,70, o exame não é agendado e aparece como `baixa confiança: '<linha lida>' → <exame> <código> (confiança 0,xx); confira o pedido`. Vale um exame por ocorrência no pedido: cada nome do catálogo ocupa uma ocorrência própria na linha ("Exames: Hemograma completo, Creatinina e TSH" agenda 3; "Creatinina, Clearance de creatinina" agenda 2), mas um nome que só aparece dentro de outro ("Hemoglobina" em "Hemoglobina glicada", escrito uma vez) ou uma linha que só se parece com várias buscas vale um só. Um exame que repete um trecho já usado aparece como `não agendado: '<linha>' já foi usada por <exame>; confira o pedido`. Um exame que a busca achou e o modelo deixou fora do agendamento aparece como `não incluído pelo agente: '<linha lida>' → <exame> <código> (confiança 0,xx); confira o pedido`: não é agendado, só avisado. Uma linha com vários exames ("Colesterol total e Triglicerideos", "TSH, T4 livre") é buscada exame por exame, e cada um é agendado, perguntado ou avisado por conta própria, também quando o OCR grudou o "e" numa palavra ("TSHe T4 livre": T4 livre é agendado e TSH, com 0,86, é perguntado). Um pedaço que é parte do exame vizinho é buscado como esse exame: "Toxoplasmose IgG e IgM" agenda Toxoplasmose IgG e Toxoplasmose IgM (nunca a IgM genérica), "IgG e IgM para toxoplasmose" também, "PSA total e livre" agenda PSA total e PSA livre, "Vitamina B12 e D" agenda as duas vitaminas; em "Clearance de creatinina, urina 24h", "urina 24h" é a amostra do exame, não outro exame. Depois da execução, a CLI confere o pedido inteiro, pedaço por pedaço de cada linha, com os mesmos pedaços da busca, no próprio RAG: um exame escrito que o modelo nem buscou aparece como `não buscado pelo agente: '<linha lida>' → <exame> <código> (confiança 0,xx); confira o pedido`. Nos dois casos a última linha fica `Agendamento confirmado pela API: id …, status scheduled; ATENÇÃO: N possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima`, e o código de saída continua 0 (o agendamento existe). Essa conferência leva no máximo 30 s; se o RAG travar, a CLI mostra `Aviso: o pedido não foi conferido por inteiro` e termina.
+- **Linhas antes da tabela:** `PII mascarada pelo OCR` conta só dados pessoais. Se o OCR removeu instruções escondidas, aparece também `Instruções neutralizadas no OCR: N`.
+- **Faixas de confiança:**
+  - de 0,70 a 0,90, o exame é perguntado no terminal: `Li "<linha lida>" → <exame> <código> (confiança 0,82). Incluir? [s/N]`. Só entra o que você confirmar;
+  - com `--yes` (ou sem terminal interativo, como em CI), esses exames ficam de fora e aparecem como `não agendado sem confirmação`;
+  - abaixo de 0,70, o exame não é agendado e aparece como `baixa confiança: '<linha lida>' → <exame> <código> (confiança 0,xx); confira o pedido`.
+- **Um exame por ocorrência no pedido:**
+  - cada nome do catálogo ocupa uma ocorrência própria na linha: "Exames: Hemograma completo, Creatinina e TSH" agenda 3, e "Creatinina, Clearance de creatinina" agenda 2;
+  - um nome que só aparece dentro de outro ("Hemoglobina" em "Hemoglobina glicada", escrito uma vez) vale um só, como uma linha que só se parece com várias buscas;
+  - um exame que repete um trecho já usado aparece como `não agendado: '<linha>' já foi usada por <exame>; confira o pedido`.
+- **Exame que o modelo deixou de fora:** se a busca o achou e o modelo não o incluiu, ele aparece como `não incluído pelo agente: '<linha lida>' → <exame> <código> (confiança 0,xx); confira o pedido`. Não é agendado, só avisado.
+- **Vários exames numa linha** ("Colesterol total e Triglicerideos", "TSH, T4 livre"): a linha é buscada exame por exame, e cada um é agendado, perguntado ou avisado por conta própria.
+  - Isso vale também quando o OCR grudou o "e" numa palavra: em "TSHe T4 livre", T4 livre é agendado e TSH, com 0,86, é perguntado.
+  - Um pedaço que é parte do exame vizinho é buscado como esse exame. "Toxoplasmose IgG e IgM" agenda Toxoplasmose IgG e Toxoplasmose IgM, nunca a IgM genérica; "IgG e IgM para toxoplasmose" também.
+  - "PSA total e livre" agenda PSA total e PSA livre, e "Vitamina B12 e D" agenda as duas vitaminas.
+  - Em "Clearance de creatinina, urina 24h", "urina 24h" é a amostra do exame, não outro exame.
+- **Conferência do pedido inteiro:** depois da execução, a CLI confere cada linha no próprio RAG, pedaço por pedaço, com os mesmos pedaços da busca.
+  - Um exame escrito que o modelo nem buscou aparece como `não buscado pelo agente: '<linha lida>' → <exame> <código> (confiança 0,xx); confira o pedido`.
+  - Com algum `não incluído` ou `não buscado`, a última linha fica `Agendamento confirmado pela API: id …, status scheduled; ATENÇÃO: N possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima`.
+  - O código de saída continua 0, porque o agendamento existe.
+  - Essa conferência leva no máximo 30 s. Se o RAG travar, a CLI mostra `Aviso: o pedido não foi conferido por inteiro` e termina.
 - **Última linha:** `Tempo:` mostra quanto levou cada ferramenta (buscas em paralelo contam uma vez), o total e o modelo usado. O tempo de cada etapa conta da vez do modelo que pede a ferramenta até a resposta dela (é o horário que o ADK grava no evento), então inclui o tempo do Gemini para gerar aquela chamada. O tempo de cada ferramenta é o da execução que terminou e não conta a espera pela resposta `[s/N]`. O total é o relógio do `run` inteiro: inclui os turnos do modelo entre as chamadas, as novas tentativas do Gemini (até 5, com espera crescente) e, quando o modelo principal falha e a CLI passa ao reserva, a 1ª execução inteira, além da espera pela resposta `[s/N]`. Por isso pode passar bem da soma das etapas. Ela aparece também quando nada é agendado, antes da linha `Erro:`, e não traz nenhum dado do pedido.
 - **Outro modelo numa execução, sem editar a spec:**
   `docker compose run --rm -e GEMINI_MODEL=<modelo> agent python -m cli run --image pedido.png` (ou `GEMINI_MODEL=` no `.env`, para todas).
@@ -181,7 +204,7 @@ A tabela completa está em [arquitetura.md](arquitetura.md#tratamento-de-erros).
 docker compose run --rm tests pytest -q -n auto
 ```
 
-- **Serviço `tests`:** usa o estágio `test` do `Dockerfile`, que é a imagem do `agent` mais pytest, ruff, mypy, o Tesseract e os testes. O `agent` leva só o que `transpile` e `run` usam. O 1º comando constrói a imagem de testes (alguns minutos) e sobe os serviços.
+- **Serviço `tests`:** usa o estágio `test` do `Dockerfile`, que é a imagem do `agent` mais pytest, ruff, mypy, o Tesseract e os testes. O `agent` leva só o que `transpile` e `run` usam. O 1º comando constrói a imagem de testes (sem cache, alguns minutos) e sobe os serviços.
 - **Sem chave, sempre:** o serviço `tests` não recebe a `GOOGLE_API_KEY`, nem com ela no `.env`. Nada chama o Gemini e o teste ponta a ponta é pulado.
 - **Ponta a ponta real, só quando pedido:** `docker compose run --rm tests-e2e` roda [`tests/test_e2e.py`](../tests/test_e2e.py) com a chave do `.env`: uma execução real com o Gemini (o `run` inteiro, com vários turnos do modelo). Sem a chave no `.env`, ele falha (não é pulado), para não parecer que passou.
 - **O que a suíte cobre:**
@@ -192,7 +215,7 @@ docker compose run --rm tests pytest -q -n auto
   - as duas ferramentas MCP chamadas via SSE, como o agente faz;
   - a API (criação, consulta, `404`, `422`);
   - cada tipo de PII;
-  - o detector de injeção ([`tests/test_injection.py`](../tests/test_injection.py)), com o corpus de `tests/attacks/` (790 ataques e 1.404 linhas legítimas, 1.353 distintas);
+  - o detector de injeção ([`tests/test_injection.py`](../tests/test_injection.py)), com o corpus do próprio projeto em `tests/attacks/` (790 ataques e 1.404 linhas legítimas, 1.353 distintas);
   - a cifra do banco e a chave no volume ([`test_crypto.py`](../tests/test_crypto.py)) e a `Idempotency-Key` ([`test_idempotencia.py`](../tests/test_idempotencia.py));
   - as 3 faixas de confiança, a pergunta `[s/N]` e o piso do OCR ([`test_confianca.py`](../tests/test_confianca.py));
   - o preparo da imagem e a confiança por linha do OCR ([`test_preprocessamento.py`](../tests/test_preprocessamento.py));

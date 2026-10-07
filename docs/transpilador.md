@@ -28,7 +28,7 @@ exata do `transpile` para `specs/agent.json`, e um teste falha se ela ficar desa
   - os callbacks, já configurados com os valores da spec.
 
   Não há função, classe nem regra de negócio no arquivo gerado.
-- **A biblioteca de runtime do transpilador, [`runtime/`](../runtime/)** (interface 3, conferida pelo arquivo gerado na importação), guarda as regras, num código fixo e testado por conta própria:
+- **A biblioteca de runtime do transpilador, [`runtime/`](../runtime/)** (versão 3 da interface, `API_VERSION`: o arquivo gerado confere essa versão na importação), guarda as regras, num código fixo e testado por conta própria:
 
   | Módulo | O que faz |
   |---|---|
