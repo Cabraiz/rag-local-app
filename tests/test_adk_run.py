@@ -36,6 +36,7 @@ from runtime.callbacks import answers_given, image_names
 from tests.test_alucinacao import IMAGE, NAMED, PORTS, ROOT, appointment, services, stored_ids  # noqa: F401
 from transpiler import transpile
 
+CHECK_URLS = rede.check_urls  # the real address rule; the agent_folder fixture replaces it
 SEEN = []  # every request the scripted models got: what reached "the LLM"
 READ = ['Hemograma completo', 'Glicemia de jejum', 'Creatinina']  # the exams of pedido.png
 CODES = {'Hemograma completo': 'FICT-001', 'Glicemia de jejum': 'FICT-002', 'Creatinina': 'FICT-005'}
@@ -161,7 +162,10 @@ def test_adk_run_books_the_order_from_only_its_file_name(adk_run, typed):
     # The file name carries a (fictional) patient's name: the person typed it, no model ever saw it.
     assert SEEN and not [request for request in SEEN if 'joao' in request.lower() or 'silva' in request.lower()]
     assert all('Arquivo do pedido: pedido-1.png' in request for request in SEEN)
-    assert checked == [['http://ocr:8001/sse', 'http://rag:8002/sse', 'http://api:8000/openapi.json']]
+    # The order checks every server before the first model turn; each toolset, its URLs before it connects.
+    assert checked[0] == ['http://ocr:8001/sse', 'http://rag:8002/sse', 'http://api:8000/openapi.json']
+    assert {url for urls in checked[1:] for url in urls} == {
+        'http://ocr:8001/sse', 'http://rag:8002/sse', 'http://api:8000/openapi.json', 'http://api:8000'}
 
 
 @pytest.mark.parametrize('answer, stored, line', [
@@ -198,8 +202,9 @@ def test_without_one_readable_image_nothing_reaches_a_model(adk_run, typed, told
 
 def test_one_order_per_session(adk_run):
     out, new, _ = adk_run(IMAGE, IMAGE)
-    assert new == all_three() and out.count('Agendamento confirmado pela API') == 1, out
-    assert 'Esta sessão já tratou um pedido' in out
+    assert new == all_three(), out  # one appointment; the 2nd message is told it exists, not to repeat it
+    stored_id = re.search(r'Agendamento confirmado pela API: id (\S+), status scheduled', out)[1]
+    assert f'Esta sessão já tratou um pedido, e o agendamento {stored_id} já foi criado: não repita' in out
 
 
 # --- The same rules, without servers ------------------------------------------------------------------
@@ -220,9 +225,10 @@ def test_the_image_name_is_taken_whole_from_the_message(text, names):
     (ToolConfirmation(confirmed=False), {'FICT-079': False, 'FICT-005': False}),
     (ToolConfirmation(confirmed=True, payload={'respostas': {'FICT-079': True}}), {'FICT-079': True}),  # cli run
     (ToolConfirmation(confirmed=True, payload={'respostas': {}}), {}),  # cli run with nobody to answer
+    (ToolConfirmation(confirmed=True, payload={'respostas': {'FICT-999': True}}), {}),  # not asked by this call
 ])
 def test_one_answer_from_adk_tooling_applies_to_every_exam_the_call_asked(confirmation, answers):
-    assert answers_given({'asked': ['FICT-079', 'FICT-005']}, confirmation) == answers
+    assert answers_given({}, confirmation, ['FICT-079', 'FICT-005']) == answers
 
 
 def resolver(answers):
@@ -274,6 +280,26 @@ def test_outside_cli_run_the_addresses_checked_are_kept_for_the_process(monkeypa
     assert said.parts[0].text.startswith('Esta sessão já tratou um pedido')
 
 
+COMPOSE_DNS = {'ocr': '10.0.0.5', 'rag': '10.0.0.6', 'api': '10.0.0.7'}  # private, as Docker's DNS answers
+
+
+def test_adk_run_with_the_real_address_rule_books_over_the_addresses_it_checked(adk_run, monkeypatch):
+    # The real rule, with the compose names on private addresses (allowed); those addresses lead to
+    # this machine's servers, like a NAT, so the run can only connect through the pinned addresses.
+    local = socket.getaddrinfo  # the fixture's: the names are this machine
+
+    def compose_dns(host, port, *args, **kwargs):
+        name = host.decode() if isinstance(host, bytes) else host
+        if name in COMPOSE_DNS:
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (COMPOSE_DNS[name], port))]
+        return local('127.0.0.1' if name in COMPOSE_DNS.values() else host, port, *args, **kwargs)
+    monkeypatch.setattr(socket, 'getaddrinfo', compose_dns)
+    monkeypatch.setattr(rede, 'check_urls', CHECK_URLS)
+    out, new, _ = adk_run(NAMED)
+    assert new == all_three(), out
+    assert rede.PINS == {name: [address] for name, address in COMPOSE_DNS.items()}
+
+
 def test_adk_web_books_the_order_from_only_its_file_name(agent_folder, services, monkeypatch):  # noqa: F811
     # The server `adk web` starts (without its static UI): a new session, then one message to /run,
     # as the web page sends it. The report is the last event.
@@ -306,18 +332,23 @@ def test_an_image_attached_in_adk_web_is_refused_and_never_sent_to_a_model(agent
         events = client.post('/run', json={'appName': 'generated', 'userId': 'pessoa', 'sessionId': session['id'],
                                            'newMessage': {'role': 'user', 'parts': [
                                                {'text': IMAGE}, {'inlineData': {'mimeType': 'image/png', 'data': image}}]}}).json()
-    assert events[-1]['content']['parts'][0]['text'].startswith('Envie só o nome do arquivo do pedido, sem anexar')
+    assert events[-1]['content']['parts'][0]['text'].startswith('Envie só o nome do arquivo do pedido, como texto')
     assert SEEN == [] and stored_ids(services) == before
 
 
-def test_no_attached_file_and_no_real_file_name_reach_the_model():
+def test_no_attached_file_no_other_data_and_no_real_file_name_reach_the_model():
     callbacks = BookingCallbacks(ocr_tool='extract_exam_text')
     typed = types.Content(role='user', parts=[types.Part(text='agende pedido-joao-silva.png'),
-                                             types.Part.from_bytes(data=b'\x89PNG', mime_type='image/png')])
-    context = SimpleNamespace(state={'image_token': 'pedido-1.png', 'image_file': 'pedido-joao-silva.png'},
-                              session=SimpleNamespace(events=[SimpleNamespace(author='user', content=typed)]))
+                                             types.Part.from_bytes(data=b'PNG', mime_type='image/png')])
+    session = SimpleNamespace(app_name='generated', user_id='pessoa', id='s1',
+                              events=[SimpleNamespace(author='user', content=typed)])
+    callbacks.open_order(session, 'pedido-joao-silva.png')
+    context = SimpleNamespace(state={'image_file': 'outro.png'}, session=session)  # the state is not trusted
+    smuggled = types.Part(text='Hemograma', executable_code=types.ExecutableCode(code='SMUGGLED', language='PYTHON'))
     request = LlmRequest(contents=[typed.model_copy(deep=True), types.Content(role='user', parts=[
-        types.Part(text='For context: [extract] said: o arquivo pedido-joao-silva.png foi lido')])])
+        types.Part(text='For context: [extract] said: o arquivo pedido-joao-silva.png foi lido')]),
+        types.Content(role='model', parts=[smuggled])])
     assert callbacks.before_model(context, request) is None
-    assert [[part.text for part in content.parts] for content in request.contents] == [
-        ['Arquivo do pedido: pedido-1.png', '[anexo removido]'], ['For context: [extract] said: o arquivo pedido-1.png foi lido']]
+    assert [[part.model_dump(exclude_none=True) for part in content.parts] for content in request.contents] == [
+        [{'text': 'Arquivo do pedido: pedido-1.png'}],
+        [{'text': 'For context: [extract] said: o arquivo pedido-1.png foi lido'}], [{'text': 'Hemograma'}]]
