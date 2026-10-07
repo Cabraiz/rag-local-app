@@ -16,7 +16,7 @@ https://github.com/user-attachments/assets/a6e9fd9e-be6f-48ed-ba4e-356cc72f631b
 - **OCR e RAG como servidores MCP, exclusivamente via SSE.** A base tem 120 exames fictícios; a busca é lexical (palavras em comum + `difflib`), determinística, sem embeddings ([por quê](docs/arquitetura.md#decisões-técnicas-em-detalhe)). Busca semântica avaliada e medida, não adotada: [ver medições](docs/medicoes.md#busca-semântica-avaliada-não-adotada).
 - **Ponta a ponta:** imagem → OCR → RAG → `POST /appointments` → tabela exame → código e a confirmação da API.
 - **PII mascarada dentro do OCR**, antes do LLM e do banco; os códigos são conferidos em código antes do `POST`.
-- **Testes:** 369 funções (17,3 mil casos), ruff, mypy (checagem leve) e 98% de cobertura na CI ([números](docs/medicoes.md)). Rodar: `docker compose run --rm tests pytest -q -n auto`, cerca de 3,5 min em 12 núcleos, sempre sem a chave; o ponta a ponta real com o Gemini é à parte: `docker compose run --rm tests-e2e` ([testes](docs/como-rodar.md#testes)).
+- **Testes:** 374 funções (17,3 mil casos), ruff, mypy (checagem leve) e 98% de cobertura na CI ([números](docs/medicoes.md)). Rodar: `docker compose run --rm tests pytest -q -n auto`, cerca de 3,5 min em 12 núcleos, sempre sem a chave; o ponta a ponta real com o Gemini é à parte: `docker compose run --rm tests-e2e` ([testes](docs/como-rodar.md#testes)).
 
 ### Rodar em 4 comandos
 
