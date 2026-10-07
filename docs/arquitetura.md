@@ -33,6 +33,7 @@ Visão para quem vai ler ou alterar o código. O resumo e os comandos estão no
 | `guardrails/injection.py` (detector de injeção) | Trocar por um marcador as linhas (ou trechos) escritas como ordem ao modelo, com normalização de acentos, homoglifos, leetspeak e palavras soletradas, e contá-las (`instructions_removed`); como o marcador não parece exame, ele sai do OCR como `[TEXTO_REMOVIDO]` | Decidir o que é exame |
 | `api/main.py` | Criar e consultar agendamentos (FastAPI + SQLite), com `Idempotency-Key` opcional, cabeçalhos de segurança em toda resposta e uma linha de log JSON por requisição. Ao subir (lifespan do FastAPI), prepara a chave do banco, o catálogo e o banco, nessa ordem; importar o módulo não lê configuração nem abre arquivo | Aceitar código fora de `FICT-\d{3}` |
 | `api/crypto.py` | Cifrar a lista de exames de cada agendamento (AES-256-GCM, presa ao `id`, ao status e à data); criar a chave no volume `api-key` na 1ª subida | Guardar a chave no volume do banco |
+| `api/backup.py` | Copiar o banco com a API no ar (API de backup do SQLite, consistente com o WAL) e restaurar a cópia depois de decifrar cada agendamento com a chave atual ([passos](como-rodar.md#backup-e-restauração)) | Copiar a chave junto com o banco |
 
 ### As regras que o `agent.py` importa
 

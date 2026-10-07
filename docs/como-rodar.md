@@ -181,6 +181,34 @@ Todas as que o código lê. As do `.env` chegam só ao serviço que as usa; as o
 | `AGENT_NO_QUESTIONS` | vazia | agente gerado | Não vazia: nenhuma pergunta `[s/N]`, e o exame que precisava de um "sim" fica de fora. O `run --yes` a define. |
 | `CI` | vazia | agente gerado | Não vazia (como no GitHub Actions): o mesmo que `AGENT_NO_QUESTIONS`. |
 
+## Backup e restauração
+
+O banco (SQLite) fica no volume `api-data`, e a chave que cifra as listas de exames, no volume `api-key` (ou em `DB_ENCRYPTION_KEY`, no `.env`). A cópia do banco leva os exames cifrados e nunca a chave. Guarde as duas **separadas**, a chave num cofre de senhas, por exemplo: quem tem as duas lê os dados, e é para isso que a chave fica num volume à parte. A restauração precisa das duas.
+
+1. **A chave, uma vez** (ela não muda). Se você definiu `DB_ENCRYPTION_KEY` no `.env`, a chave é essa; senão, copie a do volume, guarde o conteúdo longe da cópia do banco e apague o arquivo:
+   ```bash
+   docker compose cp api:/keys/db.key ./db.key
+   ```
+2. **A cópia do banco, com a API no ar** (crie a pasta `backup` uma vez, com `mkdir backup`):
+   ```bash
+   docker compose exec api python -m api.backup --saida /state/backup.db
+   docker compose cp api:/state/backup.db ./backup/appointments.db
+   docker compose exec api rm /state/backup.db
+   ```
+   - **Consistente com a API gravando:** a cópia usa a API de backup do SQLite, que inclui os agendamentos recentes ainda no WAL (copiar só o arquivo `.db` perderia esses). Sai um arquivo só, e `--saida` nunca sobrescreve um arquivo.
+   - **Por que `/state`:** os containers são somente leitura, e o volume do banco é o lugar gravável da API (o `/tmp` é um tmpfs, que o `docker compose cp` não enxerga). A cópia fica nele só até o `cp`.
+   - **Saída:** `cópia gravada em /state/backup.db: 3 agendamento(s), com os exames cifrados; a chave do banco não vai na cópia (guarde-a à parte)`. O `.gitignore` já ignora `*.db` e `*.key`.
+3. **A restauração, com a API parada:**
+   ```bash
+   docker compose stop api
+   docker compose run --rm --no-deps -v ./backup:/backup:ro api python -m api.backup --entrada /backup/appointments.db
+   docker compose up -d --wait
+   ```
+   - **A chave primeiro:** com o volume `api-key` intacto, nada a fazer. Numa máquina nova, ponha a chave guardada em `DB_ENCRYPTION_KEY=` no `.env` antes (ela tem precedência sobre o volume). Sem chave, a restauração para e não cria outra: `Erro: chave do banco não encontrada (…): restaure primeiro a chave da gravação; nada foi restaurado`.
+   - **Conferida antes de gravar:** a cópia passa pelo `integrity_check` do SQLite e cada agendamento é decifrado com a chave atual. Com a chave errada, nada muda: `Erro: não foi possível decifrar o registro: a chave não é a da gravação ou o dado foi alterado no banco; nada foi restaurado`.
+   - **Banco com dados:** um banco que já tem agendamentos só é trocado com `--substituir` no fim do comando; o que entrou depois da cópia se perde.
+   - **Saída:** `banco restaurado em /state/appointments.db: 3 agendamento(s), todos decifrados com a chave atual`. Testes em [`test_backup.py`](../tests/test_backup.py).
+
 ## Quando algo falha
 
 Erros saem como uma linha `Erro: ...`, com código 2. Por exemplo: serviço fora do ar ou chave ausente. Para ver o que aconteceu por trás dela, rode de novo com `--verbose`.
@@ -230,7 +258,7 @@ docker compose run --rm tests pytest -q -n auto
   - o OCR nas imagens de exemplo, com a PII mascarada;
   - a busca do RAG;
   - as duas ferramentas MCP chamadas via SSE, como o agente faz;
-  - a API (criação, consulta, `404`, `422`) e os cabeçalhos de segurança em cada resposta ([`test_api_headers.py`](../tests/test_api_headers.py));
+  - a API (criação, consulta, `404`, `422`), os cabeçalhos de segurança em cada resposta ([`test_api_headers.py`](../tests/test_api_headers.py)) e o backup e a restauração do banco ([`test_backup.py`](../tests/test_backup.py));
   - cada tipo de PII;
   - o detector de injeção ([`tests/test_injection.py`](../tests/test_injection.py)), com o corpus do próprio projeto em `tests/attacks/` (790 ataques e 1.404 linhas legítimas, 1.353 distintas);
   - a cifra do banco e a chave no volume ([`test_crypto.py`](../tests/test_crypto.py)) e a `Idempotency-Key` ([`test_idempotencia.py`](../tests/test_idempotencia.py));
