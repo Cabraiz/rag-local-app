@@ -4,34 +4,34 @@
 
 [![CI](https://github.com/Cabraiz/rag-local-app/actions/workflows/challenge.yml/badge.svg)](https://github.com/Cabraiz/rag-local-app/actions/workflows/challenge.yml) ![Python 3.12](https://img.shields.io/badge/python-3.12-blue) ![Google ADK 2.10](https://img.shields.io/badge/Google%20ADK-2.10-4285F4) ![MCP SSE](https://img.shields.io/badge/MCP-SSE-6E56CF) ![Docker Compose](https://img.shields.io/badge/docker-compose-2496ED)
 
-https://github.com/user-attachments/assets/a6e9fd9e-be6f-48ed-ba4e-356cc72f631b
-
-<sub>Todos os pontos do desafio em um vídeo, gravado numa execução real ([mp4](videos-do-desafio/00-desafio-completo.mp4)).</sub>
-
 ### TL;DR
 
-- **Transpilador:** [`specs/agent.json`](specs/agent.json) → `generated/agent.py`, compilado e importado antes do OK (fica no volume `generated`; cópia conferida por teste em [`docs/exemplo-agent.py`](docs/exemplo-agent.py)).
-- **Spec genérica:** a spec declara os servidores (MCP ou OpenAPI), as ferramentas de cada agente e o papel de cada uma (ler, buscar, agendar); os hosts aceitos vêm de `ALLOWED_HOSTS`. Há 4 specs de exemplo em [`specs/`](specs/), e [`listar-exames.json`](specs/listar-exames.json) só lista os exames, sem agendar.
-- **Só Google ADK:** os agentes são classes do ADK; [`runtime/`](runtime/) é a biblioteca de runtime do transpilador (interface 3), com os callbacks e utilitários que eles usam. [Um teste](tests/test_runtime.py) importa o `agent.py` e agenda por ele só com ela e o `catalogo.py`, fora do repositório.
-- **OCR e RAG como servidores MCP, exclusivamente via SSE.** A base tem 120 exames fictícios; a busca é lexical (palavras em comum + `difflib`), determinística, sem embeddings ([por quê](docs/arquitetura.md#decisões-técnicas-em-detalhe)). Busca semântica avaliada e medida, não adotada: [ver medições](docs/medicoes.md#busca-semântica-avaliada-não-adotada).
-- **Ponta a ponta:** imagem → OCR → RAG → `POST /appointments` → tabela exame → código e a confirmação da API.
-- **PII mascarada dentro do OCR**, antes do LLM e do banco; os códigos são conferidos em código antes do `POST`.
-- **Testes:** 376 funções (17,3 mil casos), ruff, mypy (checagem leve) e 98% de cobertura na CI ([números](docs/medicoes.md)). Rodar: `docker compose run --rm tests pytest -q -n auto`, cerca de 3,5 min em 12 núcleos, sempre sem a chave; o ponta a ponta real com o Gemini é à parte: `docker compose run --rm tests-e2e` ([testes](docs/como-rodar.md#testes)).
+- **Transpilador:** [`specs/agent.json`](specs/agent.json) → `agent.py` com agentes do Google ADK, compilado e importado antes do OK ([exemplo gerado](docs/exemplo-agent.py)).
+- **Ponta a ponta:** imagem → OCR (MCP via SSE) → RAG (MCP via SSE) → `POST /appointments` → tabela exame → código e a confirmação da API.
+- **PII mascarada dentro do OCR**, antes do LLM. O banco não recebe PII: cada exame fica como código e nome do catálogo, cifrados.
+- **Agendamento conferido em código:** o modelo só propõe; só entram códigos que a busca devolveu e que estão no pedido.
+- **Cada requisito do enunciado**, com o código e a prova: [Onde está cada parte](#onde-está-cada-parte).
 
 ### Rodar em 4 comandos
 
-- **Requer:** Docker com Compose ≥ 2.1.1 (Docker Desktop aberto no Windows e no macOS; Docker Engine no Linux) e uma [chave Gemini](https://aistudio.google.com/apikey); a gratuita basta, porque os dados são fictícios ([licenças e dados](docs/licencas.md#dados-e-ia)).
-- **Pasta:** `git clone https://github.com/Cabraiz/rag-local-app`, depois `cd rag-local-app`; rode tudo ali. No Windows, use PowerShell ou Git Bash, não o `cmd.exe`; no Linux e no macOS, qualquer shell.
+- **Requer:** Docker com Compose ≥ 2.1.1 (Docker Desktop aberto no Windows e no macOS; Docker Engine no Linux) e uma [chave Gemini](https://aistudio.google.com/apikey).
+- **Chave gratuita:** funciona. No plano gratuito, o Google pode usar o conteúdo enviado; aqui isso só é aceitável porque os dados são fictícios ([licenças e dados](docs/licencas.md#dados-e-ia)).
+- **Pasta:** `git clone https://github.com/Cabraiz/rag-local-app`, depois `cd rag-local-app`; rode tudo ali. No Windows, use PowerShell ou Git Bash, não o `cmd.exe`.
 - **Porta:** a API usa a 8765 (outra em `API_PORT` no `.env`). Erros e variações: [guia completo](docs/como-rodar.md).
 
 ```bash
 cp .env.example .env                                                     # preencha GOOGLE_API_KEY= (no Windows: notepad .env)
-docker compose up -d --wait                                              # ocr, rag e api saudáveis (1º build: 10 a 20 min)
-docker compose run --rm agent python -m cli transpile specs/agent.json   # JSON → generated/agent.py (o 1º constrói a imagem do agent: alguns minutos, 2 a 6)
+docker compose up -d --wait                                              # ocr, rag e api saudáveis (1º build, sem cache: 10 a 20 min)
+docker compose run --rm agent python -m cli transpile specs/agent.json   # JSON → generated/agent.py, no volume Docker (1º build do agent, sem cache: 2 a 6 min)
 docker compose run --rm agent python -m cli run --image pedido.png       # imagem de samples/, só pelo nome; OCR → RAG → agendamento (1 a 7 min, conforme a fila do Gemini)
 ```
 
-Com o `up` no ar, o Swagger fica em <http://127.0.0.1:8765/docs> (ou na porta de `API_PORT`).
+- **Onde fica o `agent.py`:** no volume Docker `generated`, não na pasta `generated/` do host, que fica vazia. Para vê-lo: `docker compose run --rm agent cat generated/agent.py`.
+- **Swagger:** com o `up` no ar, em <http://127.0.0.1:8765/docs> (ou na porta de `API_PORT`).
+
+https://github.com/user-attachments/assets/71003c50-f603-4dcb-babe-4569b4734ed9
+
+<sub>Todos os pontos do desafio em um vídeo, gravado numa execução real ([mp4](videos-do-desafio/00-desafio-completo.mp4)).</sub>
 
 <details>
 <summary>O <code>up</code> falhou com <code>all predefined address pools have been fully subnetted</code>?</summary>
@@ -60,9 +60,19 @@ Agendamento confirmado pela API: id a05f0421…, status scheduled
 Tempo: OCR 6,1 s · busca 35 s · agendamento 51 s · total 232 s (modelo gemini-3.5-flash)
 ```
 
-O total inclui os turnos do Gemini ([como é medido](docs/como-rodar.md#3-executar-o-agente)). Um exame de confiança média gera `Incluir? [s/N]`, só num terminal interativo.
+- **Tempo:** o total inclui os turnos do Gemini ([como é medido](docs/como-rodar.md#3-executar-o-agente)).
+- **Modelo reserva:** se o `gemini-3.5-flash` da spec continuar indisponível (`429` ou `503`) depois de 5 tentativas, e nada tiver ido à API, a CLI avisa e roda de novo com o modelo reserva da spec, `gemini-3.5-flash-lite`.
+- **Pergunta `[s/N]`:** um exame de confiança média gera `Incluir? [s/N]`, só num terminal interativo.
+- **Parar e limpar:** `docker compose --profile cli --profile test down -v` remove os containers, as redes e os volumes (o banco, a chave dele e o `agent.py` gerado). As imagens ficam; para apagá-las também, acrescente `--rmi local`.
 
-Para parar e limpar tudo, inclusive o banco e a chave dele: `docker compose --profile cli down -v`.
+## Em resumo
+
+- **Spec genérica:** a spec declara os servidores (MCP ou OpenAPI), as ferramentas de cada agente e o papel de cada uma (ler, buscar, agendar). Há 4 specs de exemplo em [`specs/`](specs/); [`listar-exames.json`](specs/listar-exames.json) só lista os exames, sem agendar.
+- **Agentes do Google ADK, regras do projeto:** os agentes são instanciados só com classes do ADK. O `agent.py` também importa a pequena biblioteca de runtime do projeto, [`runtime/`](runtime/), com as regras de agendamento ([o que o `agent.py` usa](#o-que-o-agentpy-usa)).
+- **OCR e RAG como servidores MCP, exclusivamente via SSE.** A base tem 120 exames fictícios.
+- **Busca lexical:** palavras em comum + `difflib`, determinística, sem embeddings ([por quê](docs/arquitetura.md#decisões-técnicas-em-detalhe)). A busca semântica foi avaliada e medida, mas não adotada ([medições](docs/medicoes.md#busca-semântica-avaliada-não-adotada)).
+- **Testes:** 369 funções (17,3 mil casos), ruff, mypy (checagem leve) e 98% de cobertura na CI ([números](docs/medicoes.md)).
+- **Rodar os testes:** `docker compose run --rm tests pytest -q -n auto`, cerca de 3,5 min em 12 núcleos, sempre sem a chave. O ponta a ponta real com o Gemini é à parte: `docker compose run --rm tests-e2e` ([testes](docs/como-rodar.md#testes)).
 
 ## Onde está cada parte
 
@@ -79,7 +89,7 @@ Cada requisito do enunciado, na ordem do PDF, com o código e uma prova que se a
 | 7 | RAG via MCP com SSE, ≥ 100 exames | [`mcp_servers/rag.py`](mcp_servers/rag.py), [`data/exams.json`](data/exams.json) (120) | [vídeo 03](docs/videos.md#03-rag-via-mcp-sse) · [testes](tests/test_rag.py) |
 | 8 | Agendamento numa API FastAPI | [`api/main.py`](api/main.py), [`api/crypto.py`](api/crypto.py) | [vídeo 04](docs/videos.md#04-api-e-swagger) · [API](tests/test_api.py) · [cifra](tests/test_crypto.py) |
 | 9 | Saída: exames com códigos e confirmação da API | [`cli.py`](cli.py) | [vídeo 05](docs/videos.md#05-ponta-a-ponta-com-gemini) · [saída esperada](#rodar-em-4-comandos) |
-| 10 | Só dados fictícios | [`data/exams.json`](data/exams.json) (`FICT-xxx`), [`samples/`](samples/), [`tests/load/pedidos.py`](tests/load/pedidos.py) | `.invalid`, CPF inválido de propósito ([como](docs/medicoes.md#dados-sensíveis-como-contornamos)) |
+| 10 | Só dados fictícios | [`data/exams.json`](data/exams.json) (`FICT-xxx`), [`samples/`](samples/), [`tests/load/pedidos.py`](tests/load/pedidos.py) | e-mails no domínio `.invalid`, reservado pela RFC 2606 e que nunca existe; CPFs gerados com o dígito verificador errado, que não podem ser de uma pessoa real ([como](docs/medicoes.md#dados-sensíveis-como-contornamos)) |
 | 11 | MCP exclusivamente via SSE; como iniciar e como o agente se conecta | [`mcp_servers/`](mcp_servers/), [`docker-compose.yml`](docker-compose.yml) | [Servidores MCP](docs/arquitetura.md#servidores-mcp) |
 | 12 | Swagger (`/docs`) com o contrato que o agente consome | [`api/main.py`](api/main.py) | [URL e interface](#evidências) · [operações](docs/como-rodar.md#1-subir-o-ambiente-docker) |
 | 13 | Camada de PII antes do LLM e da persistência (mais a neutralização de injeção) | [`guardrails/pii.py`](guardrails/pii.py), [`guardrails/injection.py`](guardrails/injection.py) | vídeos [06](docs/videos.md#06-pii) e [08](docs/videos.md#08-segurança) · [PII](tests/test_pii.py) · [injeção](tests/test_injection.py) · [onde](docs/arquitetura.md#onde-a-pii-é-mascarada) · [números](docs/medicoes.md) |
@@ -101,16 +111,41 @@ flowchart LR
     E & S & A -.->|só texto mascarado| G(("Gemini"))
 ```
 
-O `docker compose up` sobe OCR e RAG como servidores MCP com SSE, em `http://ocr:8001/sse` e `http://rag:8002/sse` (rede interna, sem porta no host); o agente conecta com `McpToolset(SseConnectionParams(url=…))` e lê a API pelo `/openapi.json` ([servidores MCP](docs/arquitetura.md#servidores-mcp)). A spec escolhe os servidores, mas o host e a porta de cada URL precisam estar em `ALLOWED_HOSTS`, configurado por quem implanta: o padrão é `ocr:8001,rag:8002,api:8000`, só essas portas, e `localhost` ou `127.0.0.1` só entram se forem listados. No `transpile`, cada servidor que responde diz quais ferramentas tem, e uma que ele não tem é recusada; se ele não responder, vale a lista da spec ([por quê](docs/transpilador.md#campos-da-spec)). No `run`, todos precisam responder e listar as ferramentas, o `agent.py` precisa ser o que a spec gera hoje, e os toolsets conferem `ALLOWED_HOSTS` de novo ao importar. Etapas, rede, fluxo de dados, decisões técnicas e erros: [docs/arquitetura.md](docs/arquitetura.md).
+O `docker compose up` sobe OCR e RAG como servidores MCP com SSE ([servidores MCP](docs/arquitetura.md#servidores-mcp)):
+
+- **Endereços:** `http://ocr:8001/sse` e `http://rag:8002/sse`, na rede interna, sem porta no host.
+- **Conexão:** o agente conecta com `McpToolset(SseConnectionParams(url=…))` e lê a API pelo `/openapi.json`.
+- **Hosts permitidos:** a spec escolhe os servidores, mas o host e a porta de cada URL precisam estar em `ALLOWED_HOSTS`, configurado por quem implanta.
+- **Padrão de `ALLOWED_HOSTS`:** `ocr:8001,rag:8002,api:8000`, só essas portas. `localhost` e `127.0.0.1` só entram se forem listados.
+- **No `transpile`:** cada servidor que responde diz quais ferramentas tem, e uma ferramenta que ele não tem é recusada. Se ele não responder, vale a lista da spec ([por quê](docs/transpilador.md#campos-da-spec)).
+- **No `run`:** todos os servidores precisam responder e listar as ferramentas, e o `agent.py` precisa ser o que a spec gera hoje.
+- **Na importação do `agent.py`:** os toolsets conferem `ALLOWED_HOSTS` de novo.
+
+Etapas, rede, fluxo de dados, decisões técnicas e erros: [docs/arquitetura.md](docs/arquitetura.md).
+
+### O que o `agent.py` usa
+
+- **Classes do Google ADK:** `LlmAgent` (uma por etapa), `SequentialAgent` (a ordem), `McpToolset` (OCR e RAG) e `OpenAPIToolset` (a API). Os dois toolsets passam por uma camada fina do runtime, que confere o host.
+- **A biblioteca de runtime do projeto, [`runtime/`](runtime/)** (que usa o [`catalogo.py`](catalogo.py)), com as regras, iguais para toda spec:
+  - os callbacks da política de agendamento: só códigos que a busca devolveu, um trecho do pedido por exame e as faixas de confiança;
+  - o que é permitido: os hosts de `ALLOWED_HOSTS` e só as ferramentas que têm papel na spec;
+  - a confirmação `[s/N]`, decidida em código e pedida pela confirmação nativa do ADK.
+- **Versão da biblioteca:** o `agent.py` grava a versão do runtime para a qual foi gerado (`API_VERSION`, hoje 3). Com um runtime de outra versão, a importação para com uma mensagem clara.
+- **A CLI ([`cli.py`](cli.py))** cria a sessão do ADK e põe no estado dela o apelido da imagem (`pedido-1.png`), para o modelo nunca ver o nome real do arquivo.
+- **[Um teste](tests/test_runtime.py)** gera o `agent.py` e o copia, com o `runtime/` e o `catalogo.py`, para uma pasta fora do repositório. Num Python limpo, importa o agente e chama os callbacks direto, com um contexto falso e respostas simuladas do OCR e da busca.
+- **O que esse teste confere:** o exame lido com clareza fica na chamada de agendamento, e o da faixa do meio sai, porque não há quem responda. Ele não roda o agente, não agenda nada e não chama nenhuma API.
 
 ## Segurança
 
 - **PII mascarada na origem:** nome, CPF, telefone, e-mail e mais 10 tipos viram `[NOME]`, `[CPF]`… dentro do OCR, e só sai dele o que parece exame.
-- **Injeção pelo texto da imagem** é tirada da linha. No corpus que nós geramos ([`tests/attacks/generate.py`](tests/attacks/generate.py)), 0 de 790 ataques passam intactos e 0 de 1.404 linhas legítimas (1.353 distintas) são removidas: é um teste de regressão, não prova de segurança.
+- **Injeção pelo texto da imagem** é tirada da linha: 0 de 790 ataques do corpus do próprio projeto ([`tests/attacks/generate.py`](tests/attacks/generate.py)) passam intactos. É um teste de regressão, não prova de segurança.
+- **Sem falso positivo nesse corpus:** 0 de 1.404 linhas legítimas (1.353 distintas) são removidas.
 - **Agendamento conferido em código** ([`runtime/`](runtime/callbacks.py)): só códigos buscados e presentes no pedido; ≥ 0,90 agenda, 0,70 a 0,90 pergunta `[s/N]`, abaixo avisa.
 - **Foto ruim recusada antes do OCR**, com a dica do que fazer; uma página de lado é endireitada e lida.
 - **Menor privilégio:** cada agente só vê as ferramentas que a spec lhe dá; containers sem root e somente leitura; OCR e RAG sem internet; só a API publica porta, em `127.0.0.1`.
-- **Banco cifrado:** exames em AES-256-GCM, com a chave no volume `api-key`, que a API prepara ao subir; a chave Gemini só vai para os serviços `agent` e `tests-e2e`.
+- **Banco sem PII:** a API só aceita código e nome de cada exame (um campo a mais é recusado com `422`) e grava o nome do catálogo, não o texto recebido. Nenhum dado pessoal chega ao SQLite: além dos exames, ele guarda só o id, o status, a data e a `Idempotency-Key` (no agente, um uuid aleatório).
+- **Banco cifrado:** a lista de exames (dado de saúde) fica em AES-256-GCM, com a chave no volume `api-key`, que a API prepara ao subir.
+- **Chave Gemini:** só vai para os serviços `agent` e `tests-e2e`.
 - **Limite por cliente na API:** 1200 requisições por minuto por IP (`API_RATE_LIMIT_PER_MINUTE`; 0 desliga); acima disso, `429` com `Retry-After`. `/health` fica de fora.
 
 [Cada camada em detalhe](docs/arquitetura.md#segurança-em-detalhe).
@@ -136,7 +171,7 @@ Execução real com `gemini-3.5-flash`.
 | CLI: `run` com `pedido.png` | [`cli-run-pedido.png`](evidencias/cli-run-pedido.png) |
 | CLI: `run` com injeção | [`cli-run-ataque.png`](evidencias/cli-run-ataque.png) |
 | CLI: `run` com PII | [`cli-run-pii.png`](evidencias/cli-run-pii.png) |
-| PII persistida cifrada (SQLite) e lida de volta | [`sqlite-cifrado.png`](evidencias/sqlite-cifrado.png) |
+| Lista de exames cifrada no SQLite (sem PII) e lida de volta pela API | [`sqlite-cifrado.png`](evidencias/sqlite-cifrado.png) |
 | CLI: manuscrito com a pergunta `[s/N]` | [`cli-run-manuscrito.png`](evidencias/cli-run-manuscrito.png) |
 | CLI: foto de celular | [`cli-run-foto-celular.png`](evidencias/cli-run-foto-celular.png) |
 | Docker: serviços healthy e testes | [`docker-testes.png`](evidencias/docker-testes.png) |
@@ -148,7 +183,8 @@ Execução real com `gemini-3.5-flash`.
 ## Uso de IA e processo de engenharia
 
 - **Abordagem:** código escrito com Claude Code e OpenAI Codex sob minha direção; arquitetura, contratos e critérios de aceite foram meus, e cada mudança passou por revisão do diff, testes e execução real.
-- **A revisão mudou o código:** ["TGP" lido "TAP" seria agendado](docs/revisao.md#tgp-tap), [exame repetido agendava o vizinho](docs/revisao.md#vizinho), [31 de 84 dados pessoais difíceis passavam](docs/revisao.md#pii-31); 24 correções, 23 travadas por um teste: [docs/revisao.md](docs/revisao.md).
+- **A revisão mudou o código:** ["TGP" lido "TAP" seria agendado](docs/revisao.md#tgp-tap), [exame repetido agendava o vizinho](docs/revisao.md#vizinho), [31 de 84 dados pessoais difíceis passavam](docs/revisao.md#pii-31).
+- **Onde ver cada correção:** [docs/revisao.md](docs/revisao.md) lista as 24 correções e o teste que trava cada uma (23 têm teste). O histórico publicado agrupa o trabalho por camada (API, RAG, PII, OCR, runtime, transpilador, CLI, Docker, testes e documentação), então as correções não aparecem como commits separados.
 - **Referências:** [Google ADK](https://google.github.io/adk-docs/), [MCP: transporte HTTP+SSE](https://modelcontextprotocol.io/specification/2024-11-05/basic/transports), [Gemini API](https://ai.google.dev/gemini-api/docs) e a [lista completa](docs/revisao.md#referências-e-orquestração-do-agente).
 - **Orquestração:** `SequentialAgent` com `extract` (OCR) → `search` (RAG) → `schedule` (API), em ordem fixa porque cada etapa depende da anterior; cada uma passa a saída pelo estado (`output_key`) e só vê as ferramentas que a spec lhe dá (`tool_filter`). O `SequentialAgent` está obsoleto no ADK 2.10, em favor de `Workflow`; mantive porque `Workflow` ainda não é um `BaseAgent` ([por quê](docs/arquitetura.md#decisões-técnicas-em-detalhe)).
 
