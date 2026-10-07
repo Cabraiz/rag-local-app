@@ -163,6 +163,8 @@ class Found(TypedDict, total=False):
     api_error: str | None  # the API's refusal (HTTP code and body)
     blocked: str | None  # why the callback stopped the booking call before the POST
     pii_masked: dict[str, int]  # what the OCR masked, by kind
+    text_removed: int  # pieces the OCR's safety net removed (not counted as PII)
+    unrecognized: list[int]  # numbers of the list items the OCR read but could not tell as exams
     instructions_removed: int  # orders to the model the OCR took out of the text
     candidates: dict[str, Any]  # every code a search returned, with its confidence
     low_confidence: list[dict[str, Any]]  # exams left out, each with its reason
@@ -182,7 +184,7 @@ class Found(TypedDict, total=False):
 
 def new_found() -> Found:
     return {'api_called': False, 'appointment': None, 'api_error': None, 'blocked': None, 'pii_masked': {},
-            'instructions_removed': 0, 'candidates': {}, 'low_confidence': [], 'confirmed': [], 'answers': {},
+            'text_removed': 0, 'unrecognized': [], 'instructions_removed': 0, 'candidates': {}, 'low_confidence': [], 'confirmed': [], 'answers': {},
             'idempotency_key': None, 'tools_called': set(), 'tool_seconds': {}, 'ocr_read': True,
             'listing': [], 'invented': []}
 
@@ -240,9 +242,11 @@ async def run_agent(root_agent, image, spec, found):
             message = await answers_to(requests, started) if requests else None
         # The agent's callbacks left in session state what the OCR read and what the search found.
         state = (await runner.session_service.get_session(app_name='clinic', user_id='cli', session_id=session.id)).state
-        for key in ('pii_masked', 'instructions_removed', 'candidates', 'low_confidence', 'confirmed', 'listing',
-                    'invented'):
+        for key in ('pii_masked', 'text_removed', 'instructions_removed', 'candidates', 'low_confidence', 'confirmed',
+                    'listing', 'invented'):
             found[key] = state.get(key, found[key])
+        found['unrecognized'] = [index + 1 for index, kind in enumerate(state.get('ocr_intent') or [])
+                                 if kind == 'unrecognized']
         found['ocr_read'] = 'ocr_lines' in state
         found['ocr_error'] = state.get('ocr_error')
         found['file_refused'] = state.get('file_refused', False)
@@ -364,22 +368,34 @@ LEFT_OUT = {
     'not_searched': 'não buscado pelo agente: {guess}; confira o pedido',  # only the check of the whole order found it
     'score': 'baixa confiança: {guess}; confira o pedido',
 }
+# Left out for what the order says, whatever the confidence; {seen} is "'<line read>' → <exam> <code>".
+REFUSED = {
+    'negated': 'não agendado: {seen}; o pedido diz para não realizar',
+    'history': 'não agendado: {seen}; o pedido diz que já foi realizado',
+    'prep': 'não agendado: {seen}; a linha é uma orientação de preparo, não um pedido',
+    'line_used': 'não agendado: {seen}; o mesmo trecho da linha já foi usado por {used_by}; confira o pedido',
+}
 
 
 def print_reading(found):
     """What the OCR masked or removed, the exams the person confirmed and the ones left out."""
     masked = ', '.join(f'{kind} x{count}' for kind, count in found['pii_masked'].items())
     print(f'\nPII mascarada pelo OCR: {masked or "nenhuma"}')
+    if found.get('text_removed'):  # not PII by the rules, but it may hold a name they did not recognize
+        print(f'Trechos removidos pelo OCR (não pareciam exame): {found["text_removed"]}')
     if found['instructions_removed']:
         print(f'Instruções neutralizadas no OCR: {found["instructions_removed"]}')
+    for number in found.get('unrecognized', []):  # its text never leaves the OCR: only where it is
+        print(f'lido mas não reconhecido no catálogo: linha {number}; confira o pedido')
     for item in found['confirmed']:
         print(f"incluído com a sua confirmação: '{item['read']}' → {item['name']} {item['code']}")
     for item in found['low_confidence']:
         # the same number, and the same words, as the [s/N] question: the confidence the policy decided on
         confidence = f'{item["confidence"]:.2f}'.replace('.', ',')
-        guess = f"'{item['read']}' → {item['name']} {item['code']} (confiança {confidence})"
-        if item.get('reason') == 'line_used':
-            print(f"não agendado: '{item['read']}' já foi usada por {item['used_by']}; confira o pedido")
+        seen = f"'{item['read']}' → {item['name']} {item['code']}"
+        guess = f'{seen} (confiança {confidence})'
+        if item.get('reason') in REFUSED:
+            print(REFUSED[item['reason']].format(seen=seen, used_by=item.get('used_by')))
         else:
             print(LEFT_OUT.get(item.get('reason'), LEFT_OUT['score']).format(guess=guess))
     if found.get('order_unchecked'):

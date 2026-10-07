@@ -845,7 +845,8 @@ def test_exam_left_out_for_a_used_line_is_not_called_low_confidence(ready_run, m
                                                     'candidates': {'FICT-003': {}}}))
     assert cli.main(ready_run) == 0
     out = capsys.readouterr().out
-    assert "não agendado: 'Hemoglobina' já foi usada por Hemoglobina glicada; confira o pedido" in out
+    assert ("não agendado: 'Hemoglobina' → Hemograma completo FICT-001; o mesmo trecho da linha já foi usado por "
+            "Hemoglobina glicada; confira o pedido") in out
     assert "baixa confiança: '- GA' → IgA FICT-079 (confiança 0,80); confira o pedido" in out
     assert 'score 1.00' not in out
 
