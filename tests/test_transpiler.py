@@ -163,8 +163,25 @@ def test_generated_code_that_does_not_import_is_one_clear_error(tmp_path, monkey
     monkeypatch.setattr(transpiler.generator.TEMPLATE, 'template', 'import adk_that_is_not_installed\n')
     with pytest.raises(TranspileError) as error:
         transpile(SPEC_FILE, tmp_path / 'agent.py')
-    assert error.value.problems[0].endswith(
-        "o código gerado não pôde ser importado (ModuleNotFoundError: No module named 'adk_that_is_not_installed')")
+    assert error.value.problems[0] == (
+        f"{tmp_path / 'agent.py'}: o código gerado não pôde ser importado "
+        "(ModuleNotFoundError: No module named 'adk_that_is_not_installed')")
+    assert list(tmp_path.rglob('*.py*')) == []  # nothing half-written is left behind
+
+
+def test_an_agent_that_does_not_import_leaves_the_previous_one_in_place(tmp_path, monkeypatch):
+    import transpiler.generator
+    output = tmp_path / 'agent.py'
+    transpile(SPEC_FILE, output)
+    before = output.read_bytes()
+    monkeypatch.setattr(transpiler.generator.TEMPLATE, 'template', 'root_agent = None\nraise RuntimeError("x")\n')
+    with pytest.raises(TranspileError, match='não pôde ser importado'):
+        transpile(SPEC_FILE, output)
+    assert output.read_bytes() == before  # the working agent is untouched
+    # no temporary file, nor its compiled .pyc, is left next to it
+    assert sorted(path.name for path in tmp_path.rglob('*') if path.is_file() and 'agent-' in path.name) == []
+    monkeypatch.undo()
+    assert load_root_agent(output).name == 'clinic_scheduler'
 
 
 def test_a_long_instruction_that_would_not_split_back_is_a_transpile_error(monkeypatch):

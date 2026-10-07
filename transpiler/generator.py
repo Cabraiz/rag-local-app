@@ -1,7 +1,9 @@
 """AgentSpec -> generated/agent.py (Google ADK), then compile and import it."""
 import importlib.util
+import os
 import py_compile
 import re
+import tempfile
 import textwrap
 from pathlib import Path
 from string import Template
@@ -161,17 +163,38 @@ def render(spec, spec_file):
     )
 
 
-def load_root_agent(path):
-    """Compile and import the generated file; return its root_agent."""
+def load_root_agent(path, shown=None):
+    """Compile and import the generated file; return its root_agent. `shown`: the name an error
+    gives the file (the final path, when `path` is a temporary file next to it)."""
     try:
         py_compile.compile(str(path), doraise=True)
         module_spec = importlib.util.spec_from_file_location('generated_agent', path)
+        if module_spec is None or module_spec.loader is None:
+            raise ImportError('não é um módulo Python')
         module = importlib.util.module_from_spec(module_spec)
         module_spec.loader.exec_module(module)
         return module.root_agent
     except Exception as error:  # e.g. ADK missing or another version: one clear line, no traceback
-        raise TranspileError([f'{path}: o código gerado não pôde ser importado '
+        raise TranspileError([f'{shown or path}: o código gerado não pôde ser importado '
                               f'({type(error).__name__}: {str(error)[:200]})']) from None
+
+
+def write_checked(output, source):
+    """Write the agent to `output` only once it imports: first to a temporary file in the same folder,
+    then os.replace, atomic. If it does not import, the previous file stays as it was."""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    handle, name = tempfile.mkstemp(prefix=f'.{output.stem}-', suffix='.py', dir=output.parent)
+    temporary = Path(name)
+    try:
+        with os.fdopen(handle, 'w', encoding='utf-8') as file:
+            file.write(source)
+        os.chmod(temporary, 0o644)  # mkstemp makes it 0600; agent.py stays readable as before
+        root_agent = load_root_agent(temporary, shown=output)
+        os.replace(temporary, output)
+        return root_agent
+    finally:
+        temporary.unlink(missing_ok=True)  # already gone after os.replace
+        Path(importlib.util.cache_from_source(str(temporary))).unlink(missing_ok=True)  # py_compile's .pyc
 
 
 def load_spec(spec_path):  # file -> AgentSpec, read errors as TranspileError
@@ -193,7 +216,4 @@ def transpile(spec_path, output_path, checked=None):
         raise TranspileError(problems)
     if checked is not None:
         checked.extend(name for name, tools in live.items() if tools is not None)
-    output = Path(output_path)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(render(spec, spec_path), encoding='utf-8')
-    return load_root_agent(output)
+    return write_checked(Path(output_path), render(spec, spec_path))
