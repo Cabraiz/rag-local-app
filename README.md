@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Cabraiz/rag-local-app/actions/workflows/challenge.yml/badge.svg)](https://github.com/Cabraiz/rag-local-app/actions/workflows/challenge.yml) ![Python 3.12](https://img.shields.io/badge/python-3.12-blue) ![Google ADK 2.10](https://img.shields.io/badge/Google%20ADK-2.10-4285F4) ![MCP SSE](https://img.shields.io/badge/MCP-SSE-6E56CF) ![Docker Compose](https://img.shields.io/badge/docker-compose-2496ED)
 
-https://github.com/user-attachments/assets/71003c50-f603-4dcb-babe-4569b4734ed9
+https://github.com/user-attachments/assets/a6e9fd9e-be6f-48ed-ba4e-356cc72f631b
 
 <sub>Todos os pontos do desafio em um vídeo, gravado numa execução real ([mp4](videos-do-desafio/00-desafio-completo.mp4)).</sub>
 

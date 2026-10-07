@@ -12,7 +12,7 @@ https://github.com/user-attachments/assets/0ead4102-8185-4c90-b87f-4cfb666ca248
 
 JSON válido → `agent.py`; erro claro de campo extra e chave duplicada ([mp4](../videos-do-desafio/01-transpilador.mp4))
 
-https://github.com/user-attachments/assets/9c9d24f5-2baa-4646-9a85-e226a6305a42
+https://github.com/user-attachments/assets/4ee1ecdc-4865-4b08-aa7f-0f5db2cc64bb
 
 ### 05. Ponta a ponta com Gemini
 
@@ -66,4 +66,4 @@ https://github.com/user-attachments/assets/18c47964-e4e9-4fc2-b4f8-fa814f34a093
 
 Serviços healthy e a suíte inteira no serviço `tests` (`17254 passed`, `exit=0`); o `1 skipped` é o teste ponta a ponta, que precisa da chave Gemini ([mp4](../videos-do-desafio/07-docker-testes.mp4))
 
-https://github.com/user-attachments/assets/5cf3d983-ddaa-474a-9c21-4416c3f9d0da
+https://github.com/user-attachments/assets/c0d8d339-63fe-492a-9453-d1f6a6f522f6
