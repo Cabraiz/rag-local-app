@@ -22,7 +22,7 @@ jobs:
 
       # Known vulnerabilities in the pinned requirements and everything they pull in, before the
       # long build. The Python of the Dockerfile, so the same versions resolve.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
