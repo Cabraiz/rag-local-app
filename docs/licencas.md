@@ -19,9 +19,9 @@ do `ocr` e de testes (`test`), e o pytest só na de testes.
 | pydantic | 2.13.5 | MIT | Validação da spec e dos contratos |
 | cryptography | 50.0.2 | Apache-2.0 ou BSD-3-Clause | Cifra AES-GCM do banco |
 | httpx | 0.28.1 | BSD-3-Clause | Cliente HTTP (CLI e testes) |
-| pillow | 12.1.0 | MIT-CMU | Leitura de imagens para o OCR |
+| pillow | 12.3.0 | MIT-CMU | Leitura de imagens para o OCR |
 | pytesseract | 0.3.13 | Apache-2.0 | Ponte Python para o Tesseract |
-| pytest | 8.4.2 | MIT | Testes |
+| pytest | 9.0.3 | MIT | Testes |
 | tesseract-ocr, libtesseract5 (Debian) | 5.5.0 | Apache-2.0 | Motor de OCR |
 | tesseract-ocr-por, -eng, -osd (Debian) | 4.1.0 | Apache-2.0 | Dados de idioma do OCR |
 | libleptonica6 (Debian) | 1.84.1 | BSD-2-Clause | Processamento de imagem do Tesseract |
