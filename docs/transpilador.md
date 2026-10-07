@@ -228,12 +228,20 @@ Uma etapa só aparece quando a anterior passa. Saídas reais, cada uma com uma m
 | `short_code` 99 | `Erro: booking.ocr_floor: use line <= short_code <= short_synonym (uma sigla pede leitura mais clara)` |
 | `top_k` 0 | `Erro: booking.top_k: deve ser no mínimo 1` |
 | `min_confidence` 0,5 | `Erro: booking.min_confidence: deve ser no mínimo 0,8` |
+| `"min_confidence": "0.9"`, entre aspas | `Erro: booking.min_confidence: deve ser um número (veio como texto: escreva sem aspas)` |
+| `{{exam_names}}` numa instrução | `Erro: agents.1.instruction: {{exam_names}} não é texto literal: o ADK não tem escape para chaves e lê isso como o placeholder {exam_names}; para citar o nome, escreva-o sem chaves` |
 | um 4º agente que também agenda | `Erro: agents.3.tools: api.create_appointment já está em outro agente: um pedido, um agendamento` |
 | `model` que não é Gemini | `Erro: model: formato inválido: esperado gemini-<versão>` |
 | JSON malformado | `Erro: JSON inválido (linha 60, coluna 3): Expecting ',' delimiter` |
 
 Chaves duplicadas são detectadas no parse (`object_pairs_hook`), porque o `json` padrão
 manteria só a última silenciosamente.
+
+- **Tipos estritos:** um valor de outro tipo JSON é recusado, nunca convertido: `"0.9"` é texto, `3.5` não é inteiro, `true` não é número.
+- **BOM:** um arquivo salvo com BOM UTF-8 (comum em editores do Windows) é lido normalmente.
+- **`NaN` e `Infinity`:** o `json` do Python os aceita, mas não são JSON: são recusados.
+- **Chaves duplas:** o ADK não tem escape para chaves e trata `{{nome}}` como o placeholder `{nome}`; por isso a spec recusa chaves duplas em volta de um nome. Em volta de outro texto (`{{"code": 1}}`), elas ficam como texto.
+- **Mensagens:** todas em português; um erro de schema sem tradução sai como `valor inválido (<tipo do erro>)`.
 
 ## Geração
 

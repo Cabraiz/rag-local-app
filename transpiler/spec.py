@@ -39,7 +39,8 @@ class TranspileError(Exception):
 
 
 class Strict(BaseModel):
-    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    # strict: a value of another JSON type is refused, never converted ("0.9" is text, not a number).
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True, strict=True)
 
 
 class Server(Strict):
@@ -177,7 +178,12 @@ REASONS = {
     'float_parsing': 'deve ser um número',
     'int_type': 'deve ser um número inteiro',
     'int_parsing': 'deve ser um número inteiro',
+    'int_from_float': 'deve ser um número inteiro, sem parte decimal',
+    'bool_type': 'deve ser true ou false',
+    'bool_parsing': 'deve ser true ou false',
     'dict_type': 'deve ser um objeto JSON',
+    'model_attributes_type': 'deve ser um objeto JSON',
+    'finite_number': 'deve ser um número finito',
 }
 PATTERN_HINTS = {
     IDENTIFIER: 'use minúsculas, dígitos e _ (começando por letra)',
@@ -200,9 +206,16 @@ def describe(error):
         reason = 'lista vazia' if error['type'] == 'too_short' else 'itens demais (máximo 10)'
     elif error['type'] in ('tool_ref', 'control_character', 'tool_name', 'server_kind', 'server_name'):
         reason = error['msg']
-    else:
-        reason = REASONS.get(error['type'], error['msg'])
+    else:  # pydantic's own message is in English: an unlisted type is named, not quoted
+        reason = REASONS.get(error['type'], f'valor inválido ({error["type"]})')
+    if error['type'] in ('float_type', 'int_type', 'bool_type') and isinstance(error.get('input'), str):
+        reason += ' (veio como texto: escreva sem aspas)'
     return f'{field}: {reason}'
+
+
+def reject_constant(name):
+    """NaN, Infinity and -Infinity, which Python's json accepts but JSON does not have."""
+    raise TranspileError([f'JSON inválido: {name} não é um número JSON'])
 
 
 def reject_duplicates(pairs):
@@ -298,7 +311,8 @@ def placeholder_problem(field, match, available):
     """Why ADK would fail on this {...} at run time, or None if it is fine or plain text.
 
     ADK fills a valid state name ({key}, {temp:key}, {key?}) or {artifact.name}; anything
-    else ({"code": ...}) stays as text. Only {key} written by an earlier agent is allowed.
+    else ({"code": ...}) stays as text. Only {key} written by an earlier agent is allowed, with single
+    braces: ADK has no escape, so {{key}} would be filled as {key} too.
     """
     name = match.group(1).strip()
     optional = name.endswith('?')
@@ -310,6 +324,10 @@ def placeholder_problem(field, match, available):
         return f'{field}: {match.group(0)} usa o prefixo de estado "{prefix}:"; use só {{output_key}} de um agente anterior'
     if not name.isidentifier():
         return None  # not a placeholder for ADK: stays as text
+    if match.group(0).startswith('{{') or match.group(0).endswith('}}'):
+        # ADK strips every brace around a valid name: {{key}} is the placeholder {key}, not the text {key}.
+        return (f'{field}: {match.group(0)} não é texto literal: o ADK não tem escape para chaves e lê isso como '
+                f'o placeholder {{{name}}}; para citar o nome, escreva-o sem chaves')
     if optional:
         return f'{field}: {match.group(0)} é opcional ("?") e não é aceito; use {{{name}}} de um agente anterior'
     if name not in available:
@@ -374,7 +392,8 @@ def tool_problems(spec, where, agent, done):
 def parse_spec(text):
     """JSON text -> AgentSpec, or TranspileError listing every problem."""
     try:
-        data = json.loads(text, object_pairs_hook=reject_duplicates)
+        data = json.loads(text.removeprefix('﻿'), object_pairs_hook=reject_duplicates,  # a BOM is not JSON
+                          parse_constant=reject_constant)
     except json.JSONDecodeError as error:
         raise TranspileError([f'JSON inválido (linha {error.lineno}, coluna {error.colno}): {error.msg}']) from None
     try:

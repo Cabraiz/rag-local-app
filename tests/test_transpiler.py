@@ -101,6 +101,51 @@ def test_invalid_specs_name_the_field_and_the_reason(text, expected):
     assert any(problem.startswith(expected) for problem in problems(text)), problems(text)
 
 
+@pytest.mark.parametrize('change, expected', [
+    (lambda s: s['booking'].update(min_confidence='0.9'),
+     'booking.min_confidence: deve ser um número (veio como texto: escreva sem aspas)'),
+    (lambda s: s['booking'].update(top_k='3'), 'booking.top_k: deve ser um número inteiro (veio como texto'),
+    (lambda s: s['booking'].update(top_k=3.5), 'booking.top_k: deve ser um número inteiro'),
+    (lambda s: s['booking'].update(ask_from=True), 'booking.ask_from: deve ser um número'),
+    (lambda s: s['booking']['ocr_floor'].update(line='75'), 'booking.ocr_floor.line: deve ser um número'),
+    (lambda s: s.update(name=5), 'name: deve ser texto'),
+    (lambda s: s.update(agents=[1]), 'agents.0: deve ser um objeto JSON'),
+])
+def test_values_of_another_json_type_are_refused_in_portuguese_not_converted(change, expected):
+    found = problems(spec_with(change))
+    assert any(problem.startswith(expected) for problem in found), found
+    assert not [problem for problem in found if 'Input should' in problem]  # pydantic's English never shows
+
+
+def test_an_unlisted_validation_error_is_named_not_quoted_in_english():
+    from transpiler.spec import describe
+    error = {'loc': ('booking', 'top_k'), 'type': 'some_new_type', 'msg': 'Input should be something'}
+    assert describe(error) == 'booking.top_k: valor inválido (some_new_type)'
+
+
+def test_a_spec_saved_with_a_utf8_bom_is_read(tmp_path):
+    from transpiler import load_spec
+    path = tmp_path / 'com-bom.json'
+    path.write_bytes(b'\xef\xbb\xbf' + SPEC_FILE.read_bytes())  # as some Windows editors save it
+    assert load_spec(path).name == SPEC['name']
+    assert parse_spec('﻿' + SPEC_FILE.read_text(encoding='utf-8')).name == SPEC['name']
+
+
+@pytest.mark.parametrize('constant', ['NaN', 'Infinity', '-Infinity'])
+def test_numbers_json_does_not_have_are_refused(constant):
+    text = spec_with(lambda s: s['booking'].update(min_confidence='PLACEHOLDER')).replace('"PLACEHOLDER"', constant)
+    assert problems(text) == [f'JSON inválido: {constant} não é um número JSON']
+
+
+def test_doubled_braces_around_a_name_are_refused_since_adk_reads_them_as_a_placeholder():
+    found = problems(spec_with(lambda s: s['agents'][1].update(instruction='Busque cada exame de {{exam_names}}.')))
+    assert found == ['agents.1.instruction: {{exam_names}} não é texto literal: o ADK não tem escape para chaves e lê '
+                     'isso como o placeholder {exam_names}; para citar o nome, escreva-o sem chaves']
+    # Braces around anything that is not a name stay text for ADK, doubled or not.
+    text = 'Busque cada exame de {exam_names}. Formato: {{"code": "FICT-001"}}.'
+    assert parse_spec(spec_with(lambda s: s['agents'][1].update(instruction=text))).agents[1].instruction == text
+
+
 def test_every_problem_is_reported_at_once():
     def three_problems(spec):
         spec.update(debug=True, model='gpt-4o')
@@ -795,7 +840,7 @@ def test_exam_left_out_for_a_used_line_is_not_called_low_confidence(ready_run, m
     ('{artifact.relatorio}', '{artifact.relatorio} lê um artefato do ADK'),
     ('{exam_names?}', '{exam_names?} é opcional ("?") e não é aceito; use {exam_names} de um agente anterior'),
     ('{Exames}', '{Exames} não é saída de um agente anterior'),
-    ('{{nao_existe}}', '{nao_existe} não é saída de um agente anterior'),
+    ('{{nao_existe}}', '{{nao_existe}} não é texto literal: o ADK não tem escape para chaves'),
 ])
 def test_placeholders_adk_would_fail_on_are_rejected(placeholder, expected):
     text = spec_with(lambda s: s['agents'][1].update(instruction=f'Busque os exames de {placeholder} agora.'))
@@ -812,7 +857,7 @@ def test_placeholder_pattern_matches_the_one_adk_uses():
         assert [m.span() for m in ADK_PLACEHOLDER.finditer(text)] == [m.span() for m in _TEMPLATE_VAR_PATTERN.finditer(text)]
 
 
-@pytest.mark.parametrize('text', ['{{exam_names}}', '{ exam_names }', '{"code": "FICT-001"}', '${exam_codes}', '{}'])
+@pytest.mark.parametrize('text', ['{ exam_names }', '{"code": "FICT-001"}', '{{"code": 1}}', '${exam_codes}', '{}'])
 def test_text_adk_leaves_alone_or_fills_from_an_earlier_step_is_accepted(text):
     parse_spec(spec_with(lambda s: s['agents'][1].update(instruction=f'Busque os exames: {text} {{exam_names}}')))
 

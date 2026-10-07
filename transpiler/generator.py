@@ -199,7 +199,7 @@ def write_checked(output, source):
 
 def load_spec(spec_path):  # file -> AgentSpec, read errors as TranspileError
     try:
-        text = Path(spec_path).read_text(encoding='utf-8')
+        text = Path(spec_path).read_text(encoding='utf-8-sig')  # a BOM (Windows editors) is dropped
     except (OSError, UnicodeDecodeError) as error:
         raise TranspileError([f'{spec_path}: não foi possível ler ({error.__class__.__name__}); '
                               'a spec de exemplo é specs/agent.json']) from None
