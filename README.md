@@ -9,7 +9,7 @@
 - **Transpilador:** [`specs/agent.json`](specs/agent.json) → `agent.py` com agentes do Google ADK, compilado e importado antes do OK ([exemplo gerado](docs/exemplo-agent.py)).
 - **Ponta a ponta:** o agente lê o pedido com o OCR e busca cada exame no RAG, dois servidores MCP via SSE. Depois agenda os códigos com `POST /appointments` e mostra a tabela de exames e códigos, com a confirmação da API.
 - **PII mascarada dentro do OCR**, antes do LLM. O banco não recebe PII: cada exame fica como código e nome do catálogo, cifrados.
-- **Agendamento conferido em código:** o modelo só propõe; só entram códigos que a busca devolveu e que estão no pedido.
+- **Agendamento conferido em código:** o modelo só propõe; só entram códigos que a busca devolveu e que estão escritos numa linha do pedido que os pede. Um exame numa linha que diz para não fazê-lo ("NÃO realizar Ferritina") ou que ele já foi feito nunca é agendado; numa observação ("Obs:"), no máximo é perguntado.
 - **Cada requisito do enunciado**, com o código e a prova: [Onde está cada parte](#onde-está-cada-parte).
 
 ### Rodar em 4 comandos
@@ -141,7 +141,7 @@ Etapas, rede, fluxo de dados, decisões técnicas e erros: [docs/arquitetura.md]
 - **PII mascarada na origem:** nome, CPF, telefone, e-mail e mais 10 tipos viram `[NOME]`, `[CPF]`… dentro do OCR, e só sai dele o que parece exame.
 - **Injeção pelo texto da imagem** é tirada da linha: 0 de 790 ataques do corpus do próprio projeto ([`tests/attacks/generate.py`](tests/attacks/generate.py)) passam intactos. É um teste de regressão, não prova de segurança.
 - **Sem falso positivo nesse corpus:** 0 de 1.404 linhas legítimas (1.353 distintas) são removidas.
-- **Agendamento conferido em código** ([`runtime/`](runtime/callbacks.py)): só códigos buscados e presentes no pedido; ≥ 0,90 agenda, 0,70 a 0,90 pergunta `[s/N]`, abaixo avisa.
+- **Agendamento conferido em código** ([`runtime/`](runtime/callbacks.py)): só códigos buscados e escritos numa linha que os pede; ≥ 0,90 agenda, 0,70 a 0,90 pergunta `[s/N]`, abaixo avisa. O OCR lê o que cada linha pede antes de mascarar ([`guardrails/intent.py`](guardrails/intent.py)): "não realizar", "já realizado" e linhas de preparo nunca agendam, e uma observação só pergunta.
 - **Foto ruim recusada antes do OCR**, com a dica do que fazer; uma página de lado é endireitada e lida.
 - **Menor privilégio:** cada agente só vê as ferramentas que a spec lhe dá; containers sem root e somente leitura; OCR e RAG sem internet; só a API publica porta, em `127.0.0.1`.
 - **Banco sem PII:** a API só aceita código e nome de cada exame (um campo a mais é recusado com `422`) e grava o nome do catálogo, não o texto recebido. Nenhum dado pessoal chega ao SQLite: além dos exames, ele guarda só o id, o status, a data e a `Idempotency-Key` (no agente, um uuid aleatório).

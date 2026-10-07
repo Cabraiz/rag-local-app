@@ -82,7 +82,17 @@ Agendamento confirmado pela API: id a05f0421…, status scheduled
 Tempo: OCR 6,1 s · busca 35 s · agendamento 51 s · total 232 s (modelo gemini-3.5-flash)
 ```
 
-- **Linhas antes da tabela:** `PII mascarada pelo OCR` conta só dados pessoais. Se o OCR removeu instruções escondidas, aparece também `Instruções neutralizadas no OCR: N`.
+- **Linhas antes da tabela:**
+  - `PII mascarada pelo OCR` conta só dados pessoais, cada um pela regra que o reconheceu: `NOME` só quando uma regra de nome o viu (um rótulo como `Paciente:`, palavras com maiúscula ao lado de um exame, um prenome comum). Palavras comuns que a rede de segurança tira ("NAO realizar", "autoriza incluir") não contam como nome;
+  - `Trechos removidos pelo OCR (não pareciam exame): N` conta o resto do que a rede de segurança tirou do texto. Não é PII pelas regras, mas pode conter um nome que elas não reconheceram (um sobrenome sem prenome comum): por isso `NOME xN` é um piso, não o total de nomes;
+  - se o OCR removeu instruções escondidas, aparece também `Instruções neutralizadas no OCR: N`;
+  - um item da lista de exames que o OCR leu, mas que não parece nenhum exame do catálogo ("4) Ressonância magnética de crânio"), aparece como `lido mas não reconhecido no catálogo: linha N; confira o pedido`. Só o número da linha: o texto dela não sai do OCR.
+- **O que o pedido diz de cada exame:** antes de mascarar, o OCR lê o que cada linha pede e marca no texto o "não" e o "já feito" (`[NAO_REALIZAR]`, `[JA_REALIZADO]`):
+  - um exame numa linha que diz para não fazê-lo ("Obs: NÃO realizar Ferritina", "PSA total - não repetir", "suspender", "cancelado", "sem Ferritina") nunca é agendado, mesmo que o modelo o proponha: `não agendado: 'Obs: [NAO_REALIZAR] Ferritina ([TEXTO_REMOVIDO])' → Ferritina FICT-018; o pedido diz para não realizar`;
+  - numa linha que diz que ele já foi feito ("já realizado em 2025", "resultado anterior de TSH"), o mesmo, com `o pedido diz que já foi realizado`;
+  - numa observação ("Obs:", "Nota:", "Orientação:") ou numa linha dirigida a quem lê o pedido ("considere", "leve em conta"), o exame no máximo é perguntado [s/N], nunca agendado sozinho;
+  - numa linha de preparo ("Preparo: jejum de 8 horas para Glicemia de jejum"), o exame não é agendado nem avisado por ela; a Glicemia escrita na sua própria linha de pedido é agendada normalmente;
+  - a regra vale para a linha inteira: em "TSH; não repetir Ferritina", TSH também fica de fora, com o mesmo aviso. Detalhes e limites em [medicoes.md](medicoes.md#limites-conhecidos).
 - **Faixas de confiança:**
   - de 0,70 a 0,90, o exame é perguntado no terminal: `Li "<linha lida>" → <exame> <código> (confiança 0,82). Incluir? [s/N]`. Só entra o que você confirmar;
   - com `--yes` (ou sem terminal interativo, como em CI), esses exames ficam de fora e aparecem como `não agendado sem confirmação`;
@@ -90,7 +100,8 @@ Tempo: OCR 6,1 s · busca 35 s · agendamento 51 s · total 232 s (modelo gemini
 - **Um exame por ocorrência no pedido:**
   - cada nome do catálogo ocupa uma ocorrência própria na linha: "Exames: Hemograma completo, Creatinina e TSH" agenda 3, e "Creatinina, Clearance de creatinina" agenda 2;
   - um nome que só aparece dentro de outro ("Hemoglobina" em "Hemoglobina glicada", escrito uma vez) vale um só, como uma linha que só se parece com várias buscas;
-  - um exame que repete um trecho já usado aparece como `não agendado: '<linha>' já foi usada por <exame>; confira o pedido`.
+  - um exame que repete um trecho já usado aparece como `não agendado: '<linha>' → <exame> <código>; o mesmo trecho da linha já foi usado por <outro exame>; confira o pedido`.
+  - um "e" que o OCR grudou no exame não junta dois exames num trecho só: em "2) Ureiae Creatinina", a busca por "Ureia" acha o pedaço "Ureiae" (0,91) e Ureia é agendada junto com Creatinina.
 - **Exame que o modelo deixou de fora:** se a busca o achou e o modelo não o incluiu, ele aparece como `não incluído pelo agente: '<linha lida>' → <exame> <código> (confiança 0,xx); confira o pedido`. Não é agendado, só avisado.
 - **Vários exames numa linha** ("Colesterol total e Triglicerideos", "TSH, T4 livre"): a linha é buscada exame por exame, e cada um é agendado, perguntado ou avisado por conta própria.
   - Isso vale também quando o OCR grudou o "e" numa palavra: em "TSHe T4 livre", T4 livre é agendado e TSH, com 0,86, é perguntado.
