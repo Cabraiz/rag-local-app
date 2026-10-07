@@ -357,7 +357,8 @@ def compose_commands(doc):
 
 
 GLOBAL_VALUED = {'-f', '--file', '-p', '--project-name', '--profile', '--env-file'}
-RUN_VALUED = {'-e', '--env', '--name', '-v', '--volume', '-w', '--workdir', '--entrypoint', '-u', '--user'}
+RUN_VALUED = {'-e', '--env', '--name', '-v', '--volume', '-w', '--workdir', '--entrypoint', '-u', '--user', '-p',
+              '--publish'}
 SERVICE_ARGS = {'run', 'exec', 'port', 'logs', 'up', 'build', 'ps', 'down'}
 
 
