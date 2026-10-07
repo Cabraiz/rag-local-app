@@ -6,11 +6,15 @@ BEFORE returning. The raw text never leaves this process, so names, documents
 and contacts never reach the LLM. Lines that read as orders to the model
 (prompt injection) are taken out first and counted in instructions_removed;
 what is left of them does not look like an exam, so it leaves as [TEXTO_REMOVIDO].
+
+check_image runs every check of the reading but Tesseract, so `cli run` refuses a missing or
+unreadable file before the first model turn. No spec declares it, so no agent sees it (tool_filter).
 """
 import asyncio
 import os
+from collections.abc import Callable
 from pathlib import Path, PureWindowsPath
-from typing import Annotated
+from typing import Annotated, Any
 
 import pytesseract
 from mcp.server import MCPServer
@@ -57,7 +61,13 @@ def resolve_sample(filename: str) -> Path:
 
 
 def read_lines(path: Path) -> list[str]:
-    """Run Tesseract (Portuguese) and return the non-empty text lines, each with its .confianca."""
+    """Run Tesseract (Portuguese) and return the non-empty text lines, each a str with .confianca (0-100)."""
+    return checked_image(path, lambda image: ler_linhas(image, OCR_TIMEOUT_SECONDS))
+
+
+def checked_image(path: Path, then: Callable[[Image.Image], Any]) -> Any:
+    """then(image) on the decoded image, once it passed every check before Tesseract; each refusal is a
+    ToolError with the reason. The reading and check_image share it, so they refuse the same files."""
     try:
         with Image.open(path) as image:
             # The real format must match the name: a GIF or BMP renamed to .png is refused.
@@ -68,7 +78,7 @@ def read_lines(path: Path) -> list[str]:
             image = sobre_branco(image)  # a transparent background would read as a black page
             if problem := quality_problem(image):  # a photo the OCR would barely read
                 raise ToolError(problem)
-            return ler_linhas(image, OCR_TIMEOUT_SECONDS)  # each line is a str with .confianca (0-100)
+            return then(image)
     except ImagemGirada as error:
         raise ToolError(str(error)) from None
     except Image.DecompressionBombError:
@@ -115,6 +125,20 @@ async def extract_exam_text(filename: Annotated[str, or_default('')]) -> dict:
     lines = await asyncio.to_thread(read_lines, path)
     joined, sources = join_split_orders(lines)  # once: the guard and the confidence share it
     return {**mask_lines(lines, joined), 'line_confidence': confianca_por_linha(lines, origens=sources)}
+
+
+@server.tool()
+async def check_image(filename: Annotated[str, or_default('')]) -> dict:
+    """Check /data/samples/<filename> as extract_exam_text would (name, size, real format, resolution,
+    integrity, photo quality), without the OCR; returns {format, width, height}, or the same error.
+
+    For `cli run`, before the first model turn; no agent has it.
+    """
+    if not filename.strip():
+        raise ToolError('filename deve ser o nome de um arquivo, ex.: pedido.png.')
+    path = resolve_sample(filename)
+    width, height = await asyncio.to_thread(checked_image, path, lambda image: image.size)
+    return {'format': FORMATS[path.suffix.lower()], 'width': width, 'height': height}
 
 
 @server.custom_route('/health', methods=['GET'])

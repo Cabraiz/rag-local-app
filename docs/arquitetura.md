@@ -87,11 +87,13 @@ publicam porta no host: ficam na rede `internal` do compose, sem internet.
 
 O agente conecta com `McpToolset(connection_params=SseConnectionParams(url=...))`, usando as URLs da
 spec, e cada agente só enxerga as ferramentas que a spec lhe dá (`tool_filter`). Para ver os logs:
-`docker compose logs -f ocr rag`.
+`docker compose logs -f ocr rag`. O OCR tem também `check_image`, que nenhuma spec declara e, por isso,
+nenhum agente enxerga: só a CLI a chama, antes do 1º turno do modelo, para recusar logo um arquivo que
+o OCR recusaria.
 
 | Servidor | SSE | Saúde | Ferramenta |
 |---|---|---|---|
-| OCR | `http://ocr:8001/sse` | `http://ocr:8001/health` | `extract_exam_text(filename)` → `{"lines": [...], "line_confidence": [92.0, ...], "pii_masked": {"NOME": 1, ...}, "instructions_removed": 0, "text_removed": 2}`; só aceita um nome de arquivo de `samples/` |
+| OCR | `http://ocr:8001/sse` | `http://ocr:8001/health` | `extract_exam_text(filename)` → `{"lines": [...], "line_confidence": [92.0, ...], "pii_masked": {"NOME": 1, ...}, "instructions_removed": 0, "text_removed": 2}`; só aceita um nome de arquivo de `samples/`. `check_image(filename)` → `{"format": "PNG", "width": ..., "height": ...}`: as mesmas checagens e recusas da leitura (nome, tamanho, formato real, resolução, integridade, qualidade da foto), sem o Tesseract; só para a CLI |
 | RAG | `http://rag:8002/sse` | `http://rag:8002/health` | `search_exams(query, top_k=3)` → `[{"code", "name", "score", "term"}]` (`term`: o nome ou o sinônimo que deu o score), melhores primeiro, score ≥ 0,6, `top_k` até 10; numa linha com vários exames, `top_k` por pedaço e cada resultado com `"piece"` |
 
 O RAG entende abreviações de pedido médico (`Hemogr.`, `Glicemia jej.`, `Vit D`, `25(OH)D`, `T4L`, `β-HCG`, `TGO`).
@@ -99,7 +101,7 @@ Siglas de 2 letras que viram outra sigla com 1 caractere errado no OCR (TG, CT, 
 de fora: lidas sozinhas, caem em baixa confiança em vez de agendar o exame errado. Risco aceito: `GH`↔`LH`,
 `HDL`↔`LDL` e `T3L`↔`T4L` diferem em 1 caractere, mas são as formas usadas nos pedidos.
 
-[`tests/test_mcp_sse.py`](../tests/test_mcp_sse.py) chama as duas ferramentas com `mcp.client.sse`,
+[`tests/test_mcp_sse.py`](../tests/test_mcp_sse.py) chama as ferramentas com `mcp.client.sse`,
 o mesmo transporte do agente, sem chave do Gemini.
 
 ## Fluxo de dados de uma execução
@@ -303,7 +305,7 @@ As mensagens são as que o usuário vê; nenhuma mostra stack trace.
 | Servidor que responde ao GET, mas não lista as ferramentas (não é MCP, ou não serve `/openapi.json`) | `cli run` | `servers.rag: http://rag:8002/sse respondeu, mas não listou as ferramentas (é um servidor MCP?)`, antes de chamar o Gemini |
 | `--image` com pasta | `cli run` | `--image: informe só o nome do arquivo dentro de samples/, ex.: pedido.png`, antes de chamar o Gemini |
 | `--image` com extensão fora de `.png`/`.jpg`/`.jpeg` | `cli run` | `--image: "..." não é uma imagem aceita; use .png, .jpg ou .jpeg`, antes de chamar o Gemini |
-| Imagem inexistente ou grande demais | OCR | Erro da ferramenta com o motivo (ex.: `Arquivo "x.png" não encontrado em /data/samples.`) |
+| Imagem inexistente ou grande demais | `cli run`, que pergunta ao OCR (`check_image`) antes do 1º turno do modelo | `OCR recusou a imagem: Arquivo "x.png" não encontrado em /data/samples.; nada foi agendado` (código 2), antes de chamar o Gemini; as recusas abaixo, do OCR, também saem nessa conferência |
 | Arquivo cujo conteúdo não é a imagem que a extensão diz | OCR | `O conteúdo do arquivo não corresponde à extensão (use PNG ou JPEG).` |
 | Imagem corrompida ou cortada | OCR | `Imagem corrompida ou incompleta.` |
 | PDF renomeado para `.png` | OCR | `O arquivo é um PDF, não uma imagem: exporte a página como PNG ou JPEG.` |

@@ -34,6 +34,7 @@ DEFAULT_AGENT = 'generated/agent.py'
 IMAGE_SUFFIXES = {'.png', '.jpg', '.jpeg'}
 CARRIED = ('answers', 'idempotency_key')  # session state a fallback run starts from
 CONFIRMATION = 'adk_request_confirmation'  # ADK's call that asks the client to confirm a tool call
+IMAGE_CHECK = 'check_image'  # the OCR server's check of a file without the OCR; no spec, so no agent, has it
 
 
 def redact(text):
@@ -59,7 +60,7 @@ def cmd_transpile(args):
 
 def check_services(spec):
     """Fail before calling Gemini when a server's name resolves to a local address, it is down or it
-    lacks a tool the spec declares."""
+    lacks a tool the spec declares; returns what each server listed (transpiler/live.py)."""
     problems = check_addresses(spec)  # before the first request to it
     if problems:
         raise TranspileError(problems)
@@ -71,9 +72,42 @@ def check_services(spec):
         except httpx.HTTPError as error:
             raise RunError(f'{label} fora do ar em {url} ({type(error).__name__}); '
                            'suba os serviços com `docker compose up -d --wait`') from None
-    problems = check_live(spec, live_tools(spec), required=True)  # the spec may not have been transpiled with them up
+    live = live_tools(spec)
+    problems = check_live(spec, live, required=True)  # the spec may not have been transpiled with them up
     if problems:
         raise TranspileError(problems)
+    return live
+
+
+def ocr_refused(reason):
+    """The line for a file the OCR refused, before the run (check_image) or during it (ocr_problem)."""
+    return f'OCR recusou a imagem: {reason}; nada foi agendado'
+
+
+async def ask_image_check(url, image):
+    async with sse_client(url, timeout=5, sse_read_timeout=CHECK_SECONDS) as streams, \
+            ClientSession(*streams) as session:
+        await session.initialize()
+        return await session.call_tool(IMAGE_CHECK, {'filename': image})
+
+
+def check_image(spec, image, live):
+    """Fail before the first model turn when the server of the read role refuses the file (missing, too
+    large, not the format its name says, corrupt, a photo it would barely read). The server is asked,
+    since the agent's container does not see samples/; one that does not list IMAGE_CHECK (another
+    spec's reader) leaves it to the run. The real name goes to the server only: the model gets a token."""
+    name = spec.role_refs()['read'].split('.')[0]
+    if IMAGE_CHECK not in ((live or {}).get(name) or {}):
+        return
+    server = spec.servers[name]
+    try:
+        result = asyncio.run(asyncio.wait_for(ask_image_check(server.url, image), CHECK_SECONDS))
+    except Exception as error:  # it listed its tools a moment ago: a timeout or a dropped stream
+        raise RunError(f'{name.upper()} (MCP) não conferiu a imagem em {server.url} ({type(error).__name__}); '
+                       'suba os serviços com `docker compose up -d --wait`') from None
+    if result.is_error:
+        texts = ' '.join(item.text for item in result.content if getattr(item, 'text', None))
+        raise RunError(ocr_refused(texts.removeprefix(f'Error executing tool {IMAGE_CHECK}: ')[:300]))
 
 
 def api_refusal(error):
@@ -382,8 +416,8 @@ def validate_args(args):
     # Early, friendly message; the OCR server is what actually enforces it.
     if '/' in args.image or '\\' in args.image:
         raise RunError('--image: informe só o nome do arquivo dentro de samples/, ex.: pedido.png')
-    # Same suffixes as the OCR server. Existence is left to it: the agent image does not
-    # mount samples/, so a file added after the build exists only for the OCR container.
+    # Same suffixes as the OCR server. Existence is left to it (check_image, before the first model
+    # turn): the agent image does not mount samples/, so a file added after the build exists only there.
     if Path(args.image).suffix.lower() not in IMAGE_SUFFIXES:
         # A bare name ("pedido") most likely means the PNG sample of the same name.
         hint = f'; quis dizer "{args.image}.png"?' if not Path(args.image).suffix and not args.image.startswith('.') else ''
@@ -418,8 +452,8 @@ def check_agent(args, spec):
 
 
 def load_checked_spec(args):
-    """The spec, once agent.py is what it generates and its services answer; --yes tells the
-    generated agent to ask nothing."""
+    """The spec, once agent.py is what it generates, its services answer and the OCR accepts the image;
+    --yes tells the generated agent to ask nothing."""
     if args.yes:  # read by the generated agent: exams that need a yes are left out, never assumed
         os.environ['AGENT_NO_QUESTIONS'] = '1'
     spec = load_spec(args.spec)
@@ -427,7 +461,7 @@ def load_checked_spec(args):
         raise RunError(f'{args.spec}: `cli run` lê um pedido em imagem e busca os exames no catálogo, e esta spec '
                        'não tem roles.read e roles.search; ela pode ser transpilada, não rodada pela CLI')
     check_agent(args, spec)
-    check_services(spec)
+    check_image(spec, args.image, check_services(spec))
     return spec
 
 
@@ -451,7 +485,7 @@ def ocr_problem(found, spec):
     if found.get('file_refused'):
         return 'o agente pediu um arquivo diferente do informado; nada foi agendado'
     if found.get('ocr_error'):
-        return f'OCR recusou a imagem: {found["ocr_error"]}; nada foi agendado'
+        return ocr_refused(found['ocr_error'])
     if spec.tool_for('read') not in found['tools_called']:  # what the model really called
         return 'o agente não leu a imagem (não chamou o OCR); nada foi agendado'
     return 'o OCR não devolveu o texto do pedido (serviço indisponível?); nada foi agendado'

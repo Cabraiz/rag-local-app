@@ -11,6 +11,7 @@ import socket
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import httpx2
@@ -18,11 +19,17 @@ import pytest
 import uvicorn
 from mcp import ClientSession
 from mcp.client.sse import sse_client
+from PIL import Image
 
+import cli
 from mcp_servers import ocr, rag
+from runtime import BookingCallbacks
+from transpiler import TranspileError, load_root_agent, parse_spec, transpile
+from transpiler.live import mcp_tools
 
 ROOT = Path(__file__).resolve().parents[1]
 SAMPLES = ROOT / 'samples'
+SPEC = json.loads((ROOT / 'specs' / 'agent.json').read_text(encoding='utf-8'))
 
 
 def free_port():
@@ -83,7 +90,7 @@ def test_rag_tool_over_sse(urls):
 @pytest.mark.skipif(shutil.which('tesseract') is None, reason='Tesseract runs inside the Docker image')
 def test_ocr_tool_over_sse_returns_masked_lines(urls):
     names, result = call(urls['ocr'], 'extract_exam_text', {'filename': 'pedido.png'})
-    assert names == ['extract_exam_text'] and not result.is_error
+    assert names == ['extract_exam_text', 'check_image'] and not result.is_error
     payload = json.loads(result.content[0].text)
     assert 'Exame: Creatinina' in payload['lines'] and payload['pii_masked']['CPF'] == 1
     assert 'sentinela' not in json.dumps(payload, ensure_ascii=False).lower()
@@ -139,3 +146,106 @@ def test_valid_arguments_in_other_json_shapes_still_work(urls):
     for top_k in (2.0, '2'):
         _, result = call(urls['rag'], 'search_exams', {'query': 'Glicose', 'top_k': top_k})
         assert not result.is_error and len(result.structured_content['result']) == 2
+
+
+# --- `cli run` asks the OCR about the image before the first model turn ---------------------------
+
+
+def test_check_image_over_sse_answers_without_the_ocr(urls):
+    names, result = call(urls['ocr'], 'check_image', {'filename': 'pedido.png'})
+    assert names == ['extract_exam_text', 'check_image'] and not result.is_error
+    assert json.loads(result.content[0].text)['format'] == 'PNG'
+
+
+def spec_on(ocr_url):
+    """The example spec with the OCR at ocr_url (the test's server), as JSON text."""
+    data = json.loads(json.dumps(SPEC))
+    data['servers']['ocr']['url'] = ocr_url
+    return json.dumps(data)
+
+
+@pytest.fixture
+def ocr_run(urls, tmp_path, monkeypatch):
+    """`cli run` arguments for an agent whose OCR is the real server over SSE; the other services are
+    taken as up, and the OCR's tool list is the one it really answers."""
+    monkeypatch.setenv('ALLOWED_HOSTS', '127.0.0.1,rag:8002,api:8000')
+    monkeypatch.setenv('GOOGLE_API_KEY', 'not-used')
+    spec_file, agent = tmp_path / 'spec.json', tmp_path / 'agent.py'
+    spec_file.write_text(spec_on(urls['ocr']), encoding='utf-8')
+    transpile(spec_file, agent)
+    listed = {'ocr': asyncio.run(mcp_tools(urls['ocr']))}
+    monkeypatch.setattr(cli, 'check_services', lambda spec: listed)
+    return ['run', '--spec', str(spec_file), '--agent', str(agent)]
+
+
+def must_not_run(*args, **kwargs):
+    raise AssertionError('the model ran for an image the OCR refuses')
+
+
+@pytest.mark.parametrize('filename, reason', [
+    ('ausente.png', 'Arquivo "ausente.png" não encontrado em {samples}.'),
+    ('gif.png', 'O conteúdo do arquivo não corresponde à extensão (use PNG ou JPEG).'),
+    ('em-branco.png', 'foto sem contraste: o texto quase não se separa do papel; tire outra com mais luz e sem reflexo'),
+])
+def test_cli_run_stops_before_the_first_model_turn_on_an_image_the_ocr_refuses(ocr_run, tmp_path, monkeypatch, capsys,
+                                                                                filename, reason):
+    samples = tmp_path / 'samples'
+    samples.mkdir()
+    Image.new('RGB', (200, 100), 'white').save(samples / 'gif.png', format='GIF')
+    Image.new('RGB', (1200, 1600), 'white').save(samples / 'em-branco.png')
+    monkeypatch.setattr(ocr, 'SAMPLES_DIR', samples)
+    monkeypatch.setattr(cli, 'run_agent', must_not_run)
+    assert cli.main([*ocr_run, '--image', filename]) == 2
+    out, err = capsys.readouterr()
+    # The same line as a refusal during the run (ocr_problem), and no "Tempo:": nothing ran.
+    assert (out, err) == ('', f'Erro: OCR recusou a imagem: {reason.format(samples=samples)}; nada foi agendado\n')
+
+
+def test_cli_run_goes_on_to_the_model_when_the_ocr_accepts_the_image(ocr_run, monkeypatch):
+    images = []
+
+    async def run_agent(root_agent, image, spec, found):
+        images.append(image)  # run_agent gives the model a token for it, never this name
+        found['appointment'] = {'id': 'a1', 'status': 'scheduled', 'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo'}]}
+    monkeypatch.setattr(cli, 'run_agent', run_agent)
+    assert cli.main([*ocr_run, '--image', 'pedido.png']) == 0
+    assert images == ['pedido.png']
+
+
+@pytest.mark.filterwarnings(r'ignore:\[EXPERIMENTAL\]:UserWarning')  # the toolset's, as in test_agent_mcp
+@pytest.mark.filterwarnings('ignore:MCPTool class is deprecated:DeprecationWarning')
+def test_no_agent_can_call_check_image(ocr_run, tmp_path):
+    # The generated toolset exposes only the spec's tools (tool_filter), although the server lists both.
+    extract = load_root_agent(tmp_path / 'agent.py').sub_agents[0]
+
+    async def exposed(toolset):
+        try:
+            return [tool.name for tool in await toolset.get_tools()]
+        finally:
+            await toolset.close()
+    assert asyncio.run(exposed(extract.tools[0])) == ['extract_exam_text']
+    # A spec that gives it to an agent is refused: it has no role, and the runtime refuses such a tool anyway.
+    data = json.loads(spec_on('http://ocr:8001/sse'))
+    data['servers']['ocr']['tools'].append('check_image')
+    data['agents'][0]['tools'].append('ocr.check_image')
+    with pytest.raises(TranspileError) as error:
+        parse_spec(json.dumps(data))
+    assert any('"ocr.check_image" não tem papel em roles' in problem for problem in error.value.problems)
+    callbacks = BookingCallbacks(ocr_tool='extract_exam_text', search_tool='search_exams', booking_tool='create_appointment')
+    reply = callbacks.before_tool(SimpleNamespace(name='check_image'), {'filename': 'x.png'}, SimpleNamespace(state={}))
+    assert reply == {'blocked': 'ferramenta sem papel conferido pelo runtime (check_image); nada foi enviado'}
+
+
+def test_a_reader_without_check_image_leaves_the_file_to_the_run():
+    # Another spec's OCR server, or check_services replaced in a test: nothing is asked.
+    spec = parse_spec(json.dumps(SPEC))
+    assert cli.check_image(spec, 'x.png', {'ocr': {'extract_exam_text': {}}}) is None
+    assert cli.check_image(spec, 'x.png', None) is None
+
+
+def test_an_ocr_that_stops_answering_before_the_check_is_one_line(monkeypatch):
+    monkeypatch.setenv('ALLOWED_HOSTS', '127.0.0.1,rag:8002,api:8000')
+    url = f'http://127.0.0.1:{free_port()}/sse'  # nothing listens there
+    with pytest.raises(cli.RunError, match=r'^OCR \(MCP\) não conferiu a imagem em http://127\.0\.0\.1:\d+/sse \(\w+\); '
+                                           r'suba os serviços com `docker compose up -d --wait`$'):
+        cli.check_image(parse_spec(spec_on(url)), 'pedido.png', {'ocr': {'check_image': {}}})

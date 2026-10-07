@@ -1,4 +1,5 @@
 """OCR MCP server: file boundary, PII masking before return and a real Tesseract run."""
+import asyncio
 import shutil
 import unicodedata
 from pathlib import Path
@@ -67,6 +68,61 @@ def test_rejects_content_that_does_not_match_the_extension(tmp_path, monkeypatch
     monkeypatch.setattr(ocr, 'SAMPLES_DIR', tmp_path)
     with pytest.raises(ToolError, match='não corresponde à extensão'):
         ocr.read_lines(ocr.resolve_sample('falso.png'))
+
+
+def no_tesseract(*args, **kwargs):
+    raise AssertionError('Tesseract ran for a file the checks should have refused, or for check_image')
+
+
+def test_check_image_accepts_a_sample_without_running_the_ocr(monkeypatch):
+    from PIL import Image
+    monkeypatch.setattr(ocr, 'ler_linhas', no_tesseract)
+    with Image.open(SAMPLES / 'pedido.png') as image:
+        width, height = image.size
+    assert asyncio.run(ocr.check_image('pedido.png')) == {'format': 'PNG', 'width': width, 'height': height}
+
+
+def write_gif(path):
+    from PIL import Image
+    Image.new('RGB', (200, 100), 'white').save(path, format='GIF')
+
+
+def write_blank_page(path):
+    from PIL import Image
+    Image.new('RGB', (1200, 1600), 'white').save(path)
+
+
+# A file each tool refuses before Tesseract; None: no file of that name.
+BAD_FILES = {
+    'ausente.png': None,
+    '../pedido.png': None,
+    'falso.png': lambda path: path.write_bytes(b'not an image'),
+    'documento.png': lambda path: path.write_bytes(b'%PDF-1.4\n%fictional\n'),
+    'gif.png': write_gif,
+    'cortado.png': lambda path: path.write_bytes((SAMPLES / 'pedido.png').read_bytes()[:20000]),
+    'em-branco.png': write_blank_page,
+}
+
+
+@pytest.mark.parametrize('filename', BAD_FILES)
+def test_check_image_refuses_what_the_reading_refuses_with_the_same_message(tmp_path, monkeypatch, filename):
+    # `cli run` asks check_image before the first model turn: its refusal must be the one the agent would get.
+    if BAD_FILES[filename]:
+        BAD_FILES[filename](tmp_path / filename)
+    monkeypatch.setattr(ocr, 'SAMPLES_DIR', tmp_path)
+    monkeypatch.setattr(ocr, 'ler_linhas', no_tesseract)
+    with pytest.raises(ToolError) as checked:
+        asyncio.run(ocr.check_image(filename))
+    with pytest.raises(ToolError) as read:
+        asyncio.run(ocr.extract_exam_text(filename))
+    assert str(checked.value) == str(read.value)
+
+
+@pytest.mark.parametrize('limit, message', [('MAX_FILE_BYTES', 'grande demais'), ('MAX_PIXELS', 'resolução')])
+def test_check_image_keeps_the_size_limits(monkeypatch, limit, message):
+    monkeypatch.setattr(ocr, limit, 1000)
+    with pytest.raises(ToolError, match=message):
+        asyncio.run(ocr.check_image('pedido.png'))
 
 
 def test_every_line_is_masked_and_counted(monkeypatch):

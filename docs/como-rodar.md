@@ -106,9 +106,9 @@ docker compose run --rm agent python -m cli run --image <arquivo>
 - **Formato:** `.png`, `.jpg` ou `.jpeg`, com até 5 MB e 25 megapixels. Informe só o nome, sem pastas.
 - **PDF não é aceito.** A CLI recusa outra extensão antes de chamar o Gemini:
   `Erro: --image: "pedido.pdf" não é uma imagem aceita; use .png, .jpg ou .jpeg`.
-- **PDF renomeado** para `.png` passa pela CLI, mas o OCR o reconhece: `O arquivo é um PDF, não uma imagem: exporte a página como PNG ou JPEG.`
+- **PDF renomeado** para `.png` passa pela extensão, mas o OCR o reconhece: `O arquivo é um PDF, não uma imagem: exporte a página como PNG ou JPEG.`
 - **Foto de lado ou de cabeça para baixo** é endireitada e lida. Se nem assim der: `imagem de lado ou de cabeça para baixo: gire e envie de novo`. Um PNG com fundo transparente é lido sobre branco.
-- **Arquivo inexistente:** só é detectado quando o agente chama o OCR, porque o container do agente não enxerga `samples/`. Ver "Imagem recusada pelo OCR" em [Quando algo falha](#quando-algo-falha).
+- **Arquivo inexistente ou recusado:** antes de chamar o Gemini, a CLI pergunta ao próprio OCR se o arquivo existe e é aceito (o container do agente não enxerga `samples/`). São as mesmas checagens da leitura, sem rodar o Tesseract, então um arquivo inexistente, um PDF renomeado ou uma foto ilegível param em segundos, sem nenhum turno do modelo: `Erro: OCR recusou a imagem: Arquivo "x.png" não encontrado em /data/samples.; nada foi agendado`. O nome do arquivo vai só ao OCR; o modelo continua recebendo um apelido (`pedido-1.png`). Ver "Imagem recusada pelo OCR" em [Quando algo falha](#quando-algo-falha).
 - **Sem rebuild:** não precisa reconstruir, porque `samples/` é montada no container de OCR.
 
 Exemplos prontos em `samples/`:
@@ -168,7 +168,7 @@ Todas as que o código lê. As do `.env` chegam só ao serviço que as usa; as o
 
 Erros saem como uma linha `Erro: ...`, com código 2. Por exemplo: serviço fora do ar ou chave ausente.
 
-- **Imagem recusada pelo OCR:** o OCR recusa com uma mensagem clara. Por exemplo: `Arquivo "x.png" não encontrado em /data/samples.`, `Imagem corrompida ou incompleta.`, `O conteúdo do arquivo não corresponde à extensão (use PNG ou JPEG).` (um GIF renomeado para `.png`) ou `Arquivo grande demais (máximo 5 MB).`. A CLI repete o motivo: `Erro: OCR recusou a imagem: <motivo>; nada foi agendado`.
+- **Imagem recusada pelo OCR:** o OCR recusa com uma mensagem clara. Por exemplo: `Arquivo "x.png" não encontrado em /data/samples.`, `Imagem corrompida ou incompleta.`, `O conteúdo do arquivo não corresponde à extensão (use PNG ou JPEG).` (um GIF renomeado para `.png`) ou `Arquivo grande demais (máximo 5 MB).`. A CLI repete o motivo: `Erro: OCR recusou a imagem: <motivo>; nada foi agendado`. Ela pergunta ao OCR antes de chamar o Gemini, então essa linha sai em segundos; só uma página que o Tesseract não consegue endireitar é recusada durante a execução, com a mesma linha.
 - **Fora da pasta do repositório:** `no configuration file provided: not found`. Entre em `rag-local-app`, onde está o `docker-compose.yml`.
 - **Docker parado:** `Cannot connect to the Docker daemon … Is the docker daemon running?`. Abra o Docker Desktop e espere o "Engine running".
 - **`Read timed out` do pip no 1º build:** é a rede até o PyPI, não o projeto. Rode o `docker compose up -d --wait` de novo: os estágios prontos ficam no cache e o build continua de onde parou.
