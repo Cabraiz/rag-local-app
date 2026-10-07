@@ -121,26 +121,35 @@ def test_spec_text_never_becomes_code(tmp_path):
     assert 'agent_.json' in source.splitlines()[0]
 
 
-def test_api_toolset_reads_the_openapi_contract_lazily(tmp_path, monkeypatch):
-    openapi = {'openapi': '3.1.0', 'info': {'title': 'API', 'version': '1'}, 'paths': {'/appointments': {'post': {
-        'operationId': 'create_appointment', 'summary': 'Cria um agendamento',
-        'parameters': [{'name': 'Idempotency-Key', 'in': 'header', 'schema': {'type': 'string'}}],
-        'requestBody': {'content': {'application/json': {'schema': {  # what the runtime sends, nothing else
-            'type': 'object', 'additionalProperties': False, 'properties': {'exams': {
-                'type': 'array', 'items': {'type': 'object', 'properties': {'code': {}, 'name': {}}}}}}}}},
-        'responses': {'201': {'description': 'Criado'}}}},
-        '/appointments/{id}': {'get': {
-            'operationId': 'get_appointment', 'summary': 'Consulta um agendamento',
-            'parameters': [{'name': 'id', 'in': 'path', 'required': True, 'schema': {'type': 'string'}}],
-            'responses': {'200': {'description': 'OK'}}}}}}
+OPENAPI = {'openapi': '3.1.0', 'info': {'title': 'API', 'version': '1'}, 'paths': {'/appointments': {'post': {
+    'operationId': 'create_appointment', 'summary': 'Cria um agendamento',
+    'parameters': [{'name': 'Idempotency-Key', 'in': 'header', 'schema': {'type': 'string'}}],
+    'requestBody': {'content': {'application/json': {'schema': {  # what the runtime sends, nothing else
+        'type': 'object', 'additionalProperties': False, 'properties': {'exams': {
+            'type': 'array', 'items': {'type': 'object', 'properties': {'code': {}, 'name': {}}}}}}}}},
+    'responses': {'201': {'description': 'Criado'}}}},
+    '/appointments/{id}': {'get': {
+        'operationId': 'get_appointment', 'summary': 'Consulta um agendamento',
+        'parameters': [{'name': 'id', 'in': 'path', 'required': True, 'schema': {'type': 'string'}}],
+        'responses': {'200': {'description': 'OK'}}}}}}
+
+
+def serve_openapi(monkeypatch, delay=0.0):
+    """httpx answers OPENAPI to every request (after `delay` seconds); returns the URLs requested."""
     requested = []
 
-    def serve(request):
+    async def serve(request):
         requested.append(str(request.url))
-        return httpx.Response(200, json=openapi)
+        await asyncio.sleep(delay)
+        return httpx.Response(200, json=OPENAPI)
 
     real_client = httpx.AsyncClient
     monkeypatch.setattr(httpx, 'AsyncClient', lambda **kw: real_client(transport=httpx.MockTransport(serve), **kw))
+    return requested
+
+
+def test_api_toolset_reads_the_openapi_contract_lazily(tmp_path, monkeypatch):
+    requested = serve_openapi(monkeypatch)
     transpile(SPEC_FILE, tmp_path / 'agent.py')
     assert requested == ['http://api:8000/openapi.json']  # transpile checked the operation on the API
     requested.clear()
@@ -150,6 +159,19 @@ def test_api_toolset_reads_the_openapi_contract_lazily(tmp_path, monkeypatch):
     assert requested == ['http://api:8000/openapi.json']
     assert [tool.name for tool in tools] == ['create_appointment']  # get_appointment filtered out
     assert tools[0].endpoint.base_url == 'http://api:8000'
+
+
+def test_two_first_calls_at_once_fetch_the_openapi_contract_once(monkeypatch):
+    requested = serve_openapi(monkeypatch, delay=0.05)  # the first fetch is still waiting when the second call starts
+    toolset = runtime.LiveOpenAPIToolset(openapi_url='http://api:8000/openapi.json', base_url='http://api:8000',
+                                         tool_filter=['create_appointment'])
+
+    async def both():
+        return await asyncio.gather(toolset.get_tools(), toolset.get_tools())
+
+    first, second = asyncio.run(both())
+    assert requested == ['http://api:8000/openapi.json']
+    assert [tool.name for tool in first] == [tool.name for tool in second] == ['create_appointment']
 
 
 def test_the_end_to_end_test_finds_the_api_address_in_the_spec():

@@ -1,6 +1,7 @@
 """ADK building blocks the generated agent declares: the Gemini model, the fixed rule on
 untrusted data, and the toolsets of the MCP servers and of the API, each on a host that
 ALLOWED_HOSTS allows."""
+import asyncio
 import os
 from urllib.parse import urlsplit
 
@@ -72,22 +73,28 @@ class LiveOpenAPIToolset(BaseToolset):
     tool_filter are exposed; the rest of the API stays out of reach. Both URLs are checked against
     ALLOWED_HOSTS when agent.py is imported; httpx follows no redirect."""
 
-    def __init__(self, *, openapi_url, base_url, tool_filter):
+    def __init__(self, *, openapi_url: str, base_url: str, tool_filter) -> None:
         check_host(openapi_url)
         check_host(base_url)
         super().__init__()
         self.openapi_url, self.base_url, self.operations = openapi_url, base_url, list(tool_filter)
-        self.toolset = None
+        self.toolset: OpenAPIToolset | None = None
+        self.loading = asyncio.Lock()  # two first calls at once fetch the contract once
 
     async def get_tools(self, readonly_context=None):
         if self.toolset is None:
-            async with httpx.AsyncClient(timeout=10) as client:
-                response = await client.get(self.openapi_url)
-                response.raise_for_status()
-            spec = response.json()
-            spec['servers'] = [{'url': self.base_url}]
-            self.toolset = OpenAPIToolset(spec_dict=spec, tool_filter=self.operations)
+            async with self.loading:
+                if self.toolset is None:  # another call may have built it while this one waited
+                    self.toolset = await self.load()
         return await self.toolset.get_tools(readonly_context)
+
+    async def load(self):
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.get(self.openapi_url)
+            response.raise_for_status()
+        spec = response.json()
+        spec['servers'] = [{'url': self.base_url}]
+        return OpenAPIToolset(spec_dict=spec, tool_filter=self.operations)
 
     async def close(self):
         if self.toolset is not None:
