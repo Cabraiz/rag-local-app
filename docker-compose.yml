@@ -1,0 +1,140 @@
+# Single compose file. `docker compose up -d --wait` starts ocr, rag and api;
+# the agent CLI runs on demand: `docker compose run --rm agent python -m cli ...`;
+# the tests and checks too: `docker compose run --rm tests pytest -q` (or `ruff check .`, `mypy`).
+# Each service uses its own stage of the single Dockerfile.
+x-hardening: &hardening
+  restart: unless-stopped
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+# Each service also has a memory, CPU and process cap (mem_limit, cpus, pids_limit), sized from the tests and
+# the load runs (docs/medicoes.md) with room to spare: a burst of requests ends in a clear refusal or in that
+# container being restarted, never in the host running out of memory. The OCR reads 3 images at a time.
+
+services:
+  ocr:
+    <<: *hardening
+    build: {context: ., target: ocr}
+    mem_limit: 1536m
+    cpus: 2
+    pids_limit: 128
+    # 12 pages of 25 MP at once: one malloc arena per thread peaked at the 1,5 GiB cap and kept 1,2 GiB; two, 0,9 and 0,6.
+    environment: {MALLOC_ARENA_MAX: "2"}
+    volumes: ["./samples:/data/samples:ro"]
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  rag:
+    <<: *hardening
+    build: {context: ., target: rag}
+    mem_limit: 256m
+    cpus: 1
+    pids_limit: 64
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    <<: *hardening
+    build: {context: ., target: api}
+    mem_limit: 256m
+    cpus: 1
+    pids_limit: 64
+    # The only port published on the host, and only on loopback. 8765 avoids a common
+    # dev port (8000): on Windows a clash there is silent. Change it with API_PORT.
+    ports: ["127.0.0.1:${API_PORT:-8765}:8000"]
+    # Key that encrypts the exam lists in the database (api/crypto.py); only this service gets it.
+    # Empty: the api creates one on its first start in api-key, a volume apart from the data.
+    environment:
+      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY:-}
+      # Requests per minute per client IP (api/main.py); empty: 1200, 0: no limit.
+      API_RATE_LIMIT_PER_MINUTE: ${API_RATE_LIMIT_PER_MINUTE:-}
+      # Host header names the api answers (DNS rebinding); empty: 127.0.0.1,localhost,api.
+      API_ALLOWED_HOSTS: ${API_ALLOWED_HOSTS:-}
+      # Hours an Idempotency-Key is remembered; empty: 24.
+      API_IDEMPOTENCY_TTL_HOURS: ${API_IDEMPOTENCY_TTL_HOURS:-}
+    volumes: ["api-data:/state", "api-key:/keys"]
+    networks: [default, internal]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  agent:
+    <<: *hardening
+    build: {context: ., target: agent}
+    mem_limit: 1g
+    cpus: 1
+    pids_limit: 128
+    profiles: [cli]
+    restart: "no"
+    # Gemini settings come from .env (never committed); only this service and tests-e2e receive them.
+    # The model comes from specs/agent.json; to try another one, GEMINI_MODEL in .env, or for one run:
+    # docker compose run --rm -e GEMINI_MODEL=<modelo> agent python -m cli run ...
+    environment:
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-}  # empty: the compose services (transpiler/spec.py)
+      GEMINI_MODEL: ${GEMINI_MODEL:-}  # empty: the spec's model
+      # ADK's MCP client otherwise looks for Google credentials (and the cloud metadata server,
+      # 169.254.169.254) on every MCP connection, to try mTLS; the MCP servers here are plain HTTP.
+      GOOGLE_API_USE_CLIENT_CERTIFICATE: "false"
+    # specs/ is mounted read-only: a spec saved there is transpiled without rebuilding the image.
+    volumes: ["generated:/app/generated", "./specs:/app/specs:ro"]
+    # default: internet access for Gemini; internal: reaches ocr, rag and api.
+    networks: [default, internal]
+    depends_on:
+      ocr: {condition: service_healthy}
+      rag: {condition: service_healthy}
+      api: {condition: service_healthy}
+
+  # Test stage of the Dockerfile: the agent plus pytest, ruff, mypy and the tests. No Gemini key and
+  # no internet (internal network only): `docker compose run --rm tests pytest -q` is offline and
+  # skips the end-to-end test.
+  tests: &tests
+    <<: *hardening
+    build: {context: ., target: test}
+    # No CPU cap: the CI runs `pytest -n auto`, one worker per core, and a cap above the host's cores fails to start.
+    mem_limit: 6g
+    pids_limit: 1024
+    profiles: [test]
+    restart: "no"
+    environment:
+      GOOGLE_API_USE_CLIENT_CERTIFICATE: "false"  # as for the agent: no credential or metadata lookup per MCP connection
+    networks: [internal]
+    depends_on:
+      ocr: {condition: service_healthy}
+      rag: {condition: service_healthy}
+      api: {condition: service_healthy}
+
+  # The one opt-in for the real end-to-end test (a full run with Gemini, using the key from .env):
+  # docker compose run --rm tests-e2e
+  # Here a missing key fails the test (E2E_REQUIRED) instead of skipping it, and -rs prints any skip.
+  tests-e2e:
+    <<: *tests
+    environment:
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}  # empty: the spec's model, as for the agent
+      E2E_REQUIRED: "1"
+      GOOGLE_API_USE_CLIENT_CERTIFICATE: "false"
+    networks: [default, internal]  # default: internet, for Gemini
+    command: ["pytest", "-q", "-rs", "tests/test_e2e.py"]
+
+networks:
+  default: {}
+  # No internet access: the MCP servers are reachable only inside the compose.
+  internal:
+    internal: true
+
+volumes:
+  api-data: {}
+  api-key: {}
+  generated: {}
