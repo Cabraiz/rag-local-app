@@ -14,6 +14,17 @@ ordem e os papéis das ferramentas. Quatro specs de exemplo transpilam, importam
 | [`listar-exames.json`](../specs/listar-exames.json) | `ler` → `listar` | só OCR e RAG, sem API: lista os exames com código e confiança, sem agendar |
 | [`agendar-variante.json`](../specs/agendar-variante.json) | `ler_e_buscar` → `revisar` → `agendar` | outros nomes de servidor e de agente; um agente lê e busca, um agente sem ferramentas revisa a lista, outro agenda |
 
+**Uma spec sua** vai na pasta `specs/`, que o serviço `agent` monta só para leitura: não precisa
+reconstruir a imagem, e uma edição vale no próximo `transpile`
+([como rodar](como-rodar.md#2-rodar-o-transpilador)):
+
+```bash
+docker compose run --rm agent python -m cli transpile specs/<sua-spec>.json --output generated/<seu-agente>.py
+```
+
+O arquivo só é trocado depois que o novo importa: ele é escrito ao lado, importado e então movido
+por cima do anterior. Se falhar, o anterior fica como estava.
+
 Para ver o código gerado sem rodar nada, abra [`exemplo-agent.py`](exemplo-agent.py): é a saída
 exata do `transpile` para `specs/agent.json`, e um teste falha se ela ficar desatualizada.
 

@@ -43,7 +43,17 @@ docker compose run --rm agent cat generated/agent.py                     # o arq
 OK: generated/agent.py gerado e importado; root_agent "clinic_scheduler" (SequentialAgent: extract -> search -> schedule)
 ```
 
-A pasta `generated/` do host fica vazia: o arquivo está no volume Docker `generated`, que só os containers do `agent` montam. O 2º comando acima o mostra.
+A pasta `generated/` do host fica vazia: o arquivo está no volume Docker `generated`, que só os containers do `agent` montam. O 2º comando acima o mostra. Não é uma pasta do host porque o container roda como um usuário sem privilégios (uid 10001), que no Linux não poderia escrever numa pasta do host.
+
+**Sua própria spec, sem rebuild.** A pasta `specs/` do host é montada só para leitura no `agent`: salve a spec ali e transpile pelo caminho dela. Uma edição vale no próximo comando, sem reconstruir a imagem.
+
+```bash
+cp specs/listar-exames.json specs/minha-spec.json                         # ou escreva a sua do zero
+docker compose run --rm agent python -m cli transpile specs/minha-spec.json --output generated/minha.py
+docker compose run --rm agent python -m cli run --image pedido.png --spec specs/minha-spec.json --agent generated/minha.py
+```
+
+Sem `--output`, o novo arquivo substitui o `generated/agent.py`. Se a spec não passar na validação ou o código gerado não importar, o arquivo anterior fica como estava.
 
 Campos da spec, mensagens de erro e o código gerado comentado: [transpilador.md](transpilador.md).
 

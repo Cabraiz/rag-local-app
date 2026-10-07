@@ -63,7 +63,8 @@ services:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-}  # empty: the compose services (transpiler/spec.py)
       GEMINI_MODEL: ${GEMINI_MODEL:-}  # empty: the spec's model
-    volumes: ["generated:/app/generated"]
+    # specs/ is mounted read-only: a spec saved there is transpiled without rebuilding the image.
+    volumes: ["generated:/app/generated", "./specs:/app/specs:ro"]
     # default: internet access for Gemini; internal: reaches ocr, rag and api.
     networks: [default, internal]
     depends_on:

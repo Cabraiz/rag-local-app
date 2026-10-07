@@ -21,6 +21,7 @@ DOCS = [ROOT / 'README.md', *sorted((ROOT / 'docs').glob('*.md'))]
 # Quoted on purpose although not in the repository, with the reason.
 NOT_IN_REPO = {
     'docker-compose.override.yml': 'the file the reader creates when Docker has no free subnet',
+    'specs/minha-spec.json': "the reader's own spec, in the folder the agent service mounts",
 }
 GENERATED = 'generated/'  # what `cli transpile` writes goes to the "generated" Docker volume, not the repository
 

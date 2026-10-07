@@ -26,6 +26,7 @@ docker compose run --rm agent python -m cli transpile specs/agent.json   # JSON 
 docker compose run --rm agent python -m cli run --image pedido.png       # imagem de samples/, só pelo nome; OCR → RAG → agendamento (1 a 7 min, conforme a fila do Gemini)
 ```
 
+- **Sua própria spec, sem rebuild:** salve-a em `specs/`, montada só para leitura no `agent`, e rode `docker compose run --rm agent python -m cli transpile specs/<sua-spec>.json`. O que você editar ali vale no próximo comando ([campos da spec](docs/transpilador.md#campos-da-spec)).
 - **Onde fica o `agent.py`:** no volume Docker `generated`, não na pasta `generated/` do host, que fica vazia. Para vê-lo: `docker compose run --rm agent cat generated/agent.py`.
 - **Swagger:** com o `up` no ar, em <http://127.0.0.1:8765/docs> (ou na porta de `API_PORT`).
 
