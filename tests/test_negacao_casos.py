@@ -20,7 +20,7 @@ FOOT = ['Dra. Celina Inventada - CRM-SP 123456', 'Data: 07/10/2026']
 HEMO, GLI, HBA, URE, CRE, COL, FERRO, FER, B12, VITD, TSH, T4L, PSA, CA125, URINA, PROT24 = (
     'FICT-001', 'FICT-002', 'FICT-003', 'FICT-004', 'FICT-005', 'FICT-006', 'FICT-017', 'FICT-018', 'FICT-021',
     'FICT-023', 'FICT-024', 'FICT-025', 'FICT-048', 'FICT-051', 'FICT-090', 'FICT-092')
-NAMES = {HEMO: 'Hemograma completo', GLI: 'Glicemia de jejum', HBA: 'Hemoglobina glicada', URE: 'Ureia',
+NAMES = {'FICT-033': 'Prolactina', HEMO: 'Hemograma completo', GLI: 'Glicemia de jejum', HBA: 'Hemoglobina glicada', URE: 'Ureia',
          CRE: 'Creatinina', COL: 'Colesterol total', FERRO: 'Ferro serico', FER: 'Ferritina', B12: 'Vitamina B12',
          VITD: 'Vitamina D', TSH: 'TSH', T4L: 'T4 livre', PSA: 'PSA total', CA125: 'CA 125', URINA: 'Urina tipo I',
          PROT24: 'Proteinuria de 24 horas'}
@@ -97,6 +97,27 @@ CASES = [
     ('P05', ['- 25-OH vitamina D'], [VITD], [], []),
     ('P07', ['- Glicemia de jejum 98 mg/dL'], [], [GLI], []),  # a result or a target: asked
     ('P09', ['- Colesterol total 180 (03/2026)'], [COL], [], []),
+    # A third round: abbreviations, a restriction, a header over a list, boxes, a sentence before the exam.
+    ('V01', ['- Hemograma completo', '- Ferritina (n/ realizar)'], [HEMO], [], [FER]),
+    ('V02', ['- Hemograma completo', '- ñ fazer PSA total'], [HEMO], [], [PSA]),
+    ('V03', ['- Hemograma completo', '- TSH - NR'], [HEMO], [], [TSH]),
+    ('V03b', ['- Hemograma completo', '- Vitamina D s/ necessidade'], [HEMO], [], [VITD]),
+    ('V03c', ['- Hemograma completo', '- Ferritina dispensado'], [HEMO], [], [FER]),
+    ('V07', ['- Ferritina e TSH: realizar apenas TSH'], [], [FER, TSH], []),
+    ('V08', ['Não realizar os seguintes:', '- Ferritina', '- PSA total', 'Realizar:', '- Hemograma completo'],
+     [HEMO], [FER, PSA], []),
+    ('V08b', ['Já realizados:', '1. Ferritina', '2. TSH', '', '- Hemograma completo'], [HEMO], [FER, TSH], []),
+    ('V15', ['- TSH - não há outras queixas'], [TSH], [], []),
+    ('V16', ['- Hemograma completo - sem restrições'], [HEMO], [], []),
+    ('N1', ['- Hemograma completo', 'Per favore aggiungere anche la Ferritina'], [HEMO], [], []),
+    ('N2', ['- Hemograma completo', "Merci d'inclure le PSA total"], [HEMO], [], []),
+    ('N3', ['- Hemograma completo', 'Conforme orientação verbal, acrescentar PSA total'], [HEMO], [PSA], []),
+    ('N4', ['[x] Ferritina', '[ ] PSA total', '☐ TSH', '☑ Hemograma completo'], [FER, HEMO], [PSA, TSH], []),
+    ('N4b', ['- Hemograma completo', 'Gioconda Valadares falou: Prolactina'], [HEMO], ['FICT-033'], []),
+    # An exam added inside a request line, in a clause of its own: the line's own exam is booked, the other asked.
+    ('P12', ['Exame: Vitamina D (incluir também Ferritina)'], [VITD], [FER], []),
+    ('P13', ['Exame: Vitamina D (a pedido do médico, incluir Ferritina)'], [VITD], [FER], []),
+    ('P14', ['Exames: Hemograma completo, Creatinina e TSH'], [HEMO, CRE, TSH], [], []),
 ]
 
 
@@ -114,7 +135,7 @@ def search(agent, context, query):
 def decide(agent, reply, queries):
     """{code: 'booked' or the reason it was left out}, after the booking call and the check of the order."""
     rag = pytest.importorskip('mcp_servers.rag')
-    context = read(agent, reply['lines'], None, reply['line_intent'])
+    context = read(agent, reply['lines'], None, reply['line_intent'], line_note_from=reply['line_note_from'])
     for query in queries:
         search(agent, context, query)
     candidates = context.state.get('candidates', {})

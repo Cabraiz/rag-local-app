@@ -34,14 +34,15 @@ Matching is on the line without accents or case, with OCR misreadings of the cue
 """
 import re
 
-from catalogo import fold
+from catalogo import fold, words
 from guardrails.pii import EXAM_TERMS, exam_like
 from guardrails.pii_rules import EXAM_MODIFIERS, PARTICLES
 
-KINDS = ('request', 'negated', 'history', 'uncertain', 'note', 'prep', 'unrecognized')
+KINDS = ('request', 'negated', 'history', 'uncertain', 'result', 'note', 'prep', 'unrecognized')
 BLOCKING = ('negated', 'history')  # never booked from this line
 
 _NOT = r'n[a4][o0]'
+_NOT_SHORT = r'(?:n[a4][o0]|n/|n(?=\s))'  # "n/ realizar", "ñ fazer" (plain() reads "ñ" as "n"), before a verb only
 _SEP = r'[\s_-]+'  # "não realizar", "não-realizar", "nao_realizar"
 _DONE = r'(?:r[e3]a[l1i]{1,2}[zs]ad[oa]s?|feit[oa]s?|colhid[oa]s?|coletad[oa]s?|dosad[oa]s?)'
 _DO = (r'(?:r[e3]a[l1i]{1,2}[zs]\w*|faz\w*|fa[cz]a\w*|feit\w*|repet\w*|refaz\w*|colh\w*|colet\w*|dos[ae]\w*|'
@@ -52,13 +53,14 @@ _WHEN = (r'(?:ontem|anteontem|hoje|(?:n[ao]\s+)?(?:semana|mes|ano)\s+passad[oa]|
          r'(?:(?:no\s+)?dia\s+)?\d{1,2}/\d{1,4}(?:/\d{2,4})?)')
 # (kind, cue, how many filler words may come between the cue and the exam, whether it may end the line)
 CUES = [
-    ('negated', re.compile(rf'\b{_NOT}{_SEP}(?:{_MODAL}\s+)?{_DO}'), 3, True),  # não realizar, não precisa repetir
+    ('negated', re.compile(rf'\b{_NOT_SHORT}{_SEP}(?:{_MODAL}\s+)?{_DO}'), 3, True),  # não realizar, n/ realizar
     ('negated', re.compile(rf'\b{_NOT}{_SEP}(?:(?:e|eh)\s+)?(?:necessari\w*|precis[ao]\w*|indicad\w*)'), 3, True),
     ('negated', re.compile(rf'\b{_NOT}\b'), 1, True),  # "NÃO: Ferritina", "não o TSH", "Ferritina: não"
     ('negated', re.compile(r'\b(?:suspen[ds]\w*|cancel\w*|desmarc\w*|dispens\w*|evit\w*|vet(?:ad[oa]s?|ar|e|ou)\b|'
                            r'exclu(?:a|am|ir|ido|ida|idos|idas)\b|retir(?:ar|e|ado|ada)\b|contra\W?indicad\w*|'
                            r'desnecessari\w*|nunca|jamais)'), 3, True),
-    ('negated', re.compile(r'\bsem\s+(?:necessidade|indicacao)(?:\s+de)?(?:\s+(?:repetir|realizar|fazer|colher))?'),
+    ('negated', re.compile(r'\bnr\b'), 1, True),  # "TSH - NR": não realizar
+    ('negated', re.compile(r'\b(?:sem|s/)\s*(?:necessidade|indicacao)(?:\s+de)?(?:\s+(?:repetir|realizar|fazer|colher))?'),
      2, True),
     ('negated', re.compile(r'\bsem\b'), 1, False),  # "sem Ferritina"; never "sem plaquetas", "sem contraste"
     ('negated', re.compile(r'\b(?:exceto|excluindo|tirando|(?<!pelo )menos)\b'), 2, False),  # "todos menos PSA"
@@ -70,7 +72,7 @@ CUES = [
      4, False),
 ]
 # Any other negation, history or exception word: never a clear decision, only a doubt ('uncertain').
-TRIGGERS = re.compile(r'\b(?:n[a4][o0]|nunca|jamais|sem|exceto|menos|excluindo|tirando|suspen[ds]\w*|cancel\w*|'
+TRIGGERS = re.compile(r'\b(?:n[a4][o0]|nr|nunca|jamais|sem|exceto|menos|excluindo|tirando|suspen[ds]\w*|cancel\w*|'
                       r'retir\w*|desmarc\w*|vet(?:ad[oa]s?|ar|e|ou)|dispens\w*|evit\w*|exclu\w*|contra\W?indicad\w*|'
                       r'desnecessari\w*|r[e3]a[l1i]{1,2}[zs]ad[oa]s?|feit[oa]s?|fez|j[a4]|trouxe|anterior\w*|'
                       r'ultim[oa]s?|colhid[oa]s?|coletad[oa]s?)\b')
@@ -79,7 +81,8 @@ TRIGGERS = re.compile(r'\b(?:n[a4][o0]|nunca|jamais|sem|exceto|menos|excluindo|t
 FILLERS = {'o', 'a', 'os', 'as', 'de', 'do', 'da', 'dos', 'das', 'um', 'uma', 'e', 'em', 'no', 'na', 'exame', 'exames',
            'dosagem', 'dosagens', 'novamente', 'mais', 'este', 'esse', 'esta', 'essa', 'isso', 'isto', 'tambem',
            'nesta', 'neste', 'nessa', 'nesse', 'vez', 'ano', 'anos', 'mes', 'meses', 'dia', 'dias', 'semana', 'semanas',
-           'ha', 'pedido', 'pelo', 'pela', 'foi', 'medico', 'medica', 'convenio', 'plano', 'paciente'}
+           'ha', 'pedido', 'pelo', 'pela', 'foi', 'medico', 'medica', 'convenio', 'plano', 'paciente', 'outras',
+           'outros', 'outra', 'outro', 'nenhuma', 'nenhum', 'qualquer'}
 # A word after a cue that shows the cue is about a preparation or the clinical context, not the exam.
 CONTEXT = {'jejum', 'cafe', 'comer', 'alimento', 'alimentos', 'alimentacao', 'refeicao', 'refeicoes', 'beber', 'bebida',
            'alcool', 'fumar', 'fumante', 'cigarro', 'tomar', 'ingerir', 'medicacao', 'medicacoes', 'medicamento',
@@ -90,15 +93,24 @@ CONTEXT = {'jejum', 'cafe', 'comer', 'alimento', 'alimentos', 'alimentacao', 're
            'conservante', 'melhora', 'esmalte', 'laboratorio', 'clinica', 'domicilio', 'casa', 'alterado', 'alterada',
            'alterados', 'alteradas', 'normal', 'normais', 'elevado', 'elevada', 'baixo', 'alto', 'repetir', 'refazer',
            'controle', 'acompanhamento', 'esquecer', 'deixar', 'falhar', 'fez', 'diabetico', 'diabetica', 'gestante',
-           'gravida', 'dor', 'febre', 'problema', 'problemas', 'esta', 'estava', 'urgente', 'carne', 'carnes'}
+           'gravida', 'dor', 'febre', 'problema', 'problemas', 'esta', 'estava', 'urgente', 'carne', 'carnes', 'restricao', 'restricoes', 'alergia',
+           'alergias', 'intercorrencia', 'intercorrencias', 'comorbidade', 'comorbidades', 'reacao', 'reacoes'}
 # Words of an exam name that never name an exam on their own after a cue ("não fazer jejum").
 NOT_AN_EXAM = EXAM_MODIFIERS | PARTICLES | {'exame', 'exames', 'horas', 'fezes', 'de', 'tipo'}
 TOKEN = re.compile(r'\[[a-z_]+\]|[a-z0-9]+|[.;!?]|\S')
 ITEM = re.compile(r'\bite(?:m|ns)\s+(?:n[o.]?\s*)?(\d{1,2})\b')
 REFERENCE = {'item', 'itens', 'acima', 'abaixo', 'seguinte', 'seguintes', 'anterior', 'anteriores'}
+# A header over a list ("Não realizar os seguintes:", "Já realizados:"): its cue reaches every item below it.
+_BLOCK = re.compile(r'(?::\s*$|\b(?:seguintes?|abaixo|a\s+seguir)\b)')
+LIST_ITEM = re.compile(r'^\s*(?:[-–•*·>]+|\(?\d{1,2}\s*[.)\-])\s*\S')
+# A box before the exam: an empty one is not ticked (asked); a ticked one is the request.
+_EMPTY_BOX = re.compile(r'^\s*(?:[-–•*·>]\s*|\d{1,2}\s*[.)\-]\s*)?(?:\[\s*\]|\(\s*\)|[\u2610\u25a1\u25fb\u2b1c])')
+# "realizar apenas TSH" on a line with other exams: the others are not plainly requested.
+_ONLY = re.compile(r'\b(?:apenas|somente|so|unicamente|exclusivamente)\b')
 _LABEL_NOTE = re.compile(r'^\W*(?:\d{1,2}\W+)?(?:obs\w*|nota\w*|observac\w*|orientac\w*|lembrete\w*|comentario\w*)\b')
 _READER = re.compile(r'\b(?:consider\w*|lev(?:e|ar|em)\s+em\s+conta|leitor\w*|automatizad\w*|se\s+possivel|'
-                     r'caso\s+(?:necessario|possivel)|a\s+criterio)\b')
+                     r'caso\s+(?:necessario|possivel)|a\s+criterio|orientac\w*\s+verbal|a\s+pedido\s+d[aoe]s?|'
+                     r'conforme\s+(?:combinad\w*|orientac\w*|solicitad\w*|pedid\w*|conversad\w*))\b')
 _LABEL_PREP = re.compile(r'^\W*(?:regras?\s+de\s+|orientac\w*\s+de\s+)?(?:preparo|prep)\b')
 _FASTING = re.compile(r'\bjejum\s+(?:minimo\s+)?(?:de\s+)?\d+|\b\d+\s*(?:h|hs|hrs|horas?)\s+de\s+jejum|'
                       r'\bjejum\s+(?:absoluto|minimo|previo)')
@@ -148,13 +160,11 @@ def after_cue(text: str, end: int, fillers: int) -> tuple[str, str]:
         if value in CONTEXT:  # before the exam check: "suspender sulfato ferroso", not DHEA sulfato
             return 'word', value
         if exam_at(text, token.start()):
-            return 'exam', ''
+            return ('exam', '') if skipped <= fillers else ('word', 'far')  # too far to be plainly about it
         if value in FILLERS or re.fullmatch(r'\d+', value):
             skipped += 1
-            if skipped > fillers:
-                return 'word', value
             continue
-        return 'word', value
+        return ('word', value) if skipped <= fillers or value in CONTEXT else ('word', 'far')
     return 'end', ''
 
 
@@ -192,9 +202,9 @@ def judge(text: str) -> tuple[set[str], bool, list[int], str]:
             continue  # "TSH (resultado anterior: 4,5)": the context of the exam before it
         else:
             doubt = True
-        if not line_has_exam and kind == 'negated' and (reach == 'end' or word in REFERENCE):
+        if not line_has_exam and kind in BLOCKING and (reach == 'end' or word in REFERENCE):
             stripped = text.strip()
-            points = 'next' if stripped.endswith(':') else 'previous' if stripped.startswith('(') else 'both'
+            points = 'block' if _BLOCK.search(stripped) else 'previous' if stripped.startswith('(') else 'both'
     return clear, doubt, items, points
 
 
@@ -221,31 +231,86 @@ def read_line(line: str) -> str:
 
 def read_page(lines: list[str]) -> list[str]:
     """The kind of each line: what the line itself says, then what a line that is only a negation says
-    of its neighbours ("Não realizar:" above an exam, "(suspensa)" below it, "retirar o item 2")."""
+    of its neighbours ("Não realizar:" above an exam, "(suspensa)" below it, "retirar o item 2", a header
+    "Não realizar os seguintes:" over a list)."""
     texts = [plain(line) for line in lines]
     judged = [judge(text) for text in texts]
-    kinds = []
-    for text, (clear, doubt, _, _) in zip(texts, judged, strict=True):
-        first = EXAMS.search(text)
-        head = head_kind(text[:first.start()] if first else text)
-        if clear:
-            kinds.append('negated' if 'negated' in clear else 'history')
-        elif first and _RESULT_HEAD.search(text[:first.start()]):
-            kinds.append('history')
-        elif head == 'prep':
-            kinds.append('prep')
-        elif doubt or (first and _VALUE.search(text, first.end())):  # a value: a result, or a target?
-            kinds.append('uncertain')
-        else:
-            kinds.append(head)
+    kinds = [line_kind(text, clear, doubt) for text, (clear, doubt, _, _) in zip(texts, judged, strict=True)]
     numbers = {int(match.group(1)): index for index, text in enumerate(texts)
                if (match := re.match(r'\s*\(?(\d{1,2})\s*[.)\-]', text))}
     for index, (_, _, items, points) in enumerate(judged):
-        targets = [numbers[number] for number in items if number in numbers]
-        if not targets:
-            targets = ([index - 1] if points in ('previous', 'both') else []) + \
-                      ([index + 1] if points in ('next', 'both') else [])
-        for target in targets:
-            if 0 <= target < len(kinds) and target != index and kinds[target] in ('request', 'note'):
+        for target in reached(texts, index, [numbers[number] for number in items if number in numbers], points):
+            if 0 <= target < len(kinds) and target != index and kinds[target] in ('request', 'note', 'result'):
                 kinds[target] = 'uncertain'
     return kinds
+
+
+def line_kind(text: str, clear: set[str], doubt: bool) -> str:
+    """The kind of one line from what it says itself (judge), its head and its value."""
+    first = EXAMS.search(text)
+    head = head_kind(text[:first.start()] if first else text)
+    if clear:
+        return 'negated' if 'negated' in clear else 'history'
+    if first and _RESULT_HEAD.search(text[:first.start()]):
+        return 'history'
+    if head == 'prep':
+        return 'prep'
+    if doubt or _EMPTY_BOX.match(text) or (first and _ONLY.search(text) and other_exams(text, len(text))):
+        return 'uncertain'  # a doubt, a box not ticked, "realizar apenas TSH" next to Ferritina
+    if first and _VALUE.search(text, first.end()):
+        return 'result'  # a value with a lab unit: a result, or a target?
+    return head
+
+
+def reached(texts: list[str], index: int, items: list[int], points: str) -> list[int]:
+    """The lines a line that is only a negation talks about: the items it numbers, the lines next to it,
+    or every list item below a header, up to a blank line, a new header or a line that is no item."""
+    if items:
+        return items
+    if points != 'block':
+        return ([index - 1] if points in ('previous', 'both') else []) + ([index + 1] if points in ('next', 'both') else [])
+    targets = []
+    for below in range(index + 1, len(texts)):
+        if not texts[below].strip() or texts[below].rstrip().endswith(':') or                 (not LIST_ITEM.match(texts[below]) and below > index + 1):
+            break
+        targets.append(below)
+    return targets
+
+
+def prose_before_exam(line: str, masked: str) -> bool:
+    """Whether text the PII safety net removed comes before the line's first exam: words in another
+    language, a sentence to the reader ("Per favore aggiungere anche la Ferritina" -> "[NOME] Ferritina").
+    Not a label ("Exames:", "Solicito:"), a list marker, or a word or two of OCR junk: at least 2 words of
+    3 letters or more were written there, and none of them stayed."""
+    raw, safe = plain(line), plain(masked)
+    first_raw, first_safe = EXAMS.search(raw), EXAMS.search(safe)
+    if not (first_raw and first_safe):
+        return False
+    head = re.sub(r'^\s*(?:[-–•*·>]+|\(?\d{1,2}\s*[.)\-])', ' ', safe[:first_safe.start()])
+    left = re.sub(r'\[[a-z_]+\]', ' ', head)
+    removed = re.search(r'\[(?:nome|texto_removido)\]', head)
+    return bool(removed) and not re.search(r'[a-z0-9]', left) and \
+        len(re.findall(r'[a-z]{3,}', raw[:first_raw.start()])) >= 2
+
+
+_CLAUSE = re.compile(r'[(,;:]')
+_CONNECTIVE = re.compile(r'\b(?:e|ou|a|o|as|os|de|do|da|com|mais)\b')
+
+
+def note_from(masked: str) -> int | None:
+    """Where, in words(masked), the exams of a request line stop being plainly requested: an exam after the
+    first whose own clause (after "(", ",", ";" or ":") holds only text the safety net removed ("Exame:
+    Vitamina D (incluir também Ferritina)" -> "Exame: Vitamina D ([TEXTO_REMOVIDO] Ferritina)"), or a
+    reported request ("(a pedido do médico, incluir Ferritina)"). From there on, an exam is at most asked;
+    the exams before it are booked as usual. None when there is no such exam."""
+    safe = plain(masked)
+    found = list(EXAMS.finditer(safe))
+    for previous, exam in zip(found, found[1:], strict=False):
+        between = safe[previous.end():exam.start()]
+        clause = between[max((m.end() for m in _CLAUSE.finditer(between)), default=0):]
+        bare = _CONNECTIVE.sub(' ', re.sub(r'\[[a-z_]+\]', ' ', clause))
+        prose = re.search(r'\[(?:nome|texto_removido)\]', clause) and not re.search(r'[a-z0-9]', bare)
+        if prose or _READER.search(between):
+            prefix = words(masked[:exam.start()])
+            return len(prefix) + 1 if prefix else 0
+    return None

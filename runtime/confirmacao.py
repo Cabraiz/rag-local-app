@@ -7,7 +7,8 @@ import os
 import sys
 
 # Why an exam is asked although it is written clearly: what its line says (runtime/confianca.py, 'why').
-WHY = {'uncertain': '; a linha tem uma negação ou histórico', 'note': '; a linha é uma observação'}
+WHY = {'uncertain': '; a linha tem uma negação ou histórico', 'note': '; a linha é uma observação',
+       'result': '; a linha parece um resultado'}
 
 
 def can_ask():

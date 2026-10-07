@@ -42,11 +42,11 @@ def agent(tmp_path):
 ABSENT = object()  # an OCR reply without line_confidence
 
 
-def read(agent, lines, confidence=None, intent=None):
+def read(agent, lines, confidence=None, intent=None, **more):
     """The OCR's reply through the after_tool_callback (lines read clearly, 95, and requests, unless
-    told otherwise); returns a fresh context."""
+    told otherwise, plus any other field of the reply); returns a fresh context."""
     context = FakeContext()
-    reply = {'lines': lines, 'pii_masked': {}}
+    reply = {'lines': lines, 'pii_masked': {}, **more}
     if intent is not ABSENT:
         reply['line_intent'] = ['request'] * len(lines) if intent is None else intent
     if confidence is not ABSENT:

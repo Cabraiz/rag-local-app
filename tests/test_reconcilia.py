@@ -40,7 +40,7 @@ def check(agent, context, booked):
 def test_only_the_exam_lines_of_the_judges_order_are_checked_and_the_search_cuts_them():
     # "LABORATORIO" is checked, but it is only a resemblance of letters to Paratormônio (0,70): never reported.
     lines = order_lines(JUDGE)
-    assert [line[:2] for line in lines] == [(0, 'LABORATORIO ( )'), (7, 'Hemoglobina glicada'),
+    assert [line[:2] for line in lines] == [(0, 'LABORATORIO'), (7, 'Hemoglobina glicada'),
                                             (8, 'Colesterol total e Triglicerideos'), (9, 'TGO'), (10, 'Ferritina')]
     rag = pytest.importorskip('mcp_servers.rag')
     assert rag.split_exams(lines[2][1]) == ['Colesterol total', 'Triglicerideos']  # the pieces checked are the search's

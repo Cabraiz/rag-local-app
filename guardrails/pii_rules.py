@@ -141,7 +141,8 @@ ORDINARY_WORDS = frozenset((
     'suspensa', 'cancelar', 'cancelado', 'cancelada', 'dispensar', 'dispensado', 'agendar', 'marcar', 'nota',
     'leitor', 'automatizado', 'anterior', 'resultado', 'ultimo', 'reagiu', 'mal', 'urgente',
     'agregar', 'agregue', 'anadir', 'anada', 'incluya', 'tambien', 'favor',  # Spanish: "Agregar também"
-    'todos', 'todas', 'menos', 'exceto', 'sem', 'trouxe', 'item', 'controle', 'necessario', 'precisa'))
+    'todos', 'todas', 'menos', 'exceto', 'sem', 'trouxe', 'item', 'controle', 'necessario', 'precisa', 'conforme',
+    'verbal', 'orientacao', 'combinado', 'apenas', 'somente'))
 # Field names: right before a masked value they are labels ("CPF [CPF]"), not names.
 FIELD_NAMES = frozenset(('cpf', 'rg', 'crm', 'cep', 'cid', 'cns', 'sus', 'data', 'nascimento', 'nasc', 'telefone',
                          'tel', 'celular', 'whatsapp', 'contato', 'email', 'endereco', 'idade', 'convenio',
@@ -165,9 +166,9 @@ PIECES = re.compile(r'([,;():]|\s[-–—]\s)')
 # Words of a negation, history or exception ("não", "exceto", "suspenso", "já realizado", "trouxe"): no
 # personal data, and what the order says of its exams (guardrails/intent.py). The safety net never
 # removes them, so the model and the CLI read "Obs: NAO realizar Ferritina" as written.
-VISIBLE = re.compile(r'(?:nao|na0|nunca|jamais|sem|exceto|menos|excluindo|tirando|suspen[ds]\w*|cancel\w*|retir\w*|'
+VISIBLE = re.compile(r'(?:nao|na0|nr|apenas|somente|seguintes?|seguir|nunca|jamais|sem|exceto|menos|excluindo|tirando|suspen[ds]\w*|cancel\w*|retir\w*|'
                      r'desmarc\w*|vet(?:ad[oa]s?|ar|e|ou)|dispens\w*|evit\w*|exclu\w*|contra\w*indicad\w*|'
-                     r'desnecessari\w*|necessari\w*|precis\w*|realiz\w*|feit[oa]s?|fez|fazer|faca|ja|resultados?|trouxe|'
+                     r'desnecessari\w*|necessari\w*|necessidade|precis\w*|realiz\w*|feit[oa]s?|fez|fazer|faca|ja|resultados?|trouxe|'
                      r'anterior\w*|ultim[oa]s?|colhid[oa]s?|coletad[oa]s?|repetir|refazer|controle|deixar|esquecer|'
                      r'itens|item|acima|abaixo|todos|todas|autorizad[oa]s?|liberad[oa]s?|indicad[oa]s?)')
 JOINED = re.compile(r'(\s(?:e|E|\+|/)\s)')

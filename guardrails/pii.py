@@ -272,7 +272,7 @@ def only_exam_words(piece: str, counts: dict[str, int]) -> str:
     outside = [token for token in tokens if not TAG.fullmatch(token.group()) and (
         any(start < token.end() and token.start() < end for start, end in long_numbers) or not all(
             word in STRUCTURE or word in UNITS or AMOUNT.fullmatch(word) or exam_like(word) or short_exam_word(word)
-            or visible(word) for word in words(token.group()).split()))]
+            or visible(word) for word in words(token.group()).split()) and not short_cue(piece, token))]
     # An exam word the OCR split in two ("Colesti erol total"): glued again, it is exam-like, and stays.
     split = {index for index, (first, second) in enumerate(zip(outside, outside[1:], strict=False))
              if not piece[first.end():second.start()].strip() and exam_like(words(first.group() + second.group()))}
@@ -303,6 +303,17 @@ def is_structure(piece: str) -> bool:
     "CPF: [CPF]", "não precisa"."""
     return all(word in STRUCTURE or (word.isdigit() and len(word) <= 2) or visible(word)
                for word in words(TAG.sub(' ', piece)).split())
+
+
+def short_cue(piece: str, token: re.Match[str]) -> bool:
+    """Whether the token is a short "não" or "sem" (SHORT_CUE), marks before it aside: "(n/"."""
+    found = SHORT_CUE.search(piece, token.start())
+    return found is not None and found.start() < token.end()
+
+
+# The short forms of "não" and "sem" ("n/ realizar", "ñ fazer", "s/ necessidade"): visible too, but only
+# written this way, so a lone letter ("D.N.", the initial of a name) is still removed.
+SHORT_CUE = re.compile(r'(?<![^\s(\[-])(?:[nNsS]/|[ñÑ])(?=\s)')
 
 
 def visible(word: str) -> bool:
@@ -346,7 +357,8 @@ def has_first_name(text: str) -> bool:
 def removed(piece: str, counts: dict[str, int]) -> str:
     """The piece without its text, but for the negation, history and exception words in it: "não
     tomar café" -> "não [TEXTO_REMOVIDO]". Each stretch between them is replaced."""
-    kept = [match for match in WORD.finditer(piece) if visible(match.group())]
+    kept = [match for match in WORD.finditer(piece) if visible(match.group())
+            or SHORT_CUE.match(piece, match.start())]
     out, at = [], 0
     for start, end in [(match.start(), match.end()) for match in kept] + [(len(piece), len(piece))]:
         stretch = piece[at:start]

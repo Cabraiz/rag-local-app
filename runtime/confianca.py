@@ -46,7 +46,7 @@ GLUED = 2  # letters the OCR may glue to a word ("TSH e" read "TSHe"): "tsh" sti
 # What a line asks for (the OCR's line_intent). Nothing is booked from a NOT_ANCHORS line; an exam whose
 # words are also on a BLOCKING line ("- Ferritina" and "Obs: não realizar Ferritina") is at most asked,
 # and so is one on a note.
-INTENTS = {'request', 'negated', 'history', 'uncertain', 'note', 'prep', 'unrecognized'}
+INTENTS = {'request', 'negated', 'history', 'uncertain', 'result', 'note', 'prep', 'unrecognized'}
 BLOCKING = {'negated', 'history'}
 NOT_ANCHORS = BLOCKING | {'prep'}
 
@@ -137,6 +137,11 @@ def remember_ocr(state, reply):
         isinstance(value, str) for value in intents)
     # None: no usable kind, every line a note; a kind this runtime does not know is a note too
     state['ocr_intent'] = [value if value in INTENTS else 'unknown' for value in intents] if valid else None
+    # line_note_from: where, in a request line, its exams are only noted (an offset in words(line)), or None
+    starts = reply.get('line_note_from')
+    valid = isinstance(starts, list) and len(starts) == len(state['ocr_read']) and all(
+        value is None or (isinstance(value, int) and not isinstance(value, bool)) for value in starts)
+    state['ocr_note_from'] = starts if valid else None
     state['text_removed'] = reply.get('text_removed', 0)
 
 
@@ -243,6 +248,9 @@ def best_spot(candidate, taken, state, policy):
     free, holders, refused = [], [], []
     for line, start, end, support in spots:
         kind = intent_of(state, line)
+        note_from = (state.get('ocr_note_from') or [])[line:line + 1]
+        if kind == 'request' and note_from and note_from[0] is not None and start >= note_from[0]:
+            kind = 'note'  # "Vitamina D (incluir também Ferritina)": Ferritina only noted, Vitamina D requested
         if kind in NOT_ANCHORS:
             refused.append((kind, line))
             continue
@@ -256,7 +264,7 @@ def best_spot(candidate, taken, state, policy):
         if holder:
             holders.append(holder)
         else:
-            doubt = kind if kind in ('note', 'uncertain') else None
+            doubt = kind if kind in ('note', 'uncertain', 'result') else None
             free.append((round(min(candidate['score'], support, reading), 2), line, start, end, doubt))
     if free and any(kind in BLOCKING for kind, _ in refused):  # "- Ferritina", then "não realizar Ferritina"
         free = [(min(spot[0], policy.below_booking), *spot[1:4], 'uncertain') for spot in free]

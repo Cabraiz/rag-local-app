@@ -91,8 +91,8 @@ NOT_REQUESTS = [
     ('TSH e T4 livre - não repetir T4 livre', 'uncertain', 'T4 livre'),
     ('Ferritina - controle após suspensão do ferro', 'uncertain', 'Ferritina'),
     ('Paciente trouxe PSA total de agosto', 'uncertain', 'PSA total'),
-    ('Ferritina 45 ng/mL (03/2025)', 'uncertain', 'Ferritina'),
-    ('Glicemia de jejum 98 mg/dL', 'uncertain', 'Glicemia de jejum'),
+    ('Ferritina 45 ng/mL (03/2025)', 'result', 'Ferritina'),
+    ('Glicemia de jejum 98 mg/dL', 'result', 'Glicemia de jejum'),
     ('Ferritina - não, nunca', 'negated', 'Ferritina'),
     ('Lipase - cancelar se amilase normal', 'uncertain', 'Lipase'),
 ]
@@ -162,7 +162,7 @@ def ocr_read(lines):
 def agent_read(agent, lines, confidence=None):
     """The OCR's reply for these lines, through the agent's after_tool_callback."""
     reply = ocr_read(lines)
-    return read(agent, reply['lines'], confidence, reply['line_intent']), reply
+    return read(agent, reply['lines'], confidence, reply['line_intent'], line_note_from=reply['line_note_from']), reply
 
 
 def search(agent, context, query):
@@ -247,7 +247,7 @@ def test_an_exam_on_a_line_that_does_not_request_it_is_never_booked_alone(agent,
     assert 'FICT-003' in booked and code not in booked
     if kind in intent.BLOCKING:
         assert left_out[code] == reply['line_intent'][2] == kind
-    elif kind in ('note', 'uncertain'):  # at most asked: nobody answers here, so left out with the question's reason
+    elif kind in ('note', 'uncertain', 'result'):  # at most asked: nobody answers here, so left out with the question's reason
         assert left_out[code] in ('needs_confirmation', 'score', 'line_used')
     else:
         assert left_out[code] == 'prep'
@@ -422,6 +422,26 @@ def test_an_exam_whose_name_the_safety_net_removed_but_its_modifier_is_not_silen
     assert ocr.unrecognized_request('- Qwxzk livre', '- [TEXTO_REMOVIDO] livre')
     assert not ocr.unrecognized_request('Qwxzk Colesterol total', '[TEXTO_REMOVIDO] Colesterol total')  # an exam stays
     assert not ocr.unrecognized_request('Paciente: Ana total', 'Paciente: [NOME] total')  # personal data, not junk
+
+
+@pytest.mark.parametrize('line', [
+    '1) Hemograma completo', '- Hemograma completo', 'Solicito: Hemograma completo', 'Exames: Hemograma completo, TSH',
+    'Hemograma completo e TSH', 'Exames solicitados: TSH', '[x] Hemograma completo', 'Realizar apenas TSH',
+])
+def test_lists_labels_and_ticked_boxes_stay_requests(line):
+    assert ocr_read([line])['line_intent'] == ['request']
+
+
+@pytest.mark.parametrize('line', ['Grazie mille Ferritina', 'Gioconda Valadares falou: Prolactina'])
+def test_prose_the_safety_net_removed_before_the_exam_makes_a_note(line):
+    # Whatever the language, a sentence nobody can read before the exam: the exam is asked, never booked alone.
+    assert ocr_read([line])['line_intent'] == ['note']
+
+
+def test_an_exam_added_in_a_clause_of_its_own_is_only_noted_from_there():
+    reply = ocr_read(['Exame: Vitamina D (incluir também Ferritina)'])
+    assert reply['lines'] == ['Exame: Vitamina D ([TEXTO_REMOVIDO] Ferritina)']
+    assert reply['line_intent'] == ['request'] and reply['line_note_from'] == [len('exame vitamina d texto removido ')]
 
 
 def test_an_exam_word_the_ocr_split_in_two_is_kept():

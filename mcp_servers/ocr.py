@@ -114,10 +114,14 @@ def mask_lines(lines: list[str], joined: list[str] | None = None) -> dict:
         joined = join_split_orders(lines)[0]
     lines, removed = neutralize_joined(joined)  # prompt injection: the text goes to the LLM
     masked, counts = mask_page(lines)
-    kinds = ['unrecognized' if kind == 'request' and unrecognized_request(line, safe) else kind
+    kinds = ['unrecognized' if kind == 'request' and unrecognized_request(line, safe)
+             else 'note' if kind == 'request' and intent.prose_before_exam(line, safe) else kind
              for kind, line, safe in zip(intent.read_page(lines), lines, masked, strict=True)]
     text_removed = counts.pop('TEXTO_REMOVIDO', 0)
-    return {'lines': masked, 'line_intent': kinds, 'pii_masked': counts, 'instructions_removed': removed,
+    # On a request line, where its exams stop being plainly requested ("Vitamina D (incluir também Ferritina)")
+    note_from = [intent.note_from(safe) if kind == 'request' else None for kind, safe in zip(kinds, masked, strict=True)]
+    return {'lines': masked, 'line_intent': kinds, 'line_note_from': note_from, 'pii_masked': counts,
+            'instructions_removed': removed,
             'text_removed': text_removed}
 
 

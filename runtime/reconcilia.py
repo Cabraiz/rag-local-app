@@ -44,6 +44,9 @@ CUE = re.compile(r'\b(?:n[aã]o|nunca|sem|exceto|menos|suspen[ds]\w*|cancel\w*|r
                  r'dispens\w*|evit\w*|feit[oa]s?|realizad[oa]s?|fez|fazer|deixar|esquecer|trouxe|j[aá]|precisa|'
                  r'(?:des)?necess[aá]ri[oa]s?|controle|resultados?|valor(?:es)?|anterior(?:es)?|[uú]ltim[oa]s?)\b',
                  re.IGNORECASE)
+# A parenthesis opened after a word ("Vitamina D (incluir também Ferritina)") holds a clause of its own: the
+# exam inside it is checked on its own. "25(OH)D", glued, stays one name.
+ASIDE = re.compile(r'(?<=\s)\(|\)(?=\s|$)')
 # A time after an exam ("TSH em 30 dias", "após 3 meses") is not part of its name: a separator too.
 WHEN = re.compile(r'\b(?:em|ap[oó]s|daqui a|dentro de)\s+\d+\s*(?:dias?|semanas?|m[eê]s(?:es)?|anos?|horas?)\b',
                   re.IGNORECASE)
@@ -81,7 +84,7 @@ def order_lines(read):
         for label, value in parts(MARKER.sub('', MASKED.sub(' ', str(line)))):
             if first_word(label) in DATA or words(label) == 'e mail':
                 continue
-            text = WHEN.sub(',', CUE.sub(',', REQUEST.sub(',', MARKER.sub('', value).replace(':', ','))))
+            text = WHEN.sub(',', CUE.sub(',', REQUEST.sub(',', ASIDE.sub(',', MARKER.sub('', value).replace(':', ',')))))
             if not label and first_word(text) in DATA:  # "Dr. [NOME] - [CRM]": the label without a colon
                 text = text.split(None, 1)[1] if len(text.split()) > 1 else ''
             text = MARKER.sub('', text).strip(' ,')
