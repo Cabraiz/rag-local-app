@@ -64,6 +64,6 @@ https://github.com/user-attachments/assets/18c47964-e4e9-4fc2-b4f8-fa814f34a093
 
 ### 07. Docker e testes
 
-Serviços healthy e a suíte inteira no serviço `tests` (`17254 passed`, `exit=0`); o `1 skipped` é o teste ponta a ponta, que precisa da chave Gemini ([mp4](../videos-do-desafio/07-docker-testes.mp4))
+Serviços healthy e a suíte inteira no serviço `tests` (`17254 passed` na gravação, de uma versão anterior da suíte, hoje maior: [números atuais](como-rodar.md#testes); `exit=0`); o `1 skipped` é o teste ponta a ponta, que precisa da chave Gemini ([mp4](../videos-do-desafio/07-docker-testes.mp4))
 
 https://github.com/user-attachments/assets/c0d8d339-63fe-492a-9453-d1f6a6f522f6
