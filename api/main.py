@@ -6,6 +6,7 @@ Errors never echo the submitted values or a stack trace, and SQL is always param
 The exam list (health data) is stored encrypted with AES-256-GCM (api/crypto.py).
 POST accepts an optional Idempotency-Key, and every request logs one JSON line (no body).
 Each client IP has a request limit per minute (API_RATE_LIMIT_PER_MINUTE); over it, 429.
+Every response carries the security headers of SecurityHeaders (nosniff, DENY, no-referrer, ...).
 Importing this module reads no setting and touches no file: the catalog, the key and the
 database are opened when the server starts (lifespan), and an invalid key stops it there.
 """
@@ -292,6 +293,56 @@ class RateLimit:
 
 app.add_middleware(RateLimit)
 
+
+INTERNAL_ERROR = {'detail': 'Erro interno ao processar a requisição.'}
+SECURITY_HEADERS = [(b'x-content-type-options', b'nosniff'), (b'x-frame-options', b'DENY'),
+                    (b'referrer-policy', b'no-referrer')]
+# The JSON routes load nothing, so nothing is allowed. Not on the docs pages: their HTML loads the
+# Swagger UI and ReDoc scripts and styles from cdn.jsdelivr.net, with an inline script.
+CONTENT_SECURITY_POLICY = (b'content-security-policy', b"default-src 'none'; frame-ancestors 'none'")
+DOCS_PAGES = ('/docs', '/docs/oauth2-redirect', '/redoc')
+NO_STORE = (b'cache-control', b'no-store')  # /appointments responses carry the decrypted exam list
+
+
+class SecurityHeaders:
+    """ASGI middleware: the security headers on every HTTP response, errors included.
+
+    Around BodyLimit and RateLimit, so their 413 and 429 get the headers. An unhandled exception is
+    answered by Starlette's ServerErrorMiddleware, outside every added middleware, so its 500 would
+    go out without them: this middleware sends that 500 itself (the same body as `unexpected_error`,
+    and through RequestLog, so it has an X-Request-ID too) and re-raises, so the server still logs
+    the error and nothing is sent twice.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope['type'] != 'http':
+            return await self.app(scope, receive, send)
+        path = scope['path']
+        extra = [*SECURITY_HEADERS, *([] if path in DOCS_PAGES else [CONTENT_SECURITY_POLICY]),
+                 *([NO_STORE] if path == '/appointments' or path.startswith('/appointments/') else [])]
+        started = False
+
+        async def send_with_headers(message):
+            nonlocal started
+            if message['type'] == 'http.response.start':
+                started = True
+                names = {name.lower() for name, _ in message.get('headers', [])}
+                message['headers'] = [*message.get('headers', []), *(item for item in extra if item[0] not in names)]
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_with_headers)
+        except Exception:
+            if not started:
+                await JSONResponse(INTERNAL_ERROR, status_code=500)(scope, receive, send_with_headers)
+            raise
+
+
+app.add_middleware(SecurityHeaders)
+
 # One JSON line per request on stderr; it replaces uvicorn's access log (which prints the raw path).
 ACCESS_LOG = logging.getLogger('api.access')
 if not ACCESS_LOG.handlers:  # a handler set before the import (a test, a deployment) is kept
@@ -391,7 +442,7 @@ async def validation_error(request: Request, error: RequestValidationError):
 
 @app.exception_handler(Exception)
 async def unexpected_error(request: Request, error: Exception):
-    return JSONResponse({'detail': 'Erro interno ao processar a requisição.'}, status_code=500)
+    return JSONResponse(INTERNAL_ERROR, status_code=500)
 
 
 @app.get('/health', operation_id='health', tags=['operação'], summary='Verificar se a API está no ar',

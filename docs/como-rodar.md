@@ -230,7 +230,7 @@ docker compose run --rm tests pytest -q -n auto
   - o OCR nas imagens de exemplo, com a PII mascarada;
   - a busca do RAG;
   - as duas ferramentas MCP chamadas via SSE, como o agente faz;
-  - a API (criação, consulta, `404`, `422`);
+  - a API (criação, consulta, `404`, `422`) e os cabeçalhos de segurança em cada resposta ([`test_api_headers.py`](../tests/test_api_headers.py));
   - cada tipo de PII;
   - o detector de injeção ([`tests/test_injection.py`](../tests/test_injection.py)), com o corpus do próprio projeto em `tests/attacks/` (790 ataques e 1.404 linhas legítimas, 1.353 distintas);
   - a cifra do banco e a chave no volume ([`test_crypto.py`](../tests/test_crypto.py)) e a `Idempotency-Key` ([`test_idempotencia.py`](../tests/test_idempotencia.py));
