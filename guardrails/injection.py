@@ -55,7 +55,7 @@ _VERB = rf'(?:{_INFINITIVE}|{_IMPERATIVE_OR_FUTURE}|{_PASSIVE})'
 _MODAL = (r'(?:deve|devem|devera|deverao|deveria|deveriam|precisa|precisam|precisara|tem que|tem de|tera que|'
           r'tem q|e necessario|e preciso|e obrigatorio|e para|favor|pode|podem|podera|vai|vao|ira|irao)')
 # "também" and its OCR misreadings ("tanbem", "tambm"), "ainda" (not "ainda hoje"), "adicionalmente".
-_ALSO = (r'(?:ta[mn]?be?[mn]|tambien|tbm|tmb|adicional\w*|alem disso|'
+_ALSO = (r'(?:ta[mn]?be?[mn]|tambien|anche|aussi|auch|tbm|tmb|adicional\w*|alem disso|'
          r'ainda(?! (?:hoje|hj|amanha|n?est[ae]|n?ess[ae]|semana|mes|pel[ao]|no|na|em|antes)\b))')
 # The patient as the subject is guidance ("Paciente deve também agendar retorno"), like an exam
 # written in the order: only an order to someone else is removed.
@@ -98,6 +98,9 @@ COMMAND = re.compile(r'\b(?:' + '|'.join([
     r'novas? ordens?', r'fict ?\d+', r'olvid\w*', r'reglas?', r'ejecut\w*', r'herramientas?', r'planifi\w*',
     r'inclu(?:a|am)', r'adicion(?:e|em)', r'acrescent(?:e|em)', r'add', r'marque\w*', r'solicite\w*',
     r'agreg(?:ue|uen)', r'anad(?:a|an)', r'incluy(?:a|an)', r'program(?:e|en)',  # Spanish: "agregue", "añada"
+    # Italian, French and German: "aggiungere anche", "merci d'inclure", "veuillez ajouter", "hinzufügen"
+    r'aggiung\w*', r'includ(?:ere|a|ete)', r'prenot\w*', r'ajout\w*', r'inclu(?:re|ez)', r'veuillez', r'merci d',
+    r'hinzufug\w*', r'einplan\w*',
     r'(?:assistente|modelo|ia|agente|robo)(?: [a-z0-9]+){0,6} dev(?:e|em|era)',
     # a note addressed to whoever reads the order by machine: "Nota ao leitor automatizado: ..."
     r'(?:ao|a|para o|para a|pro|pra) (?:leitor|leitora|sistema|agente|modelo|robo|bot)', r'leitora? automatizad\w*',
