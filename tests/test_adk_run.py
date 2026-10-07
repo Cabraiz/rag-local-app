@@ -200,6 +200,24 @@ def test_without_one_readable_image_nothing_reaches_a_model(adk_run, typed, told
     assert 'joao' not in out  # the OCR's refusal names the token, not the file
 
 
+def test_an_exam_the_order_says_not_to_do_is_not_booked_under_adk_run(adk_run, monkeypatch):
+    # The order of a blind review: the model proposes Ferritina too. Tesseract's reading is replaced by
+    # these lines; the rest is the real OCR server (injection guard, line_intent, PII mask), the real
+    # search and the real API, under `adk run`.
+    from mcp_servers import ocr
+    from mcp_servers.preprocessamento import Linha
+    order = ['Hemograma completo', 'TSH', 'Obs: NAO realizar Ferritina']
+    monkeypatch.setattr(ocr, 'read_lines', lambda path: [Linha(line, 95) for line in order])
+    monkeypatch.setattr(sys.modules[__name__], 'READ', ['Hemograma completo', 'TSH', 'Ferritina'])
+    monkeypatch.setitem(BOOK, 'exams', [{'code': 'FICT-001', 'name': 'Hemograma completo'},
+                                        {'code': 'FICT-024', 'name': 'TSH'}, {'code': 'FICT-018', 'name': 'Ferritina'}])
+    out, new, _ = adk_run(IMAGE)
+    assert new == [[('FICT-001', 'Hemograma completo'), ('FICT-024', 'TSH')]], out
+    report = out.split('[clinic_scheduler]: ', 1)[1]  # the message written in code, not the model's
+    assert "não agendado: 'Obs: NAO realizar Ferritina' → Ferritina FICT-018; o pedido diz para não realizar" in report
+    assert 'Agendamento confirmado pela API' in report and 'ATENÇÃO' not in report
+
+
 def test_one_order_per_session(adk_run):
     out, new, _ = adk_run(IMAGE, IMAGE)
     assert new == all_three(), out  # one appointment; the 2nd message is told it exists, not to repeat it

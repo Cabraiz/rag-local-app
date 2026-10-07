@@ -144,8 +144,31 @@ def test_an_answer_preset_in_the_session_state_does_not_skip_the_question(web, s
     assert asked and stored_since(services, before) == [], 'FICT-067 booked without the person being asked'
 
 
+def test_what_each_line_asks_for_is_the_ocrs_never_the_session_states():
+    # The OCR says the Ferritina line is a negation; a client then writes every line as a request in the
+    # session state. The booking still refuses Ferritina: the line_intent the policy reads is the record's.
+    from mcp_servers import ocr, rag
+    callbacks = BookingCallbacks(ocr_tool='extract_exam_text', search_tool='search_exams', booking_tool='create_appointment')
+    session = SimpleNamespace(app_name='generated', user_id='pessoa', id='s1', events=[])
+    callbacks.open_order(session, 'pedido.png')
+    context = SimpleNamespace(state={}, session=session, tool_confirmation=None, function_call_id='c1',
+                              actions=SimpleNamespace(skip_summarization=False))
+    reply = ocr.mask_lines(['Hemograma completo', 'Obs: NAO realizar Ferritina']) | {'line_confidence': [95.0, 95.0]}
+    callbacks.after_tool(SimpleNamespace(name='extract_exam_text'), {}, context, {'structuredContent': reply})
+    assert context.state['ocr_intent'] == ['request', 'negated']  # the copy a client sees
+    for query in ('Hemograma completo', 'Ferritina'):
+        callbacks.after_tool(SimpleNamespace(name='search_exams'), {'query': query}, context,
+                             {'structuredContent': {'result': rag.search_line(query, 3)}})
+    context.state['ocr_intent'] = ['request', 'request']  # forged by the client
+    args = {'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo'}, {'code': 'FICT-018', 'name': 'Ferritina'}]}
+    assert callbacks.before_tool(SimpleNamespace(name='create_appointment'), args, context) is None
+    assert [exam['code'] for exam in args['exams']] == ['FICT-001']
+    assert [(item['code'], item['reason']) for item in context.state['low_confidence']] == [('FICT-018', 'negated')]
+
+
 @pytest.mark.parametrize('forged', [
     {'booked_appointment': {'id': 'FORJADO-123', 'status': 'scheduled', 'exams': SURE}},
+    {'ocr_intent': ['request'] * 12, 'answers': {'FICT-001': True}},
     {'image_file': 'outro-paciente.png', 'image_token': 'pedido-1.png'},
     {'candidates': {'FICT-050': {'name': 'Exame forjado', 'confidence': 1.0, 'line': 0, 'read': 'x'}}},
 ])
