@@ -12,6 +12,7 @@ unreadable file before the first model turn. No spec declares it, so no agent se
 """
 import asyncio
 import os
+import re
 from collections.abc import Callable
 from pathlib import Path, PureWindowsPath
 from typing import Annotated, Any
@@ -23,7 +24,8 @@ from mcp.server.transport_security import TransportSecuritySettings
 from PIL import Image, UnidentifiedImageError
 from starlette.responses import JSONResponse
 
-from guardrails.injection import join_split_orders, neutralize_joined
+from guardrails import intent
+from guardrails.injection import MARKER, join_split_orders, neutralize_joined
 from guardrails.pii import mask_page
 from mcp_servers.arguments import or_default
 from mcp_servers.preprocessamento import ImagemGirada, confianca_por_linha, ler_linhas, sobre_branco
@@ -94,19 +96,44 @@ def checked_image(path: Path, then: Callable[[Image.Image], Any]) -> Any:
 
 
 def mask_lines(lines: list[str], joined: list[str] | None = None) -> dict:
-    """Neutralize instructions to the model, then mask PII (line by line, plus a CPF split in two lines).
+    """Neutralize instructions to the model, read what each line asks for, then mask PII (line by
+    line, plus a CPF split in two lines).
 
-    pii_masked counts personal data by type. Kept apart, as they are not PII:
-    instructions_removed, the lines where an order to the model was replaced, and
-    text_removed, the pieces that did not look like an exam ([TEXTO_REMOVIDO]).
-    `joined` is join_split_orders(lines)[0] when the caller already has it.
+    line_intent holds one kind per returned line (guardrails/intent.py: request, negated, history,
+    note, prep), read before the mask strips the words that carry it; a negation or history cue
+    stays in the line as a marker ([NAO_REALIZAR], [JA_REALIZADO]). A list item whose text the
+    safety net removed whole is 'unrecognized' (unrecognized_request). pii_masked counts personal
+    data by type. Kept apart, as they are not PII: instructions_removed, the lines where an order
+    to the model was replaced, and text_removed, the pieces that did not look like an exam
+    ([TEXTO_REMOVIDO]). `joined` is join_split_orders(lines)[0] when the caller already has it.
     """
     if joined is None:
         joined = join_split_orders(lines)[0]
     lines, removed = neutralize_joined(joined)  # prompt injection: the text goes to the LLM
-    masked, counts = mask_page(lines)
+    read = [intent.read_line(line) for line in lines]  # (kind, line with its cue as a marker)
+    masked, counts = mask_page([marked for _, marked in read])
+    kinds = ['unrecognized' if kind == 'request' and unrecognized_request(line, safe) else kind
+             for (kind, _), line, safe in zip(read, lines, masked, strict=True)]
     text_removed = counts.pop('TEXTO_REMOVIDO', 0)
-    return {'lines': masked, 'pii_masked': counts, 'instructions_removed': removed, 'text_removed': text_removed}
+    return {'lines': masked, 'line_intent': kinds, 'pii_masked': counts, 'instructions_removed': removed,
+            'text_removed': text_removed}
+
+
+LIST_ITEM = re.compile(r'^\s*(?:\(?\d{1,2}\s*[.)\-]+|[-–•*·>]+)\s*(?=\S)')  # "4)", "2.", "-", "•"
+
+
+def unrecognized_request(line: str, masked: str) -> bool:
+    """Whether a list item of the order ("4) Ressonancia magnetica de cranio") left the OCR as nothing
+    but [TEXTO_REMOVIDO]: a request the catalog does not know, which the CLI must not drop in silence.
+    Only the line's number is reported, never its text. An order to the model already removed
+    (instructions_removed), a name or other personal data masked on the line, or a few letters of
+    junk are not one."""
+    item = LIST_ITEM.match(line)
+    letters = re.findall(r'[^\W\d_]', re.sub(r'\[[A-Z_]+\]', ' ', line[item.end():])) if item else []
+    if not item or MARKER in line or len(letters) < 6:
+        return False
+    rest = LIST_ITEM.sub('', masked, count=1)
+    return bool(re.fullmatch(r'(?:\[TEXTO_REMOVIDO\]|[^\w\[\]])+', rest))
 
 
 server = MCPServer('ocr-exams', instructions='Extrai o texto de um pedido médico fictício, com PII mascarada.')
@@ -114,10 +141,11 @@ server = MCPServer('ocr-exams', instructions='Extrai o texto de um pedido médic
 
 @server.tool()
 async def extract_exam_text(filename: Annotated[str, or_default('')]) -> dict:
-    """Read /data/samples/<filename> with OCR; returns {lines, line_confidence, pii_masked, instructions_removed,
-    text_removed}.
+    """Read /data/samples/<filename> with OCR; returns {lines, line_confidence, line_intent, pii_masked,
+    instructions_removed, text_removed}.
 
-    PII already masked; line_confidence holds one 0-100 value per returned line, in the same order.
+    PII already masked; line_confidence holds one 0-100 value per returned line, and line_intent one
+    kind (request, negated, history, note, prep, unrecognized), in the same order.
     """
     if not filename.strip():  # empty or not text (None, 123, a list)
         raise ToolError('filename deve ser o nome de um arquivo, ex.: pedido.png.')

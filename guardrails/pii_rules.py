@@ -115,7 +115,9 @@ CPF_REST = re.compile(r'^[ \t]*(?P<part>\d(?:' + SEP + r'\d){0,9})(?!\d)')
 
 # --- 2. Names, word by word ------------------------------------------------------------
 WORD = re.compile(r"[^\W\d_]+(?:['’-][^\W\d_]+)*")  # letters only: "Sant'Anna", "Anne-Louise"
-TAG = re.compile(r'\[[A-Z]+\]')                      # a value already masked
+# A value already masked, or the marker of a negation or history cue (guardrails/intent.py), which the
+# safety net keeps so the model reads it.
+TAG = re.compile(r'\[(?:[A-Z]+|NAO_REALIZAR|JA_REALIZADO)\]')
 NEXT_LABEL = re.compile(r'[^\W\d_][\w.]*[ \t]*:')   # "CPF:", "Data:": where a labelled name ends
 # Name labels. "Paciente:" needs the colon (a header like "PEDIDO MEDICO" is not a label);
 # "paciente", "mãe" and "pai" without it, and the titles, do not.
@@ -159,13 +161,15 @@ FIRST_NAMES = frozenset(fold(line.strip()) for line in FIRST_NAMES_FILE.read_tex
 # --- 4. Safety net: only what looks like an exam leaves the OCR ----------------------------
 # A line is split in pieces; a piece that fails is split again where two exams may be joined
 # by the OCR ("Acido urlco e Vitamlna D"): the whole piece first keeps "HIV antigeno e anticorpos".
-PIECES = re.compile(r'([,;():]|\s[-–—]\s)')
+# The marker of a negation or history cue is a separator too: it stays as is, between the pieces it cuts.
+PIECES = re.compile(r'([,;():]|\s[-–—]\s|\[(?:NAO_REALIZAR|JA_REALIZADO)\])')
 JOINED = re.compile(r'(\s(?:e|E|\+|/)\s)')
 # Words of an order's structure: with labels and masked values they make a piece that may leave.
 STRUCTURE = NOT_NAMES | FIELD_NAMES | PARTICLES | frozenset((
     'pedidos', 'medicos', 'solicito', 'solicita', 'solicitados', 'solicitado', 'laboratoriais', 'laboratorial',
     'clinico', 'receituario', 'obs', 'observacoes', 'carimbo', 'dr', 'dra', 'sr', 'sra', 'doutor', 'doutora',
-    'responsavel', 'solicitante', 'cartao', 'plano', 'fone', 'mail'))
+    'responsavel', 'solicitante', 'cartao', 'plano', 'fone', 'mail', 'preparo', 'nota', 'orientacao',
+    'orientacoes'))
 
 UNITS = frozenset(('mg', 'ml', 'dl', 'ui', 'h', 'hs', 'hrs', 'min', 'x'))
 AMOUNT = re.compile(r'\d+(?:' + '|'.join(UNITS) + r')?')  # "100", "8h", "12hs"

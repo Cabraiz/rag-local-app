@@ -129,6 +129,7 @@ def test_every_line_is_masked_and_counted(monkeypatch):
     monkeypatch.setattr(pii, 'mask', lambda line: ('[CPF]', {'CPF': 1}) if 'CPF' in line else (line, {}))
     result = ocr.mask_lines(['CPF: 1', 'Hemograma completo', 'CPF: 2'])
     assert result == {'lines': ['[CPF]', 'Hemograma completo', '[CPF]'], 'pii_masked': {'CPF': 2},
+                      'line_intent': ['request', 'request', 'request'],
                       'instructions_removed': 0, 'text_removed': 0}
 
 
