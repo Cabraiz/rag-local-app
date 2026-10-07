@@ -560,8 +560,9 @@ def generated_module(tmp_path):
 
 
 def ocr_reply(*lines):
-    """The OCR's reply for lines read clearly: it always sends one reading (0-100) per line."""
-    reply = {'lines': list(lines), 'line_confidence': [95.0] * len(lines), 'pii_masked': {'NOME': 1}}
+    """The OCR's reply for lines read clearly: it always sends one reading (0-100) and one kind per line."""
+    reply = {'lines': list(lines), 'line_confidence': [95.0] * len(lines), 'line_intent': ['request'] * len(lines),
+             'pii_masked': {'NOME': 1}}
     return {'content': [{'type': 'text', 'text': json.dumps(reply)}]}
 
 
@@ -593,6 +594,7 @@ def test_callbacks_keep_ocr_lines_counts_and_confidence(tmp_path):
     agent, context = generated_module(tmp_path), FakeContext()
     reply = {'content': [{'type': 'text', 'text': json.dumps({
         'lines': ['Paciente: [NOME]', 'Exame: Creatinina', 'Glicemia jejum'], 'line_confidence': [90, 96, 94],
+        'line_intent': ['request'] * 3,
         'pii_masked': {'NOME': 1}, 'instructions_removed': 2})}]}
     agent.CALLBACKS.after_tool(FakeTool('extract_exam_text'), {}, context, reply)
     search(agent, context, 'Creatinina', ('FICT-005', 'Creatinina', 1.0))

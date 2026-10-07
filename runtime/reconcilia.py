@@ -10,13 +10,16 @@ and is more than a resemblance of letters (it shares a word with the exam's name
 least 0,80: "laboratorio" is 0,70 like "paratormonio"), is an exam of the order, and must end in
 one reported state: booked, asked, left out for its
 confidence, line already used, left out by the agent, or, when no exam holds its text and its
-code was neither booked nor reported, "não buscado pelo agente". Nothing is booked here.
+code was neither booked nor reported, "não buscado pelo agente". On a line that says not to do the
+exam, or that it was done already (the OCR's line_intent), it is reported with that reason instead,
+which is no warning about the agent; a preparation line ("Preparo: jejum de 8 horas para Glicemia de
+jejum") names an exam without asking for it and is not checked. Nothing is booked here.
 """
 import re
 
 from catalogo import words
 
-from .confianca import CONNECTIVES, FIND_FLOOR, RESEMBLANCE, pieces_of, reading_at
+from .confianca import BLOCKING, CONNECTIVES, FIND_FLOOR, RESEMBLANCE, intent_of, pieces_of, reading_at
 
 MARKER = re.compile(r'^\s*(?:[-–•*·>]+|\(?\d{1,2}[.)-]|\d{1,2}\s+(?=[^\W\d_])|[A-Za-z][.)])\s*')  # "2.", "1 TGP", "A."
 MASKED = re.compile(r'\[[A-Z_]+\]')  # what the OCR masked: [NOME], [CPF], [TEXTO_REMOVIDO]...
@@ -109,7 +112,7 @@ def unreported(state, hits_of, policy, settled):
     claimed = [tuple(entry) for entry in state.get('accounted', [])]  # the text the proposed exams stand on
     candidates, settled, reported = state.get('candidates', {}), set(settled), []
     for index, text, note, hits in ((index, piece, note, hits) for index, line, note in order_lines(read)
-                                    for piece, hits in by_piece(line, hits_of(line))):
+                                    if intent_of(state, index) != 'prep' for piece, hits in by_piece(line, hits_of(line))):
         scores = sorted((float(hit.get('score', 0)) for hit in hits), reverse=True)
         if not scores or scores[0] < FIND_FLOOR or (len(scores) > 1 and scores[1] == scores[0]):
             continue
@@ -125,8 +128,9 @@ def unreported(state, hits_of, policy, settled):
         if best['code'] in settled or taken(claimed, [query, words(best.get('name', ''))], index, start, end):
             continue
         reading = reading_at(readings, index, policy.ocr_floor(query, words(best.get('name', ''))), policy)
+        kind = intent_of(state, index)
         reported.append({'code': best['code'], 'name': str(best.get('name', '')), 'line': index,
-                         'reason': 'omitted' if best['code'] in candidates else 'not_searched',
+                         'reason': kind if kind in BLOCKING else 'omitted' if best['code'] in candidates else 'not_searched',
                          'confidence': round(min(scores[0], reading), 2), 'read': read[index]})
         settled.add(best['code'])
         claimed.append((index, start, end, None, words(best.get('name', ''))))

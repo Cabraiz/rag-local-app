@@ -1,7 +1,8 @@
 """The agent's ADK callbacks, set up with the spec's tools and booking policy.
 
 after_tool: keep what the OCR read and what each search found (session state).
-before_tool: fix the search's top_k, and let only confident codes reach the booking API.
+before_tool: fix the search's top_k, and let only confident codes reach the booking API, each written on
+a line that asks for it (never one the order says not to do, or says was done: runtime/confianca.py).
 before_agent: an earlier step that wrote nothing leaves its output_key empty.
 after_agent (a pipeline that lists exams instead of booking): the list, sorted by the same policy.
 The model only proposes; these checks run in code, so no text from the order can skip them.
