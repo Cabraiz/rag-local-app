@@ -1,0 +1,19 @@
+$ docker compose run --rm -T agent python -m cli run --image pedido.png
+# versão publicada · 2026-10-07 00:14 UTC · gemini-3.5-flash
+[extract] chamando extract_exam_text
+[search] chamando search_exams
+[search] chamando search_exams
+[search] chamando search_exams
+[schedule] chamando create_appointment
+
+PII mascarada pelo OCR: NOME x2, CPF x1, EMAIL x1, TELEFONE x1
+
+| Exame              | Código   |
+|--------------------|----------|
+| Hemograma completo | FICT-001 |
+| Glicemia de jejum  | FICT-002 |
+| Creatinina         | FICT-005 |
+
+Agendamento confirmado pela API: id a05f0421-584c-48ff-9c54-20d964daa601, status scheduled
+Tempo: OCR 6,1 s · busca 35 s · agendamento 51 s · total 232 s (modelo gemini-3.5-flash)
+[exit code: 0]
