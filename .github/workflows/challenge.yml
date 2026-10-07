@@ -1,0 +1,90 @@
+# Challenge CI at the repository root (.github/workflows/challenge.yml).
+name: challenge
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: challenge-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # A cold build installs Tesseract and the Python dependencies.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      # Known vulnerabilities in the pinned requirements and everything they pull in, before the
+      # long build. The Python of the Dockerfile, so the same versions resolve.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # pip-audit fails on any vulnerability, and has no flag to skip the ones without a fixed
+      # version (--ignore-vuln takes one ID at a time). So it writes JSON, and this step fails only
+      # on a vulnerability with `fix_versions` (bump that pin); one with no fix yet, which no pin
+      # change could clear, is a warning. --strict: a dependency that could not be audited fails
+      # instead of being skipped. A reviewed, not applicable advisory: --ignore-vuln <ID> here.
+      # Without the JSON, pip-audit could not install the pins at all (pip's ResolutionImpossible,
+      # printed above): a bump that conflicts with another pin, said as such, not as a traceback.
+      - name: Audit dependencies (pip-audit)
+        run: |
+          python -m pip install --quiet --disable-pip-version-check pip-audit==2.10.1
+          pip-audit -r requirements.txt -r requirements-dev.txt --strict --progress-spinner off \
+            --desc off -f json -o pip-audit.json || true
+          if [ ! -s pip-audit.json ]; then
+            echo "::error::the pinned requirements do not install together (see pip's error above): a version conflict between pins, not a known vulnerability"
+            exit 1
+          fi
+          python - <<'EOF'
+          import json
+          import sys
+          found = sorted({(dep['name'], dep['version'], vuln['id'], ', '.join(vuln['fix_versions']))
+                          for dep in json.load(open('pip-audit.json'))['dependencies']
+                          for vuln in dep.get('vulns', [])})
+          for name, version, vuln_id, fixes in found:
+              print(f'::error::{name} {version}: {vuln_id}, fixed in {fixes}' if fixes else
+                    f'::warning::{name} {version}: {vuln_id}, no fixed version yet')
+          print(f'pip-audit: {len(found)} known vulnerabilities, {sum(bool(f[3]) for f in found)} with a fix')
+          sys.exit(any(fixes for *_, fixes in found))
+          EOF
+
+      # Tests never call Gemini: the example env file has an empty key.
+      - name: Prepare env file
+        run: cp .env.example .env
+
+      # A throwaway database key for this run (32 random bytes, base64url).
+      - name: Generate database key
+        run: echo "DB_ENCRYPTION_KEY=$(openssl rand -base64 32 | tr '+/' '-_')" >> .env
+
+      - name: Build
+        run: docker compose --profile cli --profile test build
+
+      # The lean agent image alone runs the CLI (no test tools in it).
+      - name: Agent image (transpile)
+        run: docker compose run --rm --no-deps agent python -m cli transpile specs/agent.json
+
+      # Lint and type check in the tests service (config in pyproject.toml); no service needed.
+      - name: Lint (ruff)
+        run: docker compose run --rm --no-deps tests ruff check .
+
+      - name: Type check (mypy)
+        run: docker compose run --rm --no-deps tests mypy
+
+      # Coverage is reported, not enforced. The image is read-only outside /tmp.
+      - name: Tests with coverage
+        run: docker compose run --rm -e CI tests pytest -q -n auto --cov --cov-report=term
+
+      - name: Service logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=200
+
+      - name: Stop services
+        if: always()
+        run: docker compose down

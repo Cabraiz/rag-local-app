@@ -1,3 +1,8 @@
+# Quality checks that run in CI (.github/workflows/challenge.yml), in the tests service:
+#   docker compose run --rm --no-deps tests ruff check .
+#   docker compose run --rm --no-deps tests mypy
+#   docker compose run --rm tests pytest -q --cov
+
 [tool.ruff]
 line-length = 120
 cache-dir = "/tmp/.ruff_cache"  # the project files are read-only in the container
