@@ -72,7 +72,7 @@ Tempo: OCR 6,1 s · busca 35 s · agendamento 51 s · total 232 s (modelo gemini
 - **Agentes do Google ADK, regras do projeto:** os agentes são instanciados só com classes do ADK. O `agent.py` também importa a pequena biblioteca de runtime do projeto, [`runtime/`](runtime/), com as regras de agendamento ([o que o `agent.py` usa](#o-que-o-agentpy-usa)).
 - **OCR e RAG como servidores MCP, exclusivamente via SSE.** A base tem 120 exames fictícios.
 - **Busca lexical:** palavras em comum + `difflib`, determinística, sem embeddings ([por quê](docs/arquitetura.md#decisões-técnicas-em-detalhe)). A busca semântica foi avaliada e medida, mas não adotada ([medições](docs/medicoes.md#busca-semântica-avaliada-não-adotada)).
-- **Testes:** 397 funções (17,4 mil casos), ruff, mypy (checagem leve) e 98% de cobertura na CI ([números](docs/medicoes.md)).
+- **Testes:** 405 funções (17,4 mil casos), ruff, mypy (checagem leve) e 99% de cobertura na CI ([números](docs/medicoes.md)).
 - **Rodar os testes:** `docker compose run --rm tests pytest -q -n auto`, cerca de 3,5 min em 12 núcleos, sempre sem a chave. O ponta a ponta real com o Gemini é à parte: `docker compose run --rm tests-e2e` ([testes](docs/como-rodar.md#testes)).
 
 ## Onde está cada parte
