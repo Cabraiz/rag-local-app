@@ -10,6 +10,7 @@ import asyncio
 import pytest
 
 import cli
+from runtime import relatorio, servidores
 from runtime.reconcilia import order_lines, unreported
 from tests.test_agent_mcp import servers  # noqa: F401  (the real MCP servers, as processes)
 from tests.test_confianca import agent, best_of, book, read, real_search  # noqa: F401  (agent is a fixture)
@@ -145,22 +146,20 @@ def test_the_cli_says_the_agent_left_an_exam_out_and_keeps_exit_0(ready_run, mon
             'pedido sem decisão do agente, confira os avisos acima') in out
 
 
-def test_without_the_catalog_search_the_cli_says_the_order_was_not_checked(monkeypatch):
-    async def down(spec, texts):
+def test_without_the_catalog_search_the_report_says_the_order_was_not_checked(agent, monkeypatch):
+    async def down(url, tool, texts, top_k):
         raise OSError('connection refused')
-    monkeypatch.setattr(cli, 'search_lines', down)
-    found, spec = cli.new_found(), load_spec(cli.DEFAULT_SPEC)
+    monkeypatch.setattr(servidores, 'search_lines', down)
     state = {'ocr_read': ['- Glicose'], 'ocr_lines': ['glicose']}
-    assert asyncio.run(cli.whole_order(state, spec, found)) == [] and found['order_unchecked'] is True
+    assert asyncio.run(agent.CALLBACKS.whole_order(state)) == ([], True)
+    assert 'Aviso: o pedido não foi conferido por inteiro' in relatorio.report(state | {'order_unchecked': True}, True)
 
 
 @pytest.mark.xdist_group('spec-ports')  # the real servers, on the spec's ports: one worker, in turn
-def test_the_pieces_are_searched_on_the_real_rag_server(servers, monkeypatch):  # noqa: F811
-    from tests.test_transpiler import spec_with
-    from transpiler import parse_spec
-    spec = parse_spec(spec_with(lambda s: s['servers']['rag'].update(url='http://rag:8002/sse')))
-    monkeypatch.setattr(spec.servers['rag'], 'url', servers['rag'])
-    hits = asyncio.run(cli.search_lines(spec, ['Colesterol total e Triglicerideos']))
+def test_the_pieces_are_searched_on_the_real_rag_server(servers):  # noqa: F811
+    spec = load_spec(cli.DEFAULT_SPEC)
+    hits = asyncio.run(servidores.search_lines(servers['rag'], 'search_exams', ['Colesterol total e Triglicerideos'],
+                                               spec.booking.top_k))
     pieces = {hit['piece']: hit['code'] for hit in reversed(hits['Colesterol total e Triglicerideos'])}
     assert pieces == {'Colesterol total': 'FICT-006', 'Triglicerideos': 'FICT-009'}  # best hit of each piece
 

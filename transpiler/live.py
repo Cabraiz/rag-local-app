@@ -4,17 +4,14 @@ keeps the spec's declared list; `cli run` asks again before calling Gemini, and 
 server has to answer."""
 import asyncio
 import concurrent.futures
-import contextlib
-import ipaddress
 import re
-import socket
-from collections.abc import Iterator
-from urllib.parse import urlsplit
 
 import httpx
 
+from runtime import rede
+from runtime.rede import LOCAL_NETWORKS, is_address, pinned_names, unsafe  # noqa: F401  (the rules live in runtime)
+
 SECONDS = 3  # per server, all at once
-PINNED: dict[str, list[str]] | None = None  # name -> addresses checked, while inside pinned_names()
 # What the runtime sends to (and reads from) the tool of each role (runtime/callbacks.py).
 ROLE_PARAMETERS = {'read': ('filename',), 'search': ('query', 'top_k')}
 
@@ -95,79 +92,25 @@ def live_tools(spec):
         return pool.submit(asyncio.run, ask_servers(spec)).result()
 
 
-# Besides loopback, link-local (169.254.169.254, fe80::), 0.0.0.0 and multicast: unique local IPv6
-# (fd00:ec2::254 is AWS's metadata), the shared 100.64.0.0/10 (100.100.100.200 is Alibaba Cloud's)
-# and Azure's 168.63.129.16. Private IPv4 stays allowed: it is where Docker puts the compose services.
-LOCAL_NETWORKS = [ipaddress.ip_network(network) for network in ('fc00::/7', '100.64.0.0/10', '168.63.129.16/32')]
-
-
-def unsafe(address):
-    """A local or cloud metadata address, also written as IPv4 inside IPv6."""
-    ip = ipaddress.ip_address(address.split('%')[0])
-    ip = getattr(ip, 'ipv4_mapped', None) or ip
-    return (ip.is_loopback or ip.is_link_local or ip.is_unspecified or ip.is_multicast
-            or any(ip in network for network in LOCAL_NETWORKS if network.version == ip.version))
-
-
-def is_address(host):
-    try:
-        ipaddress.ip_address(host)
-        return True
-    except ValueError:
-        return False
-
-
 def check_addresses(spec):
     """Resolve each server's name once, before any request of `cli run`. ALLOWED_HOSTS allows names;
     a name that resolves to a local or metadata address (DNS rebinding, an /etc/hosts entry) is a
-    problem. Only a host written as that address (an IP, or localhost), and so listed by itself in
-    ALLOWED_HOSTS, may point there. Inside pinned_names(), the run keeps the addresses checked here, and a
-    name that did not resolve keeps none."""
+    problem (runtime/rede.py). Only a host written as that address (an IP, or localhost), and so listed
+    by itself in ALLOWED_HOSTS, may point there. Inside pinned_names(), the run keeps the addresses
+    checked here, and a name that did not resolve keeps none."""
     problems = []
     for name, server in spec.servers.items():
         field, url = server.address
-        parts = urlsplit(url)
-        host = (parts.hostname or '').lower()
-        if host == 'localhost' or is_address(host):
+        resolved = rede.resolve(url)
+        if resolved is None:
             continue
-        try:
-            infos = socket.getaddrinfo(host, parts.port or (443 if parts.scheme == 'https' else 80),
-                                       type=socket.SOCK_STREAM)
-        except OSError:  # pinned to no address: the GET that follows says the server is down, and no
-            infos = []    # later answer (127.0.0.1, after a rebinding) is used during the run
-        addresses = sorted({str(info[4][0]) for info in infos})
+        host, addresses = resolved
         refused = [address for address in addresses if unsafe(address)]
         if refused:
-            problems.append(f'servers.{name}.{field}: "{host}" resolve para {", ".join(refused)}, um endereço local '
-                            'ou de metadados de nuvem (ex.: 127.0.0.1, 169.254.169.254, fd00:ec2::254); só um host '
-                            'escrito como esse endereço (IP ou localhost) e listado em ALLOWED_HOSTS pode apontar para ele')
-        elif PINNED is not None:
-            PINNED.setdefault(host, addresses)
+            problems.append(f'servers.{name}.{field}: "{host}" resolve para {", ".join(refused)}, {rede.REFUSED}')
+        elif rede.PINS is not None:
+            rede.PINS.setdefault(host, addresses)
     return problems
-
-
-@contextlib.contextmanager
-def pinned_names() -> Iterator[dict[str, list[str]]]:
-    """While inside, a name that check_addresses resolved keeps those addresses (with the port each
-    lookup asks) for every client of the process: httpx, the MCP SDK and ADK all resolve through
-    socket.getaddrinfo. A DNS answer that changes during the run (rebinding) is never used."""
-    global PINNED
-    real = socket.getaddrinfo
-    pins: dict[str, list[str]] = {}
-
-    def getaddrinfo(host, port, *args, **kwargs):
-        name = host.decode() if isinstance(host, bytes) else host
-        addresses = pins.get((name or '').lower())
-        if addresses is None:
-            return real(host, port, *args, **kwargs)
-        if not addresses:
-            raise socket.gaierror(socket.EAI_NONAME, f'"{name}" não resolveu no início da execução')
-        return [info for address in addresses for info in real(address, port, *args, **kwargs)]
-    socket.getaddrinfo, PINNED = getaddrinfo, pins
-    try:
-        yield pins
-    finally:
-        socket.getaddrinfo, PINNED = real, None
 
 
 def check_live(spec, live, required=False):

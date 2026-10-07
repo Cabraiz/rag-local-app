@@ -15,6 +15,10 @@ from .spec import TranspileError, parse_spec
 
 TEMPLATE = Template((Path(__file__).parent / 'agent_template.py.tmpl').read_text(encoding='utf-8'))
 WIDTH = 120  # the generated file keeps the repository's line length (pyproject.toml)
+# Written next to an agent.py, so its folder is an ADK agent folder: `adk run <folder>` and `adk web
+# <folder>` import it and run its `app`.
+PACKAGE = ('"""ADK agent folder: `adk run` and `adk web` load agent.py and run its `app`."""\n'
+           'from . import agent  # noqa: F401\n')
 
 
 def call(function, arguments, indent):
@@ -24,6 +28,14 @@ def call(function, arguments, indent):
         return one
     inner = ' ' * (indent + 4)
     return f'{function}(\n' + ''.join(f'{inner}{name}={value},\n' for name, value in arguments) + ' ' * indent + ')'
+
+
+def assigned(name, function, arguments):
+    """`name = function(...)`, on one line when the whole line fits in WIDTH."""
+    one = call(function, arguments, len(f'{name} = ') - 1)  # -1: no comma follows an assignment
+    if '\n' not in one:
+        return f'{name} = {one}'
+    return f'{name} = {function}(\n' + ''.join(f'    {key}={value},\n' for key, value in arguments) + ')'
 
 
 def literal(text, indent):
@@ -77,6 +89,7 @@ def render_agent(spec, index, agent) -> str:
         lines.append(f'    before_agent_callback=CALLBACKS.fill_missing({", ".join(map(repr, earlier))}),')
     if lists:
         lines.append(f'    after_agent_callback=CALLBACKS.review_list({agent.output_key!r}),')
+    lines.append('    before_model_callback=CALLBACKS.before_model,')  # the model sees the image's token, never its name
     if toolsets:  # an agent without tools makes no tool call to check
         lines += ['    before_tool_callback=CALLBACKS.before_tool,', '    after_tool_callback=CALLBACKS.after_tool,']
     lines += [f'    output_key={agent.output_key!r},', ')']
@@ -86,13 +99,14 @@ def render_agent(spec, index, agent) -> str:
 def imports(spec):
     """(import lines, docstring lines): only what this spec's file uses."""
     kinds = {spec.servers[reference.split('.')[0]].mcp for agent in spec.agents for reference in agent.tools}
-    lines = ['from google.adk.agents import LlmAgent, SequentialAgent']
+    lines = ['from google.adk.agents import LlmAgent, SequentialAgent', 'from google.adk.apps import App, ResumabilityConfig']
     if True in kinds:
         lines.append('from google.adk.tools.mcp_tool.mcp_session_manager import SseConnectionParams')
     names = ['BookingCallbacks', 'BookingPolicy', *(['LiveOpenAPIToolset'] if False in kinds else []),
              *(['McpToolset'] if True in kinds else []), 'gemini', 'guarded', 'require_api']
     lines += ['', f'from runtime import {", ".join(names)}']
-    doc = ['- BookingCallbacks: ADK callbacks that check in code every exam code the model proposes;',
+    doc = ["- BookingCallbacks: ADK callbacks that start the order from the session or the user's message, check",
+           '  in code every exam code the model proposes and write the final report;',
            '- BookingPolicy: the thresholds below, as a typed value;']
     if False in kinds:
         doc += ["- LiveOpenAPIToolset: ADK's OpenAPIToolset, built from an API's live /openapi.json on first use,",
@@ -136,6 +150,19 @@ def policy_comments(spec):
     return comment(bands), comment(' '.join(step for step in steps if step))
 
 
+def server_urls(spec):
+    """The callbacks' arguments with the servers' URLs: the MCP servers the runtime itself calls (the
+    reader's image check, the catalog search of the whole order) and every server, whose addresses are
+    checked when an order starts."""
+    urls = []
+    for role, argument in (('read', 'ocr_url'), ('search', 'search_url')):
+        reference = spec.role_refs()[role]
+        server = spec.servers[reference.split('.')[0]] if reference else None
+        if server is not None and server.mcp:
+            urls.append((argument, repr(server.url)))
+    return [*urls, ('servers', repr([server.address[1] for server in spec.servers.values()]))]
+
+
 def number(value):
     """A spec number as a literal: 75 rather than 75.0."""
     return repr(int(value)) if isinstance(value, float) and value.is_integer() else repr(value)
@@ -151,7 +178,7 @@ def render(spec, spec_file):
                                                                           ('booking', 'book')) if spec.tool_for(key)]
     return TEMPLATE.substitute(
         imports=import_lines, runtime_doc=runtime_doc,
-        callbacks='CALLBACKS = ' + call('BookingCallbacks', [*roles, ('policy', 'POLICY')], 0),
+        callbacks='CALLBACKS = ' + call('BookingCallbacks', [*roles, ('policy', 'POLICY'), *server_urls(spec)], 0),
         policy_comment=policy_comment, callbacks_comment=callbacks_comment,
         spec_file=re.sub(r'[^A-Za-z0-9._-]', '_', Path(spec_file).name),  # docstring text, not a literal
         model=repr(spec.model), name=repr(spec.name), api_version=repr(API_VERSION),
@@ -160,6 +187,8 @@ def render(spec, spec_file):
         ocr_floor_synonym=number(booking.ocr_floor.short_synonym),
         agents=''.join(render_agent(spec, index, agent) for index, agent in enumerate(spec.agents)),
         sub_agents=', '.join(agent.name for agent in spec.agents),
+        app=assigned('app', 'App', [('name', repr(spec.name)), ('root_agent', 'root_agent'),
+                                    ('resumability_config', 'ResumabilityConfig(is_resumable=True)')]),
     )
 
 
@@ -216,4 +245,9 @@ def transpile(spec_path, output_path, checked=None):
         raise TranspileError(problems)
     if checked is not None:
         checked.extend(name for name, tools in live.items() if tools is not None)
-    return write_checked(Path(output_path), render(spec, spec_path))
+    output = Path(output_path)
+    root_agent = write_checked(output, render(spec, spec_path))
+    package = output.parent / '__init__.py'
+    if output.name == 'agent.py' and not package.exists():  # the folder ADK's tooling loads
+        package.write_text(PACKAGE, encoding='utf-8')
+    return root_agent

@@ -24,9 +24,10 @@ from google.genai import errors, types
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 
-from runtime import BookingPolicy, confirmacao
+from runtime import confirmacao, image_token
 from runtime.adk import retries
-from runtime.reconcilia import order_lines, unreported
+from runtime.relatorio import LEFT_OUT, api_refusal, reading_lines  # noqa: F401  (LEFT_OUT: how cli run words them)
+from runtime.servidores import CHECK_SECONDS, IMAGE_CHECK
 from transpiler import TranspileError, load_root_agent, load_spec, render, transpile
 from transpiler.live import check_addresses, check_live, live_tools, pinned_names
 from transpiler.spec import MODEL
@@ -36,7 +37,6 @@ DEFAULT_AGENT = 'generated/agent.py'
 IMAGE_SUFFIXES = {'.png', '.jpg', '.jpeg'}
 CARRIED = ('answers', 'idempotency_key')  # session state a fallback run starts from
 CONFIRMATION = 'adk_request_confirmation'  # ADK's call that asks the client to confirm a tool call
-IMAGE_CHECK = 'check_image'  # the OCR server's check of a file without the OCR; no spec, so no agent, has it
 
 
 def redact(text):
@@ -110,13 +110,6 @@ def check_image(spec, image, live):
     if result.is_error:
         texts = ' '.join(item.text for item in result.content if getattr(item, 'text', None))
         raise RunError(ocr_refused(texts.removeprefix(f'Error executing tool {IMAGE_CHECK}: ')[:300]))
-
-
-def api_refusal(error):
-    # ADK's RestApiTool reports a non-2xx reply as
-    # {"error": "Tool ... execution failed ... Status Code: <n>, <response body>"}.
-    refused = re.search(r'Status Code: (\d+), (.*)', str(error), re.S)
-    return f'HTTP {refused[1]}: {refused[2].strip()}' if refused else str(error)
 
 
 def record(found, result):
@@ -213,7 +206,7 @@ async def run_agent(root_agent, image, spec, found):
     carried = {key: found[key] for key in CARRIED if found[key]}
     # The model sees a token, never the file name, which can carry a patient's name; the OCR's
     # before_tool turns the token back into the name (runtime/callbacks.py).
-    token = f'pedido-1{Path(image).suffix.lower()}'
+    token = image_token(image)
     session = await runner.session_service.create_session(
         app_name='clinic', user_id='cli', state={**carried, 'image_token': token, 'image_file': image})
     message = types.Content(role='user', parts=[types.Part(text=f'Arquivo do pedido: {token}')])
@@ -250,58 +243,13 @@ async def run_agent(root_agent, image, spec, found):
         found['ocr_read'] = 'ocr_lines' in state
         found['ocr_error'] = state.get('ocr_error')
         found['file_refused'] = state.get('file_refused', False)
-        found['low_confidence'] = found['low_confidence'] + await whole_order(state, spec, found)
+        # The check of the whole order, made by the agent's report (runtime/callbacks.py) as the run ended.
+        found['low_confidence'] = found['low_confidence'] + state.get('unreported', [])
+        found['order_unchecked'] = state.get('order_unchecked', False)
     finally:  # also after a failure, so the fallback run reuses the answers already given
         state = (await runner.session_service.get_session(app_name='clinic', user_id='cli', session_id=session.id)).state
         found.update({key: state.get(key, found[key]) for key in CARRIED})
         await runner.close()
-
-
-def policy_of(spec):
-    """The spec's booking policy, as the generated agent builds it."""
-    booking = spec.booking
-    return BookingPolicy(min_confidence=booking.min_confidence, ask_from=booking.ask_from,
-                         ocr_floor_line=booking.ocr_floor.line, ocr_floor_short=booking.ocr_floor.short_code,
-                         ocr_floor_synonym=booking.ocr_floor.short_synonym, top_k=booking.top_k)
-
-
-SEARCHES_AT_ONCE, CHECK_SECONDS = 8, 30  # the check of the whole order: searches in flight, and its limit
-
-
-async def search_lines(spec, texts):
-    """text -> the catalog search's hits, from the server of the spec's search role (MCP over SSE): the
-    same search the agent uses, which cuts a line into its exams and tags each hit with its piece.
-    The searches share one session and run at once, a few at a time."""
-    server, tool = spec.role_refs()['search'].split('.')
-    limit = asyncio.Semaphore(SEARCHES_AT_ONCE)
-    async with sse_client(spec.servers[server].url, timeout=5, sse_read_timeout=CHECK_SECONDS) as streams, \
-            ClientSession(*streams) as session:
-        await session.initialize()
-
-        async def search(text):
-            async with limit:
-                result = await session.call_tool(tool, {'query': text[:200], 'top_k': spec.booking.top_k})
-            payload = None if result.is_error else (result.structured_content or {}).get('result')
-            return text, payload if isinstance(payload, list) else []
-        return dict(await asyncio.gather(*map(search, texts)))
-
-
-async def whole_order(state, spec, found):
-    """The exams of the order the run left in no reported state (runtime/reconcilia.py), whatever the
-    model searched: each line read is searched here, on the spec's catalog server, piece by piece."""
-    texts = list(dict.fromkeys(text for _, text, _ in order_lines(state.get('ocr_read', []))))
-    reference = spec.role_refs()['search']
-    if not texts or reference is None or not spec.servers[reference.split('.')[0]].mcp:
-        return []
-    try:
-        hits = await asyncio.wait_for(search_lines(spec, texts), CHECK_SECONDS)
-    except Exception:  # the search went down after the run: say the order was not checked
-        found['order_unchecked'] = True
-        return []
-    appointment = found['appointment'] if isinstance(found['appointment'], dict) else {}
-    settled = {exam.get('code') for exam in appointment.get('exams') or [] if isinstance(exam, dict)}
-    settled |= {item['code'] for item in [*found['low_confidence'], *found['confirmed']]}
-    return unreported(state, hits.get, policy_of(spec), settled)
 
 
 def failure_message(error, found):
@@ -359,50 +307,10 @@ def run_once(args, spec, carried=None):
         return found, error
 
 
-# How each exam left out is shown, by its reason; {guess} is "'<line read>' → <exam> <code> (confiança 0,xx)".
-LEFT_OUT = {
-    'second_round': "não perguntado nesta execução (só ficou em dúvida depois de um 'não'): {guess}; confira o pedido",
-    'needs_confirmation': 'não agendado sem confirmação: {guess}; rode num terminal, sem --yes, para responder',
-    'declined': 'não incluído (você respondeu não): {guess}',
-    'omitted': 'não incluído pelo agente: {guess}; confira o pedido',  # a search found it, the model left it out
-    'not_searched': 'não buscado pelo agente: {guess}; confira o pedido',  # only the check of the whole order found it
-    'score': 'baixa confiança: {guess}; confira o pedido',
-}
-# Left out for what the order says, whatever the confidence; {seen} is "'<line read>' → <exam> <code>".
-REFUSED = {
-    'negated': 'não agendado: {seen}; o pedido diz para não realizar',
-    'history': 'não agendado: {seen}; o pedido diz que já foi realizado',
-    'prep': 'não agendado: {seen}; a linha é uma orientação de preparo, não um pedido',
-    'line_used': 'não agendado: {seen}; o mesmo trecho da linha já foi usado por {used_by}; confira o pedido',
-}
-
-
 def print_reading(found):
-    """What the OCR masked or removed, the exams the person confirmed and the ones left out."""
-    masked = ', '.join(f'{kind} x{count}' for kind, count in found['pii_masked'].items())
-    print(f'\nPII mascarada pelo OCR: {masked or "nenhuma"}')
-    if found.get('text_removed'):  # not PII by the rules, but it may hold a name they did not recognize
-        print(f'Trechos removidos pelo OCR (não pareciam exame): {found["text_removed"]}')
-    if found['instructions_removed']:
-        print(f'Instruções neutralizadas no OCR: {found["instructions_removed"]}')
-    for number in found.get('unrecognized', []):  # its text never leaves the OCR: only where it is
-        print(f'lido mas não reconhecido no catálogo: linha {number}; confira o pedido')
-    for item in found['confirmed']:
-        print(f"incluído com a sua confirmação: '{item['read']}' → {item['name']} {item['code']}")
-    for item in found['low_confidence']:
-        # the same number, and the same words, as the [s/N] question: the confidence the policy decided on
-        confidence = f'{item["confidence"]:.2f}'.replace('.', ',')
-        seen = f"'{item['read']}' → {item['name']} {item['code']}"
-        guess = f'{seen} (confiança {confidence})'
-        if item.get('why') in confirmacao.WHY:  # asked, not booked, for what its line says
-            guess += f'{confirmacao.WHY[item["why"]]}, confirme'
-        if item.get('reason') in REFUSED:
-            print(REFUSED[item['reason']].format(seen=seen, used_by=item.get('used_by')))
-        else:
-            print(LEFT_OUT.get(item.get('reason'), LEFT_OUT['score']).format(guess=guess))
-    if found.get('order_unchecked'):
-        print('Aviso: o pedido não foi conferido por inteiro (a busca no catálogo não respondeu); confira o pedido')
-    print()
+    """What the OCR masked or removed, the exams the person confirmed and the ones left out (the same
+    lines as the agent's own report, runtime/relatorio.py)."""
+    print('\n' + '\n'.join(reading_lines(found)) + '\n')
 
 
 def show_listing(found, spec):
