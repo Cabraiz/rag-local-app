@@ -14,13 +14,14 @@ spec that lists exams without booking. 3: McpToolset, and both toolsets refuse a
 ALLOWED_HOSTS, so a file generated before that stops instead of running unchecked. 4: the agent
 starts itself under `adk run` / `adk web`: BookingCallbacks takes the servers' URLs and has
 start_order, before_model and report, so a file generated before that, which would run there
-with no image and no address check, stops.
+with no image and no address check, stops. 5: gemini(model, fallback=...), the reserve model per
+request, and BookingCallbacks.model_failed, which ends a step the model could not answer in one line.
 """
 from .adk import LiveOpenAPIToolset, McpToolset, gemini, guarded
 from .callbacks import BookingCallbacks, image_token, mcp_payload
 from .confianca import BookingPolicy
 
-API_VERSION = 4
+API_VERSION = 5
 __all__ = ['API_VERSION', 'BookingCallbacks', 'BookingPolicy', 'LiveOpenAPIToolset', 'McpToolset', 'gemini',
            'guarded', 'image_token', 'mcp_payload', 'require_api']
 

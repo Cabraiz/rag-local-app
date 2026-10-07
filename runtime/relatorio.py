@@ -85,6 +85,8 @@ def api_refusal(error):
 
 def not_booked(state):
     """Why a run that should book booked nothing, from what the callbacks kept."""
+    if state.get('model_error'):
+        return state['model_error']
     if state.get('file_refused'):
         return 'o agente pediu um arquivo diferente do informado'
     if state.get('ocr_error'):

@@ -11,9 +11,8 @@ $imports
 
 require_api($api_version)  # a runtime with another interface stops here, with a clear message
 
-# Gemini (GEMINI_MODEL in .env, or `-e GEMINI_MODEL=<model>` for one run, can replace it), retried on 429/500/503
-# up to 5 times.
-MODEL = gemini($model)
+$model_comment
+MODEL = $model
 $policy_comment
 POLICY = BookingPolicy(
     min_confidence=$min_confidence,

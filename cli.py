@@ -18,7 +18,7 @@ warnings.filterwarnings('ignore', message=r'\[EXPERIMENTAL\]', category=UserWarn
 
 import httpx
 from google.adk.apps import App, ResumabilityConfig
-from google.adk.models import Gemini
+from google.adk.models import FallbackModel, Gemini
 from google.adk.runners import InMemoryRunner
 from google.genai import errors, types
 from mcp import ClientSession
@@ -284,16 +284,25 @@ def timing(found, spec, total):
     return f'Tempo: {" · ".join([*parts, f"total {seconds(total)} s"])} (modelo {model})'
 
 
-def reserve_ready(root_agent):
-    """The primary run of a spec with a fallback_model: a 429 (quota) or 503 (overloaded) ends it at
-    once and retry_with_fallback runs the reserve model, instead of about a minute of backoff first
-    (runtime/adk.py). A 500 is still retried, and the reserve's own run keeps every retry."""
+def reserve_ready(root_agent, primary_run):
+    """`cli run` handles a model that fails itself, for the whole run: each step gets the model alone,
+    without the generated file's per-request reserve (runtime/adk.py, for `adk run` and `adk web`) and
+    without the callback that ends a failed step in one line, so the failure reaches retry_with_fallback.
+    On the primary run of a spec with a fallback_model, a 429 (quota) or 503 (overloaded) ends it at
+    once and retry_with_fallback runs the reserve model, carrying the answers and the Idempotency-Key,
+    instead of about a minute of backoff first. A 500 is still retried, and the reserve's own run keeps
+    every retry."""
     agents = [root_agent]
     while agents:
         agent = agents.pop()
         agents.extend(getattr(agent, 'sub_agents', None) or [])
-        if isinstance(getattr(agent, 'model', None), Gemini):
-            agent.model.retry_options = retries(500)
+        if hasattr(agent, 'on_model_error_callback'):
+            agent.on_model_error_callback = None
+        model = getattr(agent, 'model', None)
+        if isinstance(model, FallbackModel):  # the generated file's reserve per request: the CLI has its own
+            agent.model = model = Gemini(model=model.model, retry_options=retries(429, 500, 503))
+        if primary_run and isinstance(model, Gemini):
+            model.retry_options = retries(500)
 
 
 def run_once(args, spec, carried=None):
@@ -302,8 +311,7 @@ def run_once(args, spec, carried=None):
     found.update(carried or {})
     try:
         root_agent = load_root_agent(args.checked_agent)
-        if carried is None and spec.fallback_model:
-            reserve_ready(root_agent)
+        reserve_ready(root_agent, primary_run=carried is None and bool(spec.fallback_model))
         asyncio.run(run_agent(root_agent, args.image, spec, found))
         return found, None
     except Exception as error:  # reported to the user, never swallowed

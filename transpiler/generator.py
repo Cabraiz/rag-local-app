@@ -74,7 +74,7 @@ def render_agent(spec, index, agent) -> str:
     # checked by the same policy a booking would be (runtime/callbacks.py).
     calls_an_api = any(not spec.servers[reference.split('.')[0]].mcp for other in spec.agents for reference in other.tools)
     lists = index == len(spec.agents) - 1 and spec.tool_for('search') and not spec.tool_for('book') and not calls_an_api
-    model = f'gemini({agent.model!r})' if agent.model else 'MODEL'
+    model = model_call(spec, agent.model) if agent.model else 'MODEL'
     instruction = f'    instruction=guarded({agent.instruction!r}),'
     lines = [f'{agent.name} = LlmAgent(', f'    name={agent.name!r},', f'    model={model},']
     lines += [instruction] if len(instruction) <= WIDTH else ['    instruction=guarded(', *literal(agent.instruction, 8),
@@ -90,6 +90,7 @@ def render_agent(spec, index, agent) -> str:
     if lists:
         lines.append(f'    after_agent_callback=CALLBACKS.review_list({agent.output_key!r}),')
     lines.append('    before_model_callback=CALLBACKS.before_model,')  # the model sees the image's token, never its name
+    lines.append('    on_model_error_callback=CALLBACKS.model_failed,')  # one clear line, not a traceback
     if toolsets:  # an agent without tools makes no tool call to check
         lines += ['    before_tool_callback=CALLBACKS.before_tool,', '    after_tool_callback=CALLBACKS.after_tool,']
     lines += [f'    output_key={agent.output_key!r},', ')']
@@ -113,7 +114,7 @@ def imports(spec):
                 '  on a host that ALLOWED_HOSTS allows;']
     if True in kinds:
         doc.append("- McpToolset: ADK's McpToolset, on a host that ALLOWED_HOSTS allows (checked on import);")
-    doc += ['- gemini, guarded: the model with retries, and the fixed rule put before each instruction;',
+    doc += ['- gemini, guarded: the model with retries (and the reserve model), and the fixed rule put before each instruction;',
             '- require_api: stops this file on a runtime with another interface.']
     return '\n'.join(lines), '\n'.join(doc)
 
@@ -163,6 +164,22 @@ def server_urls(spec):
     return [*urls, ('servers', repr([server.address[1] for server in spec.servers.values()]))]
 
 
+def model_call(spec, model):
+    """gemini(<model>), with the spec's reserve model when it has one."""
+    return f'gemini({model!r}, fallback={spec.fallback_model!r})' if spec.fallback_model else f'gemini({model!r})'
+
+
+def model_comment(spec):
+    """The comment above MODEL, true for this spec: with or without a reserve model."""
+    text = ('Gemini (GEMINI_MODEL in .env, or `-e GEMINI_MODEL=<model>` for one run, can replace it), retried on '
+            '429/500/503 up to 5 times.')
+    if spec.fallback_model:
+        text = ('Gemini (GEMINI_MODEL in .env, or `-e GEMINI_MODEL=<model>` for one run, can replace it). A request '
+                f'it refuses with 429 (quota) or 503 (overloaded) goes at once to the reserve model, {spec.fallback_model}, '
+                'which retries 429/500/503 up to 5 times; the main model retries only a 500.')
+    return comment(text)
+
+
 def number(value):
     """A spec number as a literal: 75 rather than 75.0."""
     return repr(int(value)) if isinstance(value, float) and value.is_integer() else repr(value)
@@ -181,7 +198,8 @@ def render(spec, spec_file):
         callbacks='CALLBACKS = ' + call('BookingCallbacks', [*roles, ('policy', 'POLICY'), *server_urls(spec)], 0),
         policy_comment=policy_comment, callbacks_comment=callbacks_comment,
         spec_file=re.sub(r'[^A-Za-z0-9._-]', '_', Path(spec_file).name),  # docstring text, not a literal
-        model=repr(spec.model), name=repr(spec.name), api_version=repr(API_VERSION),
+        model=model_call(spec, spec.model), model_comment=model_comment(spec), name=repr(spec.name),
+        api_version=repr(API_VERSION),
         min_confidence=number(booking.min_confidence), ask_from=number(booking.ask_from), top_k=number(booking.top_k),
         ocr_floor_line=number(booking.ocr_floor.line), ocr_floor_short=number(booking.ocr_floor.short_code),
         ocr_floor_synonym=number(booking.ocr_floor.short_synonym),

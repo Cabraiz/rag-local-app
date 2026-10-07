@@ -56,9 +56,12 @@ def test_example_spec_becomes_a_sequential_adk_pipeline(tmp_path, monkeypatch):
     # each MCP step sees only its own tool
     assert (extract.tools[0].tool_filter, search.tools[0].tool_filter) == (['extract_exam_text'], ['search_exams'])
     assert type(schedule.tools[0]).__name__ == 'LiveOpenAPIToolset'
-    assert extract.model.model == SPEC['model']
-    retry = extract.model.retry_options
-    assert (retry.attempts, sorted(retry.http_status_codes)) == (5, [429, 500, 503])
+    # The spec's model, then its reserve per request (runtime/adk.py): the main one retries a 500 only,
+    # so a 429 or 503 goes at once to the reserve, which keeps every retry.
+    assert extract.model.model == SPEC['model'] and extract.model.models[1].model == SPEC['fallback_model']
+    retries = [(model.retry_options.attempts, sorted(model.retry_options.http_status_codes)) for model in extract.model.models]
+    assert retries == [(5, [500]), (5, [429, 500, 503])]
+    assert extract.on_model_error_callback and schedule.on_model_error_callback
     assert extract.after_tool_callback and search.after_tool_callback and schedule.before_tool_callback
 
 
@@ -290,6 +293,16 @@ def ready_run(tmp_path, monkeypatch):
     return ['run', '--image', 'pedido.png', '--agent', str(output)]
 
 
+def without_reserve(ready_run):
+    """ready_run's command for the example spec without a fallback_model, its agent.py transpiled from
+    that spec (the reserve model is in the generated file: runtime/adk.py)."""
+    folder = Path(ready_run[-1]).parent
+    spec = folder / 'sem-reserva.json'
+    spec.write_text(spec_with(lambda s: s.pop('fallback_model')), encoding='utf-8')
+    transpile(spec, folder / 'agent.py')
+    return [*ready_run, '--spec', str(spec)]
+
+
 def fake_run(result):
     async def run_agent(root_agent, image, spec, found):
         found.update(result)
@@ -365,8 +378,7 @@ def test_cli_run_explains_gemini_failures_in_one_line(ready_run, monkeypatch, ca
     async def failing_run(root_agent, image, spec, found):
         raise RuntimeError('agent failed') from error
     monkeypatch.setattr(cli, 'run_agent', failing_run)
-    monkeypatch.setattr(cli, 'load_spec', lambda path: parse_spec(spec_with(lambda s: s.pop('fallback_model'))))
-    assert cli.main(ready_run) == 2
+    assert cli.main(without_reserve(ready_run)) == 2
     assert capsys.readouterr().err.strip() == expected
 
 
@@ -407,10 +419,8 @@ def test_with_a_reserve_model_the_primary_does_not_wait_out_quota_or_overload(re
             raise RuntimeError('agent failed') from UNAVAILABLE
         found['appointment'] = {'id': 'a1', 'status': 'scheduled', 'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo'}]}
 
-    if not fallback:
-        monkeypatch.setattr(cli, 'load_spec', lambda path: parse_spec(spec_with(lambda s: s.pop('fallback_model'))))
     monkeypatch.setattr(cli, 'run_agent', flaky_run)
-    cli.main(ready_run)
+    cli.main(ready_run if fallback else without_reserve(ready_run))
     # The reserve's own run keeps every retry: nothing comes after it.
     assert runs == ([primary, [429, 500, 503]] if fallback else [primary])
 
@@ -806,8 +816,7 @@ def test_the_gemini_key_never_reaches_the_terminal(ready_run, monkeypatch, capsy
         raise RuntimeError(f'GET https://generativelanguage.googleapis.com/?key={KEY} failed') from UNAVAILABLE
 
     monkeypatch.setattr(cli, 'run_agent', leaking_run)
-    monkeypatch.setattr(cli, 'load_spec', lambda path: parse_spec(spec_with(lambda s: s.pop('fallback_model'))))
-    assert cli.main(ready_run) == 2
+    assert cli.main(without_reserve(ready_run)) == 2
     out, err = capsys.readouterr()
     assert KEY not in out + err
 

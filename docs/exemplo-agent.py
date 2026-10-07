@@ -6,14 +6,14 @@ Declared here, from the spec, with Google ADK classes: the model, one LlmAgent p
 tools, its instruction, its output_key), the confidence thresholds, the SequentialAgent and the
 App that `adk run` and `adk web` load (resumable, so the question for an exam read with medium
 confidence pauses and resumes the same booking call). Imported from `runtime`, the transpiler's
-runtime library (interface 4, tested on its own, the same for every spec):
+runtime library (interface 5, tested on its own, the same for every spec):
 - BookingCallbacks: ADK callbacks that start the order from the session or the user's message, check
   in code every exam code the model proposes and write the final report;
 - BookingPolicy: the thresholds below, as a typed value;
 - LiveOpenAPIToolset: ADK's OpenAPIToolset, built from an API's live /openapi.json on first use,
   on a host that ALLOWED_HOSTS allows;
 - McpToolset: ADK's McpToolset, on a host that ALLOWED_HOSTS allows (checked on import);
-- gemini, guarded: the model with retries, and the fixed rule put before each instruction;
+- gemini, guarded: the model with retries (and the reserve model), and the fixed rule put before each instruction;
 - require_api: stops this file on a runtime with another interface.
 """
 from google.adk.agents import LlmAgent, SequentialAgent
@@ -22,11 +22,13 @@ from google.adk.tools.mcp_tool.mcp_session_manager import SseConnectionParams
 
 from runtime import BookingCallbacks, BookingPolicy, LiveOpenAPIToolset, McpToolset, gemini, guarded, require_api
 
-require_api(4)  # a runtime with another interface stops here, with a clear message
+require_api(5)  # a runtime with another interface stops here, with a clear message
 
-# Gemini (GEMINI_MODEL in .env, or `-e GEMINI_MODEL=<model>` for one run, can replace it), retried on 429/500/503
-# up to 5 times.
-MODEL = gemini('gemini-3.5-flash')
+# Gemini (GEMINI_MODEL in .env, or `-e GEMINI_MODEL=<model>` for one run, can replace it). A
+# request it refuses with 429 (quota) or 503 (overloaded) goes at once to the reserve model,
+# gemini-3.5-flash-lite, which retries 429/500/503 up to 5 times; the main model retries only a
+# 500.
+MODEL = gemini('gemini-3.5-flash', fallback='gemini-3.5-flash-lite')
 # An exam at or above min_confidence is booked; from ask_from up, only if the person says yes
 # [s/N]; below, it is left out and reported. A line the OCR read (0-100) below its floor is never
 # sure: ocr_floor_line, ocr_floor_short (3 letters or fewer), ocr_floor_synonym (an abbreviation
@@ -64,6 +66,7 @@ extract = LlmAgent(
         McpToolset(connection_params=SseConnectionParams(url='http://ocr:8001/sse'), tool_filter=['extract_exam_text']),
     ],
     before_model_callback=CALLBACKS.before_model,
+    on_model_error_callback=CALLBACKS.model_failed,
     before_tool_callback=CALLBACKS.before_tool,
     after_tool_callback=CALLBACKS.after_tool,
     output_key='exam_names',
@@ -81,6 +84,7 @@ search = LlmAgent(
     tools=[McpToolset(connection_params=SseConnectionParams(url='http://rag:8002/sse'), tool_filter=['search_exams'])],
     before_agent_callback=CALLBACKS.fill_missing('exam_names'),
     before_model_callback=CALLBACKS.before_model,
+    on_model_error_callback=CALLBACKS.model_failed,
     before_tool_callback=CALLBACKS.before_tool,
     after_tool_callback=CALLBACKS.after_tool,
     output_key='exam_codes',
@@ -102,6 +106,7 @@ schedule = LlmAgent(
     ],
     before_agent_callback=CALLBACKS.fill_missing('exam_names', 'exam_codes'),
     before_model_callback=CALLBACKS.before_model,
+    on_model_error_callback=CALLBACKS.model_failed,
     before_tool_callback=CALLBACKS.before_tool,
     after_tool_callback=CALLBACKS.after_tool,
     output_key='appointment',

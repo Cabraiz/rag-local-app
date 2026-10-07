@@ -6,11 +6,11 @@ import os
 from urllib.parse import urlsplit
 
 import httpx
-from google.adk.models import Gemini
+from google.adk.models import FallbackModel, Gemini
 from google.adk.tools import mcp_tool
 from google.adk.tools.base_toolset import BaseToolset
 from google.adk.tools.openapi_tool.openapi_spec_parser.openapi_toolset import OpenAPIToolset
-from google.genai import types
+from google.genai import errors, types
 
 from . import rede
 
@@ -62,12 +62,45 @@ def retries(*codes):
     return types.HttpRetryOptions(attempts=5, initial_delay=2, max_delay=30, http_status_codes=list(codes))
 
 
-def gemini(model):
+RESERVE_ON = frozenset({429, 503})  # out of quota, overloaded: the reserve model answers the same request
+RESERVE_NOTICE = 'Aviso: modelo principal indisponível; usando {reserve}'
+
+
+class Primary(Gemini):
+    """The spec's model when it has a reserve: a 429 or 503 is not retried (only a 500 is), so the
+    reserve answers at once, and this says so in one line (the console of `adk run`, the log of
+    `adk web`)."""
+    reserve: str = ''
+
+    async def generate_content_async(self, llm_request, stream=False):
+        answered = False
+        try:
+            async for response in super().generate_content_async(llm_request, stream):
+                answered = True
+                yield response
+        except errors.APIError as error:
+            if error.code in RESERVE_ON and not answered:  # what FallbackModel moves on from
+                print(RESERVE_NOTICE.format(reserve=self.reserve), flush=True)
+            raise
+
+
+def gemini(model, fallback=None):
     """The spec's model (the GEMINI_MODEL variable, `docker compose run -e GEMINI_MODEL=...`, can
-    replace it, checked by `cli run`). Temporary
-    Gemini failures (429/500/503) are retried with exponential backoff, up to 5 attempts; `cli run`
-    retries only the 500s when the spec has a fallback_model (cli.py, reserve_ready)."""
-    return Gemini(model=os.environ.get('GEMINI_MODEL') or model, retry_options=retries(429, 500, 503))
+    replace it, checked by `cli run`). Temporary Gemini failures (429/500/503) are retried with
+    exponential backoff, up to 5 attempts.
+
+    With the spec's fallback_model, a request the model refuses with 429 (quota) or 503 (overloaded)
+    goes at once, unchanged, to the reserve model (ADK's FallbackModel), which keeps every retry: the
+    same under `adk run`, `adk web` and `cli run`. This cannot book twice: it is the same model call
+    made again, not a tool call. A failed model call returned no function call, so no tool ran for
+    it; and the booking keeps its checks whichever model proposes it (one Idempotency-Key and one
+    appointment per run, runtime/callbacks.py)."""
+    primary = os.environ.get('GEMINI_MODEL') or model
+    if not fallback or fallback == primary:
+        return Gemini(model=primary, retry_options=retries(429, 500, 503))
+    return FallbackModel(models=[Primary(model=primary, reserve=fallback, retry_options=retries(500)),
+                                 Gemini(model=fallback, retry_options=retries(429, 500, 503))],
+                         retriable_status_codes=RESERVE_ON)
 
 
 class McpToolset(mcp_tool.McpToolset):

@@ -22,7 +22,8 @@ import json
 import uuid
 from pathlib import Path
 
-from google.genai import types
+from google.adk.models.llm_response import LlmResponse
+from google.genai import errors, types
 
 from . import confirmacao, rede, relatorio, servidores
 from .adk import check_host
@@ -266,6 +267,23 @@ class BookingCallbacks:
                     'suba os serviços com `docker compose up -d --wait`.')
         return f'OCR recusou a imagem: {reason}.' if reason else None
 
+    def model_failed(self, callback_context, llm_request, error):
+        """on_model_error_callback of every step: when Gemini refuses the call (also the reserve model,
+        which ADK's FallbackModel already tried: runtime/adk.py), the step ends with one line saying so,
+        instead of a traceback in `adk run` or `adk web`, and the next steps make no model call
+        (before_model). The report then says nothing was booked. Any other error goes on as it is.
+        `cli run` takes these callbacks off: it reports a model failure itself (cli.py)."""
+        while error is not None and not isinstance(error, errors.APIError):
+            error = error.__cause__ or error.__context__
+        if error is None:
+            return None
+        order = self.order(callback_context)
+        order['model_error'] = (f'Gemini indisponível no momento (HTTP {error.code}), também no modelo reserva; '
+                                'tente novamente' if error.code in (429, 500, 503) else
+                                f'o Gemini recusou a chamada (HTTP {error.code})')
+        self.publish(callback_context, order)
+        return LlmResponse(content=said(order['model_error']))
+
     def before_model(self, callback_context, llm_request):
         """before_model_callback of every step: in what the model is sent, the user's own text is the
         message `cli run` sends ("Arquivo do pedido: <token>"), the image's real name, anywhere else, is
@@ -273,6 +291,8 @@ class BookingCallbacks:
         a client sent, and no part of the user's own that is not text. The person typed the name; the
         model never sees it, nor anything unmasked."""
         order = self.order(callback_context)
+        if order.get('model_error'):  # an earlier step's model failed: no further model call in this run
+            return LlmResponse(content=said(order['model_error']))
         token, real = order.get('image_token'), order.get('image_file')
         sent = [part for event in callback_context.session.events if event.author == 'user'
                 for part in (event.content.parts if event.content else None) or []]

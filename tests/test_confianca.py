@@ -27,7 +27,7 @@ from tests.test_transpiler import (
     generated_module,
     ready_run,  # noqa: F401 (ready_run is a fixture)
     search,
-    spec_with,
+    without_reserve,
 )
 from transpiler import parse_spec
 
@@ -301,8 +301,7 @@ def test_the_key_is_removed_before_the_message_is_cut(ready_run, monkeypatch, ca
         raise RuntimeError('x' * 480 + f' key={KEY}')
 
     monkeypatch.setattr(cli, 'run_agent', long_error)
-    monkeypatch.setattr(cli, 'load_spec', lambda path: parse_spec(spec_with(lambda s: s.pop('fallback_model'))))
-    assert cli.main(ready_run) == 2
+    assert cli.main(without_reserve(ready_run)) == 2
     out, err = capsys.readouterr()
     assert KEY[:8] not in out + err and '[GOOGLE_API_KEY]'[:12] in err
 
