@@ -11,6 +11,9 @@ LEFT_OUT = {
     'second_round': "não perguntado nesta execução (só ficou em dúvida depois de um 'não'): {guess}; confira o pedido",
     'needs_confirmation': 'não agendado sem confirmação: {guess}; rode num terminal, sem --yes, para responder',
     'declined': 'não incluído (você respondeu não): {guess}',
+    # a yes to a call that resumed after another call of the same turn had already booked the run's appointment
+    'after_booking': ('não agendado (você confirmou, mas o agendamento desta execução já tinha sido criado): {guess}; '
+                      'agende-o à parte'),
     'omitted': 'não incluído pelo agente: {guess}; confira o pedido',  # a search found it, the model left it out
     'not_searched': 'não buscado pelo agente: {guess}; confira o pedido',  # only the check of the whole order found it
     'score': 'baixa confiança: {guess}; confira o pedido',

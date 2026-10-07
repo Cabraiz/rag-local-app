@@ -10,11 +10,12 @@ import json
 import re
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 import cli
-from runtime import confirmacao
+from runtime import BookingCallbacks, confirmacao
 from tests.test_transpiler import (
     KEY,
     UNAVAILABLE,
@@ -363,7 +364,7 @@ class FakeRunner:
 
     def __init__(self, app):
         from types import SimpleNamespace
-        self.session = SimpleNamespace(id='s1', state={})
+        self.session = SimpleNamespace(app_name='clinic', user_id='cli', id='s1', state={})
         self.session_service = SimpleNamespace(create_session=self.create, get_session=self.get)
 
     async def create(self, **kwargs):
@@ -397,7 +398,8 @@ def test_each_step_is_timed_from_the_call_to_its_reply(monkeypatch, capsys):
         (13.3, 'reply', 'search_exams', 'e'), (13.3, 'reply', 'search_exams', 'f'),
         (14.0, 'call', 'create_appointment', 'd'), (14.3, 'reply', 'create_appointment', 'd')])
     spec, found = parse_spec((ROOT / 'specs' / 'agent.json').read_text(encoding='utf-8')), cli.new_found()
-    asyncio.run(cli.run_agent(None, 'pedido.png', spec, found))
+    pipeline = SimpleNamespace(before_agent_callback=BookingCallbacks().start_order)  # the CLI registers the order there
+    asyncio.run(cli.run_agent(pipeline, 'pedido.png', spec, found))
     assert {name: round(value, 2) for name, value in found['tool_seconds'].items()} == {
         'extract_exam_text': 1.2, 'search_exams': 1.1, 'create_appointment': 0.3}
     monkeypatch.delenv('GEMINI_MODEL', raising=False)

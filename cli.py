@@ -24,12 +24,13 @@ from google.genai import errors, types
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 
-from runtime import confirmacao, image_token
+from runtime import BookingCallbacks, confirmacao, image_token
 from runtime.adk import retries
-from runtime.relatorio import LEFT_OUT, api_refusal, reading_lines  # noqa: F401  (LEFT_OUT: how cli run words them)
+from runtime.rede import pinned_names
+from runtime.relatorio import api_refusal, reading_lines
 from runtime.servidores import CHECK_SECONDS, IMAGE_CHECK
 from transpiler import TranspileError, load_root_agent, load_spec, render, transpile
-from transpiler.live import check_addresses, check_live, live_tools, pinned_names
+from transpiler.live import check_addresses, check_live, live_tools
 from transpiler.spec import MODEL
 
 DEFAULT_SPEC = 'specs/agent.json'
@@ -205,10 +206,12 @@ async def run_agent(root_agent, image, spec, found):
     # and its Idempotency-Key makes a POST it may have sent come back as the same appointment.
     carried = {key: found[key] for key in CARRIED if found[key]}
     # The model sees a token, never the file name, which can carry a patient's name; the OCR's
-    # before_tool turns the token back into the name (runtime/callbacks.py).
+    # before_tool turns the token back into the name. The image checked here, and what an earlier run
+    # left, go to the order's record in the agent's callbacks, not to the session state, which the
+    # policy never trusts (runtime/callbacks.py).
     token = image_token(image)
-    session = await runner.session_service.create_session(
-        app_name='clinic', user_id='cli', state={**carried, 'image_token': token, 'image_file': image})
+    session = await runner.session_service.create_session(app_name='clinic', user_id='cli')
+    BookingCallbacks.of(root_agent).open_order(session, image, **carried)
     message = types.Content(role='user', parts=[types.Part(text=f'Arquivo do pedido: {token}')])
     started, invocation = {}, None  # call id -> timestamp of the event that asked for it
     try:
