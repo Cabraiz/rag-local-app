@@ -157,6 +157,11 @@ def remember_piece(state, query, hits, policy):
     """remember_search for one piece of text and its own hits: the best one may book alone."""
     lines, query = state.get('ocr_lines', []), words(query)
     support, index = line_support(query, lines)
+    span = query if support == 1.0 else None
+    glued = pieces_of(query, lines) if support < 1.0 else []
+    if glued:  # the words read with a connective the OCR glued to them: "ureia" in "2 ureiae creatinina"
+        index, start, end, support = max(glued, key=lambda piece: piece[3])  # on a tie, the first
+        span = lines[index][start:end]  # its own piece of the line, not the whole line
     candidates = dict(state.get('candidates', {}))
     hits = [hit for hit in hits if isinstance(hit, dict) and 'code' in hit]
     best = max(hits, key=lambda hit: float(hit.get('score', 0)), default=None)  # on a tie, the first
@@ -183,7 +188,7 @@ def remember_piece(state, query, hits, policy):
                 'name': name, 'confidence': confidence, 'score': score, 'support': support, 'line': index,
                 'read': state.get('ocr_read', lines)[index] if index is not None else '',
                 # the words found in a line, only for the exam that matches them best; None if only similar
-                'span': query if support == 1.0 and hit is best else None,
+                'span': span if hit is best else None,
                 'floor': policy.ocr_floor(query, words(name))}
     state['candidates'] = candidates
     remember_find(state, query, hits, policy)
@@ -232,7 +237,7 @@ def best_spot(candidate, taken, state, policy):
     piece on a note, or an exam also written on a line that says not to do it, is asked at most."""
     lines, readings = state.get('ocr_lines', []), state.get('ocr_confidence')
     span, index = candidate['span'], candidate['line']
-    spots = ([(i, *m.span(), 1.0) for i, line in enumerate(lines)
+    spots = ([(i, *m.span(), candidate['support']) for i, line in enumerate(lines)
               for m in re.finditer(rf'\b{re.escape(span)}\b', line)]
              if span else [(index, 0, len(lines[index]), candidate['support'])] if index is not None else [])
     free, holders, refused = [], [], []
