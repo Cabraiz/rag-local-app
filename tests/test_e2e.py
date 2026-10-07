@@ -21,6 +21,8 @@ pytestmark = pytest.mark.skipif(
     reason='sem GOOGLE_API_KEY: o ponta a ponta chama o Gemini; rode docker compose run --rm tests-e2e (chave do .env)',
 )
 SPEC_FILE = Path(__file__).resolve().parents[1] / 'specs' / 'agent.json'
+# samples/pedido.png asks for Hemograma completo, Glicemia de jejum and Creatinina (tests/test_ocr.py reads them).
+EXPECTED = ['FICT-001', 'FICT-002', 'FICT-005']
 
 
 def api_base_url(spec_file: Path = SPEC_FILE) -> str:
@@ -41,7 +43,7 @@ def test_order_image_is_scheduled_with_codes_from_the_catalog(tmp_path, capsys):
     assert status == 0, err
     assert '[extract] chamando extract_exam_text' in out and '[search] chamando search_exams' in out
     codes = re.findall(r'\| (FICT-\d{3}) +\|', out)
-    assert codes, out
+    assert sorted(codes) == EXPECTED, out  # exactly the order's exams: none missing, none invented
     confirmed = re.search(r'id ([0-9a-f-]{36}), status (\w+)', out)
     assert confirmed and confirmed[2] == 'scheduled', out
 

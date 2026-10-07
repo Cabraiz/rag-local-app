@@ -210,7 +210,7 @@ docker compose run --rm tests pytest -q -n auto
 
 - **Serviço `tests`:** usa o estágio `test` do `Dockerfile`, que é a imagem do `agent` mais pytest, ruff, mypy, o Tesseract e os testes. O `agent` leva só o que `transpile` e `run` usam. O 1º comando constrói a imagem de testes (sem cache, alguns minutos) e sobe os serviços.
 - **Sem chave, sempre:** o serviço `tests` não recebe a `GOOGLE_API_KEY`, nem com ela no `.env`. Nada chama o Gemini e o teste ponta a ponta é pulado.
-- **Ponta a ponta real, só quando pedido:** `docker compose run --rm tests-e2e` roda [`tests/test_e2e.py`](../tests/test_e2e.py) com a chave do `.env`: uma execução real com o Gemini (o `run` inteiro, com vários turnos do modelo). Sem a chave no `.env`, ele falha (não é pulado), para não parecer que passou.
+- **Ponta a ponta real, só quando pedido:** `docker compose run --rm tests-e2e` roda [`tests/test_e2e.py`](../tests/test_e2e.py) com a chave do `.env`: uma execução real com o Gemini (o `run` inteiro, com vários turnos do modelo) sobre `pedido.png`, que precisa agendar exatamente os 3 exames do pedido (`FICT-001`, `FICT-002` e `FICT-005`), os mesmos que o `GET` do agendamento devolve. Sem a chave no `.env`, ele falha (não é pulado), para não parecer que passou.
 - **O que a suíte cobre:**
   - specs válidas e inválidas e o código gerado (compilável e importável);
   - a saída da CLI;
