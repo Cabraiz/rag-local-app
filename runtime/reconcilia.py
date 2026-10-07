@@ -2,8 +2,9 @@
 
 Each line read (PII already masked) loses its list marker ("2.", "-") and its label ("Exames:"),
 and lines of notes and personal data are left out. The catalog search takes the rest of each line
-and cuts it into its exams itself (mcp_servers/rag.py, split_exams: "e", ",", ";", "+", "/", a
-catalog name such as "HIV antigeno e anticorpos" kept whole), each hit with its "piece": the
+and cuts it into its exams itself (mcp_servers/rag.py, split_exams: "e", ",", ";", "+", "/", an "e"
+the OCR glued to a word as in "TSHe T4 livre", a catalog name such as "HIV antigeno e anticorpos"
+kept whole), each hit with its "piece": the
 pieces checked here are the pieces the search uses. A piece whose untied best match passes the RAG's floor,
 and is more than a resemblance of letters (it shares a word with the exam's name, or scores at
 least 0,80: "laboratorio" is 0,70 like "paratormonio"), is an exam of the order, and must end in

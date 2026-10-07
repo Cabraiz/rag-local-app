@@ -13,7 +13,7 @@ import cli
 from runtime.reconcilia import order_lines, unreported
 from tests.test_agent_mcp import servers  # noqa: F401  (the real MCP servers, as processes)
 from tests.test_confianca import agent, best_of, book, read, real_search  # noqa: F401  (agent is a fixture)
-from tests.test_transpiler import fake_run, ready_run  # noqa: F401  (ready_run is a fixture)
+from tests.test_transpiler import FakeTool, fake_run, ready_run  # noqa: F401  (ready_run is a fixture)
 from transpiler import load_spec
 
 JUDGE = ['[TEXTO_REMOVIDO] - LABORATORIO ([TEXTO_REMOVIDO])', '[ENDERECO]', 'Paciente: [NOME]',
@@ -164,3 +164,65 @@ def test_the_pieces_are_searched_on_the_real_rag_server(servers, monkeypatch):  
     pieces = {hit['piece']: hit['code'] for hit in reversed(hits['Colesterol total e Triglicerideos'])}
     assert pieces == {'Colesterol total': 'FICT-006', 'Triglicerideos': 'FICT-009'}  # best hit of each piece
 
+
+
+def tool_search(agent, context, query):
+    """The search_exams tool's reply (the line cut into its exams), through the after_tool_callback."""
+    hits = catalog_search(query)
+    agent.CALLBACKS.after_tool(FakeTool('search_exams'), {'query': query}, context, {'structuredContent': {'result': hits}})
+    best: dict = {}
+    for hit in hits:  # the best hit of each piece, as the model proposes them
+        best.setdefault(hit.get('piece', query), hit['code'])
+    return list(best.values())
+
+
+def outcome(agent, context, *codes):
+    """(booked, left out with reason and confidence, added by the check of the whole order)."""
+    reply, args = book(agent, context, *codes)
+    booked = [] if reply else [exam['code'] for exam in args['exams']]
+    left_out = [(item['code'], item['reason'], item['confidence']) for item in context.state['low_confidence']]
+    return booked, left_out, [(code, reason, confidence) for code, _, reason, confidence, _ in check(agent, context, booked)]
+
+
+# An order with "1) TSH e T4 livre" read as "1) TSHe T4 livre": the model searched the line without its
+# marker, got T4 livre at 0,76 (the line had no separator) and TSH ended in no state at all. The check
+# of the whole order cut the line the same way, so it missed TSH too.
+GLUED = [  # (line read, the exam glued to the "e", the other exam, the glued exam's confidence)
+    ('1) TSHe T4 livre', 'FICT-024', 'FICT-025', 0.86),
+    ('1. TSHe T4 livre', 'FICT-024', 'FICT-025', 0.86),
+    ('TSHe T4 livre', 'FICT-024', 'FICT-025', 0.86),
+    ('- TSHe T4 livre', 'FICT-024', 'FICT-025', 0.86),
+    ('1) TSH eT4 livre', 'FICT-025', 'FICT-024', 0.94),
+    ('1) Ureiae Creatinina', 'FICT-004', 'FICT-005', 0.91),
+]
+
+
+@pytest.mark.parametrize('line, glued, other, confidence', GLUED)
+def test_an_exam_glued_to_the_connective_is_booked_or_asked_by_its_confidence(agent, line, glued, other, confidence):
+    context = read(agent, ['Solicito:', line])
+    proposed = tool_search(agent, context, order_lines([line])[0][1])
+    assert sorted(proposed) == sorted([glued, other])
+    booked, left_out, late = outcome(agent, context, *proposed)
+    if confidence >= agent.CALLBACKS.policy.min_confidence:
+        assert sorted(booked) == sorted([glued, other]) and left_out == []
+    else:  # TSHe is TSH at 0,86: asked, and without anyone to answer, left out with a warning
+        assert booked == [other] and left_out == [(glued, 'needs_confirmation', confidence)]
+    assert late == []
+
+
+@pytest.mark.parametrize('line, glued, other, confidence', GLUED)
+def test_an_exam_glued_to_the_connective_the_model_left_out_is_reported(agent, line, glued, other, confidence):
+    # The judge's run: the whole line searched, only the other exam proposed.
+    context = read(agent, ['Solicito:', line])
+    tool_search(agent, context, order_lines([line])[0][1])
+    booked, left_out, late = outcome(agent, context, other)
+    assert booked == [other] and left_out == [(glued, 'omitted', confidence)] and late == []
+
+
+@pytest.mark.parametrize('line, glued, other, confidence', GLUED)
+def test_an_exam_glued_to_the_connective_the_model_never_searched_is_reported(agent, line, glued, other, confidence):
+    context = read(agent, ['Solicito:', '- Glicose', line])
+    tool_search(agent, context, 'Glicose')
+    booked, left_out, late = outcome(agent, context, best_of('Glicose'))
+    assert booked == [best_of('Glicose')] and left_out == []
+    assert sorted(late) == sorted([(glued, 'not_searched', confidence), (other, 'not_searched', 1.0)])

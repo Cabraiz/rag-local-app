@@ -185,3 +185,50 @@ def best_by_piece(line):
 ])
 def test_a_piece_that_is_part_of_the_exam_next_to_it_is_searched_as_that_exam(line, expected):
     assert best_by_piece(line) == expected
+
+
+# The OCR glues the connective to a word: an order with "1) TSH e T4 livre" was read "1) TSHe T4 livre".
+# The line had no separator, so it was searched whole: T4 livre at 0,76, and TSH nowhere, not even a warning.
+@pytest.mark.parametrize('line, expected', [
+    ('TSHe T4 livre', {'TSHe': ('TSH', 0.86), 'T4 livre': ('T4 livre', 1.0)}),  # the line the agent searched
+    ('1) TSHe T4 livre', {'1) TSHe': ('TSH', 0.67), 'T4 livre': ('T4 livre', 1.0)}),  # with the order's marker
+    ('1. TSHe T4 livre', {'1. TSHe': ('TSH', 0.67), 'T4 livre': ('T4 livre', 1.0)}),
+    ('- TSHe T4 livre', {'- TSHe': ('TSH', 0.86), 'T4 livre': ('T4 livre', 1.0)}),
+    ('TSH eT4 livre', {'TSH': ('TSH', 1.0), 'eT4 livre': ('T4 livre', 0.94)}),  # glued to the next word
+    ('Ureiae Creatinina', {'Ureiae': ('Ureia', 0.91), 'Creatinina': ('Creatinina', 1.0)}),  # was Clearance de creatinina
+    ('TSHe T4 Iivre', {'TSHe': ('TSH', 0.86), 'T4 Iivre': ('T4 livre', 0.88)}),  # and a misread letter
+    ('Colesterol totale Triglicerideos', {'Colesterol totale': ('Colesterol total', 0.97),
+                                          'Triglicerideos': ('Triglicerideos', 1.0)}),
+])
+def test_an_e_the_ocr_glued_to_a_word_still_separates_the_exams(line, expected):
+    # Each piece keeps the text read, "e" included: its score is that of what was read (TSHe is TSH at 0,86).
+    assert {piece: (name, score) for piece, (name, score, _) in best_by_piece(line).items()} == expected
+    assert all(hit['piece'] in line for hit in rag.search_line(line, 3))
+
+
+@pytest.mark.parametrize('line', [
+    'Ureia', 'Hemoglobina glicada', 'Teste', 'Sangue oculto', 'Sangue oculto nas fezes', 'Fator reumatoide',
+    'Lipase Amilase', 'Glicose Estradiol', 'Toxoplasmose IgG', 'Glicose de jejum', 'Clearance de creatinina',
+    'Creatinoquinase', 'Exame de urina', 'Hormonio tireoestimulante', 'Capacidade de ligacao do ferro',
+])
+def test_a_word_that_ends_or_starts_with_e_is_not_cut(line):
+    # A word of the catalog ("Lipase", "Sangue", "Estradiol") is never a glued connective, nor is a word
+    # whose side without the "e" is no exam ("Teste").
+    assert rag.split_exams(line, short=True) == [line]
+    assert rag.search_line(line, 3) == rag.search(line, 3)
+
+
+@pytest.mark.parametrize('line, pieces', [
+    ('Colesterol HDL e LDL', ['Colesterol HDL', 'LDL']),
+    ('Hepatite B e C', ['Hepatite B', 'C']),
+    ('Ureia e Creatinina', ['Ureia', 'Creatinina']),
+    ('HIV antigeno e anticorpos', ['HIV antigeno e anticorpos']),
+])
+def test_a_connective_written_apart_splits_as_before(line, pieces):
+    assert rag.split_exams(line, short=True) == pieces
+
+
+def test_no_name_or_synonym_of_the_catalog_is_cut_as_a_glued_connective():
+    from catalogo import CATALOG
+    names = [term for exam in CATALOG for term in [exam['name'], *exam['synonyms']]]
+    assert [name for name in names if rag.unglue(name) != ([name], [])] == []

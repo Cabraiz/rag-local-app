@@ -4,6 +4,8 @@ Retrieval-augmented lookup of exam codes in the catalog (data/exams.json), score
 catalogo.py describes: shared words or character similarity, whichever is higher. The
 agent receives ranked codes from the catalog and never has to invent one.
 """
+import functools
+import itertools
 import re
 from typing import Annotated
 
@@ -45,10 +47,15 @@ TERMS = {term for exam in CATALOG for term in exam['terms']}
 
 
 def split_exams(query: str, short: bool = False) -> list[str]:
-    """The exam names of one line, split on " e ", ",", "+", ";" and "/". Pieces whose join is a
-    catalog name stay together ("HIV antigeno e anticorpos"), and a piece with fewer than 2
-    letters or digits (a list marker read as "5;") is dropped."""
-    parts, separators = SEPARATOR.split(query), SEPARATOR.findall(query)
+    """The exam names of one line, split on " e ", ",", "+", ";" and "/", and on an "e" the OCR glued
+    to a word (unglue: "TSHe T4 livre"). Pieces whose join is a catalog name stay together ("HIV
+    antigeno e anticorpos"), and a piece with fewer than 2 letters or digits (a list marker read as
+    "5;") is dropped."""
+    parts, separators, written = [], [], SEPARATOR.findall(query)
+    for index, part in enumerate(SEPARATOR.split(query)):
+        cut, between = unglue(part)
+        separators += [*written[index - 1:index], *between]  # the separator before the part, then its cuts
+        parts += cut
 
     def joined(start, stop):  # parts start..stop with the separators written between them
         return ''.join(part + sep for part, sep in zip(parts[start:stop], separators[start:stop], strict=True)) + parts[stop]
@@ -92,9 +99,48 @@ def qualifier(piece: str) -> bool:
     return all(word in QUALIFIERS or re.fullmatch(r'\d+h?', word) for word in normalize(piece).split())
 
 
+@functools.lru_cache(maxsize=4096)
 def best_score(text: str) -> float:
     found = search(text, 1)
     return found[0]['score'] if found else 0.0
+
+
+# The OCR glues the connective to a word: "TSH e T4 livre" read "TSHe T4 livre" or "TSH eT4 livre",
+# "Ureia e Creatinina" read "Ureiae Creatinina". A word that starts or ends with that "e" is cut there
+# when it is no word of the catalog ("Lipase", "Sangue", "Estradiol" never are), its side without
+# the "e" matches a catalog name from COMPLETED and better than with it ("TSH" 1,00, "TSHe" 0,86), and
+# the other side is an exam on its own (OWN_EXAM). Each piece keeps its text as read, "e" included, so
+# its score and its place in the line are those of what was read: "TSHe" is TSH at 0,86.
+VOCABULARY = {word for term in TERMS for word in term.split()}
+# A list marker before the first exam ("1) TSHe T4 livre") is not part of its name when scoring a cut.
+LIST_MARKER = re.compile(r'^\s*(?:[-–•*·>]+|\(?\d{1,2}[.)-])\s*')
+
+
+def glued(word: str, without: str, with_e: str, other: str) -> bool:
+    """Whether `word`, read with a connective "e" glued to it, is a cut between `with_e` (its side of
+    the line, `without` once the "e" is gone) and `other` (the rest of the line)."""
+    without, with_e, other = (LIST_MARKER.sub('', text) for text in (without, with_e, other))
+    if normalize(word) in VOCABULARY or len(normalize(word).replace(' ', '')) < 3 \
+            or not normalize(without) or not normalize(other):
+        return False
+    score = best_score(without)
+    return score >= COMPLETED and score > best_score(with_e) and best_score(other) >= OWN_EXAM
+
+
+def unglue(part: str) -> tuple[list[str], list[str]]:
+    """(pieces, the spaces between them) of a part of a line without separators, cut where the OCR
+    glued an "e" to the end of a word ("TSHe | T4 livre") or to the start of the next one ("TSH |
+    eT4 livre"). A part with no such word is one piece."""
+    pieces, between, start = [], [], 0
+    tokens = list(re.finditer(r'\S+', part))
+    for before, after in itertools.pairwise(tokens):
+        left, right = part[start:before.end()], part[after.start():]
+        if (before.group()[-1] in 'eE' and glued(before.group(), left[:-1], left, right)) or \
+                (after.group()[0] in 'eE' and glued(after.group(), right[1:], right, left)):
+            pieces.append(left)
+            between.append(part[before.end():after.start()])
+            start = after.start()
+    return [*pieces, part[start:]], between
 
 
 def ahead(previous: str, piece: str, weak: bool) -> str | None:

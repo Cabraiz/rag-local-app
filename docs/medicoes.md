@@ -215,7 +215,9 @@ livre", "Vitamina B12 e D". A busca pontuava a linha inteira contra um nome só,
 inteira deixava o resto da linha sem estado nenhum: nem agendado, nem perguntado, nem avisado. Agora:
 
 - **A busca separa a linha** em " e ", ",", "+", ";", "/" e ":" e busca cada pedaço, sem partir um nome do catálogo
-  ("HIV antigeno e anticorpos").
+  ("HIV antigeno e anticorpos"). Um "e" que o OCR grudou numa palavra também separa ("TSHe T4 livre" → TSH e T4
+  livre), só quando a palavra não é do catálogo e os dois lados são exames; nas 1.750 linhas distintas dos corpora
+  legítimos (manuscritos, calibração e linhas legítimas dos ataques), nenhuma é cortada de outro jeito.
 - **Um pedaço que é parte do exame vizinho é completado por ele:** "Toxoplasmose IgG e IgM" → Toxoplasmose IgM (e não a
   IgM genérica), "IgG e IgM para toxoplasmose" → Toxoplasmose IgG, "PSA total e livre" → PSA livre, "Vitamina B12 e D"
   → Vitamina D. Uma amostra ou um tempo ("urina 24h") não vira busca. "Toxo" e "CMV" seguidos da classe ("Toxo IgG",
