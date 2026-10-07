@@ -53,7 +53,9 @@ Campos da spec, mensagens de erro e o código gerado comentado: [transpilador.md
 docker compose run --rm agent python -m cli run --image pedido.png      # chama o Gemini (gemini-3.5-flash, da spec)
 ```
 
-Um `run` costuma levar de 1 a 7 minutos, conforme a fila do Gemini: quase todo o tempo é à espera dele (três agentes em sequência). Já medimos de 42 s a 381 s; no [log das evidências](../evidencias/log-run-pedido.txt), 232 s, com o Gemini lento nessa execução: a busca (35 s) e o agendamento (51 s) incluem o tempo do modelo para gerar cada chamada. Com o principal indisponível, a CLI espera as tentativas falharem e roda de novo com o modelo reserva da spec, avisando `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite`. Não travou: as linhas `[extract] chamando ...` mostram o progresso.
+Um `run` costuma levar de 1 a 7 minutos, conforme a fila do Gemini: quase todo o tempo é à espera dele (três agentes em sequência). Já medimos de 42 s a 381 s; no [log das evidências](../evidencias/log-run-pedido.txt), 232 s, com o Gemini lento nessa execução: a busca (35 s) e o agendamento (51 s) incluem o tempo do modelo para gerar cada chamada. Não travou: as linhas `[extract] chamando ...` mostram o progresso.
+
+**Modelo reserva, um caminho normal.** A spec traz um `fallback_model` (`gemini-3.5-flash-lite`). Se o principal responde sobrecarregado (`503`) ou sem cota (`429`), a CLI não espera novas tentativas dele: passa na hora ao reserva, avisa `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite` e a execução segue, com o mesmo resultado esperado; a linha `Tempo:` diz qual modelo respondeu. Antes, as 5 tentativas com espera crescente custavam cerca de 1 minuto antes da troca. A troca só acontece se a API ainda não foi chamada (uma 2ª execução depois de um `POST` poderia agendar em dobro), e o reserva tem as suas 5 tentativas.
 
 `pedido.png` está em `samples/`. A saída abaixo é a desse log, sem as linhas `[extract] chamando ...`. O id muda a cada execução, e `NOME x2` são o paciente e o médico.
 
@@ -188,9 +190,9 @@ Erros saem como uma linha `Erro: ...`, com código 2. Por exemplo: serviço fora
   - **Comandos com `-f`** (a carga e a robustez, em [medicoes.md](medicoes.md)) não leem o override sozinhos: acrescente `-f docker-compose.override.yml`.
   - **Alternativa, com cuidado:** `docker network prune` apaga todas as redes sem container em uso, inclusive as de **outros projetos** que estejam parados, que depois precisam ser recriadas. Confira antes com `docker network ls`.
 - **Porta ocupada no Windows:** o `up` pode ficar `Healthy` sem erro enquanto outro programa responde na porta. Se o Swagger não se chamar "API de agendamento de exames (fictícia)", troque o `API_PORT`.
-- **Falhas temporárias do Gemini** (`429`, `500`, `503`) são tentadas sozinhas até 5 vezes no total, com espera crescente.
-- **Modelo ainda indisponível:** se continuar `429`/`503` e a API ainda não tiver sido chamada, a CLI tenta uma vez com o `fallback_model` da spec (`gemini-3.5-flash-lite`) e avisa `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite`.
-- **Se ainda falhar,** a saída é `Erro: Gemini indisponível no momento (HTTP 503); tente novamente`.
+- **Falhas temporárias do Gemini** (`500`) são tentadas sozinhas até 5 vezes no total, com espera crescente; `429` e `503` também, quando a spec não tem `fallback_model` ou já no modelo reserva.
+- **Modelo principal indisponível** (`429`/`503`): se a API ainda não tiver sido chamada, a CLI passa na hora ao `fallback_model` da spec (`gemini-3.5-flash-lite`), sem novas tentativas do principal, e avisa `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite`. É um caminho normal, não um erro.
+- **Se o reserva também falhar,** a saída é `Erro: Gemini indisponível no momento (HTTP 503); tente novamente`.
 - **Pedido sem exame:** `Erro: Nenhum exame encontrado no pedido; nada foi agendado`.
 - **Bloqueio antes da API:** `Erro: agendamento bloqueado antes de chamar a API: …; nada foi agendado`. Acontece quando um código não veio de uma busca no catálogo, ou quando nenhum exame atinge a confiança de 0,90 nem foi confirmado por você.
 - **OCR sem texto e sem motivo** (serviço fora do ar no meio da execução): `Erro: o OCR não devolveu o texto do pedido (serviço indisponível?); nada foi agendado`.

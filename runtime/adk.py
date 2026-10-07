@@ -44,14 +44,17 @@ def guarded(instruction):
     return UNTRUSTED_DATA + instruction
 
 
+def retries(*codes):
+    """Up to 5 attempts on these HTTP codes, with exponential backoff (2, 4, 8 and 16 s, plus jitter)."""
+    return types.HttpRetryOptions(attempts=5, initial_delay=2, max_delay=30, http_status_codes=list(codes))
+
+
 def gemini(model):
     """The spec's model (the GEMINI_MODEL variable, `docker compose run -e GEMINI_MODEL=...`, can
     replace it, checked by `cli run`). Temporary
-    Gemini failures (429/500/503) are retried with exponential backoff, up to 5 attempts."""
-    return Gemini(
-        model=os.environ.get('GEMINI_MODEL') or model,
-        retry_options=types.HttpRetryOptions(attempts=5, initial_delay=2, max_delay=30, http_status_codes=[429, 500, 503]),
-    )
+    Gemini failures (429/500/503) are retried with exponential backoff, up to 5 attempts; `cli run`
+    retries only the 500s when the spec has a fallback_model (cli.py, reserve_ready)."""
+    return Gemini(model=os.environ.get('GEMINI_MODEL') or model, retry_options=retries(429, 500, 503))
 
 
 class McpToolset(mcp_tool.McpToolset):

@@ -315,9 +315,9 @@ As mensagens são as que o usuário vê; nenhuma mostra stack trace.
 | Código inválido ou desconhecido | API | `422` com mensagem clara; a CLI mostra `a API recusou o agendamento (HTTP 422: ...)` |
 | Agendamento inexistente | API | `404` |
 | Agente termina sem agendamento | `cli run` | `o agente terminou sem um agendamento confirmado pela API` (código 2) |
-| Gemini temporariamente indisponível (`429`, `500`, `503`) | agente gerado | até 5 tentativas com espera exponencial (`HttpRetryOptions`) |
-| Continua indisponível (`429`/`503`) e a API ainda não foi chamada | `cli run` | `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite` e uma nova execução com o `fallback_model` |
-| Ainda indisponível depois disso | `cli run` | `Gemini indisponível no momento (HTTP 503); tente novamente` (código 2) |
+| Gemini temporariamente indisponível (`429`, `500`, `503`) | agente gerado | até 5 tentativas com espera exponencial (`HttpRetryOptions`); no `cli run` com `fallback_model`, o modelo principal só repete o `500` |
+| Modelo principal sobrecarregado (`503`) ou sem cota (`429`) e a API ainda não foi chamada | `cli run` | na hora, sem esperar novas tentativas: `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite` e uma nova execução com o `fallback_model`, um caminho normal |
+| O reserva também indisponível depois das suas 5 tentativas | `cli run` | `Gemini indisponível no momento (HTTP 503); tente novamente` (código 2) |
 | Modelo descontinuado ou outra recusa do Gemini (ex.: `404`) | `cli run` | `o Gemini recusou a chamada (HTTP 404: ...)` (código 2); troque com `-e GEMINI_MODEL=<modelo>` |
 | Código que nenhuma busca no catálogo devolveu (inventado) | `before_tool_callback` do `schedule` | `agendamento bloqueado antes de chamar a API: código(s) que nenhuma busca no catálogo devolveu: ...; nada foi agendado` (código 2), sem `POST` |
 | Exame com confiança de 0,70 a 0,90 (ex.: linha lida com um erro leve de OCR) | `before_tool_callback` do `schedule` | num terminal: `Li "<linha lida>" → <nome> <código> (confiança 0,82). Incluir? [s/N]`; só entra o que a pessoa confirmar, e a CLI mostra `incluído com a sua confirmação` ou `não incluído (você respondeu não)`. Com `--yes`, sem TTY ou em CI: `não agendado sem confirmação: …` |

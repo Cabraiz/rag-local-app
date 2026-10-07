@@ -6,6 +6,9 @@ import json
 import os
 import subprocess
 import sys
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -17,6 +20,7 @@ from google.genai import errors as genai_errors
 
 import catalogo
 import cli
+import runtime
 from runtime import confirmacao, mcp_payload
 from runtime.confianca import line_support
 from transpiler import TranspileError, load_root_agent, parse_spec, render, transpile
@@ -277,6 +281,76 @@ def test_fallback_model_runs_once_when_nothing_was_sent_to_the_api(ready_run, mo
     out = capsys.readouterr().out
     assert f'Aviso: modelo principal indisponível; usando {SPEC["fallback_model"]}' in out
     assert 'id a1, status scheduled' in out
+
+
+def retried_codes(root_agent):
+    return sorted(root_agent.sub_agents[0].model.retry_options.http_status_codes)
+
+
+@pytest.mark.parametrize('fallback, primary', [(True, [500]), (False, [429, 500, 503])])
+def test_with_a_reserve_model_the_primary_does_not_wait_out_quota_or_overload(ready_run, monkeypatch, fallback, primary):
+    monkeypatch.setenv('GEMINI_MODEL', 'gemini-test-main')
+    runs = []
+
+    async def flaky_run(root_agent, image, spec, found):
+        runs.append(retried_codes(root_agent))
+        if len(runs) == 1:
+            raise RuntimeError('agent failed') from UNAVAILABLE
+        found['appointment'] = {'id': 'a1', 'status': 'scheduled', 'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo'}]}
+
+    if not fallback:
+        monkeypatch.setattr(cli, 'load_spec', lambda path: parse_spec(spec_with(lambda s: s.pop('fallback_model'))))
+    monkeypatch.setattr(cli, 'run_agent', flaky_run)
+    cli.main(ready_run)
+    # The reserve's own run keeps every retry: nothing comes after it.
+    assert runs == ([primary, [429, 500, 503]] if fallback else [primary])
+
+
+class FakeGemini(BaseHTTPRequestHandler):
+    """The Gemini API, offline: the primary model answers `status`, any other model 404 (not retried)."""
+    status, primary, models = 503, 'gemini-test-main', []
+
+    def do_POST(self):  # noqa: N802 (http.server's name)
+        self.rfile.read(int(self.headers.get('Content-Length') or 0))
+        model = self.path.split('/models/')[-1].split(':')[0]
+        type(self).models.append(model)
+        code = self.status if model == self.primary else 404
+        body = json.dumps({'error': {'code': code, 'message': 'fake', 'status': 'UNAVAILABLE'}}).encode()
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
+
+
+@pytest.mark.parametrize('status', [503, 429])
+@pytest.mark.filterwarnings(r'ignore:\[EXPERIMENTAL\]:UserWarning')
+def test_an_unavailable_primary_switches_to_the_reserve_at_once(ready_run, monkeypatch, capsys, status):
+    # The real generated agent and the real Gemini client, against a fake Gemini API on this machine:
+    # before, 5 attempts with backoff (about a minute) came before the reserve model.
+    server = ThreadingHTTPServer(('127.0.0.1', 0), FakeGemini)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    monkeypatch.setattr(FakeGemini, 'status', status)
+    monkeypatch.setattr(FakeGemini, 'models', [])
+    monkeypatch.setenv('GOOGLE_GEMINI_BASE_URL', f'http://127.0.0.1:{server.server_port}')
+    monkeypatch.setenv('GEMINI_MODEL', 'gemini-test-main')
+
+    async def no_tools(self, readonly_context=None):  # the MCP servers are not up: the model fails first anyway
+        return []
+    monkeypatch.setattr(runtime.McpToolset, 'get_tools', no_tools)
+    start = time.monotonic()
+    try:
+        assert cli.main(ready_run) == 2
+    finally:
+        server.shutdown()
+    out, err = capsys.readouterr()
+    assert time.monotonic() - start < 15
+    assert FakeGemini.models == ['gemini-test-main', SPEC['fallback_model']]  # the primary once, no retry
+    assert f'Aviso: modelo principal indisponível; usando {SPEC["fallback_model"]}' in out
+    assert err.startswith('Erro: o Gemini recusou a chamada (HTTP 404: fake)')
 
 
 def test_no_second_run_after_the_api_was_called(ready_run, monkeypatch, capsys):

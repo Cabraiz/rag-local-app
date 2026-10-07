@@ -18,12 +18,14 @@ warnings.filterwarnings('ignore', message=r'\[EXPERIMENTAL\]', category=UserWarn
 
 import httpx
 from google.adk.apps import App, ResumabilityConfig
+from google.adk.models import Gemini
 from google.adk.runners import InMemoryRunner
 from google.genai import errors, types
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 
 from runtime import BookingPolicy, confirmacao
+from runtime.adk import retries
 from runtime.reconcilia import order_lines, unreported
 from transpiler import TranspileError, load_root_agent, load_spec, render, transpile
 from transpiler.live import check_addresses, check_live, live_tools, pinned_names
@@ -300,7 +302,7 @@ async def whole_order(state, spec, found):
 
 def failure_message(error, found):
     gemini = gemini_failure(error)
-    if gemini is not None and gemini.code in (429, 500, 503):  # already retried 5 times by the agent
+    if gemini is not None and gemini.code in (429, 500, 503):  # the last run's own retries are spent
         text = f'Gemini indisponível no momento (HTTP {gemini.code}); tente novamente'
     elif gemini is not None:
         text = f'o Gemini recusou a chamada (HTTP {gemini.code}: {redact(str(gemini.message))[:500]})'
@@ -327,11 +329,27 @@ def timing(found, spec, total):
     return f'Tempo: {" · ".join([*parts, f"total {seconds(total)} s"])} (modelo {model})'
 
 
+def reserve_ready(root_agent):
+    """The primary run of a spec with a fallback_model: a 429 (quota) or 503 (overloaded) ends it at
+    once and retry_with_fallback runs the reserve model, instead of about a minute of backoff first
+    (runtime/adk.py). A 500 is still retried, and the reserve's own run keeps every retry."""
+    agents = [root_agent]
+    while agents:
+        agent = agents.pop()
+        agents.extend(getattr(agent, 'sub_agents', None) or [])
+        if isinstance(getattr(agent, 'model', None), Gemini):
+            agent.model.retry_options = retries(500)
+
+
 def run_once(args, spec, carried=None):
+    """(found, error) of one run: the primary model's (carried is None) or the reserve's."""
     found = new_found()
     found.update(carried or {})
     try:
-        asyncio.run(run_agent(load_root_agent(args.checked_agent), args.image, spec, found))
+        root_agent = load_root_agent(args.checked_agent)
+        if carried is None and spec.fallback_model:
+            reserve_ready(root_agent)
+        asyncio.run(run_agent(root_agent, args.image, spec, found))
         return found, None
     except Exception as error:  # reported to the user, never swallowed
         return found, error
@@ -466,9 +484,10 @@ def load_checked_spec(args):
 
 
 def retry_with_fallback(args, spec, found, error):
-    """(found, error) of the first run, or of one more run with the spec's fallback model when Gemini
-    stayed unavailable and nothing was sent to the API yet: a second run after a POST could
-    schedule the same exams twice."""
+    """(found, error) of the first run, or of one more run with the spec's fallback model when the
+    primary was unavailable (503, overloaded) or out of quota (429), which reserve_ready makes fail
+    at once, and nothing was sent to the API yet: a second run after a POST could schedule the
+    same exams twice. The reserve model is a normal path, not an error: the run goes on with it."""
     gemini = gemini_failure(error)
     if gemini is not None and gemini.code in (429, 503) and spec.fallback_model and not found['api_called']:
         print(f'Aviso: modelo principal indisponível; usando {spec.fallback_model}')
