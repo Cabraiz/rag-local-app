@@ -7,7 +7,7 @@
 ### TL;DR
 
 - **Transpilador:** [`specs/agent.json`](specs/agent.json) → `agent.py` com agentes do Google ADK, compilado e importado antes do OK ([exemplo gerado](docs/exemplo-agent.py)).
-- **Ponta a ponta:** imagem → OCR (MCP via SSE) → RAG (MCP via SSE) → `POST /appointments` → tabela exame → código e a confirmação da API.
+- **Ponta a ponta:** o agente lê o pedido com o OCR e busca cada exame no RAG, dois servidores MCP via SSE. Depois agenda os códigos com `POST /appointments` e mostra a tabela de exames e códigos, com a confirmação da API.
 - **PII mascarada dentro do OCR**, antes do LLM. O banco não recebe PII: cada exame fica como código e nome do catálogo, cifrados.
 - **Agendamento conferido em código:** o modelo só propõe; só entram códigos que a busca devolveu e que estão no pedido.
 - **Cada requisito do enunciado**, com o código e a prova: [Onde está cada parte](#onde-está-cada-parte).
@@ -61,7 +61,7 @@ Agendamento confirmado pela API: id a05f0421…, status scheduled
 Tempo: OCR 6,1 s · busca 35 s · agendamento 51 s · total 232 s (modelo gemini-3.5-flash)
 ```
 
-- **Tempo:** o total inclui os turnos do Gemini ([como é medido](docs/como-rodar.md#3-executar-o-agente)).
+- **Tempo:** cada etapa inclui o turno do Gemini que pede a ferramenta, e o total, todos os turnos dele ([como é medido](docs/como-rodar.md#3-executar-o-agente)).
 - **Modelo reserva:** se o `gemini-3.5-flash` da spec responder sobrecarregado (`503`) ou sem cota (`429`), e nada tiver ido à API, a CLI avisa na hora e roda de novo com o modelo reserva da spec, `gemini-3.5-flash-lite`, sem esperar novas tentativas do principal.
 - **Pergunta `[s/N]`:** um exame de confiança média gera `Incluir? [s/N]`, só num terminal interativo.
 - **Parar e limpar:** `docker compose --profile cli --profile test down -v` remove os containers, as redes e os volumes (o banco, a chave dele e o `agent.py` gerado). As imagens ficam; para apagá-las também, acrescente `--rmi local`.
