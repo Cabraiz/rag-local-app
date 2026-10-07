@@ -19,9 +19,11 @@ The rules, in the order they run on each line:
 3. mask_page: a CPF the OCR split in two lines ("CPF: 517.916." / "257-38").
 4. mask_page, the safety net: only what looks like an exam leaves the OCR. Each piece of
    a line stays only if it is as close to an exam as the RAG accepts, or is the order's
-   structure ("Solicito:", "CPF: [CPF]"); any other piece becomes [NOME] (if it has a
-   common first name) or [TEXTO_REMOVIDO]. A name alone on a line, or a doctor's stamp
-   the OCR deformed, stops here.
+   structure ("Solicito:", "CPF: [CPF]"); any other piece, and inside an exam's piece any word
+   that is not exam-like or a long number, becomes [NOME] if it has a common first name, else
+   [TEXTO_REMOVIDO]. A name alone on a line, or a doctor's stamp the OCR deformed, stops here.
+   So NOME counts only what a name rule saw (a label, capitals next to an exam, a first name);
+   the rest is counted as TEXTO_REMOVIDO, which may hold a name the rules did not recognize.
 
 The regexes and word lists are in guardrails/pii_rules.py; this module is the engine.
 """
@@ -41,12 +43,14 @@ from guardrails.pii_rules import (
     FIRST_NAMES,
     JOINED,
     LABEL,
+    LONG_NUMBER,
     MARKS_AFTER,
     MARKS_BEFORE,
     NAME_PARTICLES,
     NEXT_LABEL,
     NOT_NAMES,
     OCR_DIGITS,
+    ORDINARY_WORDS,
     PARTICLES,
     PHRASE_WORDS,
     PIECES,
@@ -94,8 +98,8 @@ def kind(word: str, vocabulary: frozenset[str], label: bool = False, line_exams:
         return 'header'
     if label:
         return 'label'
-    if folded in PHRASE_WORDS:
-        return 'phrase'
+    if folded in PHRASE_WORDS or folded in ORDINARY_WORDS:
+        return 'phrase'  # "NAO realizar", "autoriza incluir": words of the order, never a name
     if word[0].isupper() or fold(re.split(r"['’-]", word)[0]) in FIRST_NAMES:
         return 'name'
     return 'other'  # a lower-case word: OCR junk or a surname, never the start of a name
@@ -246,13 +250,16 @@ def only_what_may_leave(line: str, counts: dict[str, int]) -> str:
 
 def only_exam_words(piece: str, counts: dict[str, int]) -> str:
     """In a piece kept as an exam, the words that are not exam-like, structure (connectors,
-    labels), numbers or short units go, case and first-name list aside: 2 or more in a row
-    become [NOME], one alone [TEXTO_REMOVIDO]. "Hemograma completo uirá araripe" ->
-    "Hemograma completo [NOME]"."""
+    labels), short numbers or units go: each run of them becomes [NOME] if it has a common first
+    name (the name rule), else [TEXTO_REMOVIDO]. "Hemograma completo - José Neto" is the name rule's
+    (rule 2b); here "Hemograma completo uirá araripe" -> "Hemograma completo [TEXTO_REMOVIDO]" and
+    "Glicose 98765432" -> "Glicose [TEXTO_REMOVIDO]" (LONG_NUMBER: no exam name has 5 digits)."""
     tokens = list(re.finditer(r'\S+', piece))
-    outside = [token for token in tokens if not TAG.fullmatch(token.group()) and not all(
-        word in STRUCTURE or word in UNITS or AMOUNT.fullmatch(word) or exam_like(word) or short_exam_word(word)
-        for word in words(token.group()).split())]
+    long_numbers = [match.span() for match in LONG_NUMBER.finditer(piece)]
+    outside = [token for token in tokens if not TAG.fullmatch(token.group()) and (
+        any(start < token.end() and token.start() < end for start, end in long_numbers) or not all(
+            word in STRUCTURE or word in UNITS or AMOUNT.fullmatch(word) or exam_like(word) or short_exam_word(word)
+            for word in words(token.group()).split()))]
     runs: list[list[re.Match[str]]] = []
     for token in outside:  # tokens in a row, with only spaces between them, form one run
         if runs and not piece[runs[-1][-1].end():token.start()].strip():
@@ -260,7 +267,7 @@ def only_exam_words(piece: str, counts: dict[str, int]) -> str:
         else:
             runs.append([token])
     for run in reversed(runs):
-        tag = 'NOME' if len(run) >= 2 else 'TEXTO_REMOVIDO'
+        tag = 'NOME' if has_first_name(' '.join(token.group() for token in run)) else 'TEXTO_REMOVIDO'
         counts[tag] = counts.get(tag, 0) + 1
         piece = piece[:run[0].start()] + f'[{tag}]' + piece[run[-1].end():]
     return piece
@@ -307,10 +314,14 @@ def exam_like(word: str) -> bool:
                for form in forms)
 
 
+def has_first_name(text: str) -> bool:
+    """Whether the text has a common first name (prenomes.txt): what makes removed text a name."""
+    return any(fold(re.split(r"['’-]", word)[0]) in FIRST_NAMES for word in WORD.findall(text))
+
+
 def removed(piece: str, counts: dict[str, int]) -> str:
     """[NOME] if the piece has a common first name, else [TEXTO_REMOVIDO]; marks around it stay."""
-    first_names = [word for word in WORD.findall(piece) if fold(re.split(r"['’-]", word)[0]) in FIRST_NAMES]
-    tag = 'NOME' if first_names else 'TEXTO_REMOVIDO'
+    tag = 'NOME' if has_first_name(piece) else 'TEXTO_REMOVIDO'
     counts[tag] = counts.get(tag, 0) + 1
     before, after = MARKS_BEFORE.match(piece), MARKS_AFTER.search(piece)  # both always match, maybe empty
     return (before.group() if before else '') + f'[{tag}]' + (after.group() if after else '')

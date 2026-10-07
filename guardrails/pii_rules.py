@@ -43,6 +43,11 @@ PATTERNS = [
                  + '|' + after_label('cep', r'\d{5}-?\d{3}', 'value_cep') + r'''  # CEP 01310-100
       | (?P<value> (?i:\b(?:rua|r\.|avenida|av\.|travessa|alameda|rodovia)) [ \t] ''' + REST_OF_LINE + r'''  # Av. Paulista, 1000
       | \b\d{5}-\d{3}\b )                                                       # 01310-100
+      | (?P<value_unit>                                                         # ap 302, casa 3, bloco B,
+          (?: (?i:\b(?:ap|apto|apt|apartamento|casa|lote|quadra|qd|conjunto|cj|sala|andar))  # apto 12 - bloco C
+              \.?[ \t]*(?:n[º°o]\.?[ \t]*)? \d{1,5}[A-Za-z]?\b
+            | (?i:\b(?:bloco|torre))\.?[ \t]*(?:[A-Za-z]\d{0,3}|\d{1,4}[A-Za-z]?)\b )
+          (?:[ \t]*[-,/]?[ \t]*(?i:bloco|torre)\.?[ \t]*[A-Za-z0-9]{1,3}\b)? )
     '''),
 
     ('CRM', r'''
@@ -126,6 +131,15 @@ NAME_PARTICLES = frozenset(('da', 'de', 'do', 'das', 'dos', 'e'))
 PHRASE_WORDS = frozenset(('em', 'no', 'na', 'nos', 'nas', 'com', 'por', 'para', 'pela', 'pelo', 'os', 'as',
                           'um', 'uma', 'ao', 'sem', 'que', 'se', 'ou'))
 PARTICLES = NAME_PARTICLES | PHRASE_WORDS | {'a', 'o'}
+# Words of an order that are never names ("NAO realizar", "autoriza incluir", "Favor repetir"): they break
+# a run of capitals the name rule would take for a name. They are not structure: the safety net still
+# removes them, as [TEXTO_REMOVIDO], never counted as a name.
+ORDINARY_WORDS = frozenset((
+    'nao', 'sim', 'tambem', 'ja', 'favor', 'realizar', 'realizado', 'realizada', 'fazer', 'feito', 'feita',
+    'repetir', 'refazer', 'incluir', 'acrescentar', 'adicionar', 'dosar', 'colher', 'coletar', 'pedir', 'solicitar',
+    'autoriza', 'autorizo', 'considere', 'considerar', 'leve', 'levar', 'conta', 'evitar', 'suspender', 'suspenso',
+    'suspensa', 'cancelar', 'cancelado', 'cancelada', 'dispensar', 'dispensado', 'agendar', 'marcar', 'nota',
+    'leitor', 'automatizado', 'anterior', 'resultado', 'ultimo', 'reagiu', 'mal', 'urgente'))
 # Field names: right before a masked value they are labels ("CPF [CPF]"), not names.
 FIELD_NAMES = frozenset(('cpf', 'rg', 'crm', 'cep', 'cid', 'cns', 'sus', 'data', 'nascimento', 'nasc', 'telefone',
                          'tel', 'celular', 'whatsapp', 'contato', 'email', 'endereco', 'idade', 'convenio',
@@ -155,5 +169,12 @@ STRUCTURE = NOT_NAMES | FIELD_NAMES | PARTICLES | frozenset((
 
 UNITS = frozenset(('mg', 'ml', 'dl', 'ui', 'h', 'hs', 'hrs', 'min', 'x'))
 AMOUNT = re.compile(r'\d+(?:' + '|'.join(UNITS) + r')?')  # "100", "8h", "12hs"
+# A long number on an exam line is neither part of an exam's name nor a lab value: a document, a card or
+# a phone the rules did not recognize ("Glicose 98765432", "TSH 1234 5678 9012"). 5 or more digits, in
+# groups or not, unless a unit follows ("150.000/mm3"); no exam name has more than 3 ("CA 125", "Urina 24h").
+LAB_UNIT = (r'(?:%|/[ \t]*mm[³3]?|mm[³3]|[mµun]?g[ \t]*/[ \t]*d?l|[mµ]?ui[ \t]*/[ \t]*m?l|u[ \t]*/[ \t]*l|mmol|meq|'
+            r'ng|pg|ml|mg|ui|cels?|c[ée]lulas|h|hs|hrs|horas?|dias?)')
+LONG_NUMBER = re.compile(r'(?<![\w.,/-])\d(?:[ \t.\-/]?\d){4,}(?![\w])(?![ \t]*' + LAB_UNIT + r'(?![^\W\d_]))',
+                         re.IGNORECASE)
 OCR_DIGITS = str.maketrans('0158', 'olsb')  # digits the OCR reads for letters: "25(0H)D", "Lipa5e"
 MARKS_BEFORE, MARKS_AFTER = re.compile(r'[^\w\[\]]*'), re.compile(r'[^\w\[\]]*$')  # marks around a piece

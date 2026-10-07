@@ -249,9 +249,10 @@ def test_a_cpf_split_in_two_lines_is_masked_on_both(page, expected):
     (['Acido urlco e Vitamlna D', 'Urino tipo 1 e Vltamina D', 'Calcio i0nizado e Colestcrol LDL', 'Co 125 e Ferritino'],
      ['Acido urlco e Vitamlna D', 'Urino tipo 1 e Vltamina D', 'Calcio i0nizado e Colestcrol LDL', 'Co 125 e Ferritino']),
     # Inside an exam, only the exam's own words stay: a lower-case name with a first name off the
-    # list goes too (2+ words: [NOME]; one word: [TEXTO_REMOVIDO]).
+    # list goes too, as [TEXTO_REMOVIDO]: no name rule saw it, so it is not counted as a name.
     (['Anti HCV tobias fagundes', 'Anti HCV ruth senna', 'Anti HCV najla mourão', 'Hemograma completo uirá araripe'],
-     ['Anti HCV [NOME]', 'Anti HCV [NOME]', 'Anti HCV [NOME]', 'Hemograma completo [NOME]']),
+     ['Anti HCV [TEXTO_REMOVIDO]', 'Anti HCV [TEXTO_REMOVIDO]', 'Anti HCV [TEXTO_REMOVIDO]',
+      'Hemograma completo [TEXTO_REMOVIDO]']),
     # ...while its modifiers, amounts, units and short words the OCR misread stay with it.
     (['1. Glicemia de jejum 8h', 'Glicose 100 mg/dl', 'Rubeola lgM e Bil. lndireta', 'Co total e Proteina C reotiva'],
      ['1. Glicemia de jejum 8h', 'Glicose 100 mg/dl', 'Rubeola lgM e Bil. lndireta', 'Co total e Proteina C reotiva']),
