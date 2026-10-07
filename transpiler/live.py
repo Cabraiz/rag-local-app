@@ -8,6 +8,7 @@ import contextlib
 import ipaddress
 import re
 import socket
+from collections.abc import Iterator
 from urllib.parse import urlsplit
 
 import httpx
@@ -134,7 +135,7 @@ def check_addresses(spec):
                                        type=socket.SOCK_STREAM)
         except OSError:  # pinned to no address: the GET that follows says the server is down, and no
             infos = []    # later answer (127.0.0.1, after a rebinding) is used during the run
-        addresses = sorted({info[4][0] for info in infos})
+        addresses = sorted({str(info[4][0]) for info in infos})
         refused = [address for address in addresses if unsafe(address)]
         if refused:
             problems.append(f'servers.{name}.{field}: "{host}" resolve para {", ".join(refused)}, um endereço local '
@@ -146,12 +147,13 @@ def check_addresses(spec):
 
 
 @contextlib.contextmanager
-def pinned_names():
+def pinned_names() -> Iterator[dict[str, list[str]]]:
     """While inside, a name that check_addresses resolved keeps those addresses (with the port each
     lookup asks) for every client of the process: httpx, the MCP SDK and ADK all resolve through
     socket.getaddrinfo. A DNS answer that changes during the run (rebinding) is never used."""
     global PINNED
-    real, pins = socket.getaddrinfo, {}
+    real = socket.getaddrinfo
+    pins: dict[str, list[str]] = {}
 
     def getaddrinfo(host, port, *args, **kwargs):
         name = host.decode() if isinstance(host, bytes) else host

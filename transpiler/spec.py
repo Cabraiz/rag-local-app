@@ -224,10 +224,11 @@ def allowed_hosts():
     return hosts, problems
 
 
-def check_servers(spec):
+def check_servers(spec) -> list[str]:
     """Every server is on an allowed host (and port, if the entry names one); no tool name is
     exposed by two servers, since the callbacks know a tool by its name."""
-    (hosts, problems), owners = allowed_hosts(), {}
+    hosts, problems = allowed_hosts()
+    owners: dict[str, list[str]] = {}  # tool -> the servers that declare it
     if problems:  # a broken allowlist: say so instead of judging the servers against it
         return problems
     for name, server in spec.servers.items():
@@ -316,10 +317,12 @@ def placeholder_problem(field, match, available):
     return None
 
 
-def check_agents(spec):
+def check_agents(spec) -> list[str]:
     """Across agents: unique names and keys, placeholders of earlier agents only, tools of
     declared servers, and booking only after the order was read and searched."""
-    problems, available, names, done = [], [], set(), set()
+    problems, names = [], set()
+    available: list[str] = []  # output keys of the earlier agents
+    done: set[str] = set()  # tools of the earlier agents
     for index, agent in enumerate(spec.agents):
         where = f'agents.{index}'
         if (agent.name in names or agent.name in RESERVED | {spec.name} or keyword.iskeyword(agent.name)

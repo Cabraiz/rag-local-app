@@ -52,8 +52,8 @@ def toolset(spec, server, names):
                                ('tool_filter', repr(names))], 8)
 
 
-def render_agent(spec, index, agent):
-    servers = {}  # server -> its tools this agent uses, in the spec's order
+def render_agent(spec, index, agent) -> str:
+    servers: dict[str, list[str]] = {}  # server -> its tools this agent uses, in the spec's order
     for reference in dict.fromkeys(agent.tools):  # a tool written twice is filtered once
         server, name = reference.split('.')
         servers.setdefault(server, []).append(name)
