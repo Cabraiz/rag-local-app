@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 QUERIES = [json.loads(line) for line in (ROOT / 'tests/calibration/queries.jsonl').read_text(encoding='utf-8').splitlines()]
 # The threshold the generated agent uses (runtime's booking policy), so the test follows the code.
 THRESHOLD = BookingPolicy().min_confidence
-MIN_RECALL = 0.84  # the share of right matches kept, as stated in the README
+MIN_RECALL = 0.84  # the share of right matches kept, as stated in docs/arquitetura.md
 
 
 def top_hit(query):

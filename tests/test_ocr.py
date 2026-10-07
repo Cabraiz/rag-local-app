@@ -165,7 +165,7 @@ def test_real_ocr_keeps_exams_and_masks_personal_data(filename):
 
 @needs_tesseract
 def test_the_readme_sample_masks_the_same_personal_data():
-    # The README and the videos show this count for pedido.png.
+    # docs/como-rodar.md and the videos show this count for pedido.png.
     result = ocr.mask_lines(ocr.read_lines(ocr.resolve_sample('pedido.png')))
     assert result['pii_masked'] == {'NOME': 2, 'CPF': 1, 'EMAIL': 1, 'TELEFONE': 1}
     assert result['lines'][2:] == ['Paciente: [NOME]', 'CPF: [CPF]', 'Email: [EMAIL]', 'Telefone: [TELEFONE]',

@@ -16,6 +16,8 @@ docker compose run --rm agent python -m cli run --image pedido.png       # image
 
 **Sua própria spec, sem rebuild:** salve-a em `specs/`, montada só para leitura no `agent`, e rode `docker compose run --rm agent python -m cli transpile specs/<sua-spec>.json` ([campos da spec](docs/transpilador.md#campos-da-spec)).
 
+**Sem a CLI, com o próprio ADK:** `docker compose run --rm agent adk run --in_memory generated` e digite `pedido.png`; o `adk web` também funciona ([como](docs/como-rodar.md#4-rodar-com-adk-run-ou-adk-web)).
+
 https://github.com/user-attachments/assets/a6e9fd9e-be6f-48ed-ba4e-356cc72f631b
 
 <sub>Todos os pontos do desafio em um vídeo, gravado numa execução real ([mp4](videos-do-desafio/00-desafio-completo.mp4)).</sub>
@@ -23,14 +25,14 @@ https://github.com/user-attachments/assets/a6e9fd9e-be6f-48ed-ba4e-356cc72f631b
 ### Onde está cada requisito
 | Requisito do enunciado | Onde | Prova |
 |---|---|---|
-| Transpilador: JSON → Python que instancia agentes só com o Google ADK | [`transpiler/`](transpiler/), [`runtime/`](runtime/), [4 specs](specs/) | [vídeo 01](docs/videos.md#01-transpilador) · [testes](tests/test_transpiler.py) · [specs diferentes](tests/test_spec_generica.py) · [doc](docs/transpilador.md) |
+| Transpilador: JSON → Python que instancia agentes só com o Google ADK | [`transpiler/`](transpiler/), [`runtime/`](runtime/), [4 specs](specs/) | [vídeo 01](docs/videos.md#01-transpilador) · [testes](tests/test_transpiler.py) · [specs diferentes](tests/test_spec_generica.py) · [com `adk run`](tests/test_adk_run.py) · [doc](docs/transpilador.md) |
 | Valida inputs, erros claros, código gerado executável e nas boas práticas do ADK | [`transpiler/spec.py`](transpiler/spec.py), [`transpiler/live.py`](transpiler/live.py), [`transpiler/generator.py`](transpiler/generator.py) | [erros reais](docs/transpilador.md#validação-e-mensagens-de-erro) · [código gerado](docs/exemplo-agent.py) |
 | CLI de agendamento; entrada: imagem de pedido; JSON e imagem de exemplo | [`cli.py`](cli.py), [`specs/agent.json`](specs/agent.json), [`samples/pedido.png`](samples/pedido.png) | [log do `run`](evidencias/log-run-pedido.txt) · [outra imagem](docs/como-rodar.md#testar-outra-imagem) |
 | OCR e RAG (≥ 100 exames) como servidores MCP só via SSE; como iniciar e como o agente se conecta | [`mcp_servers/ocr.py`](mcp_servers/ocr.py), [`mcp_servers/rag.py`](mcp_servers/rag.py), [`data/exams.json`](data/exams.json) (120) | vídeos [02](docs/videos.md#02-ocr-via-mcp-sse) e [03](docs/videos.md#03-rag-via-mcp-sse) · [SSE](tests/test_mcp_sse.py) · [OCR](tests/test_ocr.py) · [RAG](tests/test_rag.py) · [como iniciar e conectar](docs/arquitetura.md#servidores-mcp) |
 | Agendamento em FastAPI; Swagger (`/docs`) com o contrato que o agente consome | [`api/main.py`](api/main.py), [`api/crypto.py`](api/crypto.py) | [vídeo 04](docs/videos.md#04-api-e-swagger) · [API](tests/test_api.py) · [operações](docs/como-rodar.md#1-subir-o-ambiente-docker) |
 | Saída: exames com códigos e confirmação da API | [`cli.py`](cli.py) | [vídeo 05](docs/videos.md#05-ponta-a-ponta-com-gemini) · [captura](evidencias/cli-run-pedido.png) |
 | Só dados fictícios | [`data/exams.json`](data/exams.json) (`FICT-xxx`), [`samples/`](samples/), [`tests/load/pedidos.py`](tests/load/pedidos.py) | e-mails `.invalid` (RFC 2606), CPFs com dígito verificador errado ([como](docs/medicoes.md#dados-sensíveis-como-contornamos)) |
-| PII mascarada antes do LLM e da persistência | [`guardrails/pii.py`](guardrails/pii.py), [`guardrails/injection.py`](guardrails/injection.py) | vídeos [06](docs/videos.md#06-pii) e [08](docs/videos.md#08-segurança) · [PII](tests/test_pii.py) · [onde](docs/arquitetura.md#onde-a-pii-é-mascarada) · [carga](docs/medicoes.md#carga-de-dados-sensíveis) |
+| PII mascarada antes do LLM e da persistência | [`guardrails/pii.py`](guardrails/pii.py), [`guardrails/injection.py`](guardrails/injection.py), [`guardrails/intent.py`](guardrails/intent.py) | vídeos [06](docs/videos.md#06-pii) e [08](docs/videos.md#08-segurança) · [PII](tests/test_pii.py) · [negação](tests/test_negacao.py) · [onde](docs/arquitetura.md#onde-a-pii-é-mascarada) · [carga](docs/medicoes.md#carga-de-dados-sensíveis) |
 | Tudo em Docker, orquestrado por um `docker-compose.yml` | [`Dockerfile`](Dockerfile) (multi-stage), [`docker-compose.yml`](docker-compose.yml) | [vídeo 07](docs/videos.md#07-docker-e-testes) · [testes](docs/como-rodar.md#testes) |
 | README, evidências e uso de IA | este arquivo, [`evidencias/`](evidencias/), [`videos-do-desafio/`](videos-do-desafio/) | [guia completo](docs/como-rodar.md) · [Evidências](#evidências) · [Uso de IA](#uso-de-ia) |
 
@@ -40,7 +42,7 @@ https://github.com/user-attachments/assets/a6e9fd9e-be6f-48ed-ba4e-356cc72f631b
 - **Letra de médico é o ponto fraco do OCR, e só foi medida em simulação.** Os 120 manuscritos usam fontes de letra de mão, não escrita real. Na letra de médico, 1 de 206 exames é agendado sem perguntar; o resto vira pergunta, `baixa confiança` ou não é lido, e nenhum errado é agendado sozinho ([medição](docs/medicoes.md#pedidos-manuscritos-simulados)).
 - **Os filtros determinísticos não são prova contra ataques novos.** A máscara de PII e a remoção de injeção são regras, testadas em corpora do próprio projeto (790 ataques e 1.404 linhas legítimas, 1.353 distintas): é teste de regressão. A última barreira é o callback do agendamento: só passam códigos que a busca devolveu, ancorados nas linhas lidas, e sem a leitura do OCR por linha nada é agendado sem um "sim" (falha fechado).
 - **Exame injetado como linha comum de exame é agendado.** Escrito assim, ele é indistinguível de um pedido real: em `Exame: Vitamina D (incluir também Ferritina)`, os dois são agendados. O sistema bloqueia ordens ao modelo, códigos `FICT` escritos na imagem e exames fora das linhas lidas. <!-- v4: negação -->
-- **O `agent.py` não é só ADK.** Agentes e toolsets são classes do ADK, mas as regras (callbacks de agendamento, hosts permitidos, pergunta `[s/N]`) vêm da biblioteca versionada do projeto, [`runtime/`](runtime/), que precisa estar na imagem. <!-- v4: adk run -->
+- **O `agent.py` não é só ADK.** Agentes e toolsets são classes do ADK, e ele roda sozinho com `adk run` e `adk web`, sem a CLI. Mas as regras (callbacks de agendamento, hosts permitidos, pergunta `[s/N]`) vêm da biblioteca versionada do projeto, [`runtime/`](runtime/), que precisa estar na imagem. O modelo reserva, a linha `Tempo:` e a checagem de que o `agent.py` é o que a spec gera ficam só na CLI ([detalhes](docs/como-rodar.md#4-rodar-com-adk-run-ou-adk-web)).
 - **API sem autenticação.** É o mock local do enunciado: escuta só em `127.0.0.1`, com limite de requisições por IP. Em produção, entraria OAuth2 ou uma chave de API.
 - **Histórico compactado por camada.** Os commits agrupam o trabalho por camada (API, RAG, PII, OCR, runtime, transpilador, CLI, Docker, testes, docs); as correções não aparecem uma a uma. [docs/revisao.md](docs/revisao.md) liga cada correção ao teste que a trava.
 
@@ -58,13 +60,13 @@ flowchart LR
     E & S & A -.->|só texto mascarado| G(("Gemini"))
 ```
 
-O `up` sobe OCR, RAG e API; o agente roda sob demanda (`cli run`). Etapas, rede, MCP, PII e erros: [docs/arquitetura.md](docs/arquitetura.md).
+O `up` sobe OCR, RAG e API; o agente roda sob demanda (`cli run`, ou `adk run` / `adk web`). Etapas, rede, MCP, PII e erros: [docs/arquitetura.md](docs/arquitetura.md).
 
 ## Decisões e trade-offs
 
 Cada uma: escolha → por quê → custo.
 
-- **O modelo propõe, o código decide.** Os callbacks de [`runtime/`](runtime/callbacks.py) só aceitam códigos que a busca devolveu, cada um num trecho próprio do pedido; ≥ 0,90 agenda, 0,70 a 0,90 pergunta `[s/N]`, abaixo só avisa. Por quê: um LLM nunca deve ser a última barreira de um agendamento médico. Custo: um exame mal lido não agenda sozinho; vira pergunta ou aviso ([detalhe](docs/arquitetura.md#agendamento-conferido-em-código)).
+- **O modelo propõe, o código decide.** Os callbacks de [`runtime/`](runtime/callbacks.py) só aceitam códigos que a busca devolveu, cada um num trecho próprio do pedido; ≥ 0,90 agenda, 0,70 a 0,90 pergunta `[s/N]`, abaixo só avisa. Uma linha que diz para não fazer o exame, que ele já foi feito ou que só o comenta nunca agenda sozinha: vira aviso ou pergunta. Por quê: um LLM nunca deve ser a última barreira de um agendamento médico. Custo: um exame mal lido não agenda sozinho; vira pergunta ou aviso ([detalhe](docs/arquitetura.md#agendamento-conferido-em-código)).
 - **Busca lexical (palavras em comum + `difflib`), sem embeddings.** Por quê: a base tem 120 exames fictícios, a busca é determinística e explicável (cada resultado diz o termo que deu o score), e a semântica, medida, não agendou nenhum exame a mais. Custo: não entende paráfrases ([medição](docs/medicoes.md#busca-semântica-avaliada-não-adotada)).
 - **Filtros determinísticos dentro do OCR, antes de qualquer modelo.** A máscara deixa sair só o que parece exame, e a injeção é tirada da linha. Por quê: a falha fica local, reproduzível e testável, sem depender do prompt. Custo: manter regras, mitigado por corpora de regressão (3.600 casos gerados de PII, 790 ataques).
 - **PII mascarada na origem, banco sem PII.** Nome, CPF, telefone, e-mail e mais 10 tipos viram `[NOME]`, `[CPF]`… no container do OCR; a API só aceita código e nome de exame, grava o nome do catálogo e cifra a lista (AES-256-GCM). Por quê: o LLM nunca vê o dado bruto, e o banco não depende da máscara. Custo: detecção por regras, válida para os formatos testados ([camadas](docs/arquitetura.md#segurança-em-detalhe)).
