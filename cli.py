@@ -83,7 +83,7 @@ def check_services(spec):
 
 def ocr_refused(reason):
     """The line for a file the OCR refused, before the run (check_image) or during it (ocr_problem)."""
-    return f'OCR recusou a imagem: {reason}; nada foi agendado'
+    return f'OCR recusou a imagem: {reason.strip().rstrip(".")}; nada foi agendado'
 
 
 async def ask_image_check(url, image):
@@ -434,6 +434,8 @@ def validate_args(args):
     # Early, friendly message; the OCR server is what actually enforces it.
     if '/' in args.image or '\\' in args.image:
         raise RunError('--image: informe só o nome do arquivo dentro de samples/, ex.: pedido.png')
+    if not args.image.strip():
+        raise RunError('--image: o nome do arquivo está vazio; informe um arquivo de samples/, ex.: pedido.png')
     # Same suffixes as the OCR server. Existence is left to it (check_image, before the first model
     # turn): the agent image does not mount samples/, so a file added after the build exists only there.
     if Path(args.image).suffix.lower() not in IMAGE_SUFFIXES:

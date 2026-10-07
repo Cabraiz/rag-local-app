@@ -308,6 +308,21 @@ def test_cli_run_refuses_other_extensions_before_any_service_or_gemini_call(read
     assert err.startswith('Erro: --image:') and '.png, .jpg ou .jpeg' in err and len(err.strip().splitlines()) == 1
 
 
+@pytest.mark.parametrize('image', ['', '   '])
+def test_cli_run_says_an_empty_image_name_is_empty(ready_run, monkeypatch, capsys, image):
+    # A blind review: `--image ""` answered 'quis dizer ".png"?'.
+    monkeypatch.setattr(cli, 'run_agent', lambda *args: pytest.fail('ran for an empty image name'))
+    assert cli.main(['run', '--image', image, *ready_run[3:]]) == 2
+    assert capsys.readouterr().err == ('Erro: --image: o nome do arquivo está vazio; informe um arquivo de samples/, '
+                                       'ex.: pedido.png\n')
+
+
+@pytest.mark.parametrize('reason', ['Arquivo "x.png" não encontrado em /data/samples.', 'Arquivo "x.png" não encontrado '
+                                    'em /data/samples', 'Arquivo "x.png" não encontrado em /data/samples. '])
+def test_an_ocr_refusal_ends_in_one_clean_sentence(reason):
+    assert cli.ocr_refused(reason) == 'OCR recusou a imagem: Arquivo "x.png" não encontrado em /data/samples; nada foi agendado'
+
+
 @pytest.mark.parametrize('image', ['PEDIDO.PNG', 'pedido.jpg', 'pedido.JPEG'])
 def test_cli_run_accepts_image_extensions_in_any_case(ready_run, monkeypatch, image):
     appointment = {'id': 'a1', 'status': 'scheduled', 'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo'}]}
@@ -943,7 +958,7 @@ def test_ocr_refusal_is_shown_with_its_reason(tmp_path, ready_run, monkeypatch, 
     monkeypatch.setattr(cli, 'run_agent', fake_run({'ocr_read': False, 'ocr_error': context.state['ocr_error']}))
     assert cli.main(ready_run) == 2
     assert capsys.readouterr().err.strip() == (
-        'Erro: OCR recusou a imagem: O arquivo não é uma imagem válida ou é grande demais.; nada foi agendado')
+        'Erro: OCR recusou a imagem: O arquivo não é uma imagem válida ou é grande demais; nada foi agendado')
     # No reply at all from the OCR keeps the service hint.
     monkeypatch.setattr(cli, 'run_agent', fake_run({'ocr_read': False, 'tools_called': {'extract_exam_text'}}))
     assert cli.main(ready_run) == 2

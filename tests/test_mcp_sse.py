@@ -183,8 +183,9 @@ def must_not_run(*args, **kwargs):
 
 
 @pytest.mark.parametrize('filename, reason', [
-    ('ausente.png', 'Arquivo "ausente.png" não encontrado em {samples}.'),
-    ('gif.png', 'O conteúdo do arquivo não corresponde à extensão (use PNG ou JPEG).'),
+    # the reason's final period is dropped before "; nada foi agendado"
+    ('ausente.png', 'Arquivo "ausente.png" não encontrado em {samples}'),
+    ('gif.png', 'O conteúdo do arquivo não corresponde à extensão (use PNG ou JPEG)'),
     ('em-branco.png', 'foto sem contraste: o texto quase não se separa do papel; tire outra com mais luz e sem reflexo'),
 ])
 def test_cli_run_stops_before_the_first_model_turn_on_an_image_the_ocr_refuses(ocr_run, tmp_path, monkeypatch, capsys,
