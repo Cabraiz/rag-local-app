@@ -133,7 +133,7 @@ Etapas, rede, fluxo de dados, decisões técnicas e erros: [docs/arquitetura.md]
   - o que é permitido: os hosts de `ALLOWED_HOSTS` e só as ferramentas que têm papel na spec;
   - a confirmação `[s/N]`, decidida em código e pedida pela confirmação nativa do ADK.
 - **Versão da biblioteca:** o `agent.py` grava a versão do runtime para a qual foi gerado (`API_VERSION`, hoje 4). Com um runtime de outra versão, a importação para com uma mensagem clara.
-- **O apelido da imagem (`pedido-1.png`):** a CLI ([`cli.py`](cli.py)) o põe no estado da sessão; no `adk run` e no `adk web`, o callback que abre o pedido o tira da 1ª mensagem. Nos dois casos, o modelo nunca vê o nome real do arquivo.
+- **O apelido da imagem (`pedido-1.png`):** a CLI ([`cli.py`](cli.py)) o registra no runtime; no `adk run` e no `adk web`, o callback que abre o pedido o tira da 1ª mensagem. O que a política usa fica num registro do runtime por sessão, nunca no estado da sessão, que os clientes do ADK escrevem. Nos dois casos, o modelo nunca vê o nome real do arquivo.
 - **[Um teste](tests/test_runtime.py)** gera o `agent.py` e o copia, com o `runtime/` e o `catalogo.py`, para uma pasta fora do repositório. Num Python limpo, importa o agente e chama os callbacks direto, com um contexto falso e respostas simuladas do OCR e da busca.
 - **O que esse teste confere:** o exame lido com clareza fica na chamada de agendamento, e o da faixa do meio sai, porque não há quem responda. Ele não roda o agente, não agenda nada e não chama nenhuma API.
 
