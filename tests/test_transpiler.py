@@ -167,6 +167,15 @@ def test_generated_code_that_does_not_import_is_one_clear_error(tmp_path, monkey
         "o código gerado não pôde ser importado (ModuleNotFoundError: No module named 'adk_that_is_not_installed')")
 
 
+def test_a_long_instruction_that_would_not_split_back_is_a_transpile_error(monkeypatch):
+    import transpiler.generator
+    assert transpiler.generator.literal('um texto longo ' * 20, 8)  # the real split joins back to the text
+    lossy = SimpleNamespace(findall=lambda pattern, text: [text[:-1]])  # a split that loses the last character
+    monkeypatch.setattr(transpiler.generator, 're', lossy)
+    with pytest.raises(TranspileError, match='não pôde ser dividido'):
+        transpiler.generator.literal('um texto longo ' * 20, 8)
+
+
 def test_cli_transpile_reports_errors_with_exit_code_2(tmp_path, capsys):
     bad = tmp_path / 'bad.json'
     bad.write_text(spec_with(lambda s: s.update(debug=True)), encoding='utf-8')

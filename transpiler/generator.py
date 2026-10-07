@@ -34,7 +34,8 @@ def literal(text, indent):
             line = ''
         line += token
     pieces.append(line)
-    assert ''.join(pieces) == text
+    if ''.join(pieces) != text:  # an explicit check: an assert would be gone under `python -O`
+        raise TranspileError([f'instruction: o texto não pôde ser dividido em linhas sem mudar ({text[:60]!r}...)'])
     return [' ' * indent + repr(piece) for piece in pieces]
 
 
