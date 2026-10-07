@@ -1,0 +1,166 @@
+"""The whole order is checked in code after the run (runtime/reconcilia.py): an exam written in the
+order ends in a reported state even when the model never searched it.
+
+Blind judge #4: on "2. Colesterol total e Triglicerideos" the model searched the whole line,
+Colesterol total came out at 0,68 and Triglicerídeos was never searched; the CLI confirmed the
+appointment without a word about it. The lines below are the OCR's real reply for that image
+(PII already masked), and the search is the real catalog search, in process."""
+import asyncio
+
+import pytest
+
+import cli
+from runtime.reconcilia import order_lines, unreported
+from tests.test_agent_mcp import servers  # noqa: F401  (the real MCP servers, as processes)
+from tests.test_confianca import agent, best_of, book, read, real_search  # noqa: F401  (agent is a fixture)
+from tests.test_transpiler import fake_run, ready_run  # noqa: F401  (ready_run is a fixture)
+from transpiler import load_spec
+
+JUDGE = ['[TEXTO_REMOVIDO] - LABORATORIO ([TEXTO_REMOVIDO])', '[ENDERECO]', 'Paciente: [NOME]',
+         'RG: [RG] Nascimento: [DATA]', 'Celular: [TELEFONE]', 'E-mail: [EMAIL]', '[TEXTO_REMOVIDO]:',
+         '1. Hemoglobina glicada', '2. Colesterol total e Triglicerideos', '3. TGO', 'A. Ferritina',
+         'Medica: [NOME] [CRM]', '[TEXTO_REMOVIDO], [DATA]']
+READINGS = [93.7, 93.8, 96.0, 88.5, 91.7, 63.0, 95.8, 89.0, 94.0, 87.0, 76.0, 91.1, 96.0]
+
+
+def catalog_search(text):
+    """The search_exams tool's reply, in process: a line with several exams comes back piece by piece."""
+    rag = pytest.importorskip('mcp_servers.rag')
+    return rag.search_line(text, 3)
+
+
+def check(agent, context, booked):
+    """What the check of the whole order adds after the booking call (the CLI's settled codes)."""
+    settled = set(booked) | {item['code'] for item in context.state.get('low_confidence', [])}
+    return [(item['code'], item['name'], item['reason'], item['confidence'], item['read'])
+            for item in unreported(context.state, catalog_search, agent.CALLBACKS.policy, settled)]
+
+
+def test_only_the_exam_lines_of_the_judges_order_are_checked_and_the_search_cuts_them():
+    # "LABORATORIO" is checked, but it is only a resemblance of letters to Paratormônio (0,70): never reported.
+    lines = order_lines(JUDGE)
+    assert [line[:2] for line in lines] == [(0, 'LABORATORIO ( )'), (7, 'Hemoglobina glicada'),
+                                            (8, 'Colesterol total e Triglicerideos'), (9, 'TGO'), (10, 'Ferritina')]
+    rag = pytest.importorskip('mcp_servers.rag')
+    assert rag.split_exams(lines[2][1]) == ['Colesterol total', 'Triglicerideos']  # the pieces checked are the search's
+
+
+def test_the_judges_case_reports_the_exam_the_model_never_searched(agent):
+    context = read(agent, JUDGE, READINGS)
+    queries = ['Hemoglobina glicada', 'Colesterol total e Triglicerideos', 'TGO', 'Ferritina']
+    for query in queries:
+        real_search(agent, context, query)
+    reply, args = book(agent, context, *map(best_of, queries))
+    booked = [exam['code'] for exam in args['exams']]
+    assert booked == ['FICT-003', 'FICT-018']  # as in the judge's run: booking is unchanged
+    assert [(item['code'], item['reason']) for item in context.state['low_confidence']] == [
+        ('FICT-055', 'needs_confirmation'), ('FICT-006', 'score')]  # TGO asked, Colesterol total low (0,6x)
+    assert check(agent, context, booked) == [
+        ('FICT-009', 'Triglicerideos', 'not_searched', 1.0, '2. Colesterol total e Triglicerideos')]
+
+
+def test_the_judges_order_searched_piece_by_piece_raises_nothing(agent):
+    context = read(agent, JUDGE, READINGS)
+    queries = ['Hemoglobina glicada', 'Colesterol total', 'Triglicerideos', 'TGO', 'Ferritina']
+    for query in queries:
+        real_search(agent, context, query)
+    reply, args = book(agent, context, *map(best_of, queries))
+    assert check(agent, context, [exam['code'] for exam in args['exams']]) == []
+
+
+def test_an_exam_a_search_returned_but_the_model_did_not_propose_is_left_out_by_the_agent(agent):
+    # Triglicerídeos came back from a search (as a neighbour, never its best match), so it is "não incluído".
+    context = read(agent, ['Exames: Colesterol total, Triglicerideos'])
+    real_search(agent, context, 'Colesterol total e Triglicerideos')
+    reply, args = book(agent, context, best_of('Colesterol total'))
+    found = check(agent, context, [exam['code'] for exam in args['exams']])
+    assert [(code, reason) for code, _, reason, _, _ in found] == [
+        ('FICT-009', 'omitted' if 'FICT-009' in context.state['candidates'] else 'not_searched')]
+
+
+@pytest.mark.parametrize('line, expected', [
+    ('Obs.: acrescentar Ferritina', [('FICT-018', 'Ferritina')]),
+    ('Obs: repetir TSH', [('FICT-024', 'TSH')]),
+    ('Obs: repetir TSH em 30 dias', [('FICT-024', 'TSH')]),  # in a note, a piece that starts with the name
+    ('Indicacao: hipotireoidismo, solicito TSH', [('FICT-024', 'TSH')]),
+    ('Dr. [NOME] pede tambem TSH', [('FICT-024', 'TSH')]),
+    ('Paciente: [NOME] Exames: Hemograma completo, TSH',  # two lines the OCR joined
+     [('FICT-001', 'Hemograma completo'), ('FICT-024', 'TSH')]),
+])
+def test_an_exam_written_after_a_label_of_data_or_notes_is_still_checked(agent, line, expected):
+    context = read(agent, ['- Glicose', line])
+    real_search(agent, context, 'Glicose')
+    reply, args = book(agent, context, best_of('Glicose'))
+    assert [(code, name) for code, name, *_ in check(agent, context, [exam['code'] for exam in args['exams']])] == \
+        expected
+
+
+def test_the_parts_of_a_line_the_ocr_joined_are_checked_apart():
+    assert order_lines(['Paciente: [NOME] Exames: Hemograma completo, TSH', 'RG: [RG] Nascimento: [DATA]',
+                        'E-mail: [EMAIL]', 'Dr. [NOME] - [CRM]', 'Obs: jejum de 8 horas']) == [
+        (0, 'Hemograma completo, TSH', False), (4, 'jejum de 8 horas', True)]
+
+
+@pytest.mark.parametrize('lines', [
+    ['Obs: jejum de 8 horas para glicose', 'Exames: Glicose'],
+    ['Obs: jejum de 8 horas', '- Glicose'],  # "horas" is a word of Proteinúria de 24 horas, but it is a note
+    ['Indicacao clinica: controle de glicose e tireoide', '- Glicose'],
+    ['Observação: trazer exames anteriores de colesterol', '- Glicose'],
+    ['Paciente: [NOME]', 'Médico: Dr. [NOME] CRM [CRM]', 'Data: [DATA]', '- Glicose'],
+    ['SOLICITAÇÃO DE E [TEXTO_REMOVIDO]', '- Glicose'],  # a photo's header: "de" is not a word of an exam
+])
+def test_notes_and_personal_data_are_not_exams_of_the_order(agent, lines):
+    context = read(agent, lines)
+    real_search(agent, context, 'Glicose')
+    reply, args = book(agent, context, best_of('Glicose'))
+    assert check(agent, context, [exam['code'] for exam in args['exams']]) == []
+
+
+def test_words_of_an_exam_booked_by_similarity_are_not_another_exam(agent):
+    # "Hemoglobina glicda" is only similar to Hemoglobina glicada: the line holds its words, and
+    # "Hemoglobina" alone (another exam of the catalog) is not reported.
+    context = read(agent, ['- Hemoglobina glicda'])
+    real_search(agent, context, 'Hemoglobina glicada')
+    reply, args = book(agent, context, 'FICT-003')
+    assert check(agent, context, [exam['code'] for exam in args['exams']]) == []
+
+
+def test_a_poorly_read_line_reports_at_its_reading(agent):
+    context = read(agent, ['1. Hemograma completo', '2. Creatinina'], [95.0, 55.0])
+    real_search(agent, context, 'Hemograma completo')
+    reply, args = book(agent, context, best_of('Hemograma completo'))
+    assert check(agent, context, ['FICT-001']) == [('FICT-005', 'Creatinina', 'not_searched', 0.55, '2. Creatinina')]
+
+
+def test_the_cli_says_the_agent_left_an_exam_out_and_keeps_exit_0(ready_run, monkeypatch, capsys):  # noqa: F811
+    appointment = {'id': 'a1', 'status': 'scheduled', 'exams': [{'code': 'FICT-003', 'name': 'Hemoglobina glicada'}]}
+    low = [{'code': 'FICT-009', 'name': 'Triglicerídeos', 'confidence': 1.0, 'line': 8,
+            'read': '2. Colesterol total e Triglicerideos', 'reason': 'not_searched'}]
+    monkeypatch.setattr(cli, 'run_agent', fake_run({'appointment': appointment, 'low_confidence': low}))
+    assert cli.main(ready_run) == 0  # the appointment exists: a script sees success, the person sees the warning
+    out = capsys.readouterr().out
+    assert ("não buscado pelo agente: '2. Colesterol total e Triglicerideos' → Triglicerídeos FICT-009 "
+            "(confiança 1,00); confira o pedido") in out
+    assert ('Agendamento confirmado pela API: id a1, status scheduled; ATENÇÃO: 1 possível(is) exame(s) do '
+            'pedido sem decisão do agente, confira os avisos acima') in out
+
+
+def test_without_the_catalog_search_the_cli_says_the_order_was_not_checked(monkeypatch):
+    async def down(spec, texts):
+        raise OSError('connection refused')
+    monkeypatch.setattr(cli, 'search_lines', down)
+    found, spec = cli.new_found(), load_spec(cli.DEFAULT_SPEC)
+    state = {'ocr_read': ['- Glicose'], 'ocr_lines': ['glicose']}
+    assert asyncio.run(cli.whole_order(state, spec, found)) == [] and found['order_unchecked'] is True
+
+
+@pytest.mark.xdist_group('spec-ports')  # the real servers, on the spec's ports: one worker, in turn
+def test_the_pieces_are_searched_on_the_real_rag_server(servers, monkeypatch):  # noqa: F811
+    from tests.test_transpiler import spec_with
+    from transpiler import parse_spec
+    spec = parse_spec(spec_with(lambda s: s['servers']['rag'].update(url='http://rag:8002/sse')))
+    monkeypatch.setattr(spec.servers['rag'], 'url', servers['rag'])
+    hits = asyncio.run(cli.search_lines(spec, ['Colesterol total e Triglicerideos']))
+    pieces = {hit['piece']: hit['code'] for hit in reversed(hits['Colesterol total e Triglicerideos'])}
+    assert pieces == {'Colesterol total': 'FICT-006', 'Triglicerideos': 'FICT-009'}  # best hit of each piece
+
