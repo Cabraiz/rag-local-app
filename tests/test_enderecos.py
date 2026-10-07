@@ -17,6 +17,7 @@ from google.adk.tools.mcp_tool.mcp_session_manager import SseConnectionParams
 import cli
 import runtime
 import transpiler.live
+from runtime import rede
 from tests.test_spec_generica import REAL_TOOLS, SPEC, VARIANT, FakeStream, servers_answer, spec_with  # noqa: F401
 from transpiler import TranspileError, load_root_agent, parse_spec, transpile
 from transpiler.live import live_tools
@@ -298,7 +299,7 @@ def test_cli_run_stops_when_an_allowed_name_resolves_to_a_local_address(tmp_path
 def test_the_private_addresses_of_the_compose_network_are_allowed(monkeypatch):
     monkeypatch.delenv('ALLOWED_HOSTS', raising=False)
     monkeypatch.setattr(socket, 'getaddrinfo', resolver(COMPOSE_DNS))
-    with transpiler.live.pinned_names() as pins:
+    with rede.pinned_names() as pins:
         assert transpiler.live.check_addresses(parse_spec(json.dumps(SPEC))) == []
     assert pins == COMPOSE_DNS
 
@@ -307,7 +308,7 @@ def test_a_name_that_does_not_resolve_keeps_no_address_for_the_whole_run(monkeyp
     # A DNS that fails during the check and answers 127.0.0.1 later must not reach loopback.
     monkeypatch.delenv('ALLOWED_HOSTS', raising=False)
     monkeypatch.setattr(socket, 'getaddrinfo', resolver(COMPOSE_DNS | {'rag': [None, '127.0.0.1']}))
-    with transpiler.live.pinned_names() as pins:
+    with rede.pinned_names() as pins:
         assert transpiler.live.check_addresses(parse_spec(json.dumps(SPEC))) == []
         assert pins['rag'] == []
         with pytest.raises(socket.gaierror, match='"rag" não resolveu no início da execução'):
@@ -336,7 +337,7 @@ def test_the_run_keeps_the_address_it_checked_when_the_dns_answer_changes(monkey
     spec = parse_spec(spec_with(lambda s: s['servers']['api'].update(openapi_url='https://clinica.exemplo:8443/openapi.json')))
     rebinding = resolver({'clinica.exemplo': ['10.0.0.7', '127.0.0.1'], 'ocr': ['10.0.0.5'], 'rag': ['10.0.0.6']})
     monkeypatch.setattr(socket, 'getaddrinfo', rebinding)
-    with transpiler.live.pinned_names() as pins:
+    with rede.pinned_names() as pins:
         assert transpiler.live.check_addresses(spec) == []
         assert pins == {'ocr': ['10.0.0.5'], 'rag': ['10.0.0.6'], 'clinica.exemplo': ['10.0.0.7']}
         # The DNS now answers 127.0.0.1; every client of the run still gets the address checked.

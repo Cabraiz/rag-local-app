@@ -10,6 +10,7 @@ through socket.getaddrinfo, which both replace.
 import contextlib
 import ipaddress
 import socket
+import threading
 from urllib.parse import urlsplit
 
 # Besides loopback, link-local (169.254.169.254, fe80::), 0.0.0.0 and multicast: unique local IPv6
@@ -22,6 +23,7 @@ REFUSED = ('um endereço local ou de metadados de nuvem (ex.: 127.0.0.1, 169.254
 PINS: dict[str, list[str]] | None = None  # name -> addresses checked, while names are pinned
 SCOPE: str | None = None  # 'run' inside pinned_names() (cli run), 'process' after check_urls (adk run/web)
 PROCESS: dict = {}  # the process-wide pin: its resolver, the one it replaced, its names
+LOCK = threading.RLock()  # adk web runs orders, and toolsets, on several threads and loops at once
 
 
 def unsafe(address):
@@ -81,37 +83,50 @@ def pinned_names():
         socket.getaddrinfo, (PINS, SCOPE) = real, before
 
 
+def host_of(url):
+    """The URL's host as it is resolved, or None for a host written as its address (an IP, or localhost)."""
+    host = (urlsplit(url).hostname or '').lower()
+    return None if host == 'localhost' or is_address(host) else host
+
+
 def check_urls(urls):
-    """Problems of the agent's own URLs, checked when an order starts outside `cli run` (which checked
-    and pinned its spec's names before the run). The first order pins every name for the process; a
-    name that did not resolve then is checked again by the next order, a name with addresses keeps them."""
+    """Problems of the agent's own URLs, checked outside `cli run` (which checked and pinned its spec's
+    names before the run) when an order starts and before any toolset connects (runtime/adk.py). The
+    first check pins every name for the process: the addresses checked are the ones every connection
+    uses. A name that did not resolve, or that was refused, is checked again the next time; a name
+    with addresses keeps them until the process ends (restart `adk web` if a service changes address)."""
     global PINS, SCOPE
-    if SCOPE == 'run':
-        return []
-    if SCOPE is None:
-        pins: dict[str, list[str]] = {}
-        PROCESS.update(real=socket.getaddrinfo, pins=pins)
-        socket.getaddrinfo = PROCESS['resolver'] = pinning(pins, PROCESS['real'])
-        PINS, SCOPE = pins, 'process'
-    problems, pins = [], PROCESS['pins']
-    for url in dict.fromkeys(urls):
-        resolved = resolve(url, PROCESS['real'])
-        if resolved is None or pins.get(resolved[0]):
-            continue
-        host, addresses = resolved
-        refused = [address for address in addresses if unsafe(address)]
-        if refused:
-            problems.append(f'{url}: "{host}" resolve para {", ".join(refused)}, {REFUSED}')
-        pins[host] = [] if refused else addresses  # a refused name reaches no address in this process
-    return problems
+    with LOCK:
+        if SCOPE == 'run':
+            return []
+        if SCOPE is None:
+            pins: dict[str, list[str]] = {}
+            PROCESS.update(real=socket.getaddrinfo, pins=pins)
+            socket.getaddrinfo = PROCESS['resolver'] = pinning(pins, PROCESS['real'])
+            PINS, SCOPE = pins, 'process'
+        problems, pins = [], PROCESS['pins']
+        for url in dict.fromkeys(urls):
+            host = host_of(url)
+            if host is None or pins.get(host):
+                continue
+            _, addresses = resolve(url, PROCESS['real'])
+            refused = [address for address in addresses if unsafe(address)]
+            if refused:
+                problems.append(f'{url}: "{host}" resolve para {", ".join(refused)}, {REFUSED}')
+            pins[host] = [] if refused else addresses  # a refused name reaches no address meanwhile
+        return problems
 
 
 def unpin_process():
-    """Undo check_urls' process-wide pin (tests: each one starts without it)."""
+    """Undo check_urls' process-wide pin (tests: each one starts without it). Its resolver is put back
+    only if nothing replaced it since; otherwise it is left in place with no pins, so it only passes
+    each lookup on to the resolver it wrapped."""
     global PINS, SCOPE
-    if SCOPE != 'process':
-        return
-    if socket.getaddrinfo is PROCESS['resolver']:
-        socket.getaddrinfo = PROCESS['real']
-    PINS, SCOPE = None, None
-    PROCESS.clear()
+    with LOCK:
+        if SCOPE != 'process':
+            return
+        PROCESS['pins'].clear()
+        if socket.getaddrinfo is PROCESS['resolver']:
+            socket.getaddrinfo = PROCESS['real']
+        PINS, SCOPE = None, None
+        PROCESS.clear()

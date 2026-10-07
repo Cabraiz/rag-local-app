@@ -9,7 +9,6 @@ import re
 import httpx
 
 from runtime import rede
-from runtime.rede import LOCAL_NETWORKS, is_address, pinned_names, unsafe  # noqa: F401  (the rules live in runtime)
 
 SECONDS = 3  # per server, all at once
 # What the runtime sends to (and reads from) the tool of each role (runtime/callbacks.py).
@@ -96,7 +95,7 @@ def check_addresses(spec):
     """Resolve each server's name once, before any request of `cli run`. ALLOWED_HOSTS allows names;
     a name that resolves to a local or metadata address (DNS rebinding, an /etc/hosts entry) is a
     problem (runtime/rede.py). Only a host written as that address (an IP, or localhost), and so listed
-    by itself in ALLOWED_HOSTS, may point there. Inside pinned_names(), the run keeps the addresses
+    by itself in ALLOWED_HOSTS, may point there. Inside rede.pinned_names(), the run keeps the addresses
     checked here, and a name that did not resolve keeps none."""
     problems = []
     for name, server in spec.servers.items():
@@ -105,7 +104,7 @@ def check_addresses(spec):
         if resolved is None:
             continue
         host, addresses = resolved
-        refused = [address for address in addresses if unsafe(address)]
+        refused = [address for address in addresses if rede.unsafe(address)]
         if refused:
             problems.append(f'servers.{name}.{field}: "{host}" resolve para {", ".join(refused)}, {rede.REFUSED}')
         elif rede.PINS is not None:
