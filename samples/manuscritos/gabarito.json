@@ -1,0 +1,4189 @@
+{
+ "gerado_por": "python exemplos/gerar_manuscrito.py --saida samples/manuscritos --comum 70 --medico 50 --semente 20261006",
+ "imagens": {
+  "comum-001.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-003",
+     "written": "Hemoglobina glicada"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    },
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Sentinela Inventado",
+    "cpf": "234.149.965-19",
+    "medico": "Letícia Inventado",
+    "crm": "805469"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 60
+  },
+  "comum-002.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-003",
+     "written": "Hemoglobina glicada"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Joaquim Modelar Hipotético",
+    "cpf": "616.224.380-05",
+    "medico": "Augusto Quimera",
+    "crm": "413714"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "baixa resolução",
+    "desfoque",
+    "pouco contraste"
+   ],
+   "jpeg_qualidade": 52
+  },
+  "comum-003.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glicemia de jejum"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Ficcional Quimera",
+    "cpf": "095.229.252-18",
+    "medico": "Mariana Exemplar",
+    "crm": "894434"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "borda cortada",
+    "ruído",
+    "pouco contraste",
+    "desfoque",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 27
+  },
+  "comum-004.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-057",
+     "written": "Gama GT"
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    },
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA total"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Renato Modelar Inventado",
+    "cpf": "431.737.239-84",
+    "medico": "Letícia Hipotético",
+    "crm": "694390"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 65
+  },
+  "comum-005.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glicemia de jejum"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Bianca Quimera Modelar",
+    "cpf": "978.454.399-03",
+    "medico": "Heitor Inventado",
+    "crm": "956734"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "ruído",
+    "desfoque",
+    "pouco contraste",
+    "baixa resolução"
+   ],
+   "jpeg_qualidade": 32
+  },
+  "comum-006.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-057",
+     "written": "Gama GT"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Quimera Ficcional",
+    "cpf": "312.339.152-39",
+    "medico": "Celina Exemplar",
+    "crm": "253385"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "ruído",
+    "sombra",
+    "borda cortada",
+    "desfoque"
+   ],
+   "jpeg_qualidade": 37
+  },
+  "comum-007.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA total"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-021",
+     "written": "Vitamina B12"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Modelar Exemplar",
+    "cpf": "312.041.714-97",
+    "medico": "Joaquim Modelar",
+    "crm": "334309"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "baixa resolução",
+    "pouco contraste",
+    "sombra",
+    "ruído",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 39
+  },
+  "comum-008.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-021",
+     "written": "Vitamina B12"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-003",
+     "written": "Hemoglobina glicada"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Exemplar Modelar",
+    "cpf": "066.369.235-00",
+    "medico": "Renato Ficcional",
+    "crm": "867109"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "papel amassado",
+    "baixa resolução"
+   ],
+   "jpeg_qualidade": 52
+  },
+  "comum-009.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-048",
+     "written": "PSA total"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    },
+    {
+     "code": "FICT-007",
+     "written": "Colesterol HDL"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Bianca Hipotético Sentinela",
+    "cpf": "031.388.058-18",
+    "medico": "Renato Ficcional",
+    "crm": "535336"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 60
+  },
+  "comum-010.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    },
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Joaquim Modelar Inventado",
+    "cpf": "190.751.688-39",
+    "medico": "Heitor Exemplar",
+    "crm": "288952"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "ruído",
+    "desfoque",
+    "papel amassado",
+    "borda cortada",
+    "pouco contraste"
+   ],
+   "jpeg_qualidade": 33
+  },
+  "comum-011.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glicemia de jejum"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Mariana Hipotético Inventado",
+    "cpf": "825.446.577-04",
+    "medico": "Celina Simulado",
+    "crm": "222099"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 46
+  },
+  "comum-012.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-003",
+     "written": "Hemoglobina glicada"
+    },
+    {
+     "code": "FICT-021",
+     "written": "Vitamina B12"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Heitor Ficcional Modelar",
+    "cpf": "202.334.520-02",
+    "medico": "Letícia Exemplar",
+    "crm": "721914"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 65
+  },
+  "comum-013.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Renato Ficcional Modelar",
+    "cpf": "254.499.419-37",
+    "medico": "Letícia Hipotético",
+    "crm": "657686"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "desfoque",
+    "baixa resolução",
+    "ruído",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 37
+  },
+  "comum-014.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    },
+    {
+     "code": "FICT-021",
+     "written": "Vitamina B12"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Modelar Exemplar",
+    "cpf": "163.390.922-05",
+    "medico": "Augusto Hipotético",
+    "crm": "198213"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 65
+  },
+  "comum-015.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    },
+    {
+     "code": "FICT-071",
+     "written": "Proteína C reativa"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Heitor Modelar Simulado",
+    "cpf": "312.640.081-77",
+    "medico": "Bianca Sentinela",
+    "crm": "240122"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "pouco contraste",
+    "sombra",
+    "papel amassado",
+    "desfoque"
+   ],
+   "jpeg_qualidade": 36
+  },
+  "comum-016.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    },
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    },
+    {
+     "code": "FICT-057",
+     "written": "Gama GT"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Inventado Hipotético",
+    "cpf": "006.563.843-39",
+    "medico": "Celina Quimera",
+    "crm": "453175"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "baixa resolução",
+    "sombra",
+    "borda cortada"
+   ],
+   "jpeg_qualidade": 46
+  },
+  "comum-017.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-057",
+     "written": "Gama GT"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Hipotético Hipotético",
+    "cpf": "827.055.111-27",
+    "medico": "Lívia Exemplar",
+    "crm": "594242"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "papel amassado",
+    "baixa resolução",
+    "sombra"
+   ],
+   "jpeg_qualidade": 43
+  },
+  "comum-018.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA total"
+    },
+    {
+     "code": "FICT-003",
+     "written": "Hemoglobina glicada"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Celina Inventado Hipotético",
+    "cpf": "802.479.736-44",
+    "medico": "Mariana Modelar",
+    "crm": "170009"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "baixa resolução"
+   ],
+   "jpeg_qualidade": 41
+  },
+  "comum-019.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-002",
+     "written": "Glicemia de jejum"
+    },
+    {
+     "code": "FICT-021",
+     "written": "Vitamina B12"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Modelar Simulado",
+    "cpf": "755.676.392-75",
+    "medico": "Letícia Modelar",
+    "crm": "749575"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "baixa resolução",
+    "sombra",
+    "ruído",
+    "borda cortada"
+   ],
+   "jpeg_qualidade": 35
+  },
+  "comum-020.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    },
+    {
+     "code": "FICT-021",
+     "written": "Vitamina B12"
+    },
+    {
+     "code": "FICT-007",
+     "written": "Colesterol HDL"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Bianca Exemplar Modelar",
+    "cpf": "807.541.893-04",
+    "medico": "Lívia Hipotético",
+    "crm": "259385"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "ruído",
+    "pouco contraste",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 47
+  },
+  "comum-021.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-003",
+     "written": "Hemoglobina glicada"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Celina Sentinela Sentinela",
+    "cpf": "954.703.011-63",
+    "medico": "Letícia Hipotético",
+    "crm": "215007"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 65
+  },
+  "comum-022.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    },
+    {
+     "code": "FICT-003",
+     "written": "Hemoglobina glicada"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Heitor Ficcional Hipotético",
+    "cpf": "042.896.874-09",
+    "medico": "Otávio Modelar",
+    "crm": "657252"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "pouco contraste",
+    "borda cortada",
+    "sombra",
+    "desfoque",
+    "ruído"
+   ],
+   "jpeg_qualidade": 27
+  },
+  "comum-023.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-007",
+     "written": "Colesterol HDL"
+    },
+    {
+     "code": "FICT-003",
+     "written": "Hemoglobina glicada"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Exemplar Inventado",
+    "cpf": "640.555.424-41",
+    "medico": "Joaquim Sentinela",
+    "crm": "651813"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 60
+  },
+  "comum-024.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Bianca Hipotético Exemplar",
+    "cpf": "569.418.881-04",
+    "medico": "Renato Sentinela",
+    "crm": "778290"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "sombra",
+    "pouco contraste",
+    "ruído",
+    "desfoque",
+    "borda cortada"
+   ],
+   "jpeg_qualidade": 32
+  },
+  "comum-025.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-021",
+     "written": "Vitamina B12"
+    },
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    },
+    {
+     "code": "FICT-071",
+     "written": "Proteína C reativa"
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA total"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Augusto Hipotético Ficcional",
+    "cpf": "444.834.298-02",
+    "medico": "Letícia Modelar",
+    "crm": "866881"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "pouco contraste",
+    "desfoque",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 53
+  },
+  "comum-026.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-048",
+     "written": "PSA total"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Bianca Exemplar Simulado",
+    "cpf": "896.285.718-95",
+    "medico": "Heitor Inventado",
+    "crm": "476898"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "desfoque"
+   ],
+   "jpeg_qualidade": 48
+  },
+  "comum-027.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-021",
+     "written": "Vitamina B12"
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Celina Hipotético Simulado",
+    "cpf": "969.092.238-63",
+    "medico": "Mariana Simulado",
+    "crm": "244930"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "desfoque",
+    "ruído",
+    "sombra"
+   ],
+   "jpeg_qualidade": 49
+  },
+  "comum-028.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-057",
+     "written": "Gama GT"
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA total"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Mariana Inventado Modelar",
+    "cpf": "488.493.621-35",
+    "medico": "Otávio Inventado",
+    "crm": "422424"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "pouco contraste",
+    "sombra",
+    "desfoque",
+    "baixa resolução",
+    "borda cortada"
+   ],
+   "jpeg_qualidade": 35
+  },
+  "comum-029.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-003",
+     "written": "Hemoglobina glicada"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-071",
+     "written": "Proteína C reativa"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Sentinela Hipotético",
+    "cpf": "989.358.842-17",
+    "medico": "Heitor Simulado",
+    "crm": "891422"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "desfoque",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 43
+  },
+  "comum-030.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-002",
+     "written": "Glicemia de jejum"
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA total"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Augusto Sentinela Inventado",
+    "cpf": "151.863.733-77",
+    "medico": "Joaquim Quimera",
+    "crm": "661026"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 65
+  },
+  "comum-031.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    },
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Bianca Exemplar Inventado",
+    "cpf": "468.945.380-29",
+    "medico": "Bianca Hipotético",
+    "crm": "515732"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "desfoque",
+    "sombra",
+    "ruído",
+    "papel amassado",
+    "pouco contraste"
+   ],
+   "jpeg_qualidade": 29
+  },
+  "comum-032.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    },
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Bianca Inventado Sentinela",
+    "cpf": "378.682.175-57",
+    "medico": "Otávio Exemplar",
+    "crm": "896039"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 65
+  },
+  "comum-033.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-071",
+     "written": "Proteína C reativa"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Celina Inventado Inventado",
+    "cpf": "061.550.691-77",
+    "medico": "Renato Hipotético",
+    "crm": "555044"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "pouco contraste",
+    "ruído",
+    "sombra"
+   ],
+   "jpeg_qualidade": 51
+  },
+  "comum-034.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    },
+    {
+     "code": "FICT-003",
+     "written": "Hemoglobina glicada"
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Mariana Sentinela Inventado",
+    "cpf": "720.284.495-85",
+    "medico": "Lívia Hipotético",
+    "crm": "969521"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "sombra",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 43
+  },
+  "comum-035.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-048",
+     "written": "PSA total"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Mariana Modelar Quimera",
+    "cpf": "508.009.065-03",
+    "medico": "Lívia Simulado",
+    "crm": "835380"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "baixa resolução",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 53
+  },
+  "comum-036.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-057",
+     "written": "Gama GT"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Joaquim Hipotético Hipotético",
+    "cpf": "951.214.880-30",
+    "medico": "Joaquim Exemplar",
+    "crm": "473882"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 65
+  },
+  "comum-037.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-057",
+     "written": "Gama GT"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Hipotético Quimera",
+    "cpf": "930.940.438-84",
+    "medico": "Joaquim Simulado",
+    "crm": "135057"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "ruído",
+    "pouco contraste"
+   ],
+   "jpeg_qualidade": 53
+  },
+  "comum-038.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-071",
+     "written": "Proteína C reativa"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA total"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Renato Ficcional Simulado",
+    "cpf": "972.254.215-05",
+    "medico": "Mariana Ficcional",
+    "crm": "850341"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 65
+  },
+  "comum-039.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    },
+    {
+     "code": "FICT-057",
+     "written": "Gama GT"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Otávio Sentinela Sentinela",
+    "cpf": "786.902.465-12",
+    "medico": "Otávio Exemplar",
+    "crm": "151990"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 48
+  },
+  "comum-040.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    },
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    },
+    {
+     "code": "FICT-057",
+     "written": "Gama GT"
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Quimera Inventado",
+    "cpf": "965.825.891-33",
+    "medico": "Bianca Ficcional",
+    "crm": "536469"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 60
+  },
+  "comum-041.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    },
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Exemplar Simulado",
+    "cpf": "425.652.070-86",
+    "medico": "Bianca Quimera",
+    "crm": "945856"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 65
+  },
+  "comum-042.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-021",
+     "written": "Vitamina B12"
+    },
+    {
+     "code": "FICT-007",
+     "written": "Colesterol HDL"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Quimera Exemplar",
+    "cpf": "845.721.944-89",
+    "medico": "Lívia Modelar",
+    "crm": "624363"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "papel amassado",
+    "pouco contraste",
+    "baixa resolução",
+    "sombra",
+    "borda cortada"
+   ],
+   "jpeg_qualidade": 32
+  },
+  "comum-043.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Renato Ficcional Quimera",
+    "cpf": "256.493.048-45",
+    "medico": "Bianca Hipotético",
+    "crm": "779807"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "papel amassado",
+    "pouco contraste",
+    "ruído",
+    "borda cortada",
+    "desfoque"
+   ],
+   "jpeg_qualidade": 33
+  },
+  "comum-044.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    },
+    {
+     "code": "FICT-057",
+     "written": "Gama GT"
+    },
+    {
+     "code": "FICT-071",
+     "written": "Proteína C reativa"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Exemplar Modelar",
+    "cpf": "133.815.860-01",
+    "medico": "Letícia Simulado",
+    "crm": "832418"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "borda cortada",
+    "desfoque",
+    "baixa resolução"
+   ],
+   "jpeg_qualidade": 54
+  },
+  "comum-045.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glicemia de jejum"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    },
+    {
+     "code": "FICT-003",
+     "written": "Hemoglobina glicada"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Otávio Quimera Ficcional",
+    "cpf": "035.360.266-36",
+    "medico": "Lívia Ficcional",
+    "crm": "947023"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "ruído",
+    "papel amassado",
+    "baixa resolução"
+   ],
+   "jpeg_qualidade": 47
+  },
+  "comum-046.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-048",
+     "written": "PSA total"
+    },
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Otávio Modelar Simulado",
+    "cpf": "635.072.860-22",
+    "medico": "Otávio Inventado",
+    "crm": "890300"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 65
+  },
+  "comum-047.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-007",
+     "written": "Colesterol HDL"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-021",
+     "written": "Vitamina B12"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Sentinela Inventado",
+    "cpf": "589.622.342-06",
+    "medico": "Mariana Simulado",
+    "crm": "655286"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "sombra",
+    "ruído",
+    "desfoque",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 28
+  },
+  "comum-048.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-007",
+     "written": "Colesterol HDL"
+    },
+    {
+     "code": "FICT-071",
+     "written": "Proteína C reativa"
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA total"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Otávio Quimera Hipotético",
+    "cpf": "284.710.113-61",
+    "medico": "Celina Simulado",
+    "crm": "509075"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "baixa resolução",
+    "borda cortada",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 42
+  },
+  "comum-049.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-021",
+     "written": "Vitamina B12"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Augusto Quimera Hipotético",
+    "cpf": "929.116.321-06",
+    "medico": "Renato Inventado",
+    "crm": "140372"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "ruído",
+    "borda cortada"
+   ],
+   "jpeg_qualidade": 39
+  },
+  "comum-050.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glicemia de jejum"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Augusto Quimera Ficcional",
+    "cpf": "728.380.070-01",
+    "medico": "Otávio Ficcional",
+    "crm": "186131"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "borda cortada",
+    "ruído"
+   ],
+   "jpeg_qualidade": 37
+  },
+  "comum-051.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-003",
+     "written": "Hemoglobina glicada"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Heitor Modelar Inventado",
+    "cpf": "022.254.574-75",
+    "medico": "Otávio Ficcional",
+    "crm": "314826"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "sombra",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 54
+  },
+  "comum-052.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-021",
+     "written": "Vitamina B12"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Otávio Sentinela Sentinela",
+    "cpf": "807.266.167-17",
+    "medico": "Celina Quimera",
+    "crm": "516012"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "pouco contraste",
+    "sombra",
+    "desfoque"
+   ],
+   "jpeg_qualidade": 37
+  },
+  "comum-053.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-057",
+     "written": "Gama GT"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    },
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Joaquim Exemplar Modelar",
+    "cpf": "784.086.772-35",
+    "medico": "Heitor Ficcional",
+    "crm": "194562"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "desfoque",
+    "borda cortada",
+    "papel amassado",
+    "sombra"
+   ],
+   "jpeg_qualidade": 29
+  },
+  "comum-054.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Ficcional Exemplar",
+    "cpf": "650.831.304-55",
+    "medico": "Joaquim Modelar",
+    "crm": "692018"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 65
+  },
+  "comum-055.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-021",
+     "written": "Vitamina B12"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Joaquim Modelar Sentinela",
+    "cpf": "635.665.563-14",
+    "medico": "Otávio Exemplar",
+    "crm": "743625"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "papel amassado",
+    "pouco contraste",
+    "desfoque"
+   ],
+   "jpeg_qualidade": 40
+  },
+  "comum-056.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glicemia de jejum"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Augusto Hipotético Quimera",
+    "cpf": "058.526.635-29",
+    "medico": "Celina Modelar",
+    "crm": "335132"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "borda cortada",
+    "baixa resolução",
+    "ruído",
+    "papel amassado",
+    "pouco contraste"
+   ],
+   "jpeg_qualidade": 32
+  },
+  "comum-057.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Heitor Modelar Ficcional",
+    "cpf": "840.442.670-84",
+    "medico": "Renato Ficcional",
+    "crm": "970612"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "ruído",
+    "sombra"
+   ],
+   "jpeg_qualidade": 48
+  },
+  "comum-058.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-048",
+     "written": "PSA total"
+    },
+    {
+     "code": "FICT-021",
+     "written": "Vitamina B12"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glicemia de jejum"
+    },
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    },
+    {
+     "code": "FICT-003",
+     "written": "Hemoglobina glicada"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Bianca Quimera Simulado",
+    "cpf": "106.179.120-36",
+    "medico": "Mariana Ficcional",
+    "crm": "196793"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "sombra",
+    "desfoque"
+   ],
+   "jpeg_qualidade": 45
+  },
+  "comum-059.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Modelar Inventado",
+    "cpf": "694.462.443-53",
+    "medico": "Joaquim Hipotético",
+    "crm": "471719"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "pouco contraste",
+    "papel amassado",
+    "borda cortada"
+   ],
+   "jpeg_qualidade": 34
+  },
+  "comum-060.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    },
+    {
+     "code": "FICT-057",
+     "written": "Gama GT"
+    },
+    {
+     "code": "FICT-007",
+     "written": "Colesterol HDL"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Joaquim Hipotético Hipotético",
+    "cpf": "255.461.311-76",
+    "medico": "Letícia Modelar",
+    "crm": "560443"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "pouco contraste",
+    "desfoque"
+   ],
+   "jpeg_qualidade": 50
+  },
+  "comum-061.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    },
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA total"
+    },
+    {
+     "code": "FICT-071",
+     "written": "Proteína C reativa"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Otávio Quimera Inventado",
+    "cpf": "312.085.890-09",
+    "medico": "Bianca Quimera",
+    "crm": "520684"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "desfoque",
+    "ruído",
+    "baixa resolução",
+    "borda cortada"
+   ],
+   "jpeg_qualidade": 27
+  },
+  "comum-062.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    },
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    },
+    {
+     "code": "FICT-071",
+     "written": "Proteína C reativa"
+    },
+    {
+     "code": "FICT-003",
+     "written": "Hemoglobina glicada"
+    },
+    {
+     "code": "FICT-007",
+     "written": "Colesterol HDL"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Joaquim Exemplar Sentinela",
+    "cpf": "728.755.513-12",
+    "medico": "Mariana Hipotético",
+    "crm": "916372"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "sombra"
+   ],
+   "jpeg_qualidade": 54
+  },
+  "comum-063.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    },
+    {
+     "code": "FICT-003",
+     "written": "Hemoglobina glicada"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Augusto Hipotético Simulado",
+    "cpf": "337.707.214-49",
+    "medico": "Celina Sentinela",
+    "crm": "519462"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 70
+  },
+  "comum-064.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina tipo I"
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Sentinela Sentinela",
+    "cpf": "079.831.472-94",
+    "medico": "Renato Ficcional",
+    "crm": "596278"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "ruído",
+    "sombra"
+   ],
+   "jpeg_qualidade": 44
+  },
+  "comum-065.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Bianca Inventado Exemplar",
+    "cpf": "703.485.790-36",
+    "medico": "Bianca Quimera",
+    "crm": "667872"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "baixa resolução",
+    "pouco contraste",
+    "sombra",
+    "ruído"
+   ],
+   "jpeg_qualidade": 35
+  },
+  "comum-066.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-001",
+     "written": "Hemograma completo"
+    },
+    {
+     "code": "FICT-057",
+     "written": "Gama GT"
+    },
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Celina Ficcional Exemplar",
+    "cpf": "105.694.985-63",
+    "medico": "Augusto Sentinela",
+    "crm": "108686"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 65
+  },
+  "comum-067.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-021",
+     "written": "Vitamina B12"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Renato Simulado Hipotético",
+    "cpf": "001.886.100-83",
+    "medico": "Bianca Inventado",
+    "crm": "601132"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "desfoque",
+    "pouco contraste",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 33
+  },
+  "comum-068.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vitamina D"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Sentinela Simulado",
+    "cpf": "589.923.128-99",
+    "medico": "Mariana Modelar",
+    "crm": "398389"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 55
+  },
+  "comum-069.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-009",
+     "written": "Triglicerídeos"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-021",
+     "written": "Vitamina B12"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Sentinela Simulado",
+    "cpf": "079.454.249-27",
+    "medico": "Heitor Ficcional",
+    "crm": "253030"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 65
+  },
+  "comum-070.jpg": {
+   "estilo": "comum",
+   "exames": [
+    {
+     "code": "FICT-048",
+     "written": "PSA total"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glicemia de jejum"
+    },
+    {
+     "code": "FICT-006",
+     "written": "Colesterol total"
+    },
+    {
+     "code": "FICT-021",
+     "written": "Vitamina B12"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Augusto Simulado Quimera",
+    "cpf": "044.637.963-87",
+    "medico": "Lívia Inventado",
+    "crm": "767396"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 65
+  },
+  "medico-001.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-071",
+     "written": "PCR"
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vit D"
+    },
+    {
+     "code": "FICT-090",
+     "written": "EAS"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Exemplar Quimera",
+    "cpf": "625.134.350-89",
+    "medico": "Lívia Hipotético",
+    "crm": "667121"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "papel amassado",
+    "baixa resolução",
+    "sombra"
+   ],
+   "jpeg_qualidade": 26
+  },
+  "medico-002.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-009",
+     "written": "TG"
+    },
+    {
+     "code": "FICT-090",
+     "written": "EAS"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemograma"
+    },
+    {
+     "code": "FICT-021",
+     "written": "B12"
+    },
+    {
+     "code": "FICT-003",
+     "written": "HbA1c"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Sentinela Quimera",
+    "cpf": "886.528.398-03",
+    "medico": "Heitor Sentinela",
+    "crm": "737580"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "borda cortada",
+    "pouco contraste",
+    "desfoque",
+    "ruído"
+   ],
+   "jpeg_qualidade": 36
+  },
+  "medico-003.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-009",
+     "written": "TG"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA"
+    },
+    {
+     "code": "FICT-006",
+     "written": "CT"
+    },
+    {
+     "code": "FICT-021",
+     "written": "Vit B12"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Bianca Exemplar Simulado",
+    "cpf": "570.235.951-87",
+    "medico": "Bianca Modelar",
+    "crm": "821054"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "ruído"
+   ],
+   "jpeg_qualidade": 41
+  },
+  "medico-004.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-001",
+     "written": "Hemogr."
+    },
+    {
+     "code": "FICT-057",
+     "written": "GGT"
+    },
+    {
+     "code": "FICT-006",
+     "written": "Col. total"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glicemia"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Exemplar Quimera",
+    "cpf": "576.991.117-46",
+    "medico": "Celina Exemplar",
+    "crm": "489547"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "baixa resolução",
+    "borda cortada"
+   ],
+   "jpeg_qualidade": 49
+  },
+  "medico-005.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-003",
+     "written": "HbA1c"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    },
+    {
+     "code": "FICT-090",
+     "written": "EAS"
+    },
+    {
+     "code": "FICT-057",
+     "written": "GGT"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Augusto Inventado Quimera",
+    "cpf": "311.546.277-81",
+    "medico": "Joaquim Sentinela",
+    "crm": "171457"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "papel amassado",
+    "borda cortada"
+   ],
+   "jpeg_qualidade": 51
+  },
+  "medico-006.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-021",
+     "written": "B12"
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA"
+    },
+    {
+     "code": "FICT-090",
+     "written": "EAS"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glic. jejum"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Inventado Simulado",
+    "cpf": "974.995.297-99",
+    "medico": "Otávio Hipotético",
+    "crm": "825662"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "desfoque"
+   ],
+   "jpeg_qualidade": 54
+  },
+  "medico-007.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemograma"
+    },
+    {
+     "code": "FICT-090",
+     "written": "EAS"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Celina Modelar Modelar",
+    "cpf": "899.272.399-73",
+    "medico": "Otávio Exemplar",
+    "crm": "536146"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "borda cortada",
+    "sombra",
+    "ruído",
+    "pouco contraste",
+    "desfoque"
+   ],
+   "jpeg_qualidade": 28
+  },
+  "medico-008.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-002",
+     "written": "Glic. jejum"
+    },
+    {
+     "code": "FICT-057",
+     "written": "GGT"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    },
+    {
+     "code": "FICT-007",
+     "written": "HDL"
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Exemplar Hipotético",
+    "cpf": "001.908.681-42",
+    "medico": "Otávio Quimera",
+    "crm": "402016"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 70
+  },
+  "medico-009.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-007",
+     "written": "HDL"
+    },
+    {
+     "code": "FICT-021",
+     "written": "B12"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina I"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Joaquim Exemplar Exemplar",
+    "cpf": "505.869.333-07",
+    "medico": "Celina Ficcional",
+    "crm": "783942"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 65
+  },
+  "medico-010.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA"
+    },
+    {
+     "code": "FICT-006",
+     "written": "Col. total"
+    },
+    {
+     "code": "FICT-023",
+     "written": "25 OH vit D"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glicemia"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Renato Hipotético Hipotético",
+    "cpf": "748.883.381-36",
+    "medico": "Mariana Modelar",
+    "crm": "424767"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 70
+  },
+  "medico-011.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-007",
+     "written": "HDL"
+    },
+    {
+     "code": "FICT-009",
+     "written": "TG"
+    },
+    {
+     "code": "FICT-021",
+     "written": "B12"
+    },
+    {
+     "code": "FICT-003",
+     "written": "Hb glic."
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Augusto Modelar Exemplar",
+    "cpf": "515.809.475-66",
+    "medico": "Renato Simulado",
+    "crm": "959371"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "papel amassado",
+    "sombra",
+    "ruído"
+   ],
+   "jpeg_qualidade": 29
+  },
+  "medico-012.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-006",
+     "written": "Col. total"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    },
+    {
+     "code": "FICT-007",
+     "written": "HDL"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ur."
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Ficcional Ficcional",
+    "cpf": "314.622.422-48",
+    "medico": "Renato Exemplar",
+    "crm": "295720"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "baixa resolução",
+    "papel amassado",
+    "pouco contraste"
+   ],
+   "jpeg_qualidade": 28
+  },
+  "medico-013.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-048",
+     "written": "PSA"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemograma"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ur."
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4L"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Heitor Modelar Inventado",
+    "cpf": "929.107.214-17",
+    "medico": "Lívia Simulado",
+    "crm": "477896"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "baixa resolução",
+    "desfoque"
+   ],
+   "jpeg_qualidade": 52
+  },
+  "medico-014.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glicemia"
+    },
+    {
+     "code": "FICT-021",
+     "written": "B12"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Renato Sentinela Hipotético",
+    "cpf": "470.491.970-64",
+    "medico": "Joaquim Simulado",
+    "crm": "233108"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 65
+  },
+  "medico-015.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    },
+    {
+     "code": "FICT-023",
+     "written": "25 OH vit D"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Heitor Inventado Sentinela",
+    "cpf": "812.879.028-52",
+    "medico": "Otávio Sentinela",
+    "crm": "540684"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "borda cortada"
+   ],
+   "jpeg_qualidade": 46
+  },
+  "medico-016.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-048",
+     "written": "PSA"
+    },
+    {
+     "code": "FICT-006",
+     "written": "Col. total"
+    },
+    {
+     "code": "FICT-007",
+     "written": "HDL"
+    },
+    {
+     "code": "FICT-021",
+     "written": "B12"
+    },
+    {
+     "code": "FICT-003",
+     "written": "HbA1c"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Heitor Sentinela Quimera",
+    "cpf": "338.258.601-02",
+    "medico": "Joaquim Simulado",
+    "crm": "282863"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "baixa resolução"
+   ],
+   "jpeg_qualidade": 52
+  },
+  "medico-017.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-004",
+     "written": "Ur."
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina I"
+    },
+    {
+     "code": "FICT-009",
+     "written": "Trig."
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Sentinela Simulado",
+    "cpf": "300.056.971-54",
+    "medico": "Renato Simulado",
+    "crm": "522125"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "desfoque",
+    "borda cortada"
+   ],
+   "jpeg_qualidade": 53
+  },
+  "medico-018.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    },
+    {
+     "code": "FICT-057",
+     "written": "GGT"
+    },
+    {
+     "code": "FICT-007",
+     "written": "HDL"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Ficcional Hipotético",
+    "cpf": "819.734.683-65",
+    "medico": "Lívia Ficcional",
+    "crm": "774216"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 70
+  },
+  "medico-019.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-018",
+     "written": "Ferrit."
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    },
+    {
+     "code": "FICT-006",
+     "written": "CT"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Bianca Hipotético Simulado",
+    "cpf": "910.716.678-81",
+    "medico": "Otávio Hipotético",
+    "crm": "900507"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "papel amassado",
+    "borda cortada",
+    "sombra",
+    "baixa resolução",
+    "desfoque"
+   ],
+   "jpeg_qualidade": 25
+  },
+  "medico-020.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-009",
+     "written": "Trig."
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    },
+    {
+     "code": "FICT-007",
+     "written": "HDL"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glic. jejum"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Celina Inventado Simulado",
+    "cpf": "626.195.169-17",
+    "medico": "Celina Hipotético",
+    "crm": "382726"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "papel amassado",
+    "ruído",
+    "borda cortada",
+    "sombra"
+   ],
+   "jpeg_qualidade": 29
+  },
+  "medico-021.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-057",
+     "written": "GGT"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemograma"
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Otávio Ficcional Inventado",
+    "cpf": "875.795.388-04",
+    "medico": "Mariana Exemplar",
+    "crm": "629850"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "baixa resolução",
+    "borda cortada",
+    "pouco contraste",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 27
+  },
+  "medico-022.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-003",
+     "written": "Hb glic."
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-021",
+     "written": "B12"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Modelar Simulado",
+    "cpf": "187.830.061-08",
+    "medico": "Letícia Exemplar",
+    "crm": "997470"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 70
+  },
+  "medico-023.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-004",
+     "written": "Ur."
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4L"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glic. jejum"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemogr."
+    },
+    {
+     "code": "FICT-003",
+     "written": "HbA1c"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Augusto Quimera Ficcional",
+    "cpf": "335.795.462-11",
+    "medico": "Bianca Ficcional",
+    "crm": "915972"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "papel amassado",
+    "desfoque",
+    "ruído"
+   ],
+   "jpeg_qualidade": 35
+  },
+  "medico-024.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-001",
+     "written": "Hemogr."
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glic. jejum"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Celina Inventado Sentinela",
+    "cpf": "600.311.492-40",
+    "medico": "Renato Modelar",
+    "crm": "891038"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "borda cortada",
+    "papel amassado",
+    "sombra"
+   ],
+   "jpeg_qualidade": 45
+  },
+  "medico-025.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-090",
+     "written": "Urina I"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-009",
+     "written": "TG"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferrit."
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Simulado Simulado",
+    "cpf": "716.791.793-12",
+    "medico": "Otávio Sentinela",
+    "crm": "517081"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "baixa resolução",
+    "papel amassado",
+    "sombra",
+    "desfoque",
+    "borda cortada"
+   ],
+   "jpeg_qualidade": 25
+  },
+  "medico-026.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-006",
+     "written": "CT"
+    },
+    {
+     "code": "FICT-003",
+     "written": "HbA1c"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Renato Inventado Exemplar",
+    "cpf": "841.432.534-39",
+    "medico": "Joaquim Sentinela",
+    "crm": "698304"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "borda cortada",
+    "ruído"
+   ],
+   "jpeg_qualidade": 40
+  },
+  "medico-027.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-004",
+     "written": "Ur."
+    },
+    {
+     "code": "FICT-071",
+     "written": "PCR"
+    },
+    {
+     "code": "FICT-057",
+     "written": "GGT"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Exemplar Modelar",
+    "cpf": "031.863.573-95",
+    "medico": "Joaquim Simulado",
+    "crm": "436497"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 46
+  },
+  "medico-028.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-006",
+     "written": "CT"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glic. jejum"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Joaquim Quimera Inventado",
+    "cpf": "988.274.925-91",
+    "medico": "Joaquim Quimera",
+    "crm": "722557"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "baixa resolução",
+    "pouco contraste",
+    "papel amassado",
+    "ruído",
+    "sombra"
+   ],
+   "jpeg_qualidade": 40
+  },
+  "medico-029.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    },
+    {
+     "code": "FICT-023",
+     "written": "Vit D"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Heitor Quimera Simulado",
+    "cpf": "229.902.514-69",
+    "medico": "Otávio Quimera",
+    "crm": "440277"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "desfoque",
+    "borda cortada",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 28
+  },
+  "medico-030.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-018",
+     "written": "Ferrit."
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina I"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA"
+    },
+    {
+     "code": "FICT-009",
+     "written": "Trig."
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Heitor Inventado Inventado",
+    "cpf": "840.547.639-39",
+    "medico": "Mariana Ficcional",
+    "crm": "287555"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "baixa resolução",
+    "papel amassado",
+    "desfoque"
+   ],
+   "jpeg_qualidade": 46
+  },
+  "medico-031.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-007",
+     "written": "HDL"
+    },
+    {
+     "code": "FICT-003",
+     "written": "HbA1c"
+    },
+    {
+     "code": "FICT-071",
+     "written": "PCR"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferrit."
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Otávio Hipotético Exemplar",
+    "cpf": "680.773.613-46",
+    "medico": "Augusto Modelar",
+    "crm": "816034"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "desfoque",
+    "papel amassado",
+    "baixa resolução"
+   ],
+   "jpeg_qualidade": 53
+  },
+  "medico-032.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-057",
+     "written": "GGT"
+    },
+    {
+     "code": "FICT-003",
+     "written": "Hb glic."
+    },
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Mariana Modelar Modelar",
+    "cpf": "611.512.899-42",
+    "medico": "Augusto Ficcional",
+    "crm": "196632"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "ruído",
+    "sombra",
+    "pouco contraste"
+   ],
+   "jpeg_qualidade": 47
+  },
+  "medico-033.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-090",
+     "written": "EAS"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    },
+    {
+     "code": "FICT-009",
+     "written": "TG"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Heitor Sentinela Inventado",
+    "cpf": "981.542.009-73",
+    "medico": "Letícia Hipotético",
+    "crm": "407282"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "borda cortada",
+    "baixa resolução"
+   ],
+   "jpeg_qualidade": 45
+  },
+  "medico-034.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ur."
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Celina Hipotético Modelar",
+    "cpf": "396.693.407-83",
+    "medico": "Augusto Simulado",
+    "crm": "362897"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "pouco contraste",
+    "ruído",
+    "borda cortada"
+   ],
+   "jpeg_qualidade": 44
+  },
+  "medico-035.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-090",
+     "written": "EAS"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creat."
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Hipotético Modelar",
+    "cpf": "889.982.602-17",
+    "medico": "Renato Hipotético",
+    "crm": "390499"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "sombra",
+    "borda cortada",
+    "baixa resolução"
+   ],
+   "jpeg_qualidade": 48
+  },
+  "medico-036.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-005",
+     "written": "Creat."
+    },
+    {
+     "code": "FICT-021",
+     "written": "B12"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemogr."
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Renato Simulado Exemplar",
+    "cpf": "616.368.321-89",
+    "medico": "Celina Inventado",
+    "crm": "535515"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "pouco contraste"
+   ],
+   "jpeg_qualidade": 52
+  },
+  "medico-037.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    },
+    {
+     "code": "FICT-071",
+     "written": "PCR"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Heitor Sentinela Sentinela",
+    "cpf": "459.370.480-43",
+    "medico": "Renato Sentinela",
+    "crm": "149290"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "baixa resolução"
+   ],
+   "jpeg_qualidade": 48
+  },
+  "medico-038.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-003",
+     "written": "HbA1c"
+    },
+    {
+     "code": "FICT-006",
+     "written": "CT"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creat."
+    },
+    {
+     "code": "FICT-007",
+     "written": "HDL"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ur."
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Renato Inventado Quimera",
+    "cpf": "214.469.982-83",
+    "medico": "Celina Hipotético",
+    "crm": "669865"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 70
+  },
+  "medico-039.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-001",
+     "written": "Hemograma"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina I"
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Modelar Simulado",
+    "cpf": "261.242.619-15",
+    "medico": "Lívia Quimera",
+    "crm": "837690"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "pouco contraste",
+    "sombra"
+   ],
+   "jpeg_qualidade": 43
+  },
+  "medico-040.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-021",
+     "written": "Vit B12"
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    },
+    {
+     "code": "FICT-007",
+     "written": "HDL"
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lívia Sentinela Modelar",
+    "cpf": "935.008.497-05",
+    "medico": "Otávio Modelar",
+    "crm": "574036"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "pouco contraste",
+    "sombra"
+   ],
+   "jpeg_qualidade": 55
+  },
+  "medico-041.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creatinina"
+    },
+    {
+     "code": "FICT-057",
+     "written": "GGT"
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferritina"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Augusto Quimera Inventado",
+    "cpf": "255.472.155-65",
+    "medico": "Joaquim Sentinela",
+    "crm": "125863"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "pouco contraste",
+    "papel amassado",
+    "ruído"
+   ],
+   "jpeg_qualidade": 35
+  },
+  "medico-042.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    },
+    {
+     "code": "FICT-090",
+     "written": "Urina I"
+    },
+    {
+     "code": "FICT-057",
+     "written": "GGT"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Modelar Hipotético",
+    "cpf": "229.791.392-39",
+    "medico": "Celina Inventado",
+    "crm": "833693"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "ruído",
+    "borda cortada"
+   ],
+   "jpeg_qualidade": 37
+  },
+  "medico-043.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-025",
+     "written": "T4 livre"
+    },
+    {
+     "code": "FICT-007",
+     "written": "HDL"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemograma"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-006",
+     "written": "CT"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Exemplar Sentinela",
+    "cpf": "343.591.613-33",
+    "medico": "Bianca Quimera",
+    "crm": "165485"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "pouco contraste",
+    "sombra",
+    "desfoque"
+   ],
+   "jpeg_qualidade": 40
+  },
+  "medico-044.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-090",
+     "written": "EAS"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-057",
+     "written": "GGT"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Letícia Simulado Sentinela",
+    "cpf": "530.380.277-95",
+    "medico": "Otávio Exemplar",
+    "crm": "641010"
+   },
+   "degradacao": "foto",
+   "efeitos": [
+    "perspectiva",
+    "desfoque"
+   ],
+   "jpeg_qualidade": 54
+  },
+  "medico-045.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-007",
+     "written": "HDL"
+    },
+    {
+     "code": "FICT-001",
+     "written": "Hemograma"
+    },
+    {
+     "code": "FICT-009",
+     "written": "Trig."
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Augusto Hipotético Ficcional",
+    "cpf": "418.796.810-58",
+    "medico": "Otávio Hipotético",
+    "crm": "666155"
+   },
+   "degradacao": "scan",
+   "efeitos": [
+    "scan limpo"
+   ],
+   "jpeg_qualidade": 70
+  },
+  "medico-046.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-001",
+     "written": "Hemogr."
+    },
+    {
+     "code": "FICT-071",
+     "written": "PCR"
+    },
+    {
+     "code": "FICT-048",
+     "written": "PSA"
+    },
+    {
+     "code": "FICT-057",
+     "written": "GGT"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glic. jejum"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Celina Inventado Ficcional",
+    "cpf": "801.778.886-07",
+    "medico": "Mariana Sentinela",
+    "crm": "239473"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "sombra",
+    "baixa resolução",
+    "pouco contraste"
+   ],
+   "jpeg_qualidade": 29
+  },
+  "medico-047.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    },
+    {
+     "code": "FICT-024",
+     "written": "TSH"
+    },
+    {
+     "code": "FICT-002",
+     "written": "Glicemia"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creat."
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Joaquim Simulado Hipotético",
+    "cpf": "947.523.044-00",
+    "medico": "Heitor Inventado",
+    "crm": "450722"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "desfoque",
+    "papel amassado",
+    "borda cortada"
+   ],
+   "jpeg_qualidade": 34
+  },
+  "medico-048.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-003",
+     "written": "HbA1c"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferrit."
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ur."
+    },
+    {
+     "code": "FICT-055",
+     "written": "TGO"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Otávio Inventado Hipotético",
+    "cpf": "908.608.533-46",
+    "medico": "Joaquim Modelar",
+    "crm": "367276"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "borda cortada",
+    "baixa resolução",
+    "pouco contraste",
+    "ruído",
+    "papel amassado"
+   ],
+   "jpeg_qualidade": 36
+  },
+  "medico-049.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-090",
+     "written": "Urina I"
+    },
+    {
+     "code": "FICT-018",
+     "written": "Ferrit."
+    },
+    {
+     "code": "FICT-004",
+     "written": "Ureia"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creat."
+    },
+    {
+     "code": "FICT-057",
+     "written": "GGT"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Celina Sentinela Sentinela",
+    "cpf": "570.927.725-88",
+    "medico": "Mariana Simulado",
+    "crm": "602072"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "pouco contraste",
+    "desfoque",
+    "baixa resolução",
+    "sombra",
+    "ruído"
+   ],
+   "jpeg_qualidade": 30
+  },
+  "medico-050.jpg": {
+   "estilo": "medico",
+   "exames": [
+    {
+     "code": "FICT-071",
+     "written": "PCR"
+    },
+    {
+     "code": "FICT-005",
+     "written": "Creat."
+    },
+    {
+     "code": "FICT-056",
+     "written": "TGP"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Otávio Exemplar Ficcional",
+    "cpf": "584.435.148-71",
+    "medico": "Heitor Inventado",
+    "crm": "714531"
+   },
+   "degradacao": "foto ruim",
+   "efeitos": [
+    "perspectiva",
+    "pouco contraste",
+    "papel amassado",
+    "sombra",
+    "desfoque",
+    "ruído"
+   ],
+   "jpeg_qualidade": 36
+  }
+ }
+}
