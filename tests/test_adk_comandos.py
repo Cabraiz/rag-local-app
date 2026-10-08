@@ -7,7 +7,9 @@ own process on the folder `cli transpile` writes, offline, with no model call: i
 open its prompt), keep nothing in generated/.adk, and stop. The web server also refuses a Host that is not
 127.0.0.1 or localhost, as a page whose name a DNS rebinding points at 127.0.0.1 sends.
 """
+import errno
 import http.client
+import logging
 import os
 import re
 import shlex
@@ -108,6 +110,34 @@ def web(workdir):
     with TestClient(web_app(str(workdir / 'generated'), '0.0.0.0')) as client:
         yield client
 
+
+
+def test_a_read_only_adk_package_builds_the_web_app_without_its_write_error(workdir, monkeypatch, caplog):
+    # An independent run-through: `python -m runtime.web` printed ADK's "Failed to write runtime config file ...
+    # [Errno 30] Read-only file system" at every start, in the agent's read-only container.
+    from google.adk.cli import api_server
+
+    from runtime import web as launcher
+    tried = []
+
+    def read_only(path, mode='r', *args, **kwargs):
+        if 'w' in mode:
+            tried.append(str(path))
+            raise OSError(errno.EROFS, 'Read-only file system', str(path))
+        return open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(api_server, 'open', read_only, raising=False)
+    disabled = logging.root.manager.disable  # cli.main() turns logging off for its whole process
+    logging.disable(logging.NOTSET)
+    try:
+        web_app(str(workdir / 'generated'), '0.0.0.0')
+        assert 'Failed to write runtime config file' not in caplog.text
+        monkeypatch.setattr(launcher.READ_ONLY_PACKAGE, 'filter', lambda record: True)  # the guard can fail
+        web_app(str(workdir / 'generated'), '0.0.0.0')
+        assert 'Failed to write runtime config file' in caplog.text
+    finally:
+        logging.disable(disabled)
+    assert len(tried) == 2 and tried[0].endswith('runtime-config.json')
 
 @pytest.mark.parametrize('host', ['localhost:8000', '127.0.0.1:8090', 'localhost', '127.0.0.1'])
 def test_localhost_reaches_the_web_app_on_any_port(web, host):

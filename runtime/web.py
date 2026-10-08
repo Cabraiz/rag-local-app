@@ -3,6 +3,7 @@
 A page whose name a DNS rebinding points at 127.0.0.1 sends its own name as Host and gets 400. ADK checks
 Host only on a loopback bind, not on the 0.0.0.0 that Docker needs. Usage: python -m runtime.web generated."""
 import argparse
+import errno
 import logging
 
 import uvicorn
@@ -10,6 +11,22 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from google.adk.cli.fast_api import get_fast_api_app
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+
+class ReadOnlyPackage(logging.Filter):
+    """ADK rewrites assets/config/runtime-config.json inside its own package when the app is built, to add the
+    telemetry answer. The agent's container is read-only, so the write fails and ADK logs an error at every start.
+    It is harmless: the shipped file already has what this server needs (no URL prefix), and the page asks
+    /config/telemetry instead (the image's answer is "no"). Only that failure, on a read-only file system, is dropped."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        error = record.args[-1] if isinstance(record.args, tuple) and record.args else None
+        return not (str(record.msg).startswith('Failed to write runtime config file') and isinstance(error, OSError)
+                    and error.errno == errno.EROFS)
+
+
+READ_ONLY_PACKAGE = ReadOnlyPackage()
+logging.getLogger('google_adk.google.adk.cli.api_server').addFilter(READ_ONLY_PACKAGE)
 
 
 def web_app(agents_dir: str, host: str = '127.0.0.1') -> FastAPI:
