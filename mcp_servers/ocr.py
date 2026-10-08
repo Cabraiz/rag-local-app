@@ -13,6 +13,7 @@ unreadable file before the first model turn. No spec declares it, so no agent se
 import asyncio
 import os
 import re
+import threading
 from collections.abc import Callable
 from pathlib import Path, PureWindowsPath
 from statistics import median
@@ -160,6 +161,16 @@ def unrecognized_request(line: str, masked: str) -> bool:
 
 
 server = MCPServer('ocr-exams', instructions='Extrai o texto de um pedido médico fictício, com PII mascarada.')
+SLOTS, SLOT_WAIT_SECONDS = threading.BoundedSemaphore(3), 20  # images decoded at once (~330 MB at 25 MP), wait for one
+
+
+def in_slot(work: Callable[..., Any], *args: Any) -> Any:  # in the thread: a cancelled call keeps its slot until done
+    if not SLOTS.acquire(timeout=SLOT_WAIT_SECONDS):
+        raise ToolError('OCR ocupado com outras imagens; tente de novo em instantes.')
+    try:
+        return work(*args)
+    finally:
+        SLOTS.release()
 
 
 @server.tool()
@@ -171,7 +182,7 @@ async def extract_exam_text(filename: Annotated[str, or_default('')]) -> dict:
     kind (request, negated, history, uncertain, prep, unrecognized, table), in the same order.
     """
     path = resolve_sample(filename)
-    lines = await asyncio.to_thread(read_lines, path)
+    lines = await asyncio.to_thread(in_slot, read_lines, path)
     joined, sources = join_split_orders(lines)  # once: the guard and the confidence share it
     return {**mask_lines(lines, joined), 'line_confidence': confianca_por_linha(lines, origens=sources)}
 
@@ -184,7 +195,7 @@ async def check_image(filename: Annotated[str, or_default('')]) -> dict:
     For `cli run`, before the first model turn; no agent has it.
     """
     path = resolve_sample(filename)
-    width, height = await asyncio.to_thread(checked_image, path, lambda image: image.size)
+    width, height = await asyncio.to_thread(in_slot, checked_image, path, lambda image: image.size)
     return {'format': FORMATS[path.suffix.lower()], 'width': width, 'height': height}
 
 

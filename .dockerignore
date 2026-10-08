@@ -1,13 +1,53 @@
-.git
-.env
+# An allowlist: the build context is what the repository versions, nothing else of the folder (a
+# .env.local, .local/, a key, a venv). Only the `test` stage copies the whole context (docs/ included:
+# tests/test_readme.py checks the links, paths and numbers in it); every other stage copies only what
+# it runs. A new top-level file or folder of the repository goes here too.
+*
+!.dockerignore
+!.gitignore
+!Dockerfile
+!LICENSE
+!README.md
+!api
+!catalogo.py
+!cli.py
+!constraints.txt
+!data
+!docker-compose.yml
+!docs
+!exemplos
+!generated
+!guardrails
+!mcp_servers
+!pyproject.toml
+!requirements.txt
+!requirements-dev.txt
+!runtime
+!samples
+!specs
+!tests
+!transpiler
+
+# Inside those folders too, what .gitignore keeps out of the repository, and other local secrets and
+# caches (tests/test_endurecimento.py checks every .gitignore pattern is here).
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*credentials*.json
+**/secrets
+**/.local
+**/.venv
+**/venv
 **/__pycache__
 **/*.pyc
-.pytest_cache
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/*.db
+**/*.sqlite3
+**/*.log
+**/docker-compose.override.yml
 generated/*
-*.db
-*.sqlite3
-*.log
-.github
-# docs/ (with its videos and evidence) stay in the context: only the `test` stage copies the
-# whole tree (tests/test_readme.py checks the links, paths and numbers in them); every other stage,
-# the agent included, copies only what it runs.
+# The example env file (no secret: every value empty), read by tests/test_variaveis.py.
+!.env.example
