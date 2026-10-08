@@ -36,7 +36,9 @@ def test_order_image_is_scheduled_with_codes_from_the_catalog(tmp_path, capsys):
     assert cli.main(['transpile', str(SPEC_FILE), '--output', str(agent)]) == 0
     capsys.readouterr()
 
-    status = cli.main(['run', '--image', 'pedido.png', '--agent', str(agent), '--spec', str(SPEC_FILE)])
+    # pytest's stdout is never a terminal, so nobody answers the final [s/N]: --yes, as in any automation.
+    # pedido.png's 3 exams are read clearly, so the rules alone book all of them.
+    status = cli.main(['run', '--image', 'pedido.png', '--agent', str(agent), '--spec', str(SPEC_FILE), '--yes'])
     out, err = capsys.readouterr()
     if 'Gemini indisponível no momento' in err:  # provider overload after 5 attempts, not a code failure
         pytest.skip(err.strip())
