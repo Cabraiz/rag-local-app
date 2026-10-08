@@ -138,7 +138,7 @@ def appointment_lines(appointment: dict[str, Any], left_out: list[Item]) -> list
     if undecided:
         line += (f'; ATENÇÃO: {undecided} possível(is) exame(s) do pedido sem decisão do agente, '
                  'confira os avisos acima')
-    return [*exams, line]
+    return [*exams, '', line]  # the blank line ends the list: in `adk web`'s Markdown the next line would join the last item
 
 
 def listing_lines(order: OrderRecord) -> list[str]:
@@ -146,8 +146,10 @@ def listing_lines(order: OrderRecord) -> list[str]:
     lines = [f'ignorado: {code} não veio de nenhuma busca no catálogo' for code in order.invented or []]
     lines += [f'- {item["name"]} ({item["code"]}), confiança {confidence(item["confidence"])}'
               + (' (confira)' if item['check'] else '') for item in listing]
-    lines.append(f'{len(listing)} exame(s) listado(s); nada foi agendado' if listing
-                 else 'Nenhum exame listado com confiança suficiente; nada foi agendado')
+    if listing:  # a blank line ends the list, as in appointment_lines
+        lines += ['', f'{len(listing)} exame(s) listado(s); nada foi agendado']
+    else:
+        lines.append('Nenhum exame listado com confiança suficiente; nada foi agendado')
     return lines
 
 

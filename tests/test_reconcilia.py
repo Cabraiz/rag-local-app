@@ -176,6 +176,18 @@ def test_without_the_catalog_search_the_report_says_the_order_was_not_checked(ag
     assert 'Aviso: o pedido não foi conferido por inteiro' in relatorio.report(order, True)
 
 
+def test_the_final_message_ends_the_list_of_exams_with_a_blank_line():
+    # An independent run-through: in `adk web`, Markdown joined the appointment line to the last exam of the list.
+    booked = OrderRecord(ocr_lines=['creatinina'], booked_appointment={
+        'id': 'a1', 'status': 'scheduled', 'exams': [{'code': 'FICT-005', 'name': 'Creatinina'}]})
+    assert relatorio.report(booked, True).endswith('\n- Creatinina (FICT-005)\n\nAgendamento confirmado pela API: id a1, '
+                                                   'status scheduled')
+    listed = OrderRecord(ocr_lines=['creatinina'], listing=[{'code': 'FICT-005', 'name': 'Creatinina', 'confidence': 1.0,
+                                                              'check': False}])
+    assert relatorio.report(listed, False).endswith('\n- Creatinina (FICT-005), confiança 1,00\n\n1 exame(s) listado(s); '
+                                                    'nada foi agendado')
+
+
 @pytest.mark.xdist_group('spec-ports')  # the real servers, on the spec's ports: one worker, in turn
 def test_the_pieces_are_searched_on_the_real_rag_server(servers):  # noqa: F811
     spec = load_spec(cli.DEFAULT_SPEC)
