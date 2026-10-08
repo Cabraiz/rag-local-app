@@ -125,7 +125,7 @@ class BookingCallbacks:
                    if need_image else '')
         if problem:
             order.pop('order_invocation', None)  # nothing ran: a corrected message may start the order
-            return said(problem + ' Nada foi lido nem agendado.')
+            return said(problem.rstrip('.') + '. Nada foi lido nem agendado.')
         if need_image:
             order.update({'image_token': entrada.image_token(names[0]), 'image_file': names[0]})
         self.orders.publish(callback_context, order)

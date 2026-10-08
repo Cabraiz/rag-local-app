@@ -131,7 +131,7 @@ class Agent(Strict):
 class AgentSpec(Strict):
     name: str = Field(pattern=IDENTIFIER)
     model: str = Field(pattern=MODEL)
-    # Used by `cli run` only, for a second run when `model` stays unavailable after the retries.
+    # Answers the same request when `model` is overloaded or out of quota (runtime.adk.gemini).
     fallback_model: str | None = Field(default=None, pattern=MODEL)
     servers: dict[str, Server] = Field(min_length=1, max_length=10)
     roles: Roles | None = None  # None: the first spec format, with V1_ROLES
