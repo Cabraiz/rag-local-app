@@ -29,11 +29,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))  # run as a script from the repository root
 
-from catalogo import CATALOG, words  # noqa: E402
+from catalogo import catalog, words  # noqa: E402
 from mcp_servers.rag import search_line  # noqa: E402
 
 AMOSTRAS = ROOT / 'samples' / 'manuscritos'
 CAIXAS = ROOT / 'exemplos' / 'manuscritos-linhas.json'
+CATALOG = catalog()
 NOME = {exam['name']: exam['code'] for exam in CATALOG}
 # Abreviações comuns em pedidos escritos à mão, só no prompt (o catálogo e a busca não mudam).
 ABREVIACOES = {'FICT-001': ['HMG', 'Hemog'], 'FICT-002': ['Gli jj', 'GJ'], 'FICT-004': ['Ur'], 'FICT-005': ['Cr'],
@@ -78,18 +79,15 @@ def ler_linha(servidor, recorte):
 
 def tesseract(caminho):
     """Exames agendados sozinhos pelo caminho atual do OCR, como na regra do agente."""
-    from guardrails.injection import join_split_orders
     from mcp_servers import ocr
-    from mcp_servers.preprocessamento import confianca_por_linha
     from runtime.confianca import BookingPolicy
     politica, agendados = BookingPolicy(), set()
     try:
         linhas = ocr.read_lines(caminho)
     except Exception:  # foto recusada pelas checagens de qualidade: nada é lido
         return agendados
-    juntas, origens = join_split_orders(linhas)
-    lidas = ocr.mask_lines(linhas, juntas)
-    for linha, tipo, conf in zip(lidas['lines'], lidas['line_intent'], confianca_por_linha(linhas, origens=origens), strict=True):
+    lidas = ocr.mask_lines(linhas)
+    for linha, tipo, conf in zip(lidas['lines'], lidas['line_intent'], lidas['line_confidence'], strict=True):
         for hit in search_line(linha[:200], 3) if tipo == 'request' and words(linha) else []:
             piso = politica.ocr_floor(words(hit.get('piece', linha)), words(hit['name']))
             if not hit.get('partial') and hit['score'] >= politica.min_confidence and conf >= piso:

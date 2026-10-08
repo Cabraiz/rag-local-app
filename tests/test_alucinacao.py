@@ -375,11 +375,11 @@ REVIEW_CODES = {'Hemograma completo': 'FICT-001', 'TSH': 'FICT-024', 'Ferritina'
 
 def test_exams_the_order_says_not_to_do_are_never_booked(run, services, monkeypatch):
     from mcp_servers import ocr
-    from mcp_servers.preprocessamento import Linha
+    from mcp_servers.preprocessamento import OcrLine
     shutil.copy(services.parent / 'samples' / IMAGE, services.parent / 'samples' / NEGATED)
     real = ocr.read_lines
     # The OCR server reads these lines from the image (the rest of its step, mask and intents, is real).
-    monkeypatch.setattr(ocr, 'read_lines', lambda path: [Linha(line, 94) for line in REVIEW]
+    monkeypatch.setattr(ocr, 'read_lines', lambda path: [OcrLine(line, 94) for line in REVIEW]
                         if path.name == NEGATED else real(path))
     names = list(REVIEW_CODES)
     search = [[('search_exams', {'query': name}) for name in names],

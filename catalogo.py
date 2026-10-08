@@ -1,17 +1,8 @@
-"""The exam catalog and how text is compared with it: one matcher (ExamMatcher) shared by the RAG search
-(mcp_servers/rag.py), the PII mask (guardrails/pii.py) and the intent rules (guardrails/intent.py), so none of
-them imports another or keeps its own copy of the catalog.
-
-The knowledge base is data/exams.json (120 fictional exams, each with a name and synonyms).
-The query and every name or synonym are normalized (accents and case removed) and compared
-with two simple, explainable signals from the standard library:
-  - shared words (Jaccard overlap): "glicemia jejum" ~ "glicemia de jejum";
-  - character similarity (difflib): tolerates OCR typos such as "hemograma compieto".
-The best signal is the score. A single word is an exam word when it is one, or one OCR error
-from one by the Tolerance of the reader that asks (LIST_WORD, NOT_A_NAME, MAY_LEAVE).
-
-The API (api/main.py) is a separate service whose image does not carry this module: it
-reads the codes and names from the same data/exams.json on its own.
+"""The exam catalog (data/exams.json: fictional exams, names and synonyms), how text is compared with it, and the
+vocabularies every reader of an order shares. One ExamMatcher serves the RAG search, the PII mask and the page rules,
+so none keeps its own copy. A score is the better of two explainable signals: shared words (Jaccard: "glicemia jejum"
+~ "glicemia de jejum") and character similarity (difflib: "hemograma compieto"). A word is an exam word when it is
+one, or one OCR error from one by the Tolerance of the reader that asks. The API reads data/exams.json on its own.
 """
 import difflib
 import functools
@@ -56,9 +47,8 @@ def normalize(text: str) -> str:
     return ' '.join(EXPANSIONS.get(word, word) for word in words(text.casefold().translate(GREEK)).split())
 
 
-# Shared by every reader of an order (the OCR's guards, the RAG search, the booking runtime). A list marker
-# before the first exam: "1)", "2.", "-", "•"; never the "25-" of "25-OH vitamina D". The connectives
-# between the words of a line, and the antibody classes (a class names a different exam: "Chagas IgM").
+# Shared by every reader of an order (the OCR's guards, the RAG search, the runtime), each written once; the OCR's own
+# are in guardrails/pii_rules.py. A list marker: "1)", "2.", "-", "•", never the "25-" of "25-OH vitamina D".
 CONNECTIVES = frozenset(('a', 'o', 'as', 'os', 'e', 'de', 'da', 'do', 'das', 'dos', 'em', 'no', 'na', 'com', 'sem', 'para',
                          'por'))
 CLASSES = frozenset(('iga', 'igg', 'igm', 'ige'))
@@ -68,13 +58,32 @@ EXAM_MODIFIERS = frozenset(('ultrassensivel', 'ultra', 'sensivel', 'fracoes', 'f
                             'serico', 'serica', 'soro', 'plasma', 'sangue', 'urina', 'jejum', 'basal', 'dosagem', 'pesquisa',
                             'contagem', 'quantitativo', 'quantitativa', 'qualitativo', 'qualitativa', 'completo',
                             'completa', 'automatizado', 'colesterol'))
-# What may stand next to an exam on a line that books alone (guardrails/intent.py): its qualifiers, the
-# sample, a type ("Urina tipo I", "HIV 1 e 2", "Vitamina B12 e D"), a fasting time, routine or follow-up,
-# the disease a serology is for ("IgG para toxoplasmose", "Doença de Chagas IgG", "Hepatite A IgM").
-QUALIFIERS = EXAM_MODIFIERS | {'e', 'de', 'do', 'da', 'em', 'com', 'para', 'tipo', 'i', 'ii', '1', '2', 'a', 'b', 'c', 'd',
-                               'igg', 'igm', 'iga', 'ige', 'rotina', 'controle', 'urgente', 'h', 'hs', 'hrs', 'hora',
-                               'horas', 'manha', 'pos', 'prandial', 'isolada', 'amostra', 'sorologia', 'doenca',
-                               'hepatite', 'hav', 'imunoglobulina', 'imunoglobulinas'}
+FOLLOW_UP = frozenset(('rotina', 'controle', 'urgente'))  # when, never which exam: no help to the search
+# What may stand next to an exam on a line that books alone: its qualifiers, sample, type ("Urina tipo I", "HIV 1 e 2"),
+# a fasting time, follow-up, the disease of a serology ("IgG para toxoplasmose", "Hepatite A IgM").
+QUALIFIERS = EXAM_MODIFIERS | CLASSES | FOLLOW_UP | {
+    'e', 'de', 'do', 'da', 'em', 'com', 'para', 'tipo', 'i', 'ii', '1', '2', 'a', 'b', 'c', 'd', 'h', 'hs', 'hrs', 'hora',
+    'horas', 'manha', 'pos', 'prandial', 'isolada', 'amostra', 'sorologia', 'doenca', 'hepatite', 'hav', 'imunoglobulina',
+    'imunoglobulinas'}
+# The first word of a label before ":", by what follows it: a list of exams, a note around them, clinical data,
+# personal data (runtime/reconcilia.py; guardrails/pii_rules.py builds the OCR's page labels on them).
+LIST_LABELS = frozenset(('exame', 'exames', 'solicito', 'solicitacao', 'solicitados', 'solicitamos', 'pedido', 'pedidos',
+                         'requisicao', 'realizar'))
+NOTE_LABELS = frozenset(('obs', 'observacao', 'observacoes', 'orientacao', 'orientacoes', 'preparo'))
+CLINICAL_LABELS = frozenset(('indicacao', 'diagnostico', 'hipotese', 'cid'))
+DATA_LABELS = frozenset(('paciente', 'nome', 'data', 'nascimento', 'medico', 'medica', 'dr', 'dra', 'crm', 'rg', 'cpf',
+                         'cns', 'convenio', 'endereco', 'telefone', 'celular', 'email', 'assinatura', 'carimbo', 'local'))
+# Every marker the OCR leaves: a value masked by type ([CPF]) or a removal ([TEXTO_REMOVIDO]); pii_rules.TYPED_TAG.
+MASK_TAG = re.compile(r'\[[A-Z_]+\]')
+MAX_QUERY_LENGTH = 200  # the catalog search's longest query (mcp_servers/rag.py); the runtime cuts a line there
+# The "e" the OCR glues to the word next to it ("TSHe T4", "TSH eT4"): a word is an exam word without it (exam_word),
+# the search cuts the line there (rag.unglue), and a word read is its query word plus up to GLUED_LETTERS (confianca).
+GLUED_LETTERS = 2
+
+
+def glued_e(word: str) -> tuple[str, str]:
+    """(the word without an "e" glued to its end, without one glued to its start): "TSHe" -> ("TSH", '')."""
+    return word[:-1] if word[-1:] in ('e', 'E') else '', word[1:] if word[:1] in ('e', 'E') else ''
 
 
 def load_catalog(path: Path = CATALOG_PATH) -> list[dict]:
@@ -89,13 +98,6 @@ def catalog() -> list[dict]:
     only words()). The servers read it at import, building matcher() in guardrails/ and mcp_servers/rag.py: they need
     it anyway, and the read happens once, on one thread, before any request."""
     return load_catalog()
-
-
-def __getattr__(name: str) -> list[dict]:
-    """`catalogo.CATALOG` (and `from catalogo import CATALOG`) is catalog(), read on first use."""
-    if name == 'CATALOG':
-        return catalog()
-    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
 
 
 def similarity(query: str, term: str) -> float:
@@ -165,5 +167,5 @@ def exam_word(word: str) -> bool:
     """A word (fold()) of a list line that belongs to its exams: a qualifier, an exam word, one with the connective
     "e" the OCR glued to it ("TSHe", "eT4"), or one OCR error from an exam word (LIST_WORD)."""
     exams = matcher()
-    glued = (word[:-1] if word.endswith('e') else '', word[1:] if word.startswith('e') else '')
-    return word in QUALIFIERS or bool({word, *glued} & exams.vocabulary) or (word.isalpha() and exams.is_exam_word(word, LIST_WORD))
+    return word in QUALIFIERS or bool({word, *glued_e(word)} & exams.vocabulary) or (
+        word.isalpha() and exams.is_exam_word(word, LIST_WORD))

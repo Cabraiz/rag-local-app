@@ -606,11 +606,11 @@ def test_honest_runs_raise_no_false_alarm(agent):
         book(agent, context, *proposed)
         alarms.extend((lines, item['code']) for item in context.state['low_confidence'] if item['reason'] == 'omitted')
 
-    for exam in catalogo.CATALOG:
+    for exam in catalogo.catalog():
         for term in [exam['name'], *exam['synonyms']]:
             words = [word for word in re.findall(r'\w+', term) if len(word) >= 3]
             run([f'- {term}'], [term, exam['name'], *words], [best_of(term)])
-    rng, names = random.Random(7), [exam['name'] for exam in catalogo.CATALOG]
+    rng, names = random.Random(7), [exam['name'] for exam in catalogo.catalog()]
     for _ in range(300):
         picked = rng.sample(names, 3)
         words = [word for name in picked for word in re.findall(r'\w+', name) if len(word) >= 3]

@@ -229,8 +229,8 @@ def test_a_connective_written_apart_splits_as_before(line, pieces):
 
 
 def test_no_name_or_synonym_of_the_catalog_is_cut_as_a_glued_connective():
-    from catalogo import CATALOG
-    names = [term for exam in CATALOG for term in [exam['name'], *exam['synonyms']]]
+    from catalogo import catalog
+    names = [term for exam in catalog() for term in [exam['name'], *exam['synonyms']]]
     assert [name for name in names if rag.unglue(name) != ([name], [])] == []
 
 

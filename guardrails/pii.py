@@ -1,9 +1,8 @@
 """Mask personal data (PII) in OCR text before it leaves the OCR server.
 
-mask(text) returns (masked text, count per type), for example "Paciente: Maria Souza" -> ("Paciente: [NOME]",
-{"NOME": 1}); mask_page(lines) does the same for the lines of an order. Nothing here raises: masking must never stop
-the flow. Types: NOME, CPF, RG, TELEFONE, EMAIL, DATA and CRM (the project's interface contract), plus ENDERECO, SUS,
-PRONTUARIO, CID, CLINICO, CONVENIO and IDADE. The rules, in the order they run on each line:
+mask(text) -> (masked text, count per type): "Paciente: Maria Souza" -> ("Paciente: [NOME]", {"NOME": 1}); mask_page
+does it for an order's lines. Nothing raises. Types: NOME, CPF, RG, TELEFONE, EMAIL, DATA, CRM, ENDERECO, SUS, PRONTUARIO,
+CID, CLINICO, CONVENIO and IDADE. The rules (word lists and regexes in pii_rules.py), in the order they run:
 1. PATTERNS, one regex per type, most specific first. The sensitive part is the group named "value..."; a label
    before it stays ("CPF: [CPF]"). Each regex also accepts what the OCR does to it: "," for ".", "@" read as "g"...
 2. Names, word by word (mask_names): a. after a name label ("Paciente:", "Dr.", "Sr(a)."), the rest of the line up
@@ -20,14 +19,13 @@ PRONTUARIO, CID, CLINICO, CONVENIO and IDADE. The rules, in the order they run o
 5. mask_page, by shape (shaped): a capitalized word next to a masked name or an initial is the name's ("Érica Ferro",
    "E. Ferro"), and after an exam's name a number or a capitalized word that is neither part of an exam's name nor a
    qualifier goes ("Glicemia 1234567 mg/dl", "Ureia (11)", "TSH Franco"; "25(OH)D", "Vitamina B12" stay).
-The regexes and word lists are in guardrails/pii_rules.py; this module is the engine.
 """
 import difflib
 import functools
 import re
 
 import catalogo
-from catalogo import MAY_LEAVE, MIN_SCORE, NOT_A_NAME, QUALIFIERS, fold, plain, words
+from catalogo import MASK_TAG, MAY_LEAVE, MIN_SCORE, NOT_A_NAME, QUALIFIERS, fold, plain, words
 from guardrails import pii_rules as rules
 
 MATCHER = catalogo.matcher()  # the RAG's own: what it finds may leave. Read at import: without it, no name is told from an exam
@@ -61,14 +59,14 @@ def kind(word: str, label: bool = False, line_exams: frozenset[str] = frozenset(
 
 def mask_names(line: str, counts: dict[str, int]) -> str:
     """Rules 2a and 2b of the module docstring, on one line."""
-    tagged = [match.span() for match in rules.TAG.finditer(line)]
+    tagged = [match.span() for match in rules.TYPED_TAG.finditer(line)]
     exams = exams_on(line)
     line_exams = frozenset(word for term in exams for word in term.split())
     items = [(match.start(), match.end(), kind(match.group(), is_label(line, match), line_exams))
              for match in rules.WORD.finditer(line) if not any(start <= match.start() < end for start, end in tagged)]
     spans = labelled_names(line, items) or names_next_to_exam(line, items, exams)
     for start, end in sorted(spans, reverse=True):
-        line = line[:start] + '[NOME]' + line[end:]
+        line = line[:start] + rules.NAME_TAG + line[end:]
         counts['NOME'] = counts.get('NOME', 0) + 1
     return line
 
@@ -77,7 +75,7 @@ def is_label(line: str, match: re.Match) -> bool:
     """A label, not a name: the first word before ":" ("Contato: Maria"), or a field name right
     before a masked value ("CPF [CPF]", "Nascimento [DATA]")."""
     after = line[match.end():]
-    return bool((fold(match.group()) in rules.FIELD_NAMES and re.match(r'[ \t]*[:;.]?[ \t]*\[[A-Z]+\]', after))
+    return bool((fold(match.group()) in rules.FIELD_NAMES and re.match(r'[ \t]*[:;.]?[ \t]*' + rules.TYPED_TAG.pattern, after))
                 or (not line[:match.start()].strip() and re.match(r'[ \t]*:', after)))
 
 
@@ -91,7 +89,7 @@ def labelled_names(line, items):
         if spans and begin <= spans[-1][1]:
             continue  # "Médico: Dr. Carlos": "Dr." is inside the name already found
         stop = min([len(line), *(found.start() for found in (rules.NEXT_LABEL.search(line, begin),
-                                                            rules.TAG.search(line, begin)) if found)])
+                                                            rules.TYPED_TAG.search(line, begin)) if found)])
         region = [(start, end, k) for start, end, k in items if begin <= start and end <= stop]
         if (colon or title) and region and region[0][2] in ('name', 'other', 'exam') and any(k == 'exam' for *_, k in region):
             spans += whole_name(region)  # "Paciente: Albina Ferro": a surname that is also an exam word
@@ -185,7 +183,7 @@ def mask_page(lines: list[str]) -> tuple[list[str], dict[str, int]]:
         if split_cpf and rest:
             safe = safe[:rest.start('part')] + '[CPF]' + safe[rest.end('part'):]
         masked.append(shaped(only_what_may_leave(safe, found)))
-        written, left = (re.findall(r'\[([A-Z_]+)\]', text) for text in (line, masked[-1]))
+        written, left = ([tag[1:-1] for tag in MASK_TAG.findall(text)] for text in (line, masked[-1]))
         for kind_ in COUNTED:
             amount = left.count(kind_) - written.count(kind_) - (kind_ == 'CPF' and split_cpf)
             if amount > 0:
@@ -195,13 +193,13 @@ def mask_page(lines: list[str]) -> tuple[list[str], dict[str, int]]:
 
 def shaped(line: str) -> str:
     """Rule 5 of the module docstring, on a line the safety net already went through."""
-    line = rules.NAME_TAIL.sub('[NOME]', line)
+    line = rules.NAME_TAIL.sub(rules.NAME_TAG, line)
     text = plain(line)
     spans = [match.span() for match in MATCHER.pattern.finditer(text)]
     loose = [token.span() for token in rules.TOKEN.finditer(line, spans[0][0] if spans else len(line)) if goes(token, text, spans)]
     for start, end in reversed(loose):  # a run of them, with only marks between ("4.500.000"), is one piece
-        joined = re.match(r'[ \t.,/-]*(?=\[TEXTO_REMOVIDO\])', line[end:])
-        line = line[:start] + ('' if joined else '[TEXTO_REMOVIDO]') + line[end + (joined.end() if joined else 0):]
+        joined = re.match(r'[ \t.,/-]*(?=' + re.escape(rules.REMOVED_TAG) + ')', line[end:])
+        line = line[:start] + ('' if joined else rules.REMOVED_TAG) + line[end + (joined.end() if joined else 0):]
     return line
 
 
@@ -237,7 +235,7 @@ def only_exam_words(piece: str, counts: dict[str, int]) -> str:
     tokens = list(re.finditer(r'[^\s-]+', piece))  # "Ferritina-naorealizar": the exam stays, the rest goes
     long_numbers, named = [match.span() for match in rules.LONG_NUMBER.finditer(piece)], after_the_name(tokens)
     outside = [token for token in tokens
-               if token in named or not rules.TAG.fullmatch(token.group()) and not the_exams(piece, token, long_numbers)]
+               if token in named or not rules.TYPED_TAG.fullmatch(token.group()) and not the_exams(piece, token, long_numbers)]
     # An exam word the OCR split in two ("Colesti erol total"): glued again, it is exam-like, and stays.
     split = {index for index, (first, second) in enumerate(zip(outside, outside[1:], strict=False))
              if not piece[first.end():second.start()].strip() and exam_like(words(first.group() + second.group()))}
@@ -249,9 +247,7 @@ def only_exam_words(piece: str, counts: dict[str, int]) -> str:
         else:
             runs.append([token])
     for run in reversed(runs):
-        tag = 'NOME' if has_first_name(' '.join(token.group() for token in run)) else 'TEXTO_REMOVIDO'
-        counts[tag] = counts.get(tag, 0) + 1
-        piece = piece[:run[0].start()] + f'[{tag}]' + piece[run[-1].end():]
+        piece = piece[:run[0].start()] + counted_tag(' '.join(token.group() for token in run), counts) + piece[run[-1].end():]
     return piece
 
 
@@ -297,7 +293,7 @@ def short_exam_word(word: str) -> bool:
 def is_structure(piece: str) -> bool:
     """Only the order's structure around masked values, or what it says of its exams: "CPF: [CPF]", "não precisa"."""
     return all(word in rules.STRUCTURE or (word.isdigit() and len(word) <= 2) or visible(word)
-               for word in words(rules.TAG.sub(' ', piece)).split()) and not rules.LONG_NUMBER.search(piece)
+               for word in words(rules.TYPED_TAG.sub(' ', piece)).split()) and not rules.LONG_NUMBER.search(piece)
 
 
 def short_cue(piece: str, token: re.Match[str]) -> bool:
@@ -314,7 +310,7 @@ def may_leave(piece: str) -> bool:
     """Structure, an exam (a whole name or only exam words), or as close to one as the RAG accepts with an exam-like
     word in it ("Hemogrma compieto"; not "MARIA DO RIBEIRO", 0.6 from "Hormônio do crescimento"). One word alone must
     be exam-like or start an exam word: "Lima" stops, "Ferrit." stays."""
-    text = rules.TAG.sub(' ', piece)
+    text = rules.TYPED_TAG.sub(' ', piece)
     rest = words(text).split()
     if is_structure(piece) or exams_on(text) or all(word in VOCABULARY or word in rules.STRUCTURE for word in rest):
         return True  # "D ultrassensível" of "25(OH)D ultrassensível" is only exam words
@@ -348,9 +344,14 @@ def removed(piece: str, counts: dict[str, int]) -> str:
     return ''.join(out)
 
 
-def replaced(piece: str, counts: dict[str, int]) -> str:
-    """[NOME] if the piece has a common first name, else [TEXTO_REMOVIDO]; marks around it stay."""
-    tag = 'NOME' if has_first_name(piece) else 'TEXTO_REMOVIDO'
+def counted_tag(text: str, counts: dict[str, int]) -> str:
+    """[NOME] if removed text has a common first name, else [TEXTO_REMOVIDO]; counted."""
+    tag = 'NOME' if has_first_name(text) else 'TEXTO_REMOVIDO'
     counts[tag] = counts.get(tag, 0) + 1
+    return f'[{tag}]'
+
+
+def replaced(piece: str, counts: dict[str, int]) -> str:
+    """counted_tag() of the piece; marks around it stay."""
     before, after = rules.MARKS_BEFORE.match(piece), rules.MARKS_AFTER.search(piece)  # both always match, maybe empty
-    return (before.group() if before else '') + f'[{tag}]' + (after.group() if after else '')
+    return (before.group() if before else '') + counted_tag(piece, counts) + (after.group() if after else '')

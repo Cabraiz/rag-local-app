@@ -1,4 +1,4 @@
-"""Tool arguments of the wrong type get one clear sentence, not the SDK's validation dump.
+"""Tool arguments of the wrong type get one clear sentence, not the SDK's validation dump; and how both servers start.
 
 The MCP SDK validates a tool's arguments with pydantic before calling it, and a value of
 the wrong type (filename=123, query=None) came back as "1 validation error for ...". With
@@ -8,6 +8,7 @@ then refuses in Portuguese. What a peer sends never reaches a log either (quiet_
 """
 import logging
 
+from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import ValidationError, WrapValidator
 
 
@@ -35,3 +36,21 @@ def quiet_logs(*tools: str) -> None:
         return made
     logging.setLogRecordFactory(record)
     logging.getLogger('mcp.server.sse').setLevel(logging.ERROR)
+
+
+# uvicorn and the MCP client's pool both drop idle connections after 5 s: a POST sent then never returned (python-sdk #906).
+KEEP_ALIVE_SECONDS = 75
+
+
+def transport_security(host: str) -> TransportSecuritySettings:
+    """Only `host` (the server's name and port on the compose network) and localhost may reach it: no DNS rebinding."""
+    return TransportSecuritySettings(enable_dns_rebinding_protection=True, allowed_origins=[],
+                                     allowed_hosts=[host, 'localhost:*', '127.0.0.1:*'])
+
+
+def serve(server, security: TransportSecuritySettings, port: int, *tools: str) -> None:
+    """Run an MCP server over SSE, its logs keeping no value a peer sent (quiet_logs)."""
+    import uvicorn
+    quiet_logs(*tools)
+    uvicorn.run(server.sse_app(transport_security=security, host='0.0.0.0'), host='0.0.0.0', port=port,
+                timeout_keep_alive=KEEP_ALIVE_SECONDS, log_level=server.settings.log_level.lower())

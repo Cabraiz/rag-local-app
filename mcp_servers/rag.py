@@ -11,14 +11,13 @@ from typing import Annotated
 
 from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
-from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import JSONResponse
 
-from catalogo import CLASSES, CONNECTIVES, LIST_MARKER, MIN_SCORE, QUALIFIERS, matcher, normalize
-from mcp_servers.arguments import or_default, quiet_logs
+import catalogo
+from catalogo import CLASSES, CONNECTIVES, LIST_MARKER, MAX_QUERY_LENGTH, MIN_SCORE, QUALIFIERS, matcher, normalize
+from mcp_servers.arguments import or_default, serve, transport_security
 
 MAX_TOP_K = 10
-MAX_QUERY_LENGTH = 200
 MATCHER = matcher()  # the catalog, read when this module is imported
 
 
@@ -97,8 +96,9 @@ def glued(word: str, without: str, with_e: str, other: str) -> bool:
     ("Lipase", "Sangue"), its side without the "e" is a name from COMPLETED and better than with it ("TSH" 1,00,
     "TSHe" 0,86) and the other side is an exam alone (OWN_EXAM). The piece keeps the "e": "TSHe" is TSH at 0,86."""
     without, with_e, other = (LIST_MARKER.sub('', text) for text in (without, with_e, other))  # "1) TSHe T4"
-    if normalize(word) in MATCHER.vocabulary or len(normalize(word).replace(' ', '')) < 3 \
-            or not normalize(without) or not normalize(other):
+    if normalize(word) in MATCHER.vocabulary or len(normalize(word).replace(' ', '')) < 3:
+        return False
+    if not normalize(without) or not normalize(other):
         return False
     score = best_score(without)
     return score >= COMPLETED and score > best_score(with_e) and best_score(other) >= OWN_EXAM
@@ -107,13 +107,13 @@ def glued(word: str, without: str, with_e: str, other: str) -> bool:
 def unglue(part: str) -> tuple[list[str], list[str]]:
     """(pieces, the spaces between them) of a part of a line without separators, cut where the OCR
     glued an "e" to the end of a word ("TSHe | T4 livre") or to the start of the next one ("TSH |
-    eT4 livre"). A part with no such word is one piece."""
+    eT4 livre"): catalogo.glued_e. A part with no such word is one piece."""
     pieces, between, start = [], [], 0
     tokens = list(re.finditer(r'\S+', part))
     for before, after in itertools.pairwise(tokens):
         left, right = part[start:before.end()], part[after.start():]
-        if (before.group()[-1] in 'eE' and glued(before.group(), left[:-1], left, right)) or \
-                (after.group()[0] in 'eE' and glued(after.group(), right[1:], right, left)):
+        ends_glued = bool(catalogo.glued_e(before[0])[0]) and glued(before[0], left[:-1], left, right)
+        if ends_glued or bool(catalogo.glued_e(after[0])[1]) and glued(after[0], right[1:], right, left):
             pieces.append(left)
             between.append(part[before.end():after.start()])
             start = after.start()
@@ -164,10 +164,9 @@ def partial(text: str, previous: str | None, code: str, line: set, complete: set
 
 
 def search_line(query: str, top_k: int = 3) -> list[dict]:
-    """search() for every exam of the line: a line of one piece, or of only separators, is searched whole; otherwise each
-    piece gets its own top_k hits with its 'piece' as written, completed by its neighbour when it is part of that exam
-    ("IgM" after "Toxoplasmose IgG"), a sample or a time ("urina 24h") is not searched, and the hits of a piece that is
-    only part of an exam the line names are marked 'partial': only reported, never booked nor asked."""
+    """search() for every exam of the line, a line of one piece whole: each piece gets its own top_k hits, completed by
+    its neighbour when part of its exam ("IgM" after "Toxoplasmose IgG"); a sample or a time ("urina 24h") is not
+    searched, and a piece only part of an exam the line names is 'partial': only reported, never booked nor asked."""
     if isinstance(query, str) and len(query) > MAX_QUERY_LENGTH:
         raise ToolError(f'Consulta longa demais (máximo {MAX_QUERY_LENGTH} caracteres).')
     pieces = split_exams(query, short=True) if isinstance(query, str) else []
@@ -178,14 +177,28 @@ def search_line(query: str, top_k: int = 3) -> list[dict]:
         shortened = len(normalize(piece).replace(' ', '')) < 2  # only as the ending of the name before it
         found = [] if shortened else search(piece, top_k)
         weak = not found or found[0]['score'] < OWN_EXAM
-        whole = (ahead(pieces[index - 1], piece, weak) if index else None) or \
-            (None if shortened or index + 1 == len(pieces) else behind(piece, pieces[index + 1])) or \
-            (None if shortened or not found or found[0]['score'] == 1.0 else exact(piece))
+        whole = completed(pieces, index, found, weak, shortened)
         if whole:
             found = search(whole, top_k)
         elif shortened or (weak and qualifier(piece) and len(pieces) > 1):  # "Urina 24h: proteinuria e ..."
             continue
         searched.append((piece, whole or piece, found))
+    return marked_partial(query, searched)
+
+
+def completed(pieces: list[str], index: int, found: list[dict], weak: bool, shortened: bool) -> str | None:
+    """The piece completed by its neighbour into its exam (ahead, behind), else its catalog name (exact), or None."""
+    piece = pieces[index]
+    whole = ahead(pieces[index - 1], piece, weak) if index else None
+    if whole or shortened:
+        return whole
+    if index + 1 < len(pieces) and (whole := behind(piece, pieces[index + 1])):
+        return whole
+    return exact(piece) if found and found[0]['score'] != 1.0 else None
+
+
+def marked_partial(query: str, searched: list[tuple[str, str, list[dict]]]) -> list[dict]:
+    """The hits of each piece searched, with its 'piece' as written and, when partial(), 'partial'."""
     line = set(normalize(query).split())
     named = [set(normalize(text).split()) for _, text, found in searched
              if found and found[0]['score'] >= COMPLETED and found[0]['code'] not in GENERIC]
@@ -218,14 +231,7 @@ async def health(request):
     return JSONResponse({'status': 'ok', 'exams': len(MATCHER.exams)})
 
 
-SECURITY = TransportSecuritySettings(enable_dns_rebinding_protection=True, allowed_origins=[],
-                                     allowed_hosts=['rag:8002', 'localhost:*', '127.0.0.1:*'])
-
-# uvicorn and the MCP client's pool both drop idle connections after 5 s: a POST sent then never returned (python-sdk #906).
-KEEP_ALIVE_SECONDS = 75
+SECURITY = transport_security('rag:8002')
 
 if __name__ == '__main__':
-    import uvicorn
-    quiet_logs('search_exams')
-    uvicorn.run(server.sse_app(transport_security=SECURITY, host='0.0.0.0'), host='0.0.0.0', port=8002,
-                timeout_keep_alive=KEEP_ALIVE_SECONDS, log_level=server.settings.log_level.lower())
+    serve(server, SECURITY, 8002, 'search_exams')

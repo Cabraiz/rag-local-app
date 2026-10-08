@@ -59,7 +59,7 @@ def test_the_mcp_logs_keep_no_file_name_peer_id_or_traceback(quiet, caplog):
 @pytest.mark.parametrize('module', [ocr, rag])
 def test_each_server_quiets_its_logs_naming_its_own_tools(module):
     source = Path(module.__file__).read_text(encoding='utf-8')
-    [called] = re.findall(r"quiet_logs\(([^)]*)\)", source.split("if __name__ == '__main__':")[1])
+    [called] = re.findall(r"serve\(server, SECURITY, \d+, ([^)]*)\)", source.split("if __name__ == '__main__':")[1])
     tools = [tool.name for tool in asyncio.run(module.server.list_tools())]
     assert sorted(re.findall(r"'([^']+)'", called)) == sorted(tools)
 
@@ -84,7 +84,7 @@ def test_a_decompression_bomb_is_refused_from_its_header(tmp_path, monkeypatch):
 def test_what_pillow_raises_on_a_hostile_image_ends_in_one_sentence(monkeypatch, error):
     def hostile(image):
         raise error
-    monkeypatch.setattr(ocr, 'sobre_branco', hostile)
+    monkeypatch.setattr(ocr, 'on_white', hostile)
     monkeypatch.setattr(ocr, 'SAMPLES_DIR', ROOT / 'samples')
     with pytest.raises(ToolError) as refused:
         ocr.read_lines(ocr.resolve_sample('pedido.png'))

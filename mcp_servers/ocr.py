@@ -1,20 +1,14 @@
 """OCR step of the pipeline: an MCP server over SSE (port 8001, path /sse).
 
-Reads a fictional request image from /data/samples (read-only volume), runs
-Tesseract in Portuguese and masks PII on every line with guardrails.pii.mask_page
-BEFORE returning. The raw text never leaves this process, so names, documents
-and contacts never reach the LLM. Lines that read as orders to the model
-(prompt injection) are taken out first and counted in instructions_removed;
-what is left of them does not look like an exam, so it leaves as [TEXTO_REMOVIDO].
-
-check_image runs every check of the reading but Tesseract, so `cli run` refuses a missing or
-unreadable file before the first model turn. No spec declares it, so no agent sees it (tool_filter).
+Reads a fictional order image from /data/samples (read-only), runs Tesseract in Portuguese, takes out the orders to
+the model and masks the PII on every line BEFORE returning: the raw text never leaves this process. check_image runs
+every check but Tesseract, so `cli run` refuses a bad file before the first model turn; no agent has it (tool_filter).
 """
 import asyncio
 import os
 import re
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path, PureWindowsPath
 from statistics import median
 from typing import Annotated, Any
@@ -22,18 +16,17 @@ from typing import Annotated, Any
 import pytesseract
 from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
-from mcp.server.transport_security import TransportSecuritySettings
 from PIL import Image, UnidentifiedImageError
 from starlette.responses import JSONResponse
 
-from catalogo import EXAM_MODIFIERS, LIST_MARKER, MIN_SCORE, QUALIFIERS, matcher, words
+from catalogo import EXAM_MODIFIERS, LIST_MARKER, MASK_TAG, MIN_SCORE, QUALIFIERS, matcher, words
 from guardrails import intent
 from guardrails.injection import MARKER, join_split_orders, neutralize_joined
 from guardrails.pii import exam_like, exams_on, mask_page
-from guardrails.pii_rules import STRUCTURE
-from leitura import VERSION, OcrReading
-from mcp_servers.arguments import or_default, quiet_logs
-from mcp_servers.preprocessamento import ImagemGirada, confianca_por_linha, ler_linhas, sobre_branco
+from guardrails.pii_rules import NAME_TAG, REMOVED_TAG, STRUCTURE
+from leitura import NOT_ANCHORS, VERSION, OcrReading
+from mcp_servers.arguments import or_default, serve, transport_security
+from mcp_servers.preprocessamento import OcrLine, SidewaysImage, on_white, read_ocr_lines
 from mcp_servers.qualidade import quality_problem
 
 # One thread per Tesseract run: requests already run in parallel, and with OpenMP's
@@ -48,6 +41,8 @@ OCR_TIMEOUT_SECONDS = 30
 # reading_marks: a gap of GAP letter heights ends a block; letters under SMALL of the page's, or LIGHT tones lighter.
 GAP, SMALL, LIGHT = 1.5, 0.6, 100
 NAMES = {term: exam['name'] for term, exam in matcher().written.items()}  # exam_terms
+ASKED_KINDS = ('request', 'uncertain', 'table', 'form')  # a line whose exams are booked or asked (leitura.Intent)
+NOT_SUSPECT = 100.0  # the reading of a line without one of its own, for clean_page
 
 
 def resolve_sample(filename: str) -> Path:
@@ -69,9 +64,9 @@ def resolve_sample(filename: str) -> Path:
     return path
 
 
-def read_lines(path: Path) -> list[str]:
-    """Run Tesseract (Portuguese) and return the non-empty text lines, each a str with .confianca (0-100)."""
-    return checked_image(path, lambda image: ler_linhas(image, OCR_TIMEOUT_SECONDS))
+def read_lines(path: Path) -> list[OcrLine]:
+    """Run Tesseract (Portuguese) and return the non-empty text lines, each with its confidence (0-100) and box."""
+    return checked_image(path, lambda image: read_ocr_lines(image, OCR_TIMEOUT_SECONDS))
 
 
 def checked_image(path: Path, then: Callable[[Image.Image], Any]) -> Any:
@@ -84,11 +79,11 @@ def checked_image(path: Path, then: Callable[[Image.Image], Any]) -> Any:
                 raise ToolError('O conteúdo do arquivo não corresponde à extensão (use PNG ou JPEG).')
             if image.width * image.height > MAX_PIXELS:
                 raise ToolError('Imagem com resolução grande demais.')
-            image = sobre_branco(image)  # a transparent background would read as a black page
+            image = on_white(image)  # a transparent background would read as a black page
             if problem := quality_problem(image):  # a photo the OCR would barely read
                 raise ToolError(problem)
             return then(image)
-    except ImagemGirada as error:
+    except SidewaysImage as error:
         raise ToolError(str(error)) from None
     except Image.DecompressionBombError:
         raise ToolError('Imagem com resolução grande demais.') from None
@@ -102,37 +97,51 @@ def checked_image(path: Path, then: Callable[[Image.Image], Any]) -> Any:
         raise ToolError('Imagem corrompida ou incompleta.') from None
 
 
-def mask_lines(lines: list[str], joined: list[str] | None = None) -> dict:
-    """Neutralize orders to the model, read what each line asks for (guardrails/intent.py, on the page as written:
-    line_intent, contested_exams, cancel_unlinked, page_clean, off_list), then mask PII (guardrails/pii.py). A list item
-    the safety net removed whole, or left only a modifier of, is 'unrecognized'; an order to the model removed, or a line
-    with a masked name that names an exam ("[NOME] - TSH"), leaves the page not clean. pii_masked counts personal data
-    by type; apart: instructions_removed and text_removed ([TEXTO_REMOVIDO] pieces). `joined`: join_split_orders(lines)[0].
+def mask_lines(lines: Sequence[OcrLine | str]) -> dict:
+    """The reply but its version (leitura.OcrReading): join an order to the model split over lines and neutralize the
+    orders, read what each line asks for as written (guardrails/intent.py), mask the PII (guardrails/pii.py). A list item
+    masked away is 'unrecognized'; an order removed, or a masked name on an exam line, leaves the page not clean.
     exam_lines, the only lines the model reads: names_an_exam, no masked name, not negated, history or prep."""
-    if joined is None:
-        joined = join_split_orders(lines)[0]
-    breaks, odd = reading_marks(lines) if len(joined) == len(lines) else (frozenset(), [False] * len(joined))
-    lines, removed = neutralize_joined(joined)  # prompt injection: the text goes to the LLM
-    masked, counts = mask_page(lines)
+    read = [line if isinstance(line, OcrLine) else OcrLine(line) for line in lines]
+    joined, sources = join_split_orders([line.text for line in read])
+    breaks, odd = reading_marks(read) if len(joined) == len(read) else (frozenset(), [False] * len(joined))
+    safe, removed = neutralize_joined(joined)  # prompt injection: the text goes to the LLM
+    masked, counts = mask_page(safe)
     kinds, contest, unlinked = intent.read_page(joined, breaks)
-    kinds = ['unrecognized' if kind in ('request', 'uncertain', 'table', 'form') and unrecognized_request(line, safe) else kind
-             for kind, line, safe in zip(kinds, lines, masked, strict=True)]
-    readings = [getattr(line, 'confianca', 100.0) for line in joined]
-    exam_lines = {at: line for at, line in enumerate(masked) if names_an_exam(line)}  # a name's line never books alone
-    return {'text_removed': counts.pop('TEXTO_REMOVIDO', 0), 'lines': masked, 'line_intent': kinds, 'pii_masked': counts,
-            'instructions_removed': removed, 'contested_exams': intent.contested(joined, contest), 'cancel_unlinked':
-            unlinked, 'off_list': (off := intent.clean_page(joined, masked, kinds, odd, readings)), 'page_clean': not removed
-            and not unlinked and not any('[NOME]' in line for line in exam_lines.values()) and not off, 'exam_terms': [
-                [[term, NAMES[term]] for term in sorted(exams_on(line))] for line in masked], 'exam_lines': [
-                at for at, line in exam_lines.items() if kinds[at] not in ('negated', 'history', 'prep') and '[NOME]' not in line]}
+    kinds = ['unrecognized' if kind in ASKED_KINDS and unrecognized_request(line, out) else kind
+             for kind, line, out in zip(kinds, safe, masked, strict=True)]
+    confidence, readings = joined_readings(read, sources)
+    off = intent.clean_page(joined, masked, kinds, odd, readings)
+    exam_lines = [at for at, line in enumerate(masked) if names_an_exam(line)]
+    named = any(NAME_TAG in masked[at] for at in exam_lines)  # a name's line never books alone
+    text_removed = counts.pop('TEXTO_REMOVIDO', 0)
+    return {'lines': masked, 'line_confidence': confidence, 'line_intent': kinds, 'pii_masked': counts,
+            'instructions_removed': removed, 'text_removed': text_removed, 'contested_exams': intent.contested(joined, contest),
+            'cancel_unlinked': unlinked, 'off_list': off, 'page_clean': not (removed or unlinked or named or off),
+            'exam_terms': [[[term, NAMES[term]] for term in sorted(exams_on(line))] for line in masked],
+            'exam_lines': [at for at in exam_lines if kinds[at] not in NOT_ANCHORS and NAME_TAG not in masked[at]]}
 
 
-def reading_marks(lines: list[str]) -> tuple[frozenset[int], list[bool]]:
+def joined_readings(read: list[OcrLine], sources: list[range]) -> tuple[list[float] | None, list[float]]:
+    """(line_confidence, the readings clean_page weighs) of each joined line: the lowest of the lines it joins; for
+    clean_page, a joined line has no reading of its own (NOT_SUSPECT). Lines given as text: no line_confidence."""
+    own = [read[lines.start].confidence if len(lines) == 1 else None for lines in sources]
+    readings = [NOT_SUSPECT if reading is None else reading for reading in own]
+    known = [line.confidence for line in read if line.confidence is not None]
+    return ([min(known[i] for i in lines) for lines in sources] if len(known) == len(read) else None), readings
+
+
+def read_reply(lines: list[OcrLine]) -> dict:
+    """extract_exam_text's reply for the lines read: leitura.OcrReading, as a plain object."""
+    return OcrReading(version=VERSION, **mask_lines(lines)).model_dump(mode='json')
+
+
+def reading_marks(read: list[OcrLine]) -> tuple[frozenset[int], list[bool]]:
     """(lines with a gap above them: Tesseract's blocks of text, lines in letters far smaller or lighter than the
-    page's) from where Tesseract put each line (preprocessamento.Linha.caixa); nothing for lines without it."""
-    boxes = [box for line in lines if (box := getattr(line, 'caixa', None))]
-    if not boxes or len(boxes) < len(lines):
-        return frozenset(), [False] * len(lines)
+    page's) from where Tesseract put each line (OcrLine.box); nothing when a line has no box."""
+    boxes = [line.box for line in read if line.box]
+    if not boxes or len(boxes) < len(read):
+        return frozenset(), [False] * len(read)
     height, ink = median(box[2] for box in boxes), median(box[3] for box in boxes)
     return (frozenset(i for i in range(1, len(boxes)) if boxes[i][0] - boxes[i - 1][1] > GAP * height),
             [box[2] < SMALL * height or box[3] > ink + LIGHT for box in boxes])
@@ -141,7 +150,7 @@ def reading_marks(lines: list[str]) -> tuple[frozenset[int], list[bool]]:
 def names_an_exam(line: str) -> bool:
     """Whether a masked line resolves to the catalog, even misread: a whole exam name or, structure ("Obs:") and masked
     values aside, a word one OCR error from an exam word (not a qualifier) or text the search finds (MIN_SCORE)."""
-    text = LIST_MARKER.sub(' ', re.sub(r'\[[A-Z_]+\]', ' ', line))
+    text = LIST_MARKER.sub(' ', MASK_TAG.sub(' ', line))
     rest = [word for word in words(text).split() if word not in STRUCTURE]
     return bool(exams_on(text)) or matcher().search_score(' '.join(rest)) >= MIN_SCORE or any(
         word not in QUALIFIERS and exam_like(word) for word in rest)
@@ -151,13 +160,20 @@ def unrecognized_request(line: str, masked: str) -> bool:
     """Whether a list item ("4) Ressonancia magnetica de cranio") left the OCR as nothing but [TEXTO_REMOVIDO], or
     as a modifier ("[TEXTO_REMOVIDO] total"): a request the catalog does not know, reported by its line's number
     only. An order to the model already removed, personal data masked on the line, or a few letters of junk are not."""
-    left = words(LIST_MARKER.sub('', masked).replace('[TEXTO_REMOVIDO]', ' '))
-    if MARKER not in line and '[TEXTO_REMOVIDO]' in masked and not re.search(r'\[[A-Z_]+\]', line) and left \
-            and all(word in EXAM_MODIFIERS for word in left.split()) and not exams_on(left):
-        return True
+    return only_a_modifier_left(line, masked) or removed_whole(line, masked)
+
+
+def only_a_modifier_left(line: str, masked: str) -> bool:
+    """[TEXTO_REMOVIDO] and only modifiers of an exam left ("[TEXTO_REMOVIDO] total"), on a line written without tags."""
+    left = words(LIST_MARKER.sub('', masked).replace(REMOVED_TAG, ' '))
+    return (MARKER not in line and REMOVED_TAG in masked and not MASK_TAG.search(line) and bool(left)
+            and all(word in EXAM_MODIFIERS for word in left.split()) and not exams_on(left))
+
+
+def removed_whole(line: str, masked: str) -> bool:
+    """A list item of 6 letters or more, and no order to the model, that left as nothing but [TEXTO_REMOVIDO] and marks."""
     item = LIST_MARKER.match(line)
-    letters = re.findall(r'[^\W\d_]', re.sub(r'\[[A-Z_]+\]', ' ', line[item.end():])) if item else []
-    if not item or MARKER in line or len(letters) < 6:
+    if not item or MARKER in line or len(re.findall(r'[^\W\d_]', MASK_TAG.sub(' ', line[item.end():]))) < 6:
         return False
     return bool(re.fullmatch(r'(?:\[TEXTO_REMOVIDO\]|[^\w\[\]])+', LIST_MARKER.sub('', masked, count=1)))
 
@@ -184,10 +200,7 @@ async def extract_exam_text(filename: Annotated[str, or_default('')]) -> dict:
     kind (request, negated, history, uncertain, prep, unrecognized, table), in the same order.
     """
     path = resolve_sample(filename)
-    lines = await asyncio.to_thread(in_slot, read_lines, path)
-    joined, sources = join_split_orders(lines)  # once: the guard and the confidence share it
-    reading = OcrReading(version=VERSION, **mask_lines(lines, joined), line_confidence=confianca_por_linha(lines, origens=sources))
-    return reading.model_dump(mode='json')  # a plain object for the tool's schema (leitura.py)
+    return read_reply(await asyncio.to_thread(in_slot, read_lines, path))
 
 
 @server.tool()
@@ -207,14 +220,7 @@ async def health(request):
     return JSONResponse({'status': 'ok', 'tesseract': str(pytesseract.get_tesseract_version())})
 
 
-SECURITY = TransportSecuritySettings(enable_dns_rebinding_protection=True, allowed_origins=[],
-                                     allowed_hosts=['ocr:8001', 'localhost:*', '127.0.0.1:*'])
-
-# uvicorn and the MCP client's pool both drop idle connections after 5 s: a POST sent then never returned (python-sdk #906).
-KEEP_ALIVE_SECONDS = 75
+SECURITY = transport_security('ocr:8001')
 
 if __name__ == '__main__':
-    import uvicorn
-    quiet_logs('extract_exam_text', 'check_image')
-    uvicorn.run(server.sse_app(transport_security=SECURITY, host='0.0.0.0'), host='0.0.0.0', port=8001,
-                timeout_keep_alive=KEEP_ALIVE_SECONDS, log_level=server.settings.log_level.lower())
+    serve(server, SECURITY, 8001, 'extract_exam_text', 'check_image')

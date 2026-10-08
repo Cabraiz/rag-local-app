@@ -1,27 +1,19 @@
-"""The whole order checked in code after the run, whatever the model searched.
+"""The whole order checked in code after the run, whatever the model searched: no exam the search finds ends in silence.
 
-Each line read (PII already masked) loses its list marker ("2.", "-") and its label ("Exames:"),
-and lines of notes and personal data are left out. The catalog search takes the rest of each line
-and cuts it into its exams itself (mcp_servers/rag.py, split_exams: "e", ",", ";", "+", "/", an "e"
-the OCR glued to a word as in "TSHe T4 livre", a catalog name such as "HIV antigeno e anticorpos"
-kept whole), each hit with its "piece": the
-pieces checked here are the pieces the search uses. A piece whose untied best match passes the RAG's floor,
-and is more than a resemblance of letters (it shares a word with the exam's name, or scores at
-least 0,80: "laboratorio" is 0,70 like "paratormonio"), is an exam of the order, and must end in
-one reported state: booked, asked, left out for its
-confidence, line already used, left out by the agent, or, when no exam holds its text and its
-code was neither booked nor reported, "não buscado pelo agente". On a line that says not to do the
-exam, or that it was done already, or that only prepares for it (the OCR's line_intent), it is
-reported with that reason instead, which is no warning about the agent. No exam the search finds
-ends in silence. Nothing is booked here.
+Each line read (PII masked) loses its list marker and label, and parts of personal data are left out; the catalog
+search cuts the rest into its exams (mcp_servers/rag.py). A piece whose untied best match passes the RAG's floor and is
+more than a resemblance of letters is an exam of the order, and must end in a reported state; one no exam holds and
+nobody booked or reported is "não buscado pelo agente", or the reason its line gives (negated, history, prep). Nothing
+is booked here.
 """
 import re
 from collections.abc import Callable, Iterable
 
-from catalogo import LIST_MARKER, exam_word, words
+import catalogo
+from catalogo import DATA_LABELS, LIST_MARKER, MASK_TAG, exam_word, words
+from leitura import NOT_ANCHORS
 
 from .confianca import (
-    NOT_ANCHORS,
     RESEMBLANCE,
     BookingPolicy,
     by_piece,
@@ -33,28 +25,11 @@ from .confianca import (
 )
 from .pedido import Accounted, Item, OrderRecord
 
-MARKER = re.compile(rf'{LIST_MARKER.pattern}|^\s*(?:\d{{1,2}}\s+(?=[^\W\d_])|[A-Za-z][.)])\s*', re.I)  # "1 TGP", "A."
-MASKED = re.compile(r'\[[A-Z_]+\]')  # what the OCR masked: [NOME], [CPF], [TEXTO_REMOVIDO]...
-# The first word of a label before ":": one that opens a list of exams, a note around them (its text
-# is checked, but only a close match counts there: "Obs.: acrescentar Ferritina" is Ferritina, "Obs:
-# jejum de 8 horas" is not Proteinúria de 24 horas) and personal data (its value is left out, with or without
-# the colon: "Dr. [NOME] - [CRM]"). A line the OCR joined keeps each part: "Paciente: [NOME] Exames: TSH".
-LISTS = {'exame', 'exames', 'solicito', 'solicitacao', 'solicitados', 'solicitamos', 'pedido', 'pedidos',
-         'requisicao', 'realizar'}
-NOTES = {'obs', 'observacao', 'observacoes', 'orientacao', 'orientacoes', 'preparo', 'indicacao', 'diagnostico',
-         'hipotese', 'cid'}
-DATA = {'paciente', 'nome', 'data', 'nascimento', 'medico', 'medica', 'dr', 'dra', 'crm', 'rg', 'cpf', 'cns',
-        'convenio', 'endereco', 'telefone', 'celular', 'email', 'assinatura', 'carimbo', 'local'}
-LABELS = LISTS | NOTES | DATA
-FOLLOW_UP = {'rotina', 'controle', 'urgente'}  # qualifiers of when, never of which exam: no help to the search
-
-def exams_only(text: str) -> str:
-    """Every other word made a separator, so each exam reaches the search on its own, whatever is written
-    around it: "solicito TSH", "Não deixar de fazer TSH", "Ferritina somente se hemoglobina baixa", "TSH controle"."""
-    return re.sub(r'[^\W_]+', lambda word: word.group() if word.group().isdigit() or (
-        (plain := words(word.group())) not in FOLLOW_UP and exam_word(plain)) else ',', text)
-
-
+ITEM_MARKER = re.compile(rf'{LIST_MARKER.pattern}|^\s*(?:\d{{1,2}}\s+(?=[^\W\d_])|[A-Za-z][.)])\s*', re.I)  # "1 TGP", "A."
+# A label before ":" opens a part of the line: a list, a note (only a close match counts: "Obs: jejum de 8 horas" is not
+# Proteinúria de 24 horas), personal data (left out, colon or not: "Dr. [NOME] - [CRM]"). "Paciente: [NOME] Exames: TSH".
+NOTES = catalogo.NOTE_LABELS | catalogo.CLINICAL_LABELS
+LABELS = catalogo.LIST_LABELS | NOTES | DATA_LABELS
 # A parenthesis opened after a word ("Vitamina D (incluir também Ferritina)") holds a clause of its own: the
 # exam inside it is checked on its own. "25(OH)D", glued, stays one name.
 ASIDE = re.compile(r'(?<=\s)\(|\)(?=\s|$)')
@@ -63,12 +38,23 @@ WHEN = re.compile(r'\b(?:em|ap[oó]s|daqui a|dentro de)\s+\d+\s*(?:dias?|semanas
                   re.IGNORECASE)
 
 
+def exams_only(text: str) -> str:
+    """Every other word made a separator, so each exam reaches the search on its own, whatever is written
+    around it: "solicito TSH", "Não deixar de fazer TSH", "Ferritina somente se hemoglobina baixa", "TSH controle"."""
+    return re.sub(r'[^\W_]+', lambda word: word[0] if part_of_an_exam(word[0]) else ',', text)
+
+
+def part_of_an_exam(word: str) -> bool:
+    """A number, or a word of an exam's name or of its qualifiers but for those of when ("controle")."""
+    return word.isdigit() or words(word) not in catalogo.FOLLOW_UP and exam_word(words(word))
+
+
 def first_word(text: str) -> str:
     return (words(text).split() or [''])[0]
 
 
-def is_label(text: str) -> bool:
-    return first_word(text) in LABELS or words(text) == 'e mail'
+def is_label(text: str, labels: frozenset[str] = LABELS) -> bool:
+    return first_word(text) in labels or words(text) == 'e mail'
 
 
 def parts(text: str) -> list[tuple[str, str]]:
@@ -93,58 +79,67 @@ def order_lines(read: list[str]) -> list[tuple[int, str, bool]]:
     separator, so its two sides are checked. `note`: the part is the text of a note."""
     lines: list[tuple[int, str, bool]] = []
     for index, line in enumerate(read):
-        for label, value in parts(MARKER.sub('', MASKED.sub(' ', str(line)))):
-            if first_word(label) in DATA or words(label) == 'e mail':
-                continue
-            text = WHEN.sub(',', ASIDE.sub(',', re.sub('[:|]', ',', MARKER.sub('', value))))  # a table's cells too
-            if not label and first_word(text) in DATA:  # "Dr. [NOME] - [CRM]": the label without a colon
-                text = text.split(None, 1)[1] if len(text.split()) > 1 else ''
-            text = MARKER.sub('', exams_only(text)).strip(' ,')
+        for label, value in parts(ITEM_MARKER.sub('', MASK_TAG.sub(' ', str(line)))):
+            text = '' if is_label(label, DATA_LABELS) else searched_text(label, value)
             if re.search(r'[^\W\d_]{2}', text):  # the search's longest query
-                lines.append((index, ' '.join(text.split())[:200], first_word(label or text) in NOTES))
+                lines.append((index, ' '.join(text.split())[:catalogo.MAX_QUERY_LENGTH], first_word(label or text) in NOTES))
     return lines
 
 
+def searched_text(label: str, value: str) -> str:
+    """A part's value as the search takes it: ":", "|" (a table's cells), an aside and a time are separators; after a
+    personal-data word without a colon ("Dr. [NOME] - [CRM]"), only what follows it; only the words of exams."""
+    text = WHEN.sub(',', ASIDE.sub(',', re.sub('[:|]', ',', ITEM_MARKER.sub('', value))))
+    if not label and first_word(text) in DATA_LABELS:
+        text = text.split(None, 1)[1] if len(text.split()) > 1 else ''
+    return ITEM_MARKER.sub('', exams_only(text)).strip(' ,')
+
+
 def taken(claimed: list[Accounted], texts: list[str], line: int, start: int, end: int) -> bool:
-    """Whether a piece is text a proposed exam stands on as that exam: the piece's words, or the
-    exam they match, are words of that exam's name ("Proteína OC" on the line of a Proteína C
-    reativa). The rest of a line the exam only shares stays free: "Triglicerideos" after a
-    "Colesterol total" that took the whole line as the model searched it."""
+    """Whether a proposed exam stands on this piece as that exam: the piece's words, or the exam they match, are words of
+    its name ("Proteína OC" under a Proteína C reativa; not "Triglicerideos" under a "Colesterol total" on the line)."""
     return any(other.line == line and other.start < end and start < other.end
                and any(pieces_of(text, [other.exam]) for text in texts) for other in claimed)
 
 
+def only_a_resemblance(order: OrderRecord, index: int, query: str, name: str, score: float, note: bool) -> bool:
+    """Whether a match is no exam of the order: below RESEMBLANCE, its name does not start the words read ("TSH em 30
+    dias") and, in a note, it is not a close match, or anywhere it shares no word with them. A line that says something
+    of its exam (negated, history, prep, uncertain) is checked in full even under a note's label ("Preparo:")."""
+    if score >= RESEMBLANCE or f'{query} '.startswith(f'{name} '):
+        return False
+    return note and intent_of(order, index) not in (*NOT_ANCHORS, 'uncertain') or not shares_a_word(query, name)
+
+
+def piece_on(lines: list[str], index: int, query: str) -> tuple[int, int]:
+    """Where the words read are on their line: the first piece of it with them, else the whole line."""
+    spots = pieces_of(query, [lines[index]]) if index < len(lines) else []
+    return spots[0][1:3] if spots else (0, len(lines[index]) if index < len(lines) else 0)
+
+
 def unreported(order: OrderRecord, hits_of: Callable[[str], object], policy: BookingPolicy,
                settled: Iterable[str | None]) -> list[Item]:
-    """The exams of the order that ended in no reported state, as left out items (reason
-    'not_searched', or 'omitted' when a search returned the code but the model did not propose it).
-    hits_of(text): the catalog search's hits for a line (each with its "piece" when the search split
-    it); settled: the codes booked or already reported.
-    One report per exam, at the confidence the order gives it there (search score, OCR reading)."""
-    lines, read, readings = order.ocr_lines or [], order.ocr_read or [], order.ocr_confidence
+    """The exams of the order in no reported state, as left out items ('not_searched', or 'omitted' when a search returned
+    the code), one per exam at the confidence the order gives it. hits_of(text): the catalog search's hits for a line;
+    settled: the codes booked or already reported."""
+    lines, read = order.ocr_lines or [], order.ocr_read or []
     claimed = list(order.accounted or [])  # the text the proposed exams stand on
     candidates, done = order.candidates or {}, set(settled)
     reported: list[Item] = []
-    for index, text, note, hits in ((index, piece, note, hits) for index, line, note in order_lines(read)
-                                    for piece, hits in by_piece(line, hits_of(line)).items()):
-        best = untied_best(hits)
-        if best is None:
-            continue
-        query, name = words(text), words(best.name)
-        starts = f'{query} '.startswith(f'{name} ')  # "TSH em 30 dias"
-        # a line that says something of its exam is checked in full, even under a note's label ("Preparo:")
-        note = note and intent_of(order, index) not in (*NOT_ANCHORS, 'uncertain')
-        if best.score < RESEMBLANCE and not starts and (note or not shares_a_word(query, name)):  # in a note, a close match or the name first
-            continue
-        spots = pieces_of(query, [lines[index]]) if index < len(lines) else []
-        start, end = spots[0][1:3] if spots else (0, len(lines[index]) if index < len(lines) else 0)
-        if best.code in done or taken(claimed, [query, name], index, start, end):
-            continue
-        reading = reading_at(readings, index, policy.ocr_floor(query, name), policy)
-        kind = intent_of(order, index)
-        reported.append({'code': best.code, 'name': best.name, 'line': index,
-                         'reason': kind if kind in NOT_ANCHORS else 'omitted' if best.code in candidates else 'not_searched',
-                         'confidence': round(min(best.score, reading), 2), 'read': read[index]})
-        done.add(best.code)
-        claimed.append(Accounted(index, start, end, None, name))
+    for index, line, note in order_lines(read):
+        for text, hits in by_piece(line, hits_of(line)).items():
+            best = untied_best(hits)
+            query, name = words(text), words(best.name) if best else ''
+            if best is None or only_a_resemblance(order, index, query, name, best.score, note):
+                continue
+            start, end = piece_on(lines, index, query)
+            if best.code in done or taken(claimed, [query, name], index, start, end):
+                continue
+            reading = reading_at(order.ocr_confidence, index, policy.ocr_floor(query, name), policy)
+            kind = intent_of(order, index)
+            reason = kind if kind in NOT_ANCHORS else 'omitted' if best.code in candidates else 'not_searched'
+            reported.append({'code': best.code, 'name': best.name, 'line': index, 'reason': reason,
+                             'confidence': round(min(best.score, reading), 2), 'read': read[index]})
+            done.add(best.code)
+            claimed.append(Accounted(index, start, end, None, name))
     return reported

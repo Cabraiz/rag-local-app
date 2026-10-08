@@ -19,6 +19,7 @@ import pytest
 import uvicorn
 
 from mcp_servers import ocr, rag
+from mcp_servers.arguments import KEEP_ALIVE_SECONDS
 from tests.load import carga, pedidos
 
 
@@ -35,7 +36,7 @@ def serve(app, path=''):
         port = probe.getsockname()[1]
     # Keep-alive as in production (75 s): with uvicorn's 5 s, a POST can race the client's 5 s pool expiry.
     server = uvicorn.Server(uvicorn.Config(app, host='127.0.0.1', port=port, log_level='warning',
-                                           timeout_keep_alive=ocr.KEEP_ALIVE_SECONDS))
+                                           timeout_keep_alive=KEEP_ALIVE_SECONDS))
     threading.Thread(target=server.run, daemon=True).start()
     deadline = time.monotonic() + 60  # generous: a busy machine starts uvicorn slowly
     while not server.started and time.monotonic() < deadline:

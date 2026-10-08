@@ -23,6 +23,7 @@ from PIL import Image
 
 import cli
 from mcp_servers import ocr, rag
+from mcp_servers.arguments import KEEP_ALIVE_SECONDS
 from runtime import BookingCallbacks
 from transpiler import TranspileError, load_root_agent, parse_spec, transpile
 from transpiler.live import mcp_tools
@@ -48,7 +49,7 @@ def urls():
             port = free_port()
             app = module.server.sse_app(transport_security=module.SECURITY, host='127.0.0.1')
             server = uvicorn.Server(uvicorn.Config(app, host='127.0.0.1', port=port, log_level='warning',
-                                                   timeout_keep_alive=module.KEEP_ALIVE_SECONDS))
+                                                   timeout_keep_alive=KEEP_ALIVE_SECONDS))
             threading.Thread(target=server.run, daemon=True).start()
             deadline = time.monotonic() + 60  # generous: a busy machine starts uvicorn slowly
             while not server.started and time.monotonic() < deadline:
@@ -66,8 +67,8 @@ def test_servers_keep_idle_connections_longer_than_the_client_pool():
     never returned (python-sdk #906): OCR, RAG and the API must outlast the clients' pools."""
     client_expiry = max(httpx.Limits().keepalive_expiry, httpx2.Limits().keepalive_expiry)
     api = re.search(r'"--timeout-keep-alive", "(\d+)"', (ROOT / 'Dockerfile').read_text(encoding='utf-8'))
-    assert api and int(api[1]) == ocr.KEEP_ALIVE_SECONDS == rag.KEEP_ALIVE_SECONDS
-    assert ocr.KEEP_ALIVE_SECONDS > 2 * client_expiry
+    assert api and int(api[1]) == KEEP_ALIVE_SECONDS  # the OCR's and the RAG's, one constant
+    assert KEEP_ALIVE_SECONDS > 2 * client_expiry
 
 
 def call(url, tool, arguments):

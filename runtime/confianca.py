@@ -1,40 +1,30 @@
-"""Booking policy: how confident the agent is in each exam, and which ones it books.
+"""Booking policy: how confident the agent is in each exam, and which ones it books (docs/regras.md).
 
-An exam's confidence is min(RAG score, how well the search matches a line the OCR read,
-the OCR's own reading of that line). From `min_confidence` it is booked on its own; from
-`ask_from` only if the person says yes; below that it is only reported. Each exam takes
-its own piece of the order: one piece of text, one exam.
-
-From the OCR (guardrails/intent.py): only a 'request' line (nothing but exams) of a clean page (`page_clean`)
-books alone; any other exam found is asked. None is booked from a line that says not to do it ('negated'), that it
-was done ('history') or that prepares for it ('prep'), nor anywhere the page contests it (`contested_exams`). Without
-a usable line_intent, contested_exams or a true page_clean in the OCR's reply (leitura.OcrReading): fail closed.
+An exam's confidence is min(RAG score, how well the search matches a line the OCR read, the OCR's reading of that
+line), on its own piece of the order (one piece of text, one exam). From `min_confidence` it books alone, from
+`ask_from` only with a yes, below that it is only reported. Only a 'request' line of a clean page books alone; none
+books from a 'negated', 'history' or 'prep' line or where the page contests it. A reply without them fails closed.
 """
 import difflib
 import re
 from collections.abc import Container, Iterable
 from dataclasses import dataclass
+from typing import NamedTuple
 
 from pydantic import ValidationError
 
-from catalogo import CLASSES, CONNECTIVES, words
-from leitura import OcrReading
+from catalogo import CLASSES, CONNECTIVES, GLUED_LETTERS, words
+from leitura import BLOCKING, NOT_ANCHORS, OcrReading
 
 from .pedido import Accounted, Candidate, Find, Item, OrderRecord, Piece
 
-# A search "finds" an exam of the order when its best hit, untied, scores at least the catalog's own
-# floor (the RAG returns nothing below it) and its query is a piece of a line read. An exam found but
-# left out of the booking call by the model is reported (runtime/callbacks.py), never booked.
+# A search "finds" an exam of the order when its untied best hit scores at least the catalog's floor and its query
+# is a piece of a line read; one the model leaves out of the booking call is reported, never booked.
 FIND_FLOOR = 0.60
-# A match whose name has an antibody class (catalogo.CLASSES) the words read do not have is only reported.
-# Below this, a match that shares no word with the exam's name is only a resemblance of letters (the
-# booking policy's own bound: a misread "- GA" taken as IgA scores 0,80): "Anti HAV" is not "HIV
-# antigeno e anticorpos" (0,70), "LABORATORIO" is not Paratormônio. It is reported, not asked.
-# Connectives are not shared words ("SOLICITAÇÃO DE E" is not Glicemia de jejum), nor is the "anti" of
-# every serology ("Anti HAV" is not Anti HCV).
+# Below this, a match that shares no word with the exam's name, connectives and the "anti" of every serology aside,
+# is only a resemblance of letters ("Anti HAV" is not "HIV antigeno e anticorpos", 0,70): reported, not asked.
 RESEMBLANCE = 0.80
 NOT_SHARED = CONNECTIVES | {'anti'}
-GLUED = 2  # letters the OCR may glue to a word ("TSH e" read "TSHe"): "tsh" still matches "tshe"
 
 
 def shares_a_word(query: str, name: str) -> bool:
@@ -47,13 +37,12 @@ def resemblance(query: str, name: str, score: float) -> bool:
     return score < RESEMBLANCE and not shares_a_word(query, name)
 
 
-# What a line asks for (leitura.Intent); nothing is booked from a NOT_ANCHORS line.
-BLOCKING = {'negated', 'history'}
-NOT_ANCHORS = BLOCKING | {'prep'}
 FREE_TEXT = '[linha de texto livre omitida]'  # the model's copy of a line not in the OCR's exam_lines (all, without)
-# A free piece of a line for an exam: (confidence, line, start, end, why it is asked although written clearly).
-Spot = tuple[float, int | None, int, int, str | None]
-Taken = tuple[int | None, int, int, str]  # a piece an exam booked or asked holds: (line, start, end, its name)
+# A free piece of a line for an exam, and why it is asked although written clearly (doubt); a piece an exam booked or
+# asked holds; why an exam is never booked from the order (a line's kind or the page's contest), and that line.
+Spot = NamedTuple('Spot', [('confidence', float), ('line', int | None), ('start', int), ('end', int), ('doubt', str | None)])
+Taken = NamedTuple('Taken', [('line', int | None), ('start', int), ('end', int), ('name', str)])
+Refused = NamedTuple('Refused', [('reason', str), ('line', int)])
 
 
 def intent_of(order: OrderRecord, line: int | None) -> str:
@@ -64,20 +53,10 @@ def intent_of(order: OrderRecord, line: int | None) -> str:
 
 @dataclass(frozen=True)
 class BookingPolicy:
-    """The values a spec can change (`booking` block); the defaults are the measured ones.
-
-    min_confidence was calibrated on 631 queries (tests/calibration/queries.jsonl, rechecked
-    by tests/test_calibration.py): at 0.90 none of the 10 wrong matches passes (a misread
-    "- GA" taken as IgA scores 0.80) and 522 of the 621 right matches stay.
-    The OCR floors (line_confidence, 0-100): a line read below its floor never books alone,
-    however well the catalog matches it. A code of 3 letters or fewer needs a clearer
-    reading, and more so when it only matches as another name of a longer exam: a
-    handwritten "TGP" read as "TAP" (93) is Tempo de protrombina. Measured with the OCR's
-    real reply on the 120 handwritten orders, 200 load-test orders and a 240-image bench:
-    no wrong exam booked alone; 605 of the 618 exams of the load set are booked alone and
-    the rest is asked. Without a usable reading the rule fails closed: nothing is booked
-    without a yes. ask_from=None turns the question off: below min_confidence is left out.
-    """
+    """The values a spec can change (the BookingPlugin's kwargs); the defaults are the measured ones (docs/medicoes.md).
+    min_confidence: at 0.90 none of the 10 wrong matches of the 631 calibration queries passes. The OCR floors (0-100):
+    a line read below its floor never books alone; a name of 3 letters or fewer needs a clearer reading, and its
+    abbreviation of a longer name more ("TGP" read "TAP" is Tempo de protrombina). ask_from=None: nothing is asked."""
     min_confidence: float = 0.90
     ask_from: float | None = 0.70
     ocr_floor_line: float = 75
@@ -142,12 +121,8 @@ def untied_best(hits: list[Hit]) -> Hit | None:
 
 
 def line_support(query: str, lines: list[str]) -> tuple[float, int | None]:
-    """(how well the query matches a line the OCR read, index of that line).
-
-    1.0 when the query appears in a line as whole words ("Exame: Creatinina");
-    otherwise the character similarity, which tolerates small OCR typos. No line at
-    all, or nothing in common with any line, is (0.0, None); on a tie the first wins.
-    """
+    """(how well the query matches a line the OCR read, that line): 1.0 when the query is whole words of it ("Exame:
+    Creatinina"), else the character similarity (small OCR typos); (0.0, None) for nothing in common. A tie: the first."""
     query, best_ratio, best_index = words(query), 0.0, None
     for index, line in enumerate(lines):
         if query and f' {query} ' in f' {line} ':
@@ -176,9 +151,8 @@ def remember_ocr(order: OrderRecord, reply: object) -> dict[str, list[str]]:
 
 
 def remember_search(order: OrderRecord, query: str, reply: object, policy: BookingPolicy) -> None:
-    """For every code a search returned: its RAG score and how well the query matches a line read.
-    The model's own spelling fix of a misread line cannot raise its confidence. A line the search
-    split into its exams is remembered piece by piece, as if each exam had been searched on its own."""
+    """For every code a search returned, piece by piece: its RAG score and how well the query matches a line read (the
+    model's own spelling fix of a misread line cannot raise its confidence)."""
     for piece, hits in by_piece(query, reply).items() or [(query, [])]:
         remember_piece(order, piece, hits, policy)
 
@@ -197,15 +171,10 @@ def remember_piece(order: OrderRecord, query: str, hits: list[Hit], policy: Book
     top = best.score if best else 0.0
     tied = sum(hit.score == top for hit in hits) > 1
     for hit in hits:
-        score, named = hit.score, f'{words(hit.name)} {words(hit.term)}'  # its name, and the synonym it matched
         # the words read are the best hit's: a neighbour ("Colesterol HDL" for "Colesterol LDL") is at
-        # most asked, never booked alone, and holds no copy of the line. A hit that is not what the order
-        # names is only reported, not even asked: one the search marked as only part of an exam the line
-        # names, one with an antibody class not written, a resemblance of letters, or a best match tied
-        # with another exam that shares no word with the words read ("Anti HAV": HIV and Anti HCV, both
-        # 0,88). A tie of related exams that do share it ("T3": T3 livre and T3 total) is still asked
-        if hit.partial or (set(words(hit.name).split()) & CLASSES) - set(query.split()) \
-                or resemblance(query, named, score) or (tied and score == top and not shares_a_word(query, named)):
+        # most asked, never booked alone, and holds no copy of the line
+        score = hit.score
+        if not named_by_the_order(hit, query, tied and score == top):
             score = min(score, policy.below_asking)
         elif hit is not best:
             score = min(score, policy.below_booking)
@@ -218,22 +187,35 @@ def remember_piece(order: OrderRecord, query: str, hits: list[Hit], policy: Book
     remember_find(order, query, hits, policy)
 
 
+def named_by_the_order(hit: Hit, query: str, tied_best: bool) -> bool:
+    """Whether a hit is what the order names, else only reported: not only part of an exam the line names, no antibody
+    class not written, no resemblance of letters, no tie of best matches sharing no word with the words read ("Anti HAV":
+    HIV and Anti HCV, both 0,88; "T3": T3 livre and T3 total share it, still asked)."""
+    named = f'{words(hit.name)} {words(hit.term)}'  # its name, and the synonym it matched
+    unwritten_class = (set(words(hit.name).split()) & CLASSES) - set(query.split())
+    return not (hit.partial or unwritten_class or resemblance(query, named, hit.score)
+                or (tied_best and not shares_a_word(query, named)))
+
+
 def pieces_of(query: str, lines: list[str]) -> list[Piece]:
-    """Every piece of the lines with the query's words, word by word: a word matches the same word or one
-    the OCR glued up to GLUED letters to ("tsh" in "tshe", support 0.86). Empty if the query is not a
-    piece of any line (a model's own rewording, a catalog name not written)."""
+    """Every piece of the lines with the query's words, word by word (reads_as: "tsh" in "tshe", support 0.86). Empty
+    if the query is not a piece of any line (a model's own rewording, a catalog name not written)."""
     wanted, pieces = query.split(), []
     for index, line in enumerate(lines):
         found = [(match.start(), match.group()) for match in re.finditer(r'\S+', line)]
         for first in range(len(found) - len(wanted) + 1):
             window = found[first:first + len(wanted)]
-            if all(token == word or (len(word) >= 3 and token.startswith(word) and len(token) - len(word) <= GLUED)
-                   for (_, token), word in zip(window, wanted, strict=True)):
+            if all(reads_as(token, word) for (_, token), word in zip(window, wanted, strict=True)):
                 start, end = window[0][0], window[-1][0] + len(window[-1][1])
                 text = line[start:end]
                 support = 1.0 if text == query else difflib.SequenceMatcher(None, query, text).ratio()
                 pieces.append(Piece(index, start, end, round(support, 2)))
     return pieces
+
+
+def reads_as(token: str, word: str) -> bool:
+    """A word read is the query's word, or it with up to GLUED_LETTERS letters the OCR glued to it ("tshe")."""
+    return token == word or (len(word) >= 3 and token.startswith(word) and len(token) - len(word) <= GLUED_LETTERS)
 
 
 def remember_find(order: OrderRecord, query: str, hits: list[Hit], policy: BookingPolicy) -> None:
@@ -251,57 +233,66 @@ def remember_find(order: OrderRecord, query: str, hits: list[Hit], policy: Booki
 
 
 def best_spot(candidate: Candidate, taken: list[Taken], order: OrderRecord, policy: BookingPolicy,
-              contest: str = '') -> tuple[Spot | None, str | None, tuple[str, int] | None]:
-    """(spot, None, None) on the free piece of the order where the candidate is most confident: a whole-word
-    occurrence of its words in any line, or else the line most like them. (None, exam holding it, None) when
-    every such piece is taken; (None, None, (kind, line)) when its only pieces are on lines that say not to do it,
-    that it was done, or that prepare for it, or the page says so of it (`contest`). A piece on a note or a
-    table, or of an exam contested otherwise, is asked."""
-    lines, readings = order.ocr_lines or [], order.ocr_confidence
-    span, index = candidate.span, candidate.line
-    spots = ([(i, *m.span(), candidate.support) for i, line in enumerate(lines)
-              for m in re.finditer(rf'\b{re.escape(span)}\b', line)]
-             if span else [(index, 0, len(lines[index]), candidate.support)] if index is not None else [])
+              contest: str = '') -> Spot | Refused | str:
+    """The free piece of the order (places) where the candidate is most confident (Spot); when every piece is taken, the
+    name of the exam holding it; when its only pieces are on 'negated', 'history' or 'prep' lines, or the page contests
+    it (`contest`), Refused."""
     free: list[Spot] = []
     holders: list[str] = []
-    refused: list[tuple[str, int]] = []
-    for line, start, end, support in spots:
+    refused: list[Refused] = []
+    for line, start, end, support in places(candidate, order.ocr_lines or []):
         kind = intent_of(order, line)
         if kind in NOT_ANCHORS or contest in BLOCKING:  # "Ferritina", then "Obs.: cancele a Ferritina"
-            refused.append((contest if contest in BLOCKING else kind, line))
+            refused.append(Refused(contest if contest in BLOCKING else kind, line))
             continue
-        holder = next((name for held, s, e, name in taken if held == line and s < end and start < e), None)
-        reading = reading_at(readings, line, candidate.floor, policy)  # below its floor, never booked alone
-        doubt = contest or longer(order, line, start, end, candidate.name) or (
-            None if kind in ('request', 'unrecognized') else kind if kind in ('table', 'form') else 'uncertain')
-        doubt = doubt or (None if order.page_clean is True else 'page')  # text besides the list: asked
-        if doubt:
-            reading = min(reading, policy.below_booking)  # a note, a doubt, a table, a contest: asked at most
+        holder = next((other.name for other in taken if other.line == line and other.start < end and start < other.end), None)
         if holder:
             holders.append(holder)
-        else:
-            free.append((round(min(candidate.score, support, reading), 2), line, start, end, doubt))
+            continue
+        reading = reading_at(order.ocr_confidence, line, candidate.floor, policy)  # below its floor, never booked alone
+        doubt = doubt_at(order, kind, contest, line, start, end, candidate.name)
+        if doubt:
+            reading = min(reading, policy.below_booking)  # a note, a doubt, a table, a contest: asked at most
+        free.append(Spot(round(min(candidate.score, support, reading), 2), line, start, end, doubt))
     if holders and not free:
-        return None, holders[0], None
+        return holders[0]
     if refused and not free:  # a negation or a history first: the reason that matters most
-        return None, None, min(refused, key=lambda item: (item[0] not in BLOCKING, item[0] != 'negated', item[1]))
-    return max(free, key=lambda spot: spot[0], default=(0.0, index, 0, 0, None)), None, None  # on a tie, the first
+        return min(refused, key=lambda item: (item.reason not in BLOCKING, item.reason != 'negated', item.line))
+    return max(free, key=lambda spot: spot.confidence, default=Spot(0.0, candidate.line, 0, 0, None))  # a tie: the first
+
+
+def places(candidate: Candidate, lines: list[str]) -> list[tuple[int, int, int, float]]:
+    """(line, start, end, support): each whole-word occurrence of the candidate's words, or else the line most like them."""
+    if candidate.span:
+        return [(i, *match.span(), candidate.support) for i, line in enumerate(lines)
+                for match in re.finditer(rf'\b{re.escape(candidate.span)}\b', line)]
+    return [] if candidate.line is None else [(candidate.line, 0, len(lines[candidate.line]), candidate.support)]
+
+
+def doubt_at(order: OrderRecord, kind: str, contest: str, line: int, start: int, end: int, name: str) -> str | None:
+    """Why an exam written clearly here is asked, or None: a contest, another exam's longer name over it, a table or a
+    form, a line that is not a list line ('uncertain'), or a page with more than its list ('page')."""
+    if doubt := contest or longer(order, line, start, end, name):
+        return doubt
+    if kind not in ('request', 'unrecognized'):
+        return kind if kind in ('table', 'form') else 'uncertain'
+    return None if order.page_clean is True else 'page'
 
 
 def longer(order: OrderRecord, line: int, start: int, end: int, name: str) -> str | None:
     """'longer' (asked at most) when the OCR read another exam's longer name over this piece: "proteina c reativa"."""
-    return 'longer' if any(other != name and len(str(term)) > end - start and any(s <= start and end <= e for s, e in (
-        m.span() for m in re.finditer(rf'\b{re.escape(str(term))}\b', (order.ocr_lines or [])[line])))
-        for found in (order.ocr_terms or [])[line:line + 1] for term, other in found) else None
+    for term, other in [pair for terms in (order.ocr_terms or [])[line:line + 1] for pair in terms]:
+        spans = [found.span() for found in re.finditer(rf'\b{re.escape(str(term))}\b', (order.ocr_lines or [])[line])]
+        if other != name and len(str(term)) > end - start and any(s <= start and end <= e for s, e in spans):
+            return 'longer'
+    return None
 
 
 def sort_out(codes: Iterable[str], candidates: dict[str, Candidate], order: OrderRecord, policy: BookingPolicy,
              accounted: list[Accounted]) -> tuple[list[Item], list[Item], list[Item]]:
-    """(booked, to ask, left out). Longer words claim their text first: "Clearance de
-    creatinina" takes its line and "Creatinina" its next free occurrence. `accounted` gets the
-    piece of text of every exam sorted out on its own text (booked, asked or left out for its
-    confidence), with the exam's plain name when only similar to a line: it then accounts only
-    for searches of words of that name."""
+    """(booked, to ask, left out). Longer words claim their text first: "Clearance de creatinina" takes its line and
+    "Creatinina" its next free occurrence. `accounted` gets the piece of every exam sorted out on its own text, with the
+    exam's plain name when only similar to a line: it then accounts only for searches of words of that name."""
     taken: list[Taken] = []
     bands: dict[str | None, list[Item]] = {'booked': [], 'ask': [], None: []}
     for code in sorted(codes, key=lambda code: -len(candidates[code].span or '')):
@@ -309,13 +300,12 @@ def sort_out(codes: Iterable[str], candidates: dict[str, Candidate], order: Orde
         item: Item = {'name': candidate.name, 'confidence': candidate.confidence, 'line': candidate.line,
                       'read': candidate.read, 'code': code}
         contest = order.ocr_contested.get(code, '') if order.ocr_contested is not None else 'unknown'  # asked
-        spot, holder, refused = best_spot(candidate, taken, order, policy, contest)
-        if refused:  # the order says not to do it, that it was done, or only prepares for it: never booked
-            kind, at = refused
-            bands[None].append(item | {'reason': kind, 'line': at, 'read': (order.ocr_read or [])[at]})
+        spot = best_spot(candidate, taken, order, policy, contest)
+        if isinstance(spot, Refused):  # the order says not to do it, that it was done, or only prepares for it
+            bands[None].append(item | {'reason': spot.reason, 'line': spot.line, 'read': (order.ocr_read or [])[spot.line]})
             continue
-        if spot is None:
-            bands[None].append(item | {'reason': 'line_used', 'used_by': holder})
+        if isinstance(spot, str):  # every piece of it is held by the exam named
+            bands[None].append(item | {'reason': 'line_used', 'used_by': spot})
             continue
         item['confidence'], line, start, end, doubt = spot
         item['line'], item['read'] = line, (order.ocr_read or [])[line] if line is not None else item['read']
@@ -327,14 +317,13 @@ def sort_out(codes: Iterable[str], candidates: dict[str, Candidate], order: Orde
         band = policy.band(item['confidence'])
         bands[band].append(item if band else item | {'reason': 'score'})
         if band:
-            taken.append((line, start, end, candidate.name))
+            taken.append(Taken(line, start, end, candidate.name))
     return bands['booked'], bands['ask'], bands[None]
 
 
 def held(claimed: list[Accounted], query: str, line: int, start: int, end: int) -> bool:
-    """Whether a piece of a line is text an exam already stands on: any of it under an exact piece,
-    or, under a line an exam is only similar to, words of that exam's name ("Hemoglobina" inside a
-    "Hemoglobina glicda", not the "TSH" glued to a "T4 Iivre")."""
+    """Whether an exam already stands on any of this piece: exactly, or, only similar to its line, with words of its name
+    ("Hemoglobina" inside a "Hemoglobina glicda", not the "TSH" glued to a "T4 Iivre")."""
     return any(other.line == line and other.start < end and start < other.end
                and (other.similar is None or bool(pieces_of(query, [other.similar]))) for other in claimed)
 
@@ -347,14 +336,10 @@ def reading_at(readings: list[float] | None, line: int, floor: float, policy: Bo
 
 
 def omitted(proposed: Container[str], accounted: list[Accounted], order: OrderRecord, policy: BookingPolicy) -> list[Item]:
-    """The exams a search found in the order but the model left out of the booking call, so none
-    vanishes without a word: one per piece of text, longer pieces first ("TSH" and "T4 livre" on one
-    line are two), at the confidence the order gives it there (search, match, OCR reading). A piece
-    an exam the model proposed already accounts for ("Colesterol" inside a booked "Colesterol LDL";
-    inside a "T4 Iivre" booked by similarity, only the words of T4 livre) is not left out. Written
-    on several lines, the exam is reported on the free one most like a list of exams: where it and
-    the other exams found or proposed cover most of the line ("Glicose" in "Exames: Hemograma
-    completo, Glicose", not in "Obs: jejum de 8 horas para glicose"). Booking does not change."""
+    """The exams a search found in the order but the model left out of the booking call, so none vanishes without a
+    word: one per piece of text not held by a proposed exam (held), longer pieces first, at the confidence the order gives
+    it there; on several lines, on the free one most like a list of exams ("Exames: Hemograma completo, Glicose", not
+    "Obs: jejum de 8 horas para glicose")."""
     lines, finds, claimed = order.ocr_lines or [], order.finds or [], list(accounted)
     reported: list[Item] = []
 

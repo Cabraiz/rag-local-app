@@ -76,7 +76,7 @@ def no_tesseract(*args, **kwargs):
 
 def test_check_image_accepts_a_sample_without_running_the_ocr(monkeypatch):
     from PIL import Image
-    monkeypatch.setattr(ocr, 'ler_linhas', no_tesseract)
+    monkeypatch.setattr(ocr, 'read_ocr_lines', no_tesseract)
     with Image.open(SAMPLES / 'pedido.png') as image:
         width, height = image.size
     assert asyncio.run(ocr.check_image('pedido.png')) == {'format': 'PNG', 'width': width, 'height': height}
@@ -110,7 +110,7 @@ def test_check_image_refuses_what_the_reading_refuses_with_the_same_message(tmp_
     if BAD_FILES[filename]:
         BAD_FILES[filename](tmp_path / filename)
     monkeypatch.setattr(ocr, 'SAMPLES_DIR', tmp_path)
-    monkeypatch.setattr(ocr, 'ler_linhas', no_tesseract)
+    monkeypatch.setattr(ocr, 'read_ocr_lines', no_tesseract)
     with pytest.raises(ToolError) as checked:
         asyncio.run(ocr.check_image(filename))
     with pytest.raises(ToolError) as read:
@@ -128,7 +128,7 @@ def test_check_image_keeps_the_size_limits(monkeypatch, limit, message):
 def test_every_line_is_masked_and_counted(monkeypatch):
     monkeypatch.setattr(pii, 'mask', lambda line: ('[CPF]', {'CPF': 1}) if 'CPF' in line else (line, {}))
     result = ocr.mask_lines(['CPF: 1', 'Hemograma completo', 'CPF: 2'])
-    assert result == {'lines': ['[CPF]', 'Hemograma completo', '[CPF]'], 'pii_masked': {'CPF': 2},
+    assert result == {'lines': ['[CPF]', 'Hemograma completo', '[CPF]'], 'pii_masked': {'CPF': 2}, 'line_confidence': None,
                       'line_intent': ['request', 'request', 'request'], 'contested_exams': [],
                       'instructions_removed': 0, 'text_removed': 0, 'cancel_unlinked': False, 'page_clean': True,
                       'off_list': [], 'exam_lines': [1], 'exam_terms': [[], [['hemograma', 'Hemograma completo'],
@@ -244,19 +244,19 @@ def test_a_page_the_osd_sees_turned_but_nobody_can_read_is_refused(monkeypatch):
     from PIL import Image
 
     from mcp_servers import preprocessamento
-    monkeypatch.setattr(preprocessamento, 'palavras', lambda *args: [(0, 0, 10, 10, 'x', 20)])
-    monkeypatch.setattr(preprocessamento, 'rotacao', lambda *args: 90)
-    with pytest.raises(preprocessamento.ImagemGirada, match='de lado ou de cabeça para baixo'):
-        preprocessamento.ler_linhas(Image.new('L', (800, 600), 255), 30)
+    monkeypatch.setattr(preprocessamento, 'read_words', lambda *args: [(0, 0, 10, 10, 'x', 20)])
+    monkeypatch.setattr(preprocessamento, 'rotation', lambda *args: 90)
+    with pytest.raises(preprocessamento.SidewaysImage, match='de lado ou de cabeça para baixo'):
+        preprocessamento.read_ocr_lines(Image.new('L', (800, 600), 255), 30)
 
 
 def test_an_upright_poor_reading_stays_as_it_is_when_the_osd_does_not_see_a_turn(monkeypatch):
     from PIL import Image
 
     from mcp_servers import preprocessamento
-    monkeypatch.setattr(preprocessamento, 'palavras', lambda *args: [(0, 0, 10, 10, 'TSH', 40)])
-    monkeypatch.setattr(preprocessamento, 'rotacao', lambda *args: 0)
-    assert preprocessamento.ler_linhas(Image.new('L', (800, 600), 255), 30) == ['TSH']
+    monkeypatch.setattr(preprocessamento, 'read_words', lambda *args: [(0, 0, 10, 10, 'TSH', 40)])
+    monkeypatch.setattr(preprocessamento, 'rotation', lambda *args: 0)
+    assert [line.text for line in preprocessamento.read_ocr_lines(Image.new('L', (800, 600), 255), 30)] == ['TSH']
 
 
 @needs_tesseract
@@ -274,9 +274,9 @@ def test_a_png_with_a_transparent_background_is_read_on_white(tmp_path, monkeypa
 def test_an_image_without_transparency_is_passed_through_untouched():
     from PIL import Image
 
-    from mcp_servers.preprocessamento import sobre_branco
+    from mcp_servers.preprocessamento import on_white
     image = Image.new('RGB', (10, 10), 'gray')
-    assert sobre_branco(image) is image
+    assert on_white(image) is image
 
 
 def test_a_pdf_renamed_to_png_says_it_is_a_pdf(tmp_path, monkeypatch):

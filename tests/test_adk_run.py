@@ -208,9 +208,9 @@ def test_an_exam_the_order_says_not_to_do_is_not_booked_under_adk_run(adk_run, m
     # these lines; the rest is the real OCR server (injection guard, line_intent, PII mask), the real
     # search and the real API, under `adk run`.
     from mcp_servers import ocr
-    from mcp_servers.preprocessamento import Linha
+    from mcp_servers.preprocessamento import OcrLine
     order = ['Hemograma completo', 'TSH', 'Obs: NAO realizar Ferritina']
-    monkeypatch.setattr(ocr, 'read_lines', lambda path: [Linha(line, 95) for line in order])
+    monkeypatch.setattr(ocr, 'read_lines', lambda path: [OcrLine(line, 95) for line in order])
     monkeypatch.setattr(sys.modules[__name__], 'READ', ['Hemograma completo', 'TSH', 'Ferritina'])
     monkeypatch.setitem(BOOK, 'exams', [{'code': 'FICT-001', 'name': 'Hemograma completo'},
                                         {'code': 'FICT-024', 'name': 'TSH'}, {'code': 'FICT-018', 'name': 'Ferritina'}])

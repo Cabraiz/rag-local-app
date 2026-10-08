@@ -1,11 +1,12 @@
-"""The rules of the PII guard (guardrails/pii.py): one regex per type of personal data, the
-name labels, and the word lists that tell names from exams and from the order's structure.
-guardrails/pii.py applies them, in the order of its docstring; nothing here runs on its own.
+"""The vocabularies and patterns of the OCR's rules: one regex per type of personal data, the name labels and the word
+lists that tell names from exams and from the order's structure (guardrails/pii.py applies them, in the order of its
+docstring), the one vocabulary of a negation, and the labels of a page (guardrails/intent.py). Those every image shares
+(the runtime's too) are in catalogo.py. Nothing here runs on its own.
 """
 import re
 from pathlib import Path
 
-from catalogo import QUALIFIERS, fold
+from catalogo import NOTE_LABELS, QUALIFIERS, fold
 
 # --- 1. One regex per type -------------------------------------------------------------
 # "[ \t]" (space or tab) instead of "\s": a value never continues on the next line.
@@ -113,7 +114,9 @@ CPF_REST = re.compile(r'^[ \t]*(?P<part>\d(?:' + SEP + r'\d){0,9})(?!\d)')
 
 # --- 2. Names, word by word ------------------------------------------------------------
 WORD = re.compile(r"[^\W\d_]+(?:['’-][^\W\d_]+)*")  # letters only: "Sant'Anna", "Anne-Louise"
-TAG = re.compile(r'\[[A-Z]+\]')                      # a value already masked
+# A value masked by type ([CPF]); a removal (catalogo.MASK_TAG) is text here, so [INSTRUCAO_REMOVIDA] never leaves.
+TYPED_TAG = re.compile(r'\[[A-Z]+\]')
+NAME_TAG, REMOVED_TAG = '[NOME]', '[TEXTO_REMOVIDO]'
 NEXT_LABEL = re.compile(r'[^\W\d_][\w.]*[ \t]*:')   # "CPF:", "Data:": where a labelled name ends
 # Name labels: "Paciente:" needs the colon ("PEDIDO MEDICO" is no label); "paciente", "mãe", "pai" and titles do not.
 LABEL = re.compile(r'''(?ix)
@@ -128,9 +131,8 @@ NAME_PARTICLES = frozenset(('da', 'de', 'do', 'das', 'dos', 'e'))
 PHRASE_WORDS = frozenset(('em', 'no', 'na', 'nos', 'nas', 'com', 'por', 'para', 'pela', 'pelo', 'os', 'as',
                           'um', 'uma', 'ao', 'sem', 'que', 'se', 'ou'))
 PARTICLES = NAME_PARTICLES | PHRASE_WORDS | {'a', 'o'}
-# Words of an order that are never names ("NAO realizar", "autoriza incluir", "Favor repetir"): they break
-# a run of capitals the name rule would take for a name. They are not structure: the safety net still
-# removes them, as [TEXTO_REMOVIDO], never counted as a name.
+# Words of an order that are never names ("NAO realizar", "Favor repetir"): they break a run of capitals. Not
+# structure: the safety net still removes them, as [TEXTO_REMOVIDO], never counted as a name.
 ORDINARY_WORDS = frozenset((
     'nao', 'sim', 'tambem', 'ja', 'favor', 'realizar', 'realizado', 'realizada', 'fazer', 'feito', 'feita',
     'repetir', 'refazer', 'incluir', 'acrescentar', 'adicionar', 'dosar', 'colher', 'coletar', 'pedir', 'solicitar',
@@ -155,10 +157,8 @@ FIRST_NAMES = frozenset(fold(line.strip()) for line in Path(__file__).with_name(
 # A line is split in pieces; a piece that fails is split again where two exams may be joined
 # by the OCR ("Acido urlco e Vitamlna D"): the whole piece first keeps "HIV antigeno e anticorpos".
 PIECES = re.compile(r'([,;():]|\s[-–—]\s)')
-# The one vocabulary of a negation, history or exception: guardrails/intent.py builds its cues from these pieces, and
-# VISIBLE, every word of them and of such a note ("trouxe", "acima"), is never removed by the safety net, so the model
-# reads "Obs: NAO realizar Ferritina" as written. Only STOP_CUE has "remov-", the word of the masks' [TEXTO_REMOVIDO],
-# and "desconsider-", an order the injection guard takes away first.
+# The one vocabulary of a negation, history or exception: guardrails/intent.py builds its cues on it, and the safety net
+# never removes a VISIBLE word ("Obs: NAO realizar Ferritina" stays). Only STOP_CUE has "remov-" and "desconsider-".
 NOT = r'n[a4][o0]'  # "não", also read "NA0"
 DONE = r'(?:r[e3]a[l1i]{1,2}[zs]ad[oa]s?|feit[oa]s?|colhid[oa]s?|coletad[oa]s?|dosad[oa]s?)'  # "realizado", "feita"
 STOP = (r'(?:suspen[ds]\w*|susp\b|canc\b|cancel\w*|desmarc\w*|dispens\w*|evit\w*|vet(?:ad[oa]s?|ar|e|ou)\b|'  # on their own:
@@ -180,8 +180,7 @@ STRUCTURE = NOT_NAMES | FIELD_NAMES | PARTICLES | frozenset((
 
 UNITS = frozenset(('mg', 'ml', 'dl', 'ui', 'h', 'hs', 'hrs', 'min', 'x'))
 AMOUNT = re.compile(r'\d+(?:' + '|'.join(UNITS) + r')?')  # "100", "8h", "12hs"
-# A long number on an exam line is a document, card or phone ("TSH 898*0010*0123*4567"): 5+ digits, any one mark
-# between two (exam names have 3 at most); after an exam's name, any number goes (rule 5).
+# A long number on an exam line is a document or phone ("TSH 898*0010*0123*4567"): 5+ digits, one mark between two.
 DIGIT = r'(?:[^\w\n]|_)?\d'  # the next digit of a number: "898*0010", "9_8765", "123/456"
 LONG_NUMBER = re.compile(rf'(?<![\w.,/-])\d(?:{DIGIT}){{4,}}(?!\w)')
 OCR_DIGITS = str.maketrans('0158', 'olsb')  # digits the OCR reads for letters: "25(0H)D", "Lipa5e"
@@ -190,5 +189,17 @@ MARKS_BEFORE, MARKS_AFTER = re.compile(r'[^\w\[\]]*'), re.compile(r'[^\w\[\]]*$'
 # 5. By shape: a capitalized word after a masked name or a line's initial, up to the line's end, a mark or another one.
 NAME_TAIL = re.compile(r"(?:\[NOME\]|^[^\w\[]*[A-Z]\.)(?:[ \t]+[A-ZÀ-Ý][^\W\d_]*(?:['’-][^\W\d_]+)*)+"
                        r"(?=[ \t]*(?:$|[,;|–—-]))")
-TOKEN, HOURS = re.compile(r'(?<!\[)\b[^\W_]+'), re.compile(r'\d{1,2}[ \t]*(?:h|hs|hrs|horas?)\b')
+HOUR_UNIT = r'(?:h|hs|hrs|horas?)'  # "8h", "12 hs", "24 horas"
+TOKEN, HOURS = re.compile(r'(?<!\[)\b[^\W_]+'), re.compile(rf'\d{{1,2}}[ \t]*{HOUR_UNIT}\b')
 KEPT = QUALIFIERS | UNITS | PARTICLES  # after an exam's name: what qualifies it ("Livre", "8h", "E")
+
+# --- 6. The labels of a page (guardrails/intent.py), on catalogo's ------------------------------------------------------
+# A label of the list, or the doctor's verb, opening a line ("Exames solicitados:", "Realizar:"); misread, a LABEL_WORDS.
+LIST_LABEL = re.compile(r'^\s*(?:(?:exames?|pedido|requisicao|solicitacao)(?:\s+(?:de\s+)?(?:exames?|solicitad[oa]s?|'
+                        r'laboratoria(?:l|is)|de\s+rotina))*\s*:|(?:solicito|solicitamos|peco)'
+                        r'(?:\s+(?:os\s+)?(?:seguintes\s+)?exames)?\s*:?|(?:realizar|fazer|dosar|repetir|refazer|coletar|colher|novo|nova)\b\s*:?)\s*')
+LABEL_WORDS = ('solicito', 'exames', 'exame', 'pedido')
+PREP_LABEL = re.compile(r'^\W*(?:regras?\s+de\s+|orientac\w*\s+de\s+)?(?:preparo|prep)\b')  # "Preparo:", "Regras de preparo"
+NOTE_LABEL = re.compile(r'^\W*(?:obs|observa\w*|preparo|orienta\w*)\b')  # catalogo.NOTE_LABELS as a line starts with them
+FIELDS = (STRUCTURE | {'sexo', 'local', 'hipotese'}) - NOTE_LABELS - {'nota'}
+HEADER = NOT_NAMES | FIELD_NAMES | {'receituario', 'dados', 'ficticio', 'ficticios', 'demonstracao', 'documento'}

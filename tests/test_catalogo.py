@@ -25,7 +25,7 @@ def test_guardrails_and_the_rag_server_do_not_import_each_other():
 
 
 def test_the_search_and_the_pii_safety_net_score_against_the_same_catalog():
-    assert rag.MATCHER is pii.MATCHER is catalogo.matcher() and rag.MATCHER.exams is catalogo.CATALOG
+    assert rag.MATCHER is pii.MATCHER is catalogo.matcher() and rag.MATCHER.exams is catalogo.catalog()
     assert rag.MIN_SCORE == pii.MIN_SCORE == catalogo.MIN_SCORE
     assert pii.MATCHER.search_score('Hemograma completo') == 1.0 == rag.search('Hemograma completo', 1)[0]['score']
 

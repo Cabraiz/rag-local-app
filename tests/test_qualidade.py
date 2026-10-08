@@ -60,6 +60,6 @@ def test_no_shipped_sample_is_refused(sample):
 def test_the_ocr_refuses_a_bad_photo_before_tesseract(page, tmp_path, monkeypatch):
     PROBLEMS['desfocada'][0](page).save(tmp_path / 'tremida.png')
     monkeypatch.setattr(ocr, 'SAMPLES_DIR', tmp_path)
-    monkeypatch.setattr(ocr, 'ler_linhas', lambda *a, **k: pytest.fail('Tesseract ran'))
+    monkeypatch.setattr(ocr, 'read_ocr_lines', lambda *a, **k: pytest.fail('Tesseract ran'))
     with pytest.raises(ToolError, match='^foto desfocada: segure o celular firme'):
         ocr.read_lines(ocr.resolve_sample('tremida.png'))

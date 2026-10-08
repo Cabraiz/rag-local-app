@@ -11,6 +11,8 @@ VERSION: Final = 1
 # What a line asks for (guardrails/intent.py): only 'request' books alone, nothing is booked from 'negated',
 # 'history' or 'prep', and the rest is asked.
 Intent = Literal['request', 'negated', 'history', 'uncertain', 'prep', 'unrecognized', 'table', 'form']
+BLOCKING: Final = frozenset(('negated', 'history'))  # the page contests the exams such a line names
+NOT_ANCHORS: Final = BLOCKING | {'prep'}  # nothing is booked from such a line, and the model does not read it
 
 
 class Contest(BaseModel):
