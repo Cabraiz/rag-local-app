@@ -9,6 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 from mcp_servers import ocr
 from mcp_servers.preprocessamento import (
     Linha,
+    colunas,
     confianca,
     confianca_por_linha,
     inclinacao,
@@ -103,6 +104,16 @@ def test_the_tool_reply_has_one_confidence_per_line(monkeypatch):
     monkeypatch.setattr(ocr, 'SAMPLES_DIR', SAMPLES)
     reply = asyncio.run(ocr.extract_exam_text('pedido.png'))
     assert len(reply['line_confidence']) == len(reply['lines']) > 0
+
+
+def test_wide_gaps_lined_up_between_words_read_well_are_cells():
+    # (left, top, width, height, text, conf): two rows whose 2nd word opens at the same x, far right
+    rows = [[(60, 100, 300, 30, 'SOLICITADOS', 95), (660, 100, 280, 30, 'REALIZAR', 95)],
+            [(60, 160, 340, 30, 'Hemograma', 95), (655, 160, 80, 30, 'TSH', 96)],
+            [(60, 220, 200, 30, 'Creatinina', 95), (665, 220, 80, 30, 'PSA', 40)]]  # read poorly: no cell
+    assert colunas(rows) == {(0, 1), (1, 1)} and juntar_texto(rows[1], {1}) == 'Hemograma | TSH'
+    assert colunas(rows[:1]) == set()  # one wide gap alone (a stroke, a margin note) is no column
+    assert colunas([[(60, 100, 300, 30, 'Hemograma', 95), (370, 100, 280, 30, 'completo', 95)]] * 2) == set()
 
 
 def test_loose_punctuation_sticks_to_the_previous_word():

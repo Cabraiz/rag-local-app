@@ -37,6 +37,7 @@ POBRE_PALAVRAS, POBRE_FRACAO = 8, 0.5  # pedido.png de pé: 32 de 35; de lado: 0
 OSD_MINIMA = 2.0       # orientation_conf do OSD: de 2,5 (letra de médico) a 15 (foto impressa) nos testes
 GANHO_GIRADA = 2       # a girada precisa ler o dobro das palavras confiantes (e ao menos POBRE_PALAVRAS)
 SOBREPOSICAO = 0.5  # fração da altura da menor (palavra ou linha) que as duas precisam dividir
+COLUNA = 4  # vão entre duas palavras, em alturas de letra, que separa colunas (as palavras: 0,3 a 1,3)
 
 
 class Linha(str):
@@ -144,13 +145,22 @@ def consertar_marcador(linha):
     return linha
 
 
-def juntar_texto(linha):
-    """Texto da linha, com o marcador consertado e a pontuação que o PSM 11 lê solta (":", ",")
-    colada de volta na palavra anterior."""
+def juntar_texto(linha, cortes=()):
+    """Texto da linha, com o marcador consertado, a pontuação que o PSM 11 lê solta (":", ",")
+    colada de volta na palavra anterior e um "|" antes de cada palavra em `cortes` (colunas())."""
     texto = ''
-    for *_, palavra, _conf in consertar_marcador(linha):
-        texto += palavra if texto and all(c in PONTUACAO_COLADA for c in palavra) else f' {palavra}'
+    for indice, (*_, palavra, _conf) in enumerate(consertar_marcador(linha)):
+        texto += palavra if texto and all(c in PONTUACAO_COLADA for c in palavra) else f' {"| " * (indice in cortes)}{palavra}'
     return texto.strip()
+
+
+def colunas(linhas):
+    """{(linha, palavra)} de cada vão de coluna: COLUNA alturas de letra ou mais entre duas palavras bem
+    lidas, que abre onde abre o de outra linha (1,5 altura). Medido: nenhum nas 159 imagens de samples/."""
+    vaos = [(i, j, b[0], median(p[3] for p in linha)) for i, linha in enumerate(linhas)
+            for j, (a, b) in enumerate(zip(linha, linha[1:], strict=False), 1)
+            if b[0] - a[0] - a[2] >= COLUNA * median(p[3] for p in linha) and min(a[5], b[5]) >= CONFIANTE]
+    return {(i, j) for i, j, x, h in vaos if any(abs(x - x2) <= 1.5 * max(h, h2) for i2, _, x2, h2 in vaos if i2 != i)}
 
 
 def confianca(linha):
@@ -214,7 +224,8 @@ def ler_linhas(imagem, timeout, preparo=True, lang=LANG, config=CONFIG):
             lidas = girada
         elif confiantes(lidas) < POBRE_PALAVRAS:
             raise ImagemGirada('imagem de lado ou de cabeça para baixo: gire e envie de novo')
-    return [Linha(juntar_texto(linha), confianca(linha)) for linha in juntar_por_altura(lidas)]
+    cortes = colunas(linhas := juntar_por_altura(lidas))  # uma tabela ou colunas: cada célula separada por "|"
+    return [Linha(juntar_texto(linha, {j for k, j in cortes if k == i}), confianca(linha)) for i, linha in enumerate(linhas)]
 
 
 def confianca_por_linha(lidas, minimo=0.0, origens=None):
