@@ -208,7 +208,7 @@ def test_the_honest_run_books_the_three_exams(run):
 # 1b. The model searches the three exams but books only two: the third is reported, never booked.
 def test_an_exam_the_model_leaves_out_is_reported_not_booked(run):
     code, out, err, new = run({'extract': EXTRACT, 'search': SEARCH, 'schedule': schedule(exams('FICT-001', 'FICT-002'))})
-    assert code == 0, out + err
+    assert code == cli.UNDECIDED_WITH_YES, out + err  # booked, but with --yes an exam of the order went undecided
     assert new == [[('FICT-001', 'Hemograma completo'), ('FICT-002', 'Glicemia de jejum')]]
     assert "não incluído pelo agente: 'Exame: Creatinina' → Creatinina FICT-005 (confiança 1,00); confira o pedido" in out
     assert out.count('não incluído pelo agente') == 1
@@ -221,7 +221,7 @@ def test_an_exam_the_model_never_searched_is_reported_after_the_run(run):
     search = [[('search_exams', {'query': name}) for name in two],
               json.dumps([{'code': CODES[name], 'name': name} for name in two], ensure_ascii=False)]
     code, out, err, new = run({'extract': EXTRACT, 'search': search, 'schedule': schedule(exams('FICT-001', 'FICT-002'))})
-    assert code == 0, out + err  # the appointment exists
+    assert code == cli.UNDECIDED_WITH_YES, out + err  # booked, but with --yes an exam of the order went undecided
     assert new == [[('FICT-001', 'Hemograma completo'), ('FICT-002', 'Glicemia de jejum')]]
     assert "não buscado pelo agente: 'Exame: Creatinina' → Creatinina FICT-005 (confiança 1,00); confira o pedido" in out
     assert 'ATENÇÃO: 1 possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima' in out
@@ -256,7 +256,7 @@ def test_an_exam_not_in_the_image_is_not_booked(run):
 def test_a_swapped_name_is_stored_and_shown_with_the_catalog_name(run):
     swapped = [{'code': 'FICT-001', 'name': 'Creatinina'}, {'code': 'FICT-005', 'name': 'Hemograma completo'}]
     code, out, err, new = run({'extract': EXTRACT, 'search': SEARCH, 'schedule': schedule(swapped)})
-    assert code == 0, out + err
+    assert code == cli.UNDECIDED_WITH_YES, out + err  # booked, but with --yes an exam of the order went undecided
     assert new == [[('FICT-001', 'Hemograma completo'), ('FICT-005', 'Creatinina')]]
     rows = [line for line in out.splitlines() if line.startswith('| ') and 'FICT-' in line]
     assert [row.split('|')[1].strip() for row in rows] == ['Hemograma completo', 'Creatinina']
@@ -300,7 +300,7 @@ def test_lines_the_ocr_did_not_return_are_not_booked(run):
     search = [[('search_exams', {'query': name}) for name in claimed], '[]']
     code, out, err, new = run({'extract': extract, 'search': search,
                                'schedule': schedule(exams('FICT-001', 'FICT-048'))})
-    assert code == 0, out + err
+    assert code == cli.UNDECIDED_WITH_YES, out + err  # booked, but with --yes an exam of the order went undecided
     assert [[code for code, _ in stored] for stored in new] == [['FICT-001']]
     assert 'PSA total FICT-048' in out
 
@@ -310,7 +310,7 @@ def test_a_weaker_candidate_of_the_search_is_not_booked_alone(run):
     search = [[('search_exams', {'query': name, 'top_k': 3}) for name in READ], SEARCH[1]]
     code, out, err, new = run({'extract': EXTRACT, 'search': search,
                                'schedule': schedule(exams('FICT-001', 'FICT-002', 'FICT-067'))})
-    assert code == 0, out + err
+    assert code == cli.UNDECIDED_WITH_YES, out + err  # booked, but with --yes an exam of the order went undecided
     assert [[code for code, _ in stored] for stored in new] == [['FICT-001', 'FICT-002']]
     assert 'não agendado sem confirmação:' in out and 'Creatinoquinase FICT-067' in out
 
