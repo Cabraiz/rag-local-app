@@ -1,10 +1,12 @@
 # Gravações
 
-Um vídeo por parte do sistema, gravado com `API_PORT=18905` (o padrão é 8765). Os vídeos são anteriores à confirmação final da lista: o fluxo é o mesmo, mais a pergunta `Agendar estes N exames? [s/N]` antes do agendamento. A lista com miniaturas e duração está em [`docs/gravacoes/`](gravacoes/README.md).
+O que tem aqui: um vídeo por parte do sistema, com o que ele mostra e o que mudou desde a gravação.
+
+Gravados com `API_PORT=18905` (o padrão é 8765). Os vídeos são anteriores à confirmação final da lista: o fluxo é o mesmo, mais a pergunta `Agendar estes N exames? [s/N]` antes do agendamento. A lista com miniaturas e duração está em [`docs/gravacoes/`](gravacoes/README.md).
 
 ### 10. Pedido manuscrito
 
-com Gemini, numa letra de mão simulada (fonte, não escrita real), um exame lido com confiança média é perguntado no terminal (`[s/N]`), respondido "s" e agendado com os demais. A linha `[schedule] chamando create_appointment` aparece antes da pergunta porque a confirmação nativa do ADK pausa dentro dessa chamada: o `POST` só sai depois do "s". Gravado antes da [lista branca por página](medicoes.md#lista-branca-por-página): hoje a assinatura à mão, lida com pouca confiança, faz todos os exames desse pedido serem perguntados ([mp4](gravacoes/10-manuscrito.mp4))
+com Gemini, numa letra de mão simulada (fonte, não escrita real), um exame lido com confiança média é perguntado no terminal (`[s/N]`), respondido "s" e agendado com os demais. A linha `[schedule] chamando create_appointment` aparece antes da pergunta porque a confirmação nativa do ADK pausa dentro dessa chamada: o `POST` só sai depois do "s". Gravado antes da regra que exige a [página inteira só com a lista](medicoes.md#lista-branca-por-página): hoje a assinatura à mão, lida com pouca confiança, faz todos os exames desse pedido serem perguntados ([mp4](gravacoes/10-manuscrito.mp4))
 
 https://github.com/user-attachments/assets/678ba071-31fb-466f-a79b-48cad6e8f4ca
 
@@ -34,13 +36,13 @@ https://github.com/user-attachments/assets/f5842359-bf12-428a-b2e4-d9b8ffafd73e
 
 ### 06. PII
 
-pedido realista só com marcadores no terminal e nada pessoal no banco; 2 dos 4 exames são agendados e os outros 2 (Colesterol total 0,68, Hemoglobina glicada 0,60) saem em `baixa confiança`, listados para conferência, como esperado. O `text_removed: 2` do OCR, num pedido legítimo, é o cabeçalho da clínica (`CLÍNICA FICTÍCIA HORIZONTE - DADOS FICTÍCIOS`), em 2 trechos: a rede de segurança tira do texto o que não parece exame nem estrutura do pedido ([mp4](gravacoes/06-pii.mp4))
+pedido realista só com marcadores no terminal e nada pessoal no banco; 2 dos 4 exames são agendados e os outros 2 (Colesterol total 0,68, Hemoglobina glicada 0,60) saem em `baixa confiança`, listados para conferência, como esperado. O `text_removed: 2` do OCR, num pedido legítimo, é o cabeçalho da clínica (`CLÍNICA FICTÍCIA HORIZONTE - DADOS FICTÍCIOS`), em 2 trechos: o OCR só deixa sair o que parece exame ou estrutura do pedido ([mp4](gravacoes/06-pii.mp4))
 
 https://github.com/user-attachments/assets/afbcd819-2102-4635-baec-21b3077627cb
 
 ### 08. Segurança
 
-nos pedidos com instruções escondidas, o OCR conta e tira o texto delas (`Instruções neutralizadas no OCR: …`) e só os exames legítimos são agendados (no 2º pedido, os 3 que dividiam a linha com uma instrução removida ficam para conferência humana e só o Colesterol total é agendado); o cabeçalho (`Laboratorio Ficticio Beta`, `PEDIDO MEDICO FICTICIO`) também sai como `[TEXTO_REMOVIDO]`, não por ser instrução, mas pela rede de segurança que só deixa sair do OCR o que parece exame ou estrutura do pedido. Por isso a tela mostra um `[TEXTO_REMOVIDO]` a mais que o `instructions_removed` (5 contra 4 e 4 contra 3): `instructions_removed` conta só as instruções escondidas, e `text_removed` conta todos os trechos removidos, o título incluído. Gravado antes da [lista branca por página](medicoes.md#lista-branca-por-página): hoje uma ordem tirada deixa a página fora da lista, e os exames legítimos desses dois pedidos são perguntados, não agendados sozinhos ([mp4](gravacoes/08-seguranca.mp4))
+nos pedidos com instruções escondidas, o OCR conta e tira o texto delas (`Instruções neutralizadas no OCR: …`) e só os exames legítimos são agendados (no 2º pedido, os 3 que dividiam a linha com uma instrução removida ficam para conferência humana e só o Colesterol total é agendado); o cabeçalho (`Laboratorio Ficticio Beta`, `PEDIDO MEDICO FICTICIO`) também sai como `[TEXTO_REMOVIDO]`, porque o OCR só deixa sair o que parece exame ou estrutura do pedido. Por isso a tela mostra um `[TEXTO_REMOVIDO]` a mais que o `instructions_removed` (5 contra 4 e 4 contra 3): `text_removed` conta todos os trechos removidos, o título incluído. Gravado antes da regra que exige a [página inteira só com a lista](medicoes.md#lista-branca-por-página): hoje uma ordem tirada faz os exames legítimos desses dois pedidos serem perguntados, não agendados sozinhos ([mp4](gravacoes/08-seguranca.mp4))
 
 https://github.com/user-attachments/assets/48c084df-85f0-4560-940d-a6cbe1823551
 

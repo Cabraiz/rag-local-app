@@ -1,18 +1,21 @@
 # Como rodar: guia completo
 
-O resumo e os 4 comandos estão no [README](../README.md#rodar-em-4-comandos). Este guia traz os
-pré-requisitos, as variações e o que fazer quando algo falha. Este repositório contém só este estudo, com um
-`Dockerfile` e um `docker-compose.yml` na raiz.
+**O que tem aqui:** os comandos para subir o projeto, transpilar a spec e executar o agente (pela CLI ou pelo
+`adk run`/`adk web`), o que cada aviso da saída quer dizer e o que fazer quando algo falha; no fim, variáveis de
+ambiente, backup do banco e testes. Leia depois do [README](../README.md#rodar-em-4-comandos), que resume tudo em 4
+comandos. O porquê de cada regra está em [arquitetura.md](arquitetura.md); os números, em [medicoes.md](medicoes.md).
 
 ## Pré-requisitos
 
 - Docker com Compose ≥ 2.1.1 (`up --wait`). Não é preciso Python no host.
-- Docker Desktop aberto e rodando. Se aparecer `Cannot connect to the Docker daemon … Is the docker daemon running?` (ou, em versões novas, `failed to connect to the docker API`), abra o Docker Desktop, espere o "Engine running" e rode o comando de novo.
-- No Windows, PowerShell ou Git Bash. O `cmd.exe` não é suportado: nele o `cp` não existe e o comentário depois do `#` vira argumento.
+- Docker Desktop aberto e rodando. Se aparecer `Cannot connect to the Docker daemon … Is the docker daemon running?` (ou, em versões novas, `failed to connect to the docker API`), abra o Docker Desktop, espere o "Engine running" e rode de novo.
+- No Windows, PowerShell ou Git Bash. O `cmd.exe` não serve: nele o `cp` não existe e o comentário depois do `#` vira argumento.
 - Internet no build (apt e pip) e na execução (Gemini).
-- Uma chave da API Gemini, criada em <https://aistudio.google.com/apikey>. Funciona com a chave do plano gratuito; para dados reais, use a API paga: no gratuito, o Google pode usar o conteúdo para melhorar produtos ([licencas.md](licencas.md#dados-e-ia)).
+- Uma chave da API Gemini, criada em <https://aistudio.google.com/apikey>. A do plano gratuito funciona; para dados reais, use a paga, porque no gratuito o Google pode usar o conteúdo para melhorar produtos ([licencas.md](licencas.md#dados-e-ia)).
 
 ## 1. Subir o ambiente Docker
+
+O repositório tem um `Dockerfile` e um `docker-compose.yml` na raiz.
 
 ```bash
 git clone https://github.com/Cabraiz/rag-local-app
@@ -21,16 +24,15 @@ cp .env.example .env          # preencha GOOGLE_API_KEY=; a chave só vai para o
 docker compose up -d --wait   # sobe ocr, rag e api; na 1ª vez a api cria a chave do banco
 ```
 
-- **Tempo:** o primeiro build, sem cache, leva de 10 a 20 minutos, por causa do Tesseract; os builds seguintes usam cache.
-- **Chave do banco:** com `DB_ENCRYPTION_KEY` vazia no `.env`, a API cria a chave na 1ª subida e a guarda no volume `api-key`, separado do banco (o log da `api` mostra `chave do banco criada em /keys/db.key`, nunca a chave). Para usar a sua, gere uma com `docker compose run --rm --no-deps api python -m api.crypto --gerar-chave` e coloque em `DB_ENCRYPTION_KEY=` antes do 1º `up`; definida, ela tem precedência sobre o volume.
-- **Pasta:** rode tudo dentro de `rag-local-app`, onde está o `docker-compose.yml`. Fora dela, o Compose responde `no configuration file provided: not found`.
-- **Saída esperada:** `ocr`, `rag` e `api` como `Healthy`. Swagger em `http://127.0.0.1:<API_PORT>/docs` (padrão 8765; a porta real sai de `docker compose port api 8000`, em que 8000 é a porta interna do container). A página certa se chama "API de agendamento de exames (fictícia)". O `/openapi.json` é o mesmo que o agente consome. Operações: `create_appointment` (`POST /appointments`), `get_appointment` (`GET /appointments/{appointment_id}`) e `health` (`GET /health`). Corpo de exemplo: `{"exams": [{"code": "FICT-001"}]}` (o `name` de cada exame é opcional; a API grava e devolve o nome do catálogo). A API só aceita `Host` de `API_ALLOWED_HOSTS` (padrão `127.0.0.1`, `localhost` e `api`); outro nome recebe `400`. As capturas em [`docs/evidencias/`](evidencias/) mostram a porta 18905 da gravação.
-- **Porta:** a API só escuta em `127.0.0.1`, na porta do host `API_PORT` (padrão 8765, configurável no `.env`). Antes do `up`, confira se ela está livre (`netstat -ano | findstr :8765`). Se estiver em uso, defina outra em `API_PORT` no `.env` (ex.: `API_PORT=8766`): no Windows, o Docker pode não acusar o conflito, e outro programa continua respondendo nessa porta.
-- **`.env`:** para a chave e a porta, edite o arquivo `.env`. Não use `export`, `$env:` nem `echo > .env`, que sobrescreve o arquivo e apaga o `API_PORT`.
-- **Logs dos serviços:** `docker compose logs -f ocr rag api`.
-- **Parar:** `docker compose down`.
-- **Parar e limpar:** `docker compose --profile cli --profile test down -v` remove os containers, as redes e os volumes: o banco, a chave do banco e o código gerado. Sem `--profile cli`, o volume `generated` do agent fica.
-- **Imagens:** o `down -v` não apaga as imagens. Para apagá-las também, acrescente `--rmi local`.
+- **Tempo:** o 1º build, sem cache, leva de 10 a 20 minutos (por causa do Tesseract); os seguintes usam cache.
+- **Saída esperada:** `ocr`, `rag` e `api` como `Healthy`.
+- **Swagger:** `http://127.0.0.1:<API_PORT>/docs` (padrão 8765; a porta real sai de `docker compose port api 8000`). A página certa se chama "API de agendamento de exames (fictícia)"; o `/openapi.json` dela é o que o agente consome. Operações: `create_appointment` (`POST /appointments`), `get_appointment` (`GET /appointments/{appointment_id}`) e `health` (`GET /health`). Corpo de exemplo: `{"exams": [{"code": "FICT-001"}]}` (o `name` é opcional; a API grava e devolve o nome do catálogo). Outro `Host` que não `127.0.0.1`, `localhost` ou `api` recebe `400`. As capturas em [`docs/evidencias/`](evidencias/) mostram a porta 18905, a da gravação.
+- **Porta:** a API escuta só em `127.0.0.1`, na porta `API_PORT`. Confira antes se está livre (`netstat -ano | findstr :8765`); se não, ponha outra no `.env` (ex.: `API_PORT=8766`). No Windows, o Docker pode não acusar o conflito.
+- **Chave do banco:** com `DB_ENCRYPTION_KEY` vazia, a API cria a chave na 1ª subida, no volume `api-key` (o log mostra `chave do banco criada em /keys/db.key`, nunca a chave). Para usar a sua, gere com `docker compose run --rm --no-deps api python -m api.crypto --gerar-chave` e ponha em `DB_ENCRYPTION_KEY=` antes do 1º `up`; definida, ela vale no lugar da do volume.
+- **Pasta:** rode tudo dentro de `rag-local-app`. Fora dela: `no configuration file provided: not found`.
+- **`.env`:** edite o arquivo. Não use `export`, `$env:` nem `echo > .env` (este apaga o `API_PORT`).
+- **Logs:** `docker compose logs -f ocr rag api`. **Parar:** `docker compose down`.
+- **Parar e limpar:** `docker compose --profile cli --profile test down -v` remove containers, redes e volumes (banco, chave e código gerado; sem `--profile cli`, o volume `generated` fica). `--rmi local` apaga também as imagens.
 
 ## 2. Rodar o transpilador
 
@@ -43,9 +45,11 @@ docker compose run --rm agent cat generated/agent.py                     # o arq
 OK: generated/agent.py gerado e importado; root_agent "clinic_scheduler" (SequentialAgent: extract -> search -> schedule)
 ```
 
-A pasta `generated/` do host fica vazia: o arquivo está no volume Docker `generated`, que só os containers do `agent` montam. O 2º comando acima o mostra. Não é uma pasta do host porque o container roda como um usuário sem privilégios (uid 10001), que no Linux não poderia escrever numa pasta do host.
+A pasta `generated/` do host fica vazia: o arquivo vai para o volume Docker `generated`, porque o container roda como
+usuário sem privilégios (uid 10001), que no Linux não escreveria numa pasta do host.
 
-**Sua própria spec, sem rebuild.** A pasta `specs/` do host é montada só para leitura no `agent`: salve a spec ali e transpile pelo caminho dela. Uma edição vale no próximo comando, sem reconstruir a imagem.
+**Sua própria spec, sem rebuild.** `specs/` é montada só para leitura no `agent`: salve a spec ali; uma edição vale no
+próximo comando.
 
 ```bash
 cp specs/listar-exames.json specs/minha-spec.json                         # ou escreva a sua do zero
@@ -53,9 +57,8 @@ docker compose run --rm agent python -m cli transpile specs/minha-spec.json --ou
 docker compose run --rm agent python -m cli run --image pedido.png --spec specs/minha-spec.json --agent generated/minha.py
 ```
 
-Sem `--output`, o novo arquivo substitui o `generated/agent.py`. Se a spec não passar na validação ou o código gerado não importar, o arquivo anterior fica como estava.
-
-Campos da spec, mensagens de erro e o código gerado comentado: [transpilador.md](transpilador.md).
+Sem `--output`, o novo arquivo substitui o `generated/agent.py`. Se a spec não passar na validação ou o código não
+importar, o arquivo anterior fica. Campos, erros e o código gerado comentado: [transpilador.md](transpilador.md).
 
 ## 3. Executar o agente
 
@@ -63,11 +66,11 @@ Campos da spec, mensagens de erro e o código gerado comentado: [transpilador.md
 docker compose run --rm agent python -m cli run --image pedido.png      # chama o Gemini (gemini-3.5-flash, da spec)
 ```
 
-Um `run` leva de segundos a alguns minutos, conforme a fila do Gemini: quase todo o tempo é à espera dele (três agentes em sequência). Já medimos de 11 s a 381 s; no [log das evidências](evidencias/log-run-pedido.txt), 13 s. Com o Gemini lento, a busca e o agendamento crescem, porque incluem o tempo do modelo para gerar cada chamada. Não travou: as linhas `[extract] chamando ...` mostram o progresso.
+- **`pedido.png`** está em `samples/`. Antes da saída, o Compose mostra o status dos containers (`Waiting`, `Healthy`).
+- **Tempo:** de segundos a alguns minutos, quase todo à espera do Gemini (três agentes em sequência). Já medimos de 11 s a 381 s; no [log das evidências](evidencias/log-run-pedido.txt), 13 s. As linhas `[extract] chamando ...` mostram que não travou.
+- **Modelo reserva:** se o principal responde `503` (sobrecarregado) ou `429` (sem cota), a mesma requisição vai na hora ao `fallback_model` da spec (`gemini-3.5-flash-lite`, pelo `FallbackModel` do ADK), com `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite`. Nenhuma ferramenta rodou na chamada que falhou, então nada é agendado em dobro. O reserva tem as suas 5 tentativas.
 
-**Modelo reserva, um caminho normal.** A spec traz um `fallback_model` (`gemini-3.5-flash-lite`). Se o principal responde sobrecarregado (`503`) ou sem cota (`429`), a mesma requisição vai na hora ao `fallback_model` da spec (`gemini-3.5-flash-lite`, pelo `FallbackModel` do ADK que o `agent.py` declara), sem esperar novas tentativas do principal: aparece `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite` e a execução segue; a linha `Tempo:` diz qual modelo respondeu por último. Não agenda em dobro nem pergunta de novo: o que se repete é a chamada ao modelo, e nenhuma ferramenta rodou na chamada que falhou. O reserva tem as suas 5 tentativas. É o mesmo `app` que o `adk run` roda: a CLI não muda nada no `agent.py` que importa.
-
-`pedido.png` está em `samples/`. Antes do agendamento, a CLI mostra a lista e faz uma pergunta, que por padrão é não:
+Antes de agendar, a CLI mostra a lista e faz uma pergunta para a lista inteira. O padrão é não:
 
 ```text
 Trechos removidos pelo OCR (não pareciam exame): 3
@@ -78,7 +81,9 @@ Exames para agendar:
 Agendar estes 3 exames? [s/N] s
 ```
 
-Com `s`, a saída segue como a desse log, sem as linhas `[extract] chamando ...`. O log foi gravado antes da confirmação final da lista, com `-T` (sem terminal): hoje esse comando precisa de `--yes`. O id muda a cada execução, e `NOME x2` são o paciente e o médico.
+Com `s`, a saída segue como a do log abaixo (sem as linhas `[extract] chamando ...`). O log foi gravado com `-T` (sem
+terminal), antes de existir a pergunta; hoje esse comando precisa de `--yes`. O id muda a cada execução, e `NOME x2`
+são o paciente e o médico.
 
 ```text
 PII reconhecida e mascarada pelo OCR: NOME x2, CPF x1, EMAIL x1, TELEFONE x1
@@ -94,106 +99,113 @@ Agendamento confirmado pela API: id eb9a8d89…, status scheduled
 Tempo: OCR 2,0 s · busca 4,4 s · agendamento 1,6 s · total 13 s (modelo gemini-3.5-flash)
 ```
 
-- **Confirmação final da lista:** nada é agendado sem ela.
-  - A lista traz cada exame com o código. Um exame que as regras não agendariam sozinhas vem com o que foi lido e o motivo da própria linha: `- IgA (FICT-079): lido "- GA", confiança 0,80; confira`, ou `; o pedido tem outras palavras além do exame`. Quando o motivo é a página (texto além da lista), ele vem uma vez, no topo, com as linhas que o causam: `Atenção: o pedido tem texto além da lista de exames: linha 1 "[TEXTO_REMOVIDO]"; confira o papel`.
-  - Antes da lista vêm também os trechos removidos, as instruções neutralizadas, um cancelamento sem exame e as linhas não reconhecidas. Os que não serão agendados vêm em `Não agendados:`, com o motivo (negado, já realizado, baixa confiança, não buscado pelo agente…): o pedido inteiro é conferido antes da pergunta.
-  - Só `s` ou `sim` agenda. Qualquer outra resposta, inclusive Enter, não agenda nada: `Erro: agendamento bloqueado antes de chamar a API: você não confirmou a lista de exames; nada foi agendado`.
-  - Sem terminal (`docker compose run -T`, um pipe, `CI=1`) e sem `--yes`, a lista é mostrada e nada é agendado: `…: sem terminal para confirmar a lista de exames: rode num terminal ou com --yes; nada foi agendado`.
-  - **`--yes`** pula a pergunta, para automação. É escolha e risco de quem opera: só as regras decidem, e os exames que iriam para a lista com aviso ficam de fora (`não agendado sem confirmação`). Os [limites da lista branca da página](../README.md#limites-conhecidos) valem por inteiro.
-- **Linhas antes da tabela:**
-  - `PII reconhecida e mascarada pelo OCR` conta só dados pessoais, cada um pela regra que o reconheceu: `NOME` só quando uma regra de nome o viu (um rótulo como `Paciente:`, palavras com maiúscula ao lado de um exame, um prenome comum). Palavras comuns que a rede de segurança tira ("NAO realizar", "autoriza incluir") não contam como nome. `nenhuma` quer dizer que nenhuma regra reconheceu um dado pessoal, não que não sobrou nenhum: um nome feito de palavras de exame ("Albina Ferro") passa sem ser contado;
-  - `Trechos removidos pelo OCR (não pareciam exame): N` conta o resto do que a rede de segurança tirou do texto. Não é PII pelas regras, mas pode conter um nome que elas não reconheceram (um sobrenome sem prenome comum): por isso `NOME xN` é um piso, não o total de nomes;
-  - se o OCR removeu instruções escondidas, aparece também `Instruções neutralizadas no OCR: N`;
-  - um item da lista de exames que o OCR leu, mas que não parece nenhum exame do catálogo ("4) Ressonância magnética de crânio"), aparece como `lido mas não reconhecido no catálogo: linha N; confira o pedido`. Só o número da linha: o texto dela não sai do OCR.
-- **O que o pedido diz de cada exame:** antes de mascarar, o OCR lê cada linha como foi escrita. Só agenda sozinha uma linha que é só exame (com marcador de lista, rótulo como "Exames:" e qualificadores do exame, como "completo", "de jejum" ou "8h"); qualquer outra palavra vira pergunta:
-  - "Ferritina - pedido por engano", "Vitamina B12 (laudo anexo)", "Colesterol total ?", "Hemograma completo sem plaquetas": vão para a lista com aviso, `- Ferritina (FICT-018): lido "...", confiança 0,89; o pedido tem outras palavras além do exame; confira`. Com `--yes`: `não agendado sem confirmação: ...; o pedido tem outras palavras além do exame, confirme`;
-  - numa linha que diz claramente para não fazê-lo ("NÃO realizar Ferritina", "PSA total - não repetir", "anulado") ou que ele já foi feito ("já realizado em 2025", "Resultado de Ferritina: 45"), o exame não é agendado e aparece como `não agendado: '...' → Ferritina FICT-018; o pedido diz para não realizar` (ou `que já foi realizado`). Vale também para uma caixa ou célula de tabela que diz não ("[-] TSH", "TSH | -", "não" ou célula vazia); "sim", "x" ou "✓" numa tabela é perguntado;
-  - embaixo de "Não realizar:" ou "Não realizar os seguintes:", ou com "retirar o item 2", os itens são perguntados;
-  - numa linha de preparo ("Preparo: jejum de 8 horas para Glicemia de jejum"), o exame não é agendado por ela e é avisado com esse motivo.
-  A pergunta mostra a linha já mascarada: confira o pedido em papel. Detalhes e limites em [medicoes.md](medicoes.md#limites-conhecidos).
-- **Faixas de confiança:**
-  - de 0,70 a 0,90, o exame entra na lista com aviso: `- <exame> (<código>): lido "<linha lida>", confiança 0,82; confira`;
-  - com `--yes`, esses exames ficam de fora e aparecem como `não agendado sem confirmação`;
-  - abaixo de 0,70, o exame não é agendado e aparece como `baixa confiança: '<linha lida>' → <exame> <código> (confiança 0,xx); confira o pedido`.
-- **Um exame por ocorrência no pedido:**
-  - cada nome do catálogo ocupa uma ocorrência própria na linha: "Exames: Hemograma completo, Creatinina e TSH" agenda 3, e "Creatinina, Clearance de creatinina" agenda 2;
-  - um nome que só aparece dentro de outro ("Hemoglobina" em "Hemoglobina glicada", escrito uma vez) vale um só, como uma linha que só se parece com várias buscas;
-  - um exame que repete um trecho já usado aparece como `não agendado: '<linha>' → <exame> <código>; o mesmo trecho da linha já foi usado por <outro exame>; confira o pedido`.
-  - um "e" que o OCR grudou no exame não junta dois exames num trecho só: em "2) Ureiae Creatinina", a busca por "Ureia" acha o pedaço "Ureiae" (0,91) e Ureia é agendada junto com Creatinina.
-- **Exame que o modelo deixou de fora:** se a busca o achou e o modelo não o incluiu, ele aparece como `não incluído pelo agente: '<linha lida>' → <exame> <código> (confiança 0,xx); confira o pedido`. Não é agendado, só avisado.
-- **Vários exames numa linha** ("Colesterol total e Triglicerideos", "TSH, T4 livre"): a linha é buscada exame por exame, e cada um é agendado, perguntado ou avisado por conta própria.
-  - Isso vale também quando o OCR grudou o "e" numa palavra: em "TSHe T4 livre", T4 livre é agendado e TSH, com 0,86, é perguntado.
-  - Um pedaço que é parte do exame vizinho é buscado como esse exame. "Toxoplasmose IgG e IgM" agenda Toxoplasmose IgG e Toxoplasmose IgM, nunca a IgM genérica; "IgG e IgM para toxoplasmose" também.
-  - "PSA total e livre" agenda PSA total e PSA livre, e "Vitamina B12 e D" agenda as duas vitaminas.
-  - Em "Clearance de creatinina, urina 24h", "urina 24h" é a amostra do exame, não outro exame.
-- **Conferência do pedido inteiro:** depois da execução, a CLI confere cada linha no próprio RAG, pedaço por pedaço, com os mesmos pedaços da busca.
-  - Um exame escrito que o modelo nem buscou aparece como `não buscado pelo agente: '<linha lida>' → <exame> <código> (confiança 0,xx); confira o pedido`.
-  - Com algum `não incluído` ou `não buscado`, a última linha fica `Agendamento confirmado pela API: id …, status scheduled; ATENÇÃO: N possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima`.
-  - O código de saída continua 0, porque o agendamento existe.
-  - Essa conferência leva no máximo 30 s. Se o RAG travar, a CLI mostra `Aviso: o pedido não foi conferido por inteiro` e termina.
-- **Última linha, `Tempo:`:** o tempo de cada etapa (buscas em paralelo contam uma vez), o total e o modelo usado. Aparece também quando nada é agendado, antes da linha `Erro:`, e não traz nenhum dado do pedido.
-  - **Cada etapa inclui o turno do modelo:** conta de quando o Gemini começa a gerar a chamada da ferramenta (o horário que o ADK grava no evento) até a resposta dela. Não conta a espera pela resposta `[s/N]`.
-  - **O total é o relógio do `run` inteiro:** soma os turnos do modelo entre as chamadas, as novas tentativas do Gemini (até 5, com espera crescente) e a espera pelo `[s/N]`. Por isso pode passar bem da soma das etapas.
-- **Outro modelo numa execução, sem editar a spec:**
-  `docker compose run --rm -e GEMINI_MODEL=<modelo> agent python -m cli run --image pedido.png` (ou `GEMINI_MODEL=` no `.env`, para todas).
-- **Ver os logs:** por padrão a saída é só a de cima, e cada falha termina numa linha `Erro: ...`. Com `--verbose` (em `run` ou `transpile`), a CLI mostra também, no stderr, os logs das bibliotecas (ADK, MCP, as novas tentativas do cliente do Gemini) e, numa falha inesperada, o traceback, com a chave da API trocada por `[GOOGLE_API_KEY]`:
+**Confirmação final da lista.** Nada é agendado sem ela.
+
+- Só `s` ou `sim` agenda. Outra resposta, inclusive Enter: `Erro: agendamento bloqueado antes de chamar a API: você não confirmou a lista de exames; nada foi agendado`.
+- Sem terminal (`docker compose run -T`, um pipe, `CI=1`) e sem `--yes`: a lista é mostrada e nada é agendado (`…: sem terminal para confirmar a lista de exames: rode num terminal ou com --yes; nada foi agendado`).
+- **`--yes`** pula a pergunta, para automação, por conta e risco de quem opera: só as regras decidem, e os exames que viriam com aviso ficam de fora (`não agendado sem confirmação`). Valem por inteiro os [limites conhecidos](../README.md#limites-conhecidos).
+- O pedido inteiro é conferido antes da pergunta: os avisos vêm acima da lista; os exames que não serão agendados, em `Não agendados:`, com o motivo.
+
+**Avisos da saída.** A "confiança" de um exame é o menor valor entre a nota da busca no catálogo, o quanto a busca
+bate com a linha e a leitura que o OCR deu à linha: de 0,90 para cima, o exame entra na lista; de 0,70 a 0,90, entra
+com aviso; abaixo, não é agendado. "Conferir" quer dizer: olhe o pedido em papel (a saída mostra as linhas já
+mascaradas) e, se ele pede o exame, agende-o à parte.
+
+| Aviso | O que significa | O que fazer |
+|---|---|---|
+| `PII reconhecida e mascarada pelo OCR: …` | Dados pessoais mascarados, por tipo. É um piso: `nenhuma` não quer dizer que não sobrou nenhum (um nome feito de palavras de exame, como "Albina Ferro", passa). | Nada. |
+| `Trechos removidos pelo OCR (não pareciam exame): N` | O que o filtro do OCR tirou do texto; pode conter um nome que as regras não reconheceram. | Nada. |
+| `Instruções neutralizadas no OCR: N` | Ordens escondidas no pedido, tiradas do texto (viram `[TEXTO_REMOVIDO]`). | Conferir. |
+| `Atenção: o pedido tem texto além da lista de exames: linha 1 "[TEXTO_REMOVIDO]"; confira o papel` | A página não é só a lista de exames; o aviso vem uma vez, no topo, com as linhas que o causam. | Conferir antes de responder. |
+| `- IgA (FICT-079): lido "- GA", confiança 0,80; confira` | Confiança de 0,70 a 0,90. Com `--yes`, sai como `não agendado sem confirmação`. | Conferir a linha. |
+| `…; o pedido tem outras palavras além do exame; confira` | A linha tem algo além do exame ("Ferritina - pedido por engano"); confiança de no máximo 0,89. Com `--yes`: `não agendado sem confirmação: ...; o pedido tem outras palavras além do exame, confirme`. | Conferir a linha. |
+| `não agendado: '...' → Ferritina FICT-018; o pedido diz para não realizar` (ou `que já foi realizado`) | A linha diz para não fazer ("NÃO realizar Ferritina"), que já foi feito ("Resultado de Ferritina: 45") ou marca "não" numa caixa ou tabela. | Conferir. |
+| `não agendado: ...; a linha é uma orientação de preparo, não um pedido` | O exame só aparece numa linha de preparo ("jejum de 8 horas para Glicemia"). | Nada. |
+| `baixa confiança: '<linha lida>' → <exame> <código> (confiança 0,xx); confira o pedido` | Confiança abaixo de 0,70. | Conferir. |
+| `não agendado: '<linha>' → <exame> <código>; o mesmo trecho da linha já foi usado por <outro exame>; confira o pedido` | Cada exame precisa de um trecho próprio: "Hemoglobina" dentro de "Hemoglobina glicada", escrito uma vez, vale um só. | Conferir. |
+| `lido mas não reconhecido no catálogo: linha N; confira o pedido` | Item da lista que não parece exame do catálogo; só o número da linha sai do OCR. | Conferir. |
+| `não incluído pelo agente: '<linha lida>' → <exame> <código> (confiança 0,xx); confira o pedido` | A busca achou o exame e o modelo o deixou de fora. | Conferir. |
+| `não buscado pelo agente: ...; confira o pedido` | A conferência do pedido inteiro, feita em código no RAG depois da execução, achou um exame que o modelo nem buscou. | Conferir. |
+| `…, status scheduled; ATENÇÃO: N possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima` | Há `não incluído` ou `não buscado`. O código de saída continua 0: o agendamento existe. | Ler os avisos acima. |
+| `Aviso: o pedido não foi conferido por inteiro` | A conferência do pedido inteiro passou de 30 s (o RAG travou). | Conferir o pedido todo. |
+
+Todos os estados de um exame e a regra de cada um: [arquitetura.md](arquitetura.md#agendamento-conferido-em-código).
+Exemplos de linhas (negação, caixas, preparo, vários exames numa linha como "TSH, T4 livre" ou "Toxoplasmose IgG e
+IgM") e os limites: [regras.md](regras.md) e [medicoes.md](medicoes.md#limites-conhecidos).
+
+**A linha `Tempo:`** traz cada etapa (buscas em paralelo contam uma vez), o total e o modelo que respondeu por último;
+aparece também antes de um `Erro:` e não traz dado do pedido. Cada etapa inclui o turno do modelo que gera a chamada
+da ferramenta, então cresce com o Gemini lento. O total é o relógio do `run` inteiro, com as novas tentativas do
+Gemini (até 5) e a espera pelo `[s/N]`: pode passar bem da soma das etapas.
+
+**Outras opções:**
+
+- Outro modelo, sem editar a spec (ou `GEMINI_MODEL=` no `.env`, para todas as execuções):
+  `docker compose run --rm -e GEMINI_MODEL=<modelo> agent python -m cli run --image pedido.png`
+- Logs das bibliotecas (ADK, MCP, novas tentativas do Gemini) no stderr e, numa falha inesperada, o traceback, com a chave trocada por `[GOOGLE_API_KEY]` (vale em `run` e `transpile`):
   `docker compose run --rm agent python -m cli run --image pedido.png --verbose`
-- Antes da saída de cada `run`, o Compose mostra o status dos containers (`Waiting`, `Healthy`).
 
 ### Testar outra imagem
 
-Coloque o arquivo em `samples/` e rode:
+Coloque o arquivo em `samples/` (montada no container de OCR, sem rebuild) e rode:
 
 ```bash
 docker compose run --rm agent python -m cli run --image <arquivo>
 ```
 
-- **Formato:** `.png`, `.jpg` ou `.jpeg`, com até 5 MB e 25 megapixels. Informe só o nome, sem pastas.
-- **PDF não é aceito.** A CLI recusa outra extensão antes de chamar o Gemini:
-  `Erro: --image: "pedido.pdf" não é uma imagem aceita; use .png, .jpg ou .jpeg`.
-- **PDF renomeado** para `.png` passa pela extensão, mas o OCR o reconhece: `O arquivo é um PDF, não uma imagem: exporte a página como PNG ou JPEG.`
-- **Foto de lado ou de cabeça para baixo** é endireitada e lida. Se nem assim der: `imagem de lado ou de cabeça para baixo: gire e envie de novo`. Um PNG com fundo transparente é lido sobre branco.
-- **Arquivo inexistente ou recusado:** antes de chamar o Gemini, a CLI pergunta ao próprio OCR se o arquivo existe e é aceito (o container do agente não enxerga `samples/`). São as mesmas checagens da leitura, sem rodar o Tesseract, então um arquivo inexistente, um PDF renomeado ou uma foto ilegível param em segundos, sem nenhum turno do modelo: `Erro: OCR recusou a imagem: Arquivo "x.png" não encontrado em /data/samples.; nada foi agendado`. O nome do arquivo vai só ao OCR; o modelo continua recebendo um apelido (`pedido-1.png`). Ver "Imagem recusada pelo OCR" em [Quando algo falha](#quando-algo-falha).
-- **Sem rebuild:** não precisa reconstruir, porque `samples/` é montada no container de OCR.
-- **A suíte não muda:** os testes que percorrem as imagens de `samples/` e as specs de `specs/` usam a lista fixa dos arquivos do repositório ([`tests/versionados.py`](../tests/versionados.py)); um arquivo seu ali não muda a contagem de testes nem os faz falhar ([`test_versionados.py`](../tests/test_versionados.py)).
+- **Formato:** `.png`, `.jpg` ou `.jpeg`, até 5 MB e 25 megapixels. Só o nome, sem pastas. Outra extensão é recusada antes do Gemini (`Erro: --image: "pedido.pdf" não é uma imagem aceita; use .png, .jpg ou .jpeg`); um PDF renomeado, pelo OCR (`O arquivo é um PDF, não uma imagem: exporte a página como PNG ou JPEG.`).
+- **Foto de lado ou de cabeça para baixo** é endireitada. Se nem assim der: `imagem de lado ou de cabeça para baixo: gire e envie de novo`. PNG transparente é lido sobre branco.
+- **Arquivo inexistente ou recusado:** a CLI pergunta ao OCR antes do Gemini, então o erro sai em segundos: `Erro: OCR recusou a imagem: Arquivo "x.png" não encontrado em /data/samples.; nada foi agendado`. Só uma página que o Tesseract não consegue endireitar é recusada durante a execução. O nome vai só ao OCR; o modelo recebe um apelido (`pedido-1.png`).
+- **A suíte não muda:** os testes usam a lista fixa dos arquivos versionados ([`tests/versionados.py`](../tests/versionados.py), [`test_versionados.py`](../tests/test_versionados.py)).
 
-Exemplos prontos em `samples/`:
+Exemplos em `samples/`:
 
-- **`pedido-realista.png`:** cabeçalho de clínica, CPF, telefone, CID, convênio, idade, data, CRM e exames numa fonte que imita letra de mão (não é manuscrito real). Dos 4 exames, 2 são agendados (Glicemia e TSH); Colesterol total e Hemoglobina glicada são lidos certos, mas saem em `baixa confiança` para você conferir, porque a confiança de leitura do OCR nessas duas linhas é 68 e 60, abaixo do piso de 75 (o RAG acha os dois). A CLI mostra esse valor como `(confiança 0,68)`, o mesmo número e a mesma palavra da pergunta `[s/N]`: o menor entre a busca, o apoio na linha e a leitura do OCR. É o comportamento esperado, e conservador: o que o sistema não leu com segurança não é agendado sozinho, é listado para conferência humana;
-- **`pedido-sem-exame.png`:** dados do paciente e nenhum exame, o caso (b) do [teste de alucinação](evidencias/log-alucinacao.txt): nada pode ser agendado (`Erro: Nenhum exame encontrado no pedido; nada foi agendado`). Gerado por `exemplos/gerar_pedido_sem_exame.py`, com semente fixa;
-- **`pedido-variacao.png`:** nome sem rótulo, marcadores, sinônimo `Glicose`, telefone sem rótulo, data e CRM;
-- **`ataque-injecao.png` e `ataque-exame-disfarcado.png`:** instruções escondidas no pedido. O OCR tira as ordens do texto (o que sobra sai como `[TEXTO_REMOVIDO]`) e a CLI mostra `Instruções neutralizadas no OCR: N`; só os exames legítimos são agendados (ver [Segurança em detalhe](arquitetura.md#segurança-em-detalhe)).
-- **`pedido-manuscrito.png` e `pedido-manuscrito-dificil.png`:** pedidos com aparência de letra de mão e de foto de celular, ambos simulados (ver abaixo). Na primeira, o OCR lê os 5 exames; na segunda, de "letra de médico", quase nada é lido: o que o agente achar fica para a sua confirmação (`[s/N]`) ou sai em "baixa confiança", e nada é agendado sozinho.
+- **`pedido-realista.png`:** cabeçalho de clínica, CPF, telefone, CID, convênio, data, CRM e 4 exames numa fonte que imita letra de mão. Glicemia e TSH são agendados; Colesterol total e Hemoglobina glicada saem em `baixa confiança` (`(confiança 0,68)`), porque o OCR leu essas linhas com 68 e 60, abaixo do piso de 75. É o esperado: o que não foi lido com segurança vai para conferência humana.
+- **`pedido-sem-exame.png`:** nenhum exame, o caso (b) do [teste de alucinação](evidencias/log-alucinacao.txt): `Erro: Nenhum exame encontrado no pedido; nada foi agendado`. Gerado por `exemplos/gerar_pedido_sem_exame.py`, com semente fixa.
+- **`pedido-variacao.png`:** nome sem rótulo, marcadores, sinônimo `Glicose`, telefone sem rótulo, data e CRM.
+- **`ataque-injecao.png` e `ataque-exame-disfarcado.png`:** instruções escondidas; só os exames legítimos são agendados ([Segurança em detalhe](arquitetura.md#segurança-em-detalhe)).
+- **`pedido-manuscrito.png` e `pedido-manuscrito-dificil.png`:** letra de mão e foto de celular, simuladas. No primeiro, o OCR lê os 5 exames; no segundo ("letra de médico"), quase nada, e nada é agendado sem confirmação.
 
 ### Pedidos manuscritos simulados
 
-`samples/manuscritos/` tem 120 pedidos fictícios com aparência de letra de mão: 70 de letra comum e 50 de "letra de médico" (muito inclinada, abreviações, carimbo com CRM e assinatura rabiscada). **São simulados com as fontes de letra de mão do Windows (Ink Free, Segoe Print, Segoe Script), não escrita real.** 93 das 120 (77%) imitam foto ruim de celular (baixa resolução, desfoque, JPEG pesado, sombra, perspectiva, papel amassado, ruído, borda cortada); o resto, scan limpo. O `gabarito.json` diz os exames, a PII e a degradação de cada imagem, e o CPF tem o dígito verificador errado de propósito. Para gerá-las de novo (no Windows, mesma semente, mesmas imagens):
+`samples/manuscritos/` tem 120 pedidos fictícios com aparência de letra de mão: 70 de letra comum e 50 de "letra de
+médico" (inclinada, abreviada, com carimbo e assinatura). **São simulados com fontes de letra de mão do Windows (Ink
+Free, Segoe Print, Segoe Script), não escrita real.** 93 das 120 (77%) imitam foto ruim de celular; o resto, scan
+limpo. O `gabarito.json` diz os exames, a PII e a degradação de cada imagem (o CPF tem o dígito verificador errado de
+propósito). Para gerá-las de novo (no Windows, mesma semente):
 
 ```bash
 python exemplos/gerar_manuscrito.py --saida samples/manuscritos --comum 70 --medico 50
 ```
 
-Para passar as 120 pelo OCR e pelo RAG, via MCP e sem Gemini, com o compose da carga (o OCR continua lendo só um nome de arquivo; as imagens vão para um volume só da carga):
+Para passar as 120 pelo OCR e pelo RAG, sem Gemini, com a regra real do agente:
 
 ```bash
 docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga run --rm tests python -m tests.load.manuscritos
 ```
 
-A saída mostra, por estilo e qualidade da foto, os exames agendados sozinhos, os que seriam perguntados (`[s/N]`), os em baixa confiança, os não lidos, os que seriam agendados errados sem confirmação e a PII que sobrou. A decisão é a regra real do agente (leitura do OCR por linha, busca no RAG e as 3 faixas), sem ninguém para responder. Resultado atual: 113 de 497 exames agendados sem perguntar (23%), 37 perguntados, **0 errados sem confirmação** e 0 PII sobrando; a letra de médico continua quase ilegível (1 de 206 exames agendado sem perguntar). Uma troca de leitura entre exames do catálogo (`TGP` lido como `TAP`) não é agendada sozinha: vira pergunta. Tabela por grupo em [medicoes.md](medicoes.md#pedidos-manuscritos-simulados). O teste da CI (`tests/test_manuscritos.py`) roda 10 das 120 e falha se algum exame for agendado errado sem confirmação ou se sobrar PII.
+- **Resultado atual:** 113 de 497 exames agendados sem perguntar (23%), 37 perguntados, **0 errados sem confirmação** e 0 PII sobrando. Letra de médico: 1 de 206 exames agendado sem perguntar.
+- Uma troca entre exames do catálogo (`TGP` lido como `TAP`) vira pergunta.
+- Tabela por grupo em [medicoes.md](medicoes.md#pedidos-manuscritos-simulados). Na CI, `tests/test_manuscritos.py` roda 10 das 120 e falha com um exame agendado errado sem confirmação ou PII sobrando.
 
 ### Robustez: entradas faltando ou quebradas
 
-Para mandar 602 entradas quebradas (imagens em branco, giradas, truncadas, de extensão errada; consultas vazias, enormes ou de tipo errado; corpos inválidos e 50 POSTs simultâneos na API) pelo caminho real, com o mesmo compose da carga:
+602 entradas quebradas pelo caminho real (imagens em branco, giradas, truncadas, de extensão errada; consultas vazias,
+enormes ou de tipo errado; corpos inválidos e 50 POSTs simultâneos na API):
 
 ```bash
 docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga run --rm tests python -m tests.load.robustez --variantes 12
 ```
 
-A saída mostra, por categoria, os casos ok, os recusados com mensagem clara e os que falharam (erro 500, traceback, PII, exame agendado fora da imagem ou mensagem pouco clara). `--caso <id>` refaz só um caso. Resultado em [medicoes.md](medicoes.md#robustez-entradas-faltando-ou-quebradas).
+A saída mostra, por categoria, os casos ok, os recusados com mensagem clara e os que falharam (erro 500, traceback,
+PII, exame agendado fora da imagem, mensagem pouco clara). `--caso <id>` refaz um caso. Resultado em
+[medicoes.md](medicoes.md#robustez-entradas-faltando-ou-quebradas).
 
 ## 4. Rodar com `adk run` ou `adk web`
 
-O agente gerado também roda com as ferramentas do próprio ADK, sem a CLI do projeto. O `transpile` grava `generated/agent.py` e `generated/__init__.py`, então `generated/` é uma pasta de agente do ADK: o `agent.py` expõe `root_agent` e um `app` retomável (a confirmação da lista pausa e retoma a mesma chamada de agendamento).
+O agente gerado também roda com as ferramentas do ADK, sem a CLI do projeto: o `transpile` grava `generated/agent.py`
+e `generated/__init__.py`, e o `agent.py` expõe `root_agent` e um `app` retomável (a confirmação da lista pausa e
+retoma a mesma chamada de agendamento).
 
 ```bash
 docker compose run --rm agent python -m cli transpile specs/agent.json   # gera de novo depois de atualizar o projeto
@@ -201,31 +213,28 @@ docker compose run --rm agent adk run --in_memory generated              # no [u
 docker compose run --rm -p 127.0.0.1:8000:8000 agent python -m runtime.web --host 0.0.0.0 generated   # o adk web, com checagem de Host
 ```
 
-O `python -m runtime.web` ([`runtime/web.py`](../runtime/web.py)) sobe o mesmo servidor do `adk web --no_use_local_storage` e só atende o cabeçalho `Host` `127.0.0.1` ou `localhost` (outro nome recebe 400), contra DNS rebinding: uma página cujo nome passa a apontar para 127.0.0.1 manda o próprio nome; o `adk web` só confere o `Host` escutando em 127.0.0.1, e no container ele escuta em 0.0.0.0. Uma entrada que o ADK recusa, como uma confirmação forjada, recebe 400 numa linha (`Requisição inválida para esta sessão (ex.: confirmação forjada).`), sem traceback.
+No `adk web`, abra <http://127.0.0.1:8000>, escolha o agente `generated` e mande `pedido.png`. Com a porta 8000
+ocupada, troque só o primeiro número (ex.: `127.0.0.1:8090:8000`).
 
-No `adk web`, abra <http://127.0.0.1:8000>, escolha o agente `generated` e mande `pedido.png`. Se a porta 8000 do host estiver ocupada, troque só o primeiro número (ex.: `127.0.0.1:8090:8000`).
+- **`python -m runtime.web`** ([`runtime/web.py`](../runtime/web.py)) é o `adk web --no_use_local_storage` que só atende `Host` `127.0.0.1` ou `localhost` (outro recebe 400). Uma entrada que o ADK recusa, como uma confirmação forjada, recebe 400 numa linha: `Requisição inválida para esta sessão (ex.: confirmação forjada).`
+- **`--in_memory` e `--no_use_local_storage`** mantêm a sessão em memória, em vez de gravá-la em `generated/.adk/` (com o texto do OCR mascarado e o nome real do arquivo). No ADK 2.10, `--no_use_local_storage` não combina com `--session_service_uri` nem `--artifact_service_uri`.
+- **A mensagem:** só o nome de um arquivo de `samples/`, como texto (`pedido.png` ou `agende o pedido pedido.png`). Sem nome, com pasta ou com dois arquivos: `Informe só o nome de um arquivo de pedido em samples/ …`; com algo além de texto: `Envie só o nome do arquivo do pedido, como texto…`. O modelo não é chamado.
+- **Antes do 1º turno** (`start_order`, em [`runtime/callbacks.py`](../runtime/callbacks.py)), como no `cli run`: o modelo recebe só o apelido (`Arquivo do pedido: pedido-1.png`), os hosts de `ALLOWED_HOSTS` são conferidos e o OCR confere a imagem (`check_image`). Os endereços conferidos ficam fixos enquanto o `adk` durar ([`runtime/rede.py`](../runtime/rede.py)): se um `docker compose up` recriar um serviço, reinicie o `adk run` ou o `adk web`.
+- **Confirmação da lista:** a mesma da CLI, pela confirmação nativa do ADK, sem `--yes`. O `adk run` mostra `[HITL confirm]` com os avisos, a lista e `Agendar estes N exames?`; `yes` agenda, outra resposta não. O `adk web` mostra a lista, uma caixa "Confirmed" e "Submit": marcada, agenda. Um "sim" que chega depois do agendamento não gera um 2º `POST` (`não agendado (você confirmou, mas o agendamento desta execução já tinha sido criado)…`).
+- **A última mensagem** (`[clinic_scheduler]: …`) é escrita em código com o que as ferramentas devolveram; `Agendamento confirmado pela API: id …` vem só da resposta da API. O texto do modelo (`[schedule]: …`) não conta.
+- **Um pedido por sessão:** outra mensagem recebe `Esta sessão já tratou um pedido…`; se a API já agendou, a resposta traz o agendamento e `não repita este pedido`. Para outro pedido: `exit` e `adk run` de novo; no `adk web`, New Session. O estado da sessão, que o cliente pode escrever (`adk web`, `adk run --state`), não decide nada: o runtime guarda o pedido num registro próprio por sessão.
+- **Modelo reserva e erros:** como no `cli run`; a última mensagem termina em `…; nada foi agendado` quando nada foi.
+- **Só na CLI:** a checagem de que o `agent.py` é o que a spec gera hoje, a lista de ferramentas vivas antes do 1º turno e a linha `Tempo:`. As regras de agendamento valem igual.
+- **Dependências do `agent.py`:** o Google ADK e a biblioteca `runtime/` do projeto (com `catalogo.py` e `leitura.py`), versionada por `API_VERSION` (hoje 6). Não é instalada pelo pip: o `adk run generated` na raiz põe a raiz no `sys.path`; no container, `PYTHONPATH=/app`.
+- **O `adk web` não tem login:** publique a porta só em `127.0.0.1`, como acima.
+- **Fora do Docker:** rode `adk telemetry disable` (a imagem já responde "não" à pergunta de telemetria, em que Enter diria sim) e defina `GOOGLE_API_USE_CLIENT_CERTIFICATE=false`, como o `docker-compose.yml` faz em `agent`, `tests` e `tests-e2e`: sem ela, o cliente MCP do ADK 2.10 procura credenciais do Google a cada conexão (inclusive em `169.254.169.254`).
+- **Testes:** [`tests/test_adk_run.py`](../tests/test_adk_run.py) (o `adk run` e o `adk web` com modelos roteirizados, MCP e API reais), [`tests/test_adk_seguranca.py`](../tests/test_adk_seguranca.py) (um cliente que tenta forjar estado e confirmação) e [`tests/test_adk_comandos.py`](../tests/test_adk_comandos.py) (as linhas deste guia, como estão escritas).
 
-- **A mensagem:** o nome de um arquivo de `samples/` (`pedido.png`, ou uma frase com ele: `agende o pedido pedido.png`), só como texto. Um texto sem nome de imagem, com pasta (`samples/pedido.png`) ou com dois arquivos é recusado com `Informe só o nome de um arquivo de pedido em samples/ …`, e uma mensagem com outra coisa além de texto (a imagem anexada, código, um resultado de código) com `Envie só o nome do arquivo do pedido, como texto…`, sem chamar o modelo.
-- **Antes do 1º turno do modelo** (`start_order`, em [`runtime/callbacks.py`](../runtime/callbacks.py)), como no `cli run`:
-  - o nome vira o apelido `pedido-1.png`; o modelo recebe `Arquivo do pedido: pedido-1.png` no lugar do que você digitou e nunca vê o nome real, nem uma parte da mensagem que não seja texto (`before_model`);
-  - os nomes `ocr`, `rag` e `api` precisam estar em `ALLOWED_HOSTS` e não podem resolver para um endereço local ou de metadados de nuvem. A mesma conferência roda antes da 1ª conexão de cada toolset, então nada conecta antes dela (nem o grafo da interface do `adk web`). Os endereços conferidos ficam fixos enquanto o processo do `adk` durar e são os que toda conexão usa ([`runtime/rede.py`](../runtime/rede.py)); um nome que não resolveu ou foi recusado é conferido de novo na vez seguinte. Se um serviço mudar de endereço (um `docker compose up` que recria o container), reinicie o `adk run` ou o `adk web`;
-  - o OCR confere a imagem (`check_image`): um arquivo inexistente ou recusado para aí, com o motivo e o apelido no lugar do nome.
-- **Confirmação final da lista:** a mesma da CLI, pela confirmação nativa do ADK. O console do `adk run` mostra `[HITL confirm]` com o mesmo texto (os avisos da página, a lista e `Agendar estes N exames?`); `yes` agenda a lista, qualquer outra resposta não agenda nada. No `adk web`, a página mostra a mesma lista, uma caixa "Confirmed" e "Submit": marcada, agenda; desmarcada, não. Não há `--yes` aqui: sempre se pergunta. Se o modelo mandar duas chamadas de agendamento no mesmo turno, cada uma mostra a sua lista; um "sim" que chega depois do agendamento não vai num 2º `POST`: a mensagem final diz `não agendado (você confirmou, mas o agendamento desta execução já tinha sido criado)…`.
-- **A última mensagem** (`[clinic_scheduler]: …`) é escrita em código, com o que as ferramentas devolveram: a PII mascarada, os exames deixados de fora e o motivo, a conferência do pedido inteiro e `Agendamento confirmado pela API: id …` só com a resposta da própria API. O texto do modelo (`[schedule]: …`) não conta.
-- **Um pedido por sessão:** outra mensagem na mesma sessão é recusada (`Esta sessão já tratou um pedido…`). Se a API já agendou (também quando o modelo falhou depois do `POST`), a resposta traz o agendamento e `não repita este pedido`. Para outro pedido, `exit` e `adk run` de novo; no `adk web`, New Session. A `Idempotency-Key`, as respostas e o agendamento são da sessão.
-- **O estado da sessão não é confiável:** o `adk web` deixa o cliente escrever o estado (ao criar a sessão e em cada mensagem), e o `adk run` aceita `--state`. Por isso o que a política usa (a imagem, as linhas lidas, os códigos de cada busca, as respostas, a `Idempotency-Key` e a resposta da API) fica num registro do próprio runtime, por sessão, que o estado só recebe como cópia. Uma resposta "sim" ou um agendamento escritos no estado não mudam nada. Num `adk web` longo, o runtime guarda os registros dos 256 pedidos terminados mais recentes e descarta um registro sem uso por 6 horas; uma sessão cujo registro saiu continua dizendo que já tratou um pedido (até 4.096 sessões), e a `Idempotency-Key` sai da própria sessão: um pedido reenviado nela recebe da API o mesmo agendamento, nunca um segundo.
-- **Por que `--in_memory` e `--no_use_local_storage`:** sem eles, o ADK grava a sessão (o texto do OCR, já mascarado, e o nome real do arquivo no estado) em `generated/.adk/`, no volume. No `adk web` do ADK 2.10 (e no `runtime.web`, que o usa), `--no_use_local_storage` põe a sessão e os artefatos em memória, e o ADK recusa combiná-lo com `--session_service_uri` ou `--artifact_service_uri`.
-- **Modelo reserva, como no `cli run`:** se o modelo principal responde `503` (sobrecarregado) ou `429` (sem cota), a mesma requisição vai na hora ao `fallback_model` da spec, e o console mostra `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite`. Não agenda em dobro: é a mesma chamada ao modelo de novo, nenhuma ferramenta rodou na que falhou. Se o reserva também falhar, a etapa termina com `Gemini indisponível no momento (HTTP 503); tente novamente`, as etapas seguintes não chamam o modelo, e a última mensagem diz `…; nada foi agendado`, sem traceback.
-- **Só na CLI:** a checagem de que o `agent.py` é o que a spec gera hoje, a lista de ferramentas vivas antes do 1º turno e a linha `Tempo:`. O `adk run` roda o `agent.py` que estiver na pasta. As regras do runtime valem do mesmo jeito: ferramenta sem papel recusada, só códigos buscados e presentes no pedido, nada agendado de uma linha que diz para não realizar, que diz que já foi feito ou que é preparo (o `line_intent` do OCR fica no registro do pedido, como o resto), as 3 faixas, uma `Idempotency-Key` por sessão e `ALLOWED_HOSTS`.
-- **Dependências do `agent.py`:** o Google ADK e a biblioteca `runtime/` do projeto (que usa o `catalogo.py` e o `leitura.py`), versionada por `API_VERSION` (hoje 6). Ela não é um pacote instalado pelo pip: o `adk run generated` na raiz do projeto põe a raiz no `sys.path`, e no container `PYTHONPATH=/app` faz o mesmo.
-- **O `adk web` é a interface de desenvolvimento do ADK, sem login:** quem a abre usa o agente sem nenhuma conferência de identidade. Publique a porta só em `127.0.0.1`, como acima.
-- **Telemetria do ADK desligada:** o `adk run` e o `adk web` perguntariam `Enable telemetry? [Y/n]` (Enter diz sim) a cada vez, sem conseguir gravar a resposta no container somente leitura; a imagem do `agent` já traz a resposta "não" em `~/.adk/config.json`, então nada é perguntado nem enviado. Fora do Docker: `adk telemetry disable`.
-- **Credenciais do Google:** o cliente MCP do ADK 2.10 procura, a cada conexão, credenciais do Google (e o servidor de metadados de nuvem, `169.254.169.254`) para tentar mTLS. O `docker-compose.yml` desliga isso nos serviços `agent`, `tests` e `tests-e2e` (`GOOGLE_API_USE_CLIENT_CERTIFICATE=false`); fora do Docker, defina a variável do mesmo jeito.
-- **Testes:** [`tests/test_adk_run.py`](../tests/test_adk_run.py) roda o próprio comando `adk run` (e o servidor do `adk web`) sobre a pasta gerada, com modelos roteirizados no lugar do Gemini e os servidores MCP e a API reais: só com `pedido-joao-silva.png` digitado, agenda os 3 exames, e nenhuma requisição ao modelo contém o nome do arquivo; um caso roda a regra real de endereços, com os nomes em endereços privados. [`tests/test_adk_seguranca.py`](../tests/test_adk_seguranca.py) faz o papel de um cliente que tenta mais: estado forjado, partes que não são texto, duas perguntas no mesmo turno, conexão antes da conferência, DNS que muda e falha depois do `POST`. [`tests/test_adk_comandos.py`](../tests/test_adk_comandos.py) roda as linhas `adk run` e `runtime.web` deste guia, como estão escritas, num processo de verdade: as duas sobem sem gravar nada em `generated/.adk/`, e o `runtime.web` lista o agente, cria uma sessão e recusa `Host: evil.example` com 400.
+O porquê de cada defesa, e os limites do registro por sessão: [Segurança em detalhe](arquitetura.md#segurança-em-detalhe).
 
 ## Variáveis de ambiente
 
-Todas as que o código lê. As do `.env` chegam só ao serviço que as usa; as outras já têm o valor certo dentro dos containers e só mudam fora do Docker (por exemplo, no `pytest` local).
+Todas as que o código lê. As do `.env` chegam só ao serviço que as usa; as outras já têm o valor certo nos containers e só mudam fora do Docker (por exemplo, no `pytest` local).
 
 | Variável | Padrão | Quem lê | O que faz |
 |---|---|---|---|
@@ -234,7 +243,7 @@ Todas as que o código lê. As do `.env` chegam só ao serviço que as usa; as o
 | `ALLOWED_HOSTS` | vazia: `ocr:8001,rag:8002,api:8000` | `agent` (`transpile`, `run`, `adk run` e `adk web`) | Hosts que os servidores de uma spec podem usar: `host` para qualquer porta, `host:porta` para uma. |
 | `DB_ENCRYPTION_KEY` | vazia: a `api` cria uma no volume `api-key` | `api` | Chave AES-256 que cifra as listas de exames no banco (`python -m api.crypto --gerar-chave` cria uma). |
 | `API_RATE_LIMIT_PER_MINUTE` | `1200` | `api` | Requisições por minuto por IP; acima disso, `429` com `Retry-After`. `0` desliga. |
-| `API_ALLOWED_HOSTS` | vazia: `127.0.0.1,localhost,api` | `api` | Nomes que a API aceita no cabeçalho `Host`, em qualquer porta; outro nome recebe `400` (contra DNS rebinding). Para chamar a API por outro nome (um proxy, outro host), inclua-o aqui. |
+| `API_ALLOWED_HOSTS` | vazia: `127.0.0.1,localhost,api` | `api` | Nomes aceitos no cabeçalho `Host`, em qualquer porta; outro recebe `400` (contra DNS rebinding). Para chamar a API por outro nome (um proxy), inclua-o aqui. |
 | `API_IDEMPOTENCY_TTL_HOURS` | `24` | `api` | Horas que uma `Idempotency-Key` vale (guardada só como HMAC); depois, a mesma chave agenda de novo. |
 | `API_PORT` | `8765` | Compose | Porta da API no host, só em `127.0.0.1`. |
 | `DB_PATH` | `/state/appointments.db` | `api` | Arquivo SQLite (no volume `api-data`). |
@@ -246,21 +255,22 @@ Todas as que o código lê. As do `.env` chegam só ao serviço que as usa; as o
 
 ## Backup e restauração
 
-O banco (SQLite) fica no volume `api-data`, e a chave que cifra as listas de exames, no volume `api-key` (ou em `DB_ENCRYPTION_KEY`, no `.env`). A cópia do banco leva os exames cifrados e nunca a chave. Guarde as duas **separadas**, a chave num cofre de senhas, por exemplo: quem tem as duas lê os dados, e é para isso que a chave fica num volume à parte. A restauração precisa das duas.
+O banco (SQLite) fica no volume `api-data`; a chave que cifra as listas de exames, no volume `api-key` (ou em
+`DB_ENCRYPTION_KEY`). A cópia do banco leva os exames cifrados, nunca a chave. Guarde as duas **separadas** (a chave
+num cofre de senhas): quem tem as duas lê os dados, e a restauração precisa das duas.
 
-1. **A chave, uma vez** (ela não muda). Se você definiu `DB_ENCRYPTION_KEY` no `.env`, a chave é essa; senão, copie a do volume, guarde o conteúdo longe da cópia do banco e apague o arquivo:
+1. **A chave, uma vez** (ela não muda). Se você definiu `DB_ENCRYPTION_KEY`, é essa; senão, copie a do volume, guarde o conteúdo longe da cópia do banco e apague o arquivo:
    ```bash
    docker compose cp api:/keys/db.key ./db.key
    ```
-2. **A cópia do banco, com a API no ar** (crie a pasta `backup` uma vez, com `mkdir backup`):
+2. **A cópia do banco, com a API no ar** (crie a pasta uma vez, com `mkdir backup`):
    ```bash
    docker compose exec api python -m api.backup --saida backup.db
    docker compose cp api:/state/backup.db ./backup/appointments.db
    docker compose exec api sh -c "rm /state/backup.db"
    ```
-   - **Só o nome do arquivo:** `--saida` e `--entrada` recebem um nome, que fica na pasta do banco (`/state`). Os comandos funcionam iguais no PowerShell e no Git Bash: nenhum argumento começa com `/`, que o Git Bash reescreveria como `C:/Program Files/Git/…` (o `rm` vai entre aspas pelo mesmo motivo). Uma pasta, um `../` ou um caminho absoluto são recusados antes de tudo: `use só um nome de arquivo, sem pasta nem caminho (ex.: backup.db)`.
-   - **Consistente com a API gravando:** a cópia usa a API de backup do SQLite, que inclui os agendamentos recentes ainda no WAL (copiar só o arquivo `.db` perderia esses). Sai um arquivo só, e `--saida` nunca sobrescreve um arquivo.
-   - **Por que `/state`:** os containers são somente leitura, e o volume do banco é o lugar gravável da API (o `/tmp` é um tmpfs, que o `docker compose cp` não enxerga). A cópia fica nele só até o `cp`.
+   - `--saida` e `--entrada` recebem só um nome de arquivo, gravado em `/state`, o lugar gravável da API (os containers são somente leitura). Assim os comandos valem no PowerShell e no Git Bash, que reescreveria um argumento começado por `/` (por isso o `rm` vai entre aspas). Pasta ou caminho: `use só um nome de arquivo, sem pasta nem caminho (ex.: backup.db)`.
+   - A cópia usa a API de backup do SQLite, que inclui os agendamentos ainda no WAL; copiar só o `.db` os perderia. `--saida` nunca sobrescreve um arquivo.
    - **Saída:** `cópia gravada em /state/backup.db: 3 agendamento(s), com os exames cifrados; a chave do banco não vai na cópia (guarde-a à parte)`. O `.gitignore` já ignora `*.db` e `*.key`.
 3. **A restauração, com a API parada:**
    ```bash
@@ -270,46 +280,49 @@ O banco (SQLite) fica no volume `api-data`, e a chave que cifra as listas de exa
    docker compose up -d --wait
    docker compose exec api sh -c "rm /state/restore.db"
    ```
-   - **A chave primeiro:** com o volume `api-key` intacto, nada a fazer. Numa máquina nova, ponha a chave guardada em `DB_ENCRYPTION_KEY=` no `.env` antes (ela tem precedência sobre o volume). Sem chave, a restauração para e não cria outra: `Erro: chave do banco não encontrada (…): restaure primeiro a chave da gravação; nada foi restaurado`.
-   - **Conferida antes de gravar:** a cópia passa pelo `integrity_check` do SQLite e cada agendamento é decifrado com a chave atual. Com a chave errada, nada muda: `Erro: não foi possível decifrar o registro: a chave não é a da gravação ou o dado foi alterado no banco; nada foi restaurado`.
-   - **Banco com dados:** um banco que já tem agendamentos só é trocado com `--substituir` no fim do comando; o que entrou depois da cópia se perde, inclusive as `Idempotency-Key` gravadas depois dela.
-   - **Com a API no ar, é recusada:** a API mantém o banco aberto, e a restauração pede uma trava exclusiva: `Erro: /state/appointments.db está em uso pela API: pare-a (docker compose stop api); nada foi restaurado`.
+   - **A chave primeiro:** com o volume `api-key` intacto, nada a fazer; numa máquina nova, ponha a chave em `DB_ENCRYPTION_KEY=` antes. Sem chave, nada é restaurado (nem criada outra): `Erro: chave do banco não encontrada (…): restaure primeiro a chave da gravação; nada foi restaurado`.
+   - **Conferida antes de gravar:** `integrity_check` do SQLite e cada agendamento decifrado com a chave atual. Chave errada: `Erro: não foi possível decifrar o registro: a chave não é a da gravação ou o dado foi alterado no banco; nada foi restaurado`.
+   - **Banco com dados:** só é trocado com `--substituir` no fim do comando; o que entrou depois da cópia se perde, inclusive as `Idempotency-Key`.
+   - **API no ar:** recusada, porque a API mantém o banco aberto: `Erro: /state/appointments.db está em uso pela API: pare-a (docker compose stop api); nada foi restaurado`.
    - **Saída:** `banco restaurado em /state/appointments.db: 3 agendamento(s), todos decifrados com a chave atual`. Testes em [`test_backup.py`](../tests/test_backup.py).
 
 ## Quando algo falha
 
-Erros saem como uma linha `Erro: ...`, com código 2. Por exemplo: serviço fora do ar ou chave ausente. Para ver o que aconteceu por trás dela, rode de novo com `--verbose`.
+Erros saem como uma linha `Erro: ...`, com código 2. Para ver o que houve por trás, rode de novo com `--verbose`.
+Tabela completa em [arquitetura.md](arquitetura.md#tratamento-de-erros).
 
-- **Imagem recusada pelo OCR:** o OCR recusa com uma mensagem clara. Por exemplo: `Arquivo "x.png" não encontrado em /data/samples.`, `Imagem corrompida ou incompleta.`, `O conteúdo do arquivo não corresponde à extensão (use PNG ou JPEG).` (um GIF renomeado para `.png`) ou `Arquivo grande demais (máximo 5 MB).`. A CLI repete o motivo: `Erro: OCR recusou a imagem: <motivo>; nada foi agendado`. Ela pergunta ao OCR antes de chamar o Gemini, então essa linha sai em segundos; só uma página que o Tesseract não consegue endireitar é recusada durante a execução, com a mesma linha.
-- **Fora da pasta do repositório:** `no configuration file provided: not found`. Entre em `rag-local-app`, onde está o `docker-compose.yml`.
-- **Docker parado:** `Cannot connect to the Docker daemon … Is the docker daemon running?`. Abra o Docker Desktop e espere o "Engine running".
-- **`Read timed out` do pip no 1º build:** é a rede até o PyPI, não o projeto. Rode o `docker compose up -d --wait` de novo: os estágios prontos ficam no cache e o build continua de onde parou.
-- **Docker sem sub-redes livres:** o `up` falha com `all predefined address pools have been fully subnetted`. Causa: redes de outros projetos Docker ocupam todas as faixas.
-  - **Solução recomendada:** fixe as sub-redes deste projeto num `docker-compose.override.yml` na raiz, que o Compose lê sozinho e o `.gitignore` já ignora. Use duas faixas livres na sua máquina:
-    ```yaml
-    networks:
-      default:
-        ipam: {config: [{subnet: 10.201.10.0/24}]}
-      internal:
-        ipam: {config: [{subnet: 10.201.11.0/24}]}
-    ```
-  - **Para ver as faixas em uso** (PowerShell ou Git Bash):
-    ```bash
-    docker network inspect $(docker network ls -q) --format "{{.Name}} {{range .IPAM.Config}}{{.Subnet}} {{end}}"
-    ```
-  - **Comandos com `-f`** (a carga e a robustez, em [medicoes.md](medicoes.md)) não leem o override sozinhos: acrescente `-f docker-compose.override.yml`.
-  - **Alternativa, com cuidado:** `docker network prune` apaga todas as redes sem container em uso, inclusive as de **outros projetos** que estejam parados, que depois precisam ser recriadas. Confira antes com `docker network ls`.
-- **`OCR ocupado com outras imagens; tente de novo em instantes.`:** o OCR lê 3 imagens por vez, e um pedido espera até 20 s por uma vaga. Cada serviço tem um teto de memória, CPU e processos no `docker-compose.yml` (`mem_limit`, `cpus`, `pids_limit`; o OCR, 1,5 GiB); uma rajada maior que o teto reinicia só aquele container.
-- **Porta ocupada no Windows:** o `up` pode ficar `Healthy` sem erro enquanto outro programa responde na porta. Se o Swagger não se chamar "API de agendamento de exames (fictícia)", troque o `API_PORT`.
-- **Falhas temporárias do Gemini** (`500`) são tentadas sozinhas até 5 vezes no total, com espera crescente; `429` e `503` também, quando a spec não tem `fallback_model` ou já no modelo reserva.
-- **Modelo principal indisponível** (`429`/`503`): a mesma requisição vai na hora ao `fallback_model` da spec (`gemini-3.5-flash-lite`), sem novas tentativas do principal, com o aviso `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite`. É um caminho normal, não um erro.
-- **Se o reserva também falhar,** a saída é `Erro: Gemini indisponível no momento (HTTP 503); tente novamente`.
-- **Pedido sem exame:** `Erro: Nenhum exame encontrado no pedido; nada foi agendado`.
-- **Bloqueio antes da API:** `Erro: agendamento bloqueado antes de chamar a API: …; nada foi agendado`. Acontece quando um código não veio de uma busca no catálogo, quando nenhum exame entra na lista ou quando você não confirma a lista (`você não confirmou a lista de exames`).
-- **OCR sem texto e sem motivo** (serviço fora do ar no meio da execução): `Erro: o OCR não devolveu o texto do pedido (serviço indisponível?); nada foi agendado`.
-- **Modelo descontinuado:** a saída é `Erro: o Gemini recusou a chamada (HTTP 404: ...)`. Troque-o com `-e GEMINI_MODEL=<modelo>`.
+| Sintoma | O que fazer |
+|---|---|
+| `no configuration file provided: not found` | Entre em `rag-local-app`, onde está o `docker-compose.yml`. |
+| `Cannot connect to the Docker daemon … Is the docker daemon running?` | Abra o Docker Desktop e espere o "Engine running". |
+| `Read timed out` do pip no 1º build | É a rede até o PyPI. Rode o `docker compose up -d --wait` de novo: os estágios prontos ficam no cache. |
+| `all predefined address pools have been fully subnetted` | Redes de outros projetos ocupam todas as faixas do Docker. Ver abaixo. |
+| `Healthy`, mas o Swagger não se chama "API de agendamento de exames (fictícia)" | Outro programa responde na porta: troque o `API_PORT`. |
+| `Erro: OCR recusou a imagem: <motivo>; nada foi agendado` | Corrija o arquivo conforme o motivo: `Arquivo "x.png" não encontrado em /data/samples.`, `Imagem corrompida ou incompleta.`, `O conteúdo do arquivo não corresponde à extensão (use PNG ou JPEG).` ou `Arquivo grande demais (máximo 5 MB).`. |
+| `OCR ocupado com outras imagens; tente de novo em instantes.` | O OCR lê 3 imagens por vez, e um pedido espera até 20 s por vaga: tente de novo. Cada serviço tem teto de memória, CPU e processos (`mem_limit`, `cpus`, `pids_limit`; o OCR, 1,5 GiB); passar dele reinicia só aquele container. |
+| `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite` | Não é erro: o principal deu `429`/`503` e a requisição foi ao `fallback_model`. |
+| `Erro: Gemini indisponível no momento (HTTP 503); tente novamente` | O reserva também falhou (as falhas temporárias, como `500`, já foram tentadas até 5 vezes, com espera crescente). Tente mais tarde. |
+| `Erro: o Gemini recusou a chamada (HTTP 404: ...)` | Modelo descontinuado: troque com `-e GEMINI_MODEL=<modelo>`. |
+| `Erro: Nenhum exame encontrado no pedido; nada foi agendado` | A imagem não tem exame reconhecível. |
+| `Erro: agendamento bloqueado antes de chamar a API: …; nada foi agendado` | Um código não veio de uma busca no catálogo, nenhum exame entrou na lista ou você não confirmou a lista. |
+| `Erro: o OCR não devolveu o texto do pedido (serviço indisponível?); nada foi agendado` | O OCR caiu no meio da execução: veja `docker compose logs -f ocr rag api`. |
 
-A tabela completa está em [arquitetura.md](arquitetura.md#tratamento-de-erros).
+**Docker sem sub-redes livres:**
+
+- **Solução recomendada:** fixe duas faixas livres num `docker-compose.override.yml` na raiz (o Compose o lê sozinho; o `.gitignore` já o ignora):
+  ```yaml
+  networks:
+    default:
+      ipam: {config: [{subnet: 10.201.10.0/24}]}
+    internal:
+      ipam: {config: [{subnet: 10.201.11.0/24}]}
+  ```
+- **Faixas em uso** (PowerShell ou Git Bash):
+  ```bash
+  docker network inspect $(docker network ls -q) --format "{{.Name}} {{range .IPAM.Config}}{{.Subnet}} {{end}}"
+  ```
+- **Comandos com `-f`** (carga e robustez, em [medicoes.md](medicoes.md)) não leem o override sozinhos: acrescente `-f docker-compose.override.yml`.
+- **Alternativa, com cuidado:** `docker network prune` apaga as redes sem container em uso, inclusive as de **outros projetos** parados. Confira antes com `docker network ls`.
 
 ## Testes
 
@@ -317,31 +330,15 @@ A tabela completa está em [arquitetura.md](arquitetura.md#tratamento-de-erros).
 docker compose run --rm tests pytest -q -n auto
 ```
 
-- **Serviço `tests`:** usa o estágio `test` do `Dockerfile`, que é a imagem do `agent` mais pytest, ruff, mypy, o Tesseract e os testes. O `agent` leva só o que `transpile` e `run` usam. O 1º comando constrói a imagem de testes (sem cache, alguns minutos) e sobe os serviços.
-- **Sem chave, sempre:** o serviço `tests` não recebe a `GOOGLE_API_KEY`, nem com ela no `.env`. Nada chama o Gemini e o teste ponta a ponta é pulado.
-- **Ponta a ponta real, só quando pedido:** `docker compose run --rm tests-e2e` roda [`tests/test_e2e.py`](../tests/test_e2e.py) com a chave do `.env`: uma execução real com o Gemini (o `run` inteiro, com vários turnos do modelo) sobre `pedido.png`, que precisa agendar exatamente os 3 exames do pedido (`FICT-001`, `FICT-002` e `FICT-005`), os mesmos que o `GET` do agendamento devolve. Sem a chave no `.env`, ele falha (não é pulado), para não parecer que passou.
-- **O que a suíte cobre:**
-  - specs válidas e inválidas e o código gerado (compilável e importável);
-  - a saída da CLI;
-  - o OCR nas imagens de exemplo, com a PII mascarada;
-  - a busca do RAG;
-  - as duas ferramentas MCP chamadas via SSE, como o agente faz;
-  - a API (criação, consulta, `404`, `422`), os cabeçalhos de segurança em cada resposta ([`test_api_headers.py`](../tests/test_api_headers.py)) e o backup e a restauração do banco ([`test_backup.py`](../tests/test_backup.py));
-  - cada tipo de PII;
-  - o detector de injeção ([`tests/test_injection.py`](../tests/test_injection.py)), com o corpus do próprio projeto em `tests/attacks/` (790 ataques e 1.482 linhas legítimas, 1.429 distintas);
-  - a cifra do banco e a chave no volume ([`test_crypto.py`](../tests/test_crypto.py)) e a `Idempotency-Key` ([`test_idempotencia.py`](../tests/test_idempotencia.py));
-  - as 3 faixas de confiança, a pergunta `[s/N]` e o piso do OCR ([`test_confianca.py`](../tests/test_confianca.py));
-  - o preparo da imagem e a confiança por linha do OCR ([`test_preprocessamento.py`](../tests/test_preprocessamento.py));
-  - o agente gerado conversando com os servidores MCP reais, sem Gemini ([`test_agent_mcp.py`](../tests/test_agent_mcp.py));
-  - o agente gerado rodando com `adk run` e com o servidor do `adk web`, sem a CLI, até o agendamento na API real ([`test_adk_run.py`](../tests/test_adk_run.py));
-  - o limiar de 0,90 sobre as 631 consultas de calibração ([`test_calibration.py`](../tests/test_calibration.py));
-  - uma fração da carga (20 pedidos), dos manuscritos (10 de 120) e da robustez (1 caso por categoria): [`test_carga.py`](../tests/test_carga.py), [`test_manuscritos.py`](../tests/test_manuscritos.py), [`test_robustez.py`](../tests/test_robustez.py).
-- **Resultado atual:** 607 funções de teste e 19.366 casos (`pytest --collect-only`), quase todos de corpus parametrizado (linhas legítimas, PII gerada, ataques e termos do catálogo); 19.365 passam e 1 é pulado (o ponta a ponta, sem chave). Com `-n auto` (um processo por núcleo), a suíte leva cerca de 3,5 min numa máquina de 12 núcleos, com `--cov` (medido: 200 s e 205 s); em série, de 6 a 11 min.
-- **Qualidade na CI:** antes dos testes, a CI roda `ruff` (pyflakes, pycodestyle, ordem dos imports, bugbear) e `mypy` nos módulos do projeto, e os testes rodam com cobertura (relatório, sem limite que quebre o build): 98% das linhas de `api`, `catalogo`, `cli`, `guardrails`, `mcp_servers`, `runtime` e `transpiler`. O `agent.py` gerado não entra na conta. O `mypy` roda sem `--strict` e com `ignore_missing_imports` (bibliotecas sem tipos não são conferidas), mas olha por dentro também as funções sem anotação (`check_untyped_defs`); as do `runtime/` são anotadas, e o registro do pedido e a resposta do OCR têm tipos próprios. Config e exceções em [`pyproject.toml`](../pyproject.toml). Antes do build, o `pip-audit` confere `requirements.txt`, `requirements-dev.txt` e `constraints.txt` (tudo o que os dois puxam, nas versões das imagens): falha numa vulnerabilidade conhecida que já tem versão corrigida e só avisa quando ainda não há correção; o Dependabot abre toda semana os PRs de atualização (pip e GitHub Actions). Para rodar local:
+- **Serviço `tests`:** a imagem do `agent` mais pytest, ruff, mypy, o Tesseract e os testes (estágio `test` do `Dockerfile`). Nunca recebe a `GOOGLE_API_KEY`: nada chama o Gemini, e o teste ponta a ponta é pulado.
+- **Ponta a ponta real, só quando pedido:** `docker compose run --rm tests-e2e` roda [`tests/test_e2e.py`](../tests/test_e2e.py) com a chave: o `run` inteiro com o Gemini sobre `pedido.png` precisa agendar exatamente `FICT-001`, `FICT-002` e `FICT-005`, e o `GET` do agendamento precisa devolver os mesmos. Sem a chave, falha (não é pulado).
+- **Resultado atual:** 607 funções de teste e 19.366 casos (`pytest --collect-only`), quase todos de corpus parametrizado (linhas legítimas, PII gerada, ataques, termos do catálogo); 19.365 passam e 1 é pulado (o ponta a ponta). Com `-n auto` e `--cov`, cerca de 3,5 min numa máquina de 12 núcleos (medido: 200 s e 205 s); em série, de 6 a 11 min.
+- **O que cobre:** specs e código gerado; a saída da CLI; o OCR e cada tipo de PII; a busca do RAG; as ferramentas MCP via SSE; a API ([`test_api_headers.py`](../tests/test_api_headers.py), [`test_crypto.py`](../tests/test_crypto.py), [`test_idempotencia.py`](../tests/test_idempotencia.py), [`test_backup.py`](../tests/test_backup.py)); o detector de injeção ([`tests/test_injection.py`](../tests/test_injection.py)) com o corpus de `tests/attacks/` (790 ataques e 1.482 linhas legítimas, 1.429 distintas); as faixas de confiança e a pergunta `[s/N]` ([`test_confianca.py`](../tests/test_confianca.py)); o preparo da imagem ([`test_preprocessamento.py`](../tests/test_preprocessamento.py)); o agente gerado com MCP real ([`test_agent_mcp.py`](../tests/test_agent_mcp.py)) e com `adk run`/`adk web` ([`test_adk_run.py`](../tests/test_adk_run.py)); o limiar de 0,90 sobre as 631 consultas de calibração ([`test_calibration.py`](../tests/test_calibration.py)); e uma fração da carga (20 pedidos), dos manuscritos (10 de 120) e da robustez (1 caso por categoria): [`test_carga.py`](../tests/test_carga.py), [`test_manuscritos.py`](../tests/test_manuscritos.py), [`test_robustez.py`](../tests/test_robustez.py).
+- **Qualidade na CI:** `ruff` (pyflakes, pycodestyle, ordem dos imports, bugbear) e `mypy` (sem `--strict`, com `ignore_missing_imports` e `check_untyped_defs`; config em [`pyproject.toml`](../pyproject.toml)); cobertura como relatório, sem limite que quebre o build: 98% das linhas de `api`, `catalogo`, `cli`, `guardrails`, `mcp_servers`, `runtime` e `transpiler` (sem o `agent.py` gerado). O `pip-audit` confere `requirements.txt`, `requirements-dev.txt` e `constraints.txt` e falha numa vulnerabilidade que já tem correção; o Dependabot abre os PRs de atualização toda semana. Para rodar local:
 
   ```bash
   docker compose run --rm --no-deps tests ruff check .
   docker compose run --rm --no-deps tests mypy
   docker compose run --rm tests pytest -q -n auto --cov --cov-report=term
   ```
-- **Avisos:** a seção `[tool.pytest.ini_options]` do `pyproject.toml` filtra o aviso de depreciação do `SequentialAgent` (ver [Decisões técnicas](arquitetura.md#decisões-técnicas-em-detalhe)) e os avisos `[EXPERIMENTAL]` do ADK sobre os recursos experimentais em uso (autenticação plugável, confirmação de ferramenta com pausa e retomada, estado do agente e o esquema JSON das funções), cada um pelo nome: com `-n auto`, cada processo os repetiria. Um recurso experimental novo, ou qualquer outro aviso, continua aparecendo.
+- **Avisos filtrados:** o `pyproject.toml` filtra, cada um pelo nome, a depreciação do `SequentialAgent` ([Decisões técnicas](arquitetura.md#decisões-técnicas-em-detalhe)) e os avisos `[EXPERIMENTAL]` do ADK sobre os recursos em uso, que cada processo do `-n auto` repetiria. Um aviso novo continua aparecendo.

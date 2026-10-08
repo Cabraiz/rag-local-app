@@ -1,5 +1,8 @@
 # Revisão: o que mudou no código e o teste que trava cada mudança
 
+O que tem aqui: como o código foi feito com IA, as referências, cada achado de revisão ligado ao teste que
+o trava, e o que segue em aberto.
+
 O código foi escrito com assistentes de IA (Claude Code e OpenAI Codex) sob minha direção. Esta página
 mostra a revisão na prática: o que as revisões de código, os testes de carga e de robustez e os conjuntos
 de ataque à máscara acharam, o que mudou por causa disso e o teste que falha se o problema voltar. Os

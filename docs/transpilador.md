@@ -1,5 +1,9 @@
 # Transpilador: spec JSON → agente Google ADK
 
+O que tem aqui: o que o `transpile` faz, as cinco specs de exemplo, o que fica na spec, no transpilador,
+no código gerado e no `runtime/`, cada campo da spec, cada erro de validação com a mensagem real, como o
+arquivo é gerado e as proteções que nenhuma spec remove, inclusive a confirmação da lista.
+
 `python -m cli transpile specs/agent.json` lê a spec, valida, confere as ferramentas nos
 servidores que respondem, gera `generated/agent.py` e importa o arquivo gerado para provar que ele
 expõe um `root_agent` do ADK.
@@ -13,7 +17,7 @@ importam nos testes:
 
 | Spec | Agentes | O que faz |
 |---|---|---|
-| [`agent.json`](../specs/agent.json) | `extract` → `search` → `schedule` | lê, busca e agenda depois da confirmação da lista; a faixa do meio vai com aviso |
+| [`agent.json`](../specs/agent.json) | `extract` → `search` → `schedule` | lê, busca e agenda depois da confirmação da lista; o que tem confiança de 0,70 a 0,90 vai com aviso |
 | [`agent-sem-confirmacao.json`](../specs/agent-sem-confirmacao.json) | o mesmo | `ask_from: null`: abaixo de 0,90 só avisa, sem a faixa com aviso na lista |
 | [`listar-exames.json`](../specs/listar-exames.json) | `ler` → `listar` | só OCR e RAG, sem API: lista os exames com código e confiança, sem agendar |
 | [`agendar-variante.json`](../specs/agendar-variante.json) | `ler_e_buscar` → `revisar` → `agendar` | outros nomes de servidor e de agente; um agente lê e busca, um agente sem ferramentas revisa a lista, outro agenda |
@@ -45,7 +49,7 @@ exata do `transpile` para `specs/agent.json`, e um teste falha se ela ficar desa
   só uma spec que declara o `BookingPlugin` o carrega. Um plugin com `Config` (um modelo pydantic dos
   seus `kwargs`), `check_spec` e `check_live` tem essas checagens chamadas pelo transpilador, com as
   mesmas mensagens `campo: motivo`; as chaves de estado que o `BookingPlugin` reserva são dele.
-- **O código gerado** usa o Google ADK para os agentes e os toolsets (`LlmAgent`, `SequentialAgent`, `McpToolset`, `OpenAPIToolset`, `FallbackModel`, `App`), e a biblioteca versionada `runtime/` (abaixo); não é só ADK. Ele só declara o agente, em cerca de 110 linhas, nenhuma com mais de 120 colunas:
+- **O código gerado** instancia só classes do Google ADK (`LlmAgent`, `SequentialAgent`, `McpToolset`, `OpenAPIToolset`, `Gemini`/`FallbackModel`, `App`); os toolsets e o plugin vêm da biblioteca versionada `runtime/` (abaixo), como subclasses finas de classes do ADK e um `BasePlugin`. Ele só declara o agente, em cerca de 110 linhas, nenhuma com mais de 120 colunas:
   - o modelo Gemini;
   - cada `LlmAgent` com a sua instrução, as ferramentas dele e o `output_key`: o `McpToolset`/`SseConnectionParams` do OCR e do RAG, ou o `LiveOpenAPIToolset`, uma camada fina que monta o `OpenAPIToolset` do ADK a partir do `/openapi.json` vivo da API;
   - o workflow (`SequentialAgent`) e o `App` retomável que o `adk run` e o `adk web` carregam (o `transpile` grava também um `__init__.py` ao lado, então a pasta é uma pasta de agente do ADK: [como rodar](como-rodar.md#4-rodar-com-adk-run-ou-adk-web));
@@ -53,8 +57,7 @@ exata do `transpile` para `specs/agent.json`, e um teste falha se ela ficar desa
 
   Nenhum agente tem callback próprio, e não há função, classe nem regra de negócio no arquivo gerado.
 - **O plugin de agendamento, [`runtime/plugin.py`](../runtime/plugin.py)**: o `BookingPlugin` é um
-  `BasePlugin` do ADK e são os callbacks de [`callbacks.py`](../runtime/callbacks.py), que antes iam
-  em cada agente. Pelo lugar do agente no pipeline: a raiz abre o pedido (`start_order`) e o fecha no
+  `BasePlugin` do ADK e são os callbacks de [`callbacks.py`](../runtime/callbacks.py). Pelo lugar do agente no pipeline: a raiz abre o pedido (`start_order`) e o fecha no
   relatório (`report`); toda chamada ao modelo passa por `before_model`, que põe a regra fixa sobre
   dados não confiáveis antes da instrução, e por `model_failed`, e toda ferramenta por `before_tool` e
   `after_tool`; numa spec que só lista, a última resposta passa por `review_list`.
@@ -137,7 +140,7 @@ spec nunca faz o transpilador importar outro módulo.
 
 **Um agente fora do domínio.** [`exemplo-generico.json`](../specs/exemplo-generico.json) é um
 assistente de documentação: um `LlmAgent` só (`"workflow": null`), com um servidor MCP `docs` e
-nenhum plugin. O servidor não é do compose, então quem implanta o permite:
+nenhum plugin. O servidor não é do compose, então o `transpile` só passa com ele em `ALLOWED_HOSTS`:
 
 ```bash
 docker compose run --rm -e ALLOWED_HOSTS=docs:8010 agent python -m cli transpile specs/exemplo-generico.json --output generated/docs.py
@@ -193,8 +196,7 @@ dizem qual ferramenta faz cada papel, como `servidor.ferramenta`.
 | `search` | ferramenta MCP que recebe `query` e `top_k` e devolve `[{code, name, score}]` | os códigos possíveis; alimenta a confiança (score) |
 | `book` | operação OpenAPI que recebe `{"exams": [...]}` e o `Idempotency-Key` | o agendamento, só com os códigos que passaram na política |
 
-As regras abaixo eram do transpilador e agora são do plugin (`check_spec`), chamadas pelo
-`transpile` com as mesmas mensagens:
+As regras abaixo são do plugin (`check_spec`), chamadas pelo `transpile` com as mesmas mensagens:
 
 - **O plugin roda em ordem:** pede `"workflow": "SequentialAgent"`.
 - **Quem agenda** é o agente que tem a ferramenta de `book` nas suas `tools`. Só um agente pode tê-la
@@ -205,7 +207,7 @@ As regras abaixo eram do transpilador e agora são do plugin (`check_spec`), cha
 - **Sem `book`, a spec lista em vez de agendar.** O último agente responde com
   `"output_schema": "runtime.plugin.ListedExams"` (os exames, cada um com `code` e `name`), que o ADK
   confere; essa resposta passa pela mesma política, sem pergunta: o plugin chama `review_list` depois do
-  último agente, e a CLI mostra cada exame com a sua confiança (`confira` na faixa do meio), os que
+  último agente, e a CLI mostra cada exame com a sua confiança (`confira` de 0,70 a 0,90), os que
   ficaram de fora e os códigos que nenhuma busca devolveu. Nada é enviado a uma API.
   - Na listagem, os limiares (opcionais; os valores de `listar-exames.json` são os padrões) só
     definem as faixas de confiança: o que sai como exame lido, o que sai como `confira` e o que fica
@@ -430,7 +432,7 @@ Estas proteções ficam no `runtime/`, fora da spec, e por isso nenhuma spec con
 
 Nada é agendado sem a pessoa confirmar a lista. A pergunta usa a confirmação de ferramenta do ADK 2.10, e não um `input()` dentro do callback:
 
-1. O `before_tool` do agendamento monta a lista ([`runtime/confirmacao.py`](../runtime/confirmacao.py)): no topo, uma vez, o que a página tem além da lista; cada exame com código, o aviso de um da faixa do meio e os não agendados, inclusive os que a conferência do pedido inteiro acha e o agente não buscou (o `before_tool` é assíncrono e aguarda a busca no próprio laço de eventos da execução, até 30 s). Chama `tool_context.request_confirmation(hint=<lista>)` e devolve sem chamar a API.
+1. O `before_tool` do agendamento monta a lista ([`runtime/confirmacao.py`](../runtime/confirmacao.py)): no topo, uma vez, o que a página tem além da lista; cada exame com código, o aviso de um exame de 0,70 a 0,90 e os não agendados, inclusive os que a conferência do pedido inteiro acha e o agente não buscou (o `before_tool` é assíncrono e aguarda a busca no próprio laço de eventos da execução, até 30 s). Chama `tool_context.request_confirmation(hint=<lista>)` e devolve sem chamar a API.
 2. A execução pausa. O app é retomável (`ResumabilityConfig`).
 3. A CLI recebe do runner a chamada `adk_request_confirmation` e pergunta `Agendar estes N exames? [s/N]` (só `s` ou `sim` é sim). O console do `adk run` mostra a mesma lista (`yes` confirma) e a página do `adk web`, a lista com a caixa "Confirmed".
 4. Na CLI, a pergunta roda em `asyncio.to_thread`, fora do laço de eventos: as sessões MCP seguem vivas enquanto a pessoa lê.
@@ -438,7 +440,7 @@ Nada é agendado sem a pessoa confirmar a lista. A pergunta usa a confirmação 
 
 O resto:
 
-- **`--yes`** (só na CLI): o callback nem pede confirmação, e a faixa do meio fica de fora. Chega ao agente pelo registro do pedido que a CLI abre (`orders.start`), não por variável de ambiente. Sem TTY e sem `--yes`, a CLI mostra a lista e responde não.
+- **`--yes`** (só na CLI): o callback nem pede confirmação, e o que tem de 0,70 a 0,90 fica de fora. Chega ao agente pelo registro do pedido que a CLI abre (`orders.start`), não por variável de ambiente. Sem TTY e sem `--yes`, a CLI mostra a lista e responde não.
 - **Confirmação forjada:** só vale a resposta à pausa que o runtime registrou para aquela chamada, no registro do pedido, não no estado da sessão. Uma resposta a outra chamada, ou uma lista escrita no estado, não agenda nada.
 - **Um "não" vale para a execução:** uma chamada repetida pelo modelo não pergunta de novo e não agenda, nem depois de uma troca para o `fallback_model`.
 - **Um agendamento por execução:** cada execução manda uma `Idempotency-Key` própria (nunca a do modelo), e depois que uma chamada vai para a API, outra recebe esse mesmo agendamento, sem chegar à API. Vale também para duas chamadas no mesmo turno, cada uma com a sua lista: um "sim" que chega depois não gera outro `POST`, e o exame sai no relatório como `não agendado (você confirmou, mas o agendamento desta execução já tinha sido criado)`.

@@ -1,5 +1,8 @@
 # Licenças, fontes e dados
 
+O que tem aqui: a licença do código, as licenças das dependências de cada imagem Docker, a origem das fontes
+e imagens dos manuscritos simulados e o que os dados e a IA usam.
+
 O código deste repositório está sob a licença [MIT](../LICENSE).
 
 ## Dependências
