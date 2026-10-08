@@ -179,14 +179,13 @@ Cada linha passa por quatro etapas, nesta ordem:
      sorologia...) e palavras a um erro de OCR de uma palavra de exame ("compieto"). Agenda sozinha.
    - `uncertain`: qualquer outra palavra ou marca ("Ferritina - pedido por engano", "Vitamina B12 (laudo
      anexo)", "Colesterol total ?", "=Creatinina", um nome, uma data, um número que não é do nome, uma
-     caixa vazia "[ ]"), ou uma linha ao lado de outra que é só negação ("(suspensa)" embaixo, "retirar o
-     item 2"). Pergunta `[s/N]`; não agenda sozinha.
+     caixa vazia "[ ]"). Pergunta `[s/N]`; não agenda sozinha.
    - `negated` e `history`: uma pista claramente sobre o exame diz para não fazê-lo ou que já foi feito
-     ("NÃO realizar Ferritina", "PSA total - não repetir", "TSH - NR", "n/ realizar", "anulado", "já
+     ("NÃO realizar Ferritina", "PSA total - não repetir", "TSH - NR", "n/ realizar", "susp.", "anulado", "já
      realizado em 2025", "feita mês passado", "Resultado de Ferritina: 45"), ou uma caixa ou célula de tabela
      que diz não ("[-] TSH", "✗ TSH", "TSH | -", célula vazia "| TSH | |"). Também uma linha sob um cabeçalho
-     ("Já realizados:", "Não realizar:", "Resultados anteriores:"), até uma linha em branco ou um novo
-     cabeçalho, e a linha com a marca de uma nota que diz não ("Ferritina (1)" e "(1) suspenso"). Não
+     ("Já realizados:", "Não realizar:", "Resultados anteriores:"), até uma linha em branco, um vão entre
+     blocos de texto (pelas caixas do Tesseract) ou um novo cabeçalho, e a linha com a marca de uma nota que diz não ("Ferritina (1)" e "(1) suspenso"). Não
      agenda; avisa com o motivo. Vale em português, inglês e espanhol ("do not perform", "no realizar").
      A pista é clara quando o exame vem logo depois dela ou quando ela fecha a linha depois do único exame.
    - `table`: qualquer outra linha de uma página em tabela ou colunas: um cabeçalho de sim/não
@@ -194,10 +193,21 @@ Cada linha passa por quatro etapas, nesta ordem:
      marca no fim ("TSH | -", "Creatinina Sim"), ou vãos largos alinhados entre palavras bem lidas, que o
      OCR escreve como "|". Pergunta, com `; o pedido está em tabela ou colunas`.
    - `prep`: linha de preparo ("Preparo: jejum de 8 horas para Glicemia de jejum"). Não agenda; avisa.
-   O exame que uma linha `negated` ou `history` cita, ou uma linha com pista que não é clara, ou uma ordem
-   ao modelo que o OCR tirou, é contestado na página inteira (`contested_exams`, só código e nome do
-   catálogo). Ele não agenda sozinho em nenhuma linha: é avisado, ou perguntado com `; o pedido tem uma
-   instrução sobre este exame`. Sem `contested_exams` válido, nada agenda sozinho. Vale para acentos, maiúsculas, hífen e erros de OCR ("NA0 reallzar").
+   O exame que uma linha `negated` ou `history` cita é contestado na página inteira (`contested_exams`, só
+   código e nome do catálogo): é avisado em qualquer linha. Vale para acentos, maiúsculas, hífen e erros de
+   OCR ("NA0 reallzar"); se a linha de uma pista cita um exame, é pelo nome exato do catálogo ("favor" não é
+   Fator reumatoide). Uma pista que não se liga a nenhum exame do catálogo (`cancel_unlinked`: "(favor não
+   realizar)" embaixo de um item) faz o relatório dizer `o pedido tem um cancelamento que não foi ligado a um
+   exame; confira`.
+   - **A página (`page_clean`, lista branca por página):** um exame só agenda sozinho se toda linha da página
+     for lista (só exames e qualificadores), rótulo da lista, tempo de jejum ou marcas, ou, acima do 1º exame
+     ou abaixo do último, um campo que a etapa de PII reconhece ("Paciente:", "CPF:", "Dra. … CRM", "Data:")
+     ou uma linha que ela tirou inteira (timbre, carimbo) com um campo entre ela e a lista, sem pista, sem
+     referência por posição ("2º", "nº 3", "o último") e sem palavra de adiamento. Qualquer outro texto (uma
+     observação, um cabeçalho desconhecido, um exame com outras palavras, uma ordem ao modelo tirada, um
+     cancelamento sem exame), um exame em letra muito menor ou mais clara que a da página, ou texto tirado
+     inteiro e lido com confiança abaixo de 60: todo exame da página é perguntado, com `; o pedido tem texto
+     além da lista de exames`. Sem `page_clean` verdadeiro na resposta do OCR, nada agenda sozinho.
 3. `guardrails/pii.py` mascara os dados pessoais, inclusive pedaços de endereço sem rótulo ("ap 302",
    "apto 12", "bloco B", "casa 3").
 4. a rede de segurança (`guardrails/pii.py`, regra 4): cada trecho da linha (separado por `,`, `;`,

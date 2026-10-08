@@ -4,7 +4,7 @@ Um vídeo por ponto do desafio, gravado com `API_PORT=18905` (o padrão é 8765)
 
 ### 10. Pedido manuscrito
 
-com Gemini, numa letra de mão simulada (fonte, não escrita real), um exame lido com confiança média é perguntado no terminal (`[s/N]`), respondido "s" e agendado com os demais. A linha `[schedule] chamando create_appointment` aparece antes da pergunta porque a confirmação nativa do ADK pausa dentro dessa chamada: o `POST` só sai depois do "s" ([mp4](videos-do-desafio/10-manuscrito.mp4))
+com Gemini, numa letra de mão simulada (fonte, não escrita real), um exame lido com confiança média é perguntado no terminal (`[s/N]`), respondido "s" e agendado com os demais. A linha `[schedule] chamando create_appointment` aparece antes da pergunta porque a confirmação nativa do ADK pausa dentro dessa chamada: o `POST` só sai depois do "s". Gravado antes da [lista branca por página](medicoes.md#lista-branca-por-página): hoje a assinatura à mão, lida com pouca confiança, faz todos os exames desse pedido serem perguntados ([mp4](videos-do-desafio/10-manuscrito.mp4))
 
 https://github.com/user-attachments/assets/678ba071-31fb-466f-a79b-48cad6e8f4ca
 
@@ -40,7 +40,7 @@ https://github.com/user-attachments/assets/afbcd819-2102-4635-baec-21b3077627cb
 
 ### 08. Segurança
 
-nos pedidos com instruções escondidas, o OCR conta e tira o texto delas (`Instruções neutralizadas no OCR: …`) e só os exames legítimos são agendados (no 2º pedido, os 3 que dividiam a linha com uma instrução removida ficam para conferência humana e só o Colesterol total é agendado); o cabeçalho (`Laboratorio Ficticio Beta`, `PEDIDO MEDICO FICTICIO`) também sai como `[TEXTO_REMOVIDO]`, não por ser instrução, mas pela rede de segurança que só deixa sair do OCR o que parece exame ou estrutura do pedido. Por isso a tela mostra um `[TEXTO_REMOVIDO]` a mais que o `instructions_removed` (5 contra 4 e 4 contra 3): `instructions_removed` conta só as instruções escondidas, e `text_removed` conta todos os trechos removidos, o título incluído ([mp4](videos-do-desafio/08-seguranca.mp4))
+nos pedidos com instruções escondidas, o OCR conta e tira o texto delas (`Instruções neutralizadas no OCR: …`) e só os exames legítimos são agendados (no 2º pedido, os 3 que dividiam a linha com uma instrução removida ficam para conferência humana e só o Colesterol total é agendado); o cabeçalho (`Laboratorio Ficticio Beta`, `PEDIDO MEDICO FICTICIO`) também sai como `[TEXTO_REMOVIDO]`, não por ser instrução, mas pela rede de segurança que só deixa sair do OCR o que parece exame ou estrutura do pedido. Por isso a tela mostra um `[TEXTO_REMOVIDO]` a mais que o `instructions_removed` (5 contra 4 e 4 contra 3): `instructions_removed` conta só as instruções escondidas, e `text_removed` conta todos os trechos removidos, o título incluído. Gravado antes da [lista branca por página](medicoes.md#lista-branca-por-página): hoje uma ordem tirada deixa a página fora da lista, e os exames legítimos desses dois pedidos são perguntados, não agendados sozinhos ([mp4](videos-do-desafio/08-seguranca.mp4))
 
 https://github.com/user-attachments/assets/48c084df-85f0-4560-940d-a6cbe1823551
 

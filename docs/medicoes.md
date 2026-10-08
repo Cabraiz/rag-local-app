@@ -495,6 +495,42 @@ números de antes. Nas imagens de `samples/`, `pedido.png` agenda FICT-001, 002 
 antes; em `ataque-exame-disfarcado.png`, a Glicemia de jejum, na linha de onde o detector tirou uma ordem
 ao modelo, passou a ser perguntada.
 
+## Lista branca por página
+
+Três revisões independentes de segurança mostraram que o contexto da página só funcionava por uma lista de
+palavras de negação: 13 de 23 páginas agendavam sozinho um exame que a página cancelava, adiava, condicionava ou
+não pedia ("Ferritina somente se a hemoglobina vier abaixo de 12", "adiar a Vitamina D para a próxima consulta",
+"desconsiderar o 2º exame", "Trazer na consulta os laudos de:", "Para o retorno em 6 meses:", uma 2ª folha,
+notas em inglês e francês, "(favor não realizar)" embaixo do item, letra cinza no rodapé). A regra passou a ser da
+página ([`guardrails/intent.py`](../guardrails/intent.py), `clean_page`): um exame só agenda sozinho se toda
+linha for lista, rótulo, jejum, marcas, ou, fora da lista, campo de paciente ou médico, timbre ou carimbo; se não,
+todo exame da página é perguntado (`; o pedido tem texto além da lista de exames`). Uma pista de negação que não se
+liga a nenhum exame do catálogo também tira a página da lista e o relatório avisa. Medido com o OCR real em
+processo, a busca real e os callbacks reais, ninguém respondendo `[s/N]`, com um modelo cuidadoso (busca o nome de
+cada exame e cada linha) e um preguiçoso (busca cada linha como lida); antes = `05a2e12`.
+
+| Corpus | Antes | Depois |
+|---|---|---|
+| 23 páginas de ataque da 1ª revisão (imagens): exame cancelado, adiado, condicional ou não pedido, agendado sozinho | 20 (cuidadoso) e 20 (preguiçoso) | **0 e 0** |
+| 8 páginas da 3ª revisão (imagens), o mesmo | 2 e 2 | **0 e 0** |
+| As mesmas 31 páginas: exame em silêncio que não estava em silêncio antes | — | 0 |
+| 120 manuscritas: agendados sozinhos, perguntados, errados (cuidadoso) | 114, 36, 0 | **32, 118, 0** |
+| 30 fotos de celular (cuidadoso) | 90, 1, 0 | 85, 6, 0 |
+| Imagens de `samples/` | 21 agendados | 13: `pedido.png` agenda os 3 sem pergunta, como antes |
+| 1.482 linhas e 11 páginas legítimas (texto, cada linha uma página) | 1.446 agendados | 1.446 agendados |
+| Sorologias (198 linhas, 325 exames) | 305 e 293 certos, 0 errados | iguais |
+
+Os exames que passaram de agendados a perguntados estão todos em páginas com algo além da lista. Nas imagens de
+`samples/`: os dois ataques de injeção (3 e 1 exames: a ordem tirada deixa a página fora da lista) e
+`pedido-manuscrito.png` (4 exames: a assinatura à mão embaixo da lista sai inteira como texto removido, lida com
+confiança 27 a 38). Nas fotos: `foto-07` (campos colados pelo OCR numa linha só), `foto-09` ("- Tá total") e
+`foto-26` (timbre lido com confiança 38). Nas 120 manuscritas, 82 exames de 41 páginas, sem nenhuma observação
+escrita: o que tira a página da lista é o próprio erro do OCR na letra de mão, em 24 páginas texto tirado inteiro e
+lido com confiança abaixo de 60 (um nome, um CPF ou um rótulo deformados: "Padente", "crer 254.449.414-37"), em 12
+uma linha que não é lista nem campo ("Ear", "5 Tão") e em 5 um exame com outra palavra ("Hemoglobina glixado").
+Sem a regra da confiança baixa, 19 das 120 páginas ficariam limpas em vez de 13. Nenhum exame agendado
+errado, antes ou depois.
+
 ## Limites conhecidos
 
 - **Sorologias escritas por extenso:** nas 198 linhas de sorologias e qualificadores, 7 exames ainda terminam sem
