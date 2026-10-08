@@ -51,6 +51,8 @@ def read(agent, lines, confidence=None, intent=None, **more):
         reply['line_intent'] = ['request'] * len(lines) if intent is None else intent
     if confidence is not ABSENT:
         reply['line_confidence'] = [95.0] * len(lines) if confidence is None else confidence
+    if reply.setdefault('contested_exams', []) is ABSENT:  # nothing contested, unless told otherwise
+        del reply['contested_exams']
     agent.CALLBACKS.after_tool(FakeTool('extract_exam_text'), {}, context, {'structuredContent': reply})
     return context
 

@@ -1,6 +1,6 @@
 """What each line of an order asks for, read before the PII safety net strips its words.
 
-mcp_servers/ocr.py runs read_page() on the lines after the injection guard and before the PII mask,
+mcp_servers/ocr.py runs read_page() on the lines as written, before the injection guard and the PII mask,
 and sends the kinds out as `line_intent`, one per returned line. The rule is an allowlist: a line books
 alone only if it is nothing but exams. The kinds:
 
@@ -8,16 +8,17 @@ alone only if it is nothing but exams. The kinds:
   the marks that join exams, the line holds only catalog names and synonyms, their qualifiers (catalogo.
   QUALIFIERS: "completo", "total", "sérico", "de jejum", "8h"...) and words one OCR error from an exam
   word. It may book alone.
-- 'uncertain': any other word or mark ("Ferritina - pedido por engano", "Vitamina B12 (laudo anexo)",
-  "Colesterol total ?", "=Creatinina", a name, a date, an empty box "[ ]"), or a line next to one that
-  is only a negation ("Não realizar:" above it, "(suspensa)" below it, "retirar o item 2", a header
-  "Não realizar os seguintes:" over a list). Asked [s/N], never booked alone.
-- 'negated' and 'history': a cue plainly about the exam says not to do it, or that it was done
-  ("não realizar Ferritina", "PSA total - não repetir", "TSH - NR", "já realizado em 2025", "feita mês
-  passado", "Resultado de Ferritina: 45"), or a box or table cell that says no ("[-] TSH", "TSH | -", "| TSH |
-  |"). Never booked; reported with that reason.
-- 'prep': a preparation line ("Preparo: ...", "jejum de 8 horas para Glicemia de jejum"): never booked
-  from it; reported.
+- 'uncertain': any other word or mark ("Ferritina - pedido por engano", "Colesterol total ?", a name, a
+  date, an empty box "[ ]"), or a line next to one that is only a negation ("(suspensa)" below it,
+  "retirar o item 2"). Asked [s/N], never booked alone.
+- 'negated' and 'history': a cue plainly about the exam ("não realizar Ferritina", "TSH - NR", "do not
+  perform TSH", "já realizado em 2025", "Resultado de Ferritina: 45"), a box or cell that says no ("[-] TSH",
+  "TSH | -"), a line in a block under a header ("Já realizados:", "Resultados anteriores:") or with the mark of
+  a footnote that says no ("Ferritina (1)", "(1) suspenso"). Never booked; reported with that reason.
+- 'prep': a preparation line ("Preparo: ...", "jejum de 8 horas para Glicemia de jejum"): reported.
+- 'table': any other line of a page in a table or in columns (layout()). Asked.
+The exams a negated or history line names, or a line with a cue not plainly about one exam or next to a
+negation ('instruction'), are contested on the whole page (contested(): reported, or asked).
 
 A cue is plainly about the exam when the exam comes right after it, with only fillers between ("não
 realizar o exame de Ferritina"), or when it ends the line after the line's one exam ("Ferritina
@@ -27,10 +28,10 @@ without accents or case, with OCR misreadings of the cue words ("NA0", "reallzar
 import difflib
 import re
 
-from catalogo import LIST_MARKER, QUALIFIERS, exam_word, fold
+from catalogo import LIST_MARKER, QUALIFIERS, catalog, exam_word, fold, normalize
 from guardrails.pii import EXAM_TERMS, exam_like
 
-KINDS = ('request', 'negated', 'history', 'uncertain', 'prep', 'unrecognized')
+KINDS = ('request', 'negated', 'history', 'uncertain', 'prep', 'unrecognized', 'table')
 BLOCKING = ('negated', 'history')  # never booked from this line
 
 _NOT = r'n[a4][o0]'
@@ -50,7 +51,9 @@ CUES = [
     ('negated', re.compile(rf'\b(?:{_NOT}|nr)\b'), 1, True),  # "NÃO: Ferritina", "Ferritina: não", "TSH - NR"
     ('negated', re.compile(r'\b(?:suspen[ds]\w*|cancel\w*|desmarc\w*|dispens\w*|evit\w*|vet(?:ad[oa]s?|ar|e|ou)\b|'
                            r'exclu(?:a|am|ir|ido|ida|idos|idas)\b|retir(?:ar|e|ado|ada)\b|contra\W?indicad\w*|'
-                           r'desnecessari\w*|nunca|jamais|anulad[oa]s?|desconsider\w*)'), 3, True),
+                           r'desnecessari\w*|nunca|jamais|anulad[oa]s?|desconsider\w*|remov\w*|elimin\w*)'), 3, True),
+    ('negated', re.compile(r'\b(?:do\s+not|don\W?t|not)\s+(?:perform|repeat|do|order|run)\b|\bno\s+(?:realizar|repetir|hacer)\b'),
+     3, True),  # English and Spanish
     ('negated', re.compile(r'\b(?:sem|s/)\s*(?:necessidade|indicacao)(?:\s+de)?(?:\s+(?:repetir|realizar|fazer|colher))?'),
      2, True),
     ('negated', re.compile(r'\b(?:sem|exceto|excluindo|tirando|(?<!pelo )menos)\b'), 2, False),  # "todos menos PSA"
@@ -84,7 +87,7 @@ _LIST_LABEL = re.compile(r'^\s*(?:(?:exames?|pedido|requisicao|solicitacao)(?:\s
 LABEL_WORDS = ('solicito', 'exames', 'exame', 'pedido')
 _JOINERS = re.compile(r'[\s,;/+:.()\[\]{}–-]+')
 _NO_BOX = re.compile(r'^\s*(?:\[\s*[-–—✗✘]\s*\]|\(\s*[-–—✗✘]\s*\)|[✗✘])')
-_NO_CELL = re.compile(r'-+|[–—✗✘]|n[a4][o0]|n|')
+_NO_CELL = re.compile(r'\|\s*(?:(?:-+|[–—✗✘]|n[a4][o0]|n)\s*\|?|\|)\s*$')  # a row's last cell: no, or blank
 
 
 def plain(text: str) -> str:
@@ -130,11 +133,11 @@ def exam_before(text: str, position: int) -> bool:
     return any(exam_at(text, word.start()) for word in re.finditer(r'[a-z0-9]+', text[:position]))
 
 
-def judge(text: str) -> tuple[set[str], list[int], str]:
+def judge(text: str) -> tuple[set[str], list[int], str, set[str]]:
     """(clear kinds, item numbers it refers to, where a cue-only line points: 'block', 'previous', 'both'
-    or '') of one line. A clear cue is a negation or history plainly about the line's exam."""
+    or '', its cues' kinds) of one line; "Já realizados: TSH" is a 'block' too. A clear cue is plainly about it."""
     clear: set[str] = set()
-    items, points = [int(match.group(1)) for match in ITEM.finditer(text)], ''
+    items, points, cues = [int(match.group(1)) for match in ITEM.finditer(text)], '', set()
     taken: list[tuple[int, int]] = []
     line_has_exam = exam_before(text, len(text))
     for kind, start, end, fillers, trailing in sorted(
@@ -144,6 +147,7 @@ def judge(text: str) -> tuple[set[str], list[int], str]:
         if any(start < e and s < end for s, e in taken):
             continue
         taken.append((start, end))
+        cues.add(kind)
         reach, word = after_cue(text, end, fillers)
         before = exam_before(text, start)
         if not before and (reach == 'exam' or word in REFERENCE):
@@ -153,7 +157,9 @@ def judge(text: str) -> tuple[set[str], list[int], str]:
         if not line_has_exam and kind in BLOCKING and (reach == 'end' or word in REFERENCE):
             stripped = text.strip()
             points = 'block' if _BLOCK.search(stripped) else 'previous' if stripped.startswith('(') else 'both'
-    return clear, items, points
+    head, colon, rest = text.partition(':')  # a header glued to its first item, which has no cue of its own
+    points = points or ('block' if cues and rest.strip() and judge(head + colon)[2] == 'block' and not judge(rest)[3] else '')
+    return clear, items, points, cues
 
 
 def other_exams(text: str, position: int) -> bool:
@@ -178,21 +184,13 @@ def residue(line: str) -> list[str]:
                    if not exam_word(token)]
 
 
-def says_no(text: str) -> bool:
-    """A box or a table row that says no: "[-] TSH", "TSH | -", "| TSH | não |", a blank cell "| TSH | |".
-    Its outer bars are borders, and one cell besides the marks holds the exam."""
-    parts = text.strip().split('|')
-    row = [cell.strip() for cell in parts[text.strip().startswith('|'):len(parts) - text.strip().endswith('|')]]
-    return bool(_NO_BOX.match(text)) or len(row) > 1 and [_NO_CELL.fullmatch(cell) for cell in row].count(None) == 1
-
-
 def line_kind(line: str, text: str, clear: set[str]) -> str:
     """The kind of one line from what it says itself."""
     first = EXAMS.search(text)
     head = text[:first.start()] if first else text
     if clear:
         return 'negated' if 'negated' in clear else 'history'
-    if first and says_no(text):
+    if first and (_NO_BOX.match(text) or _NO_CELL.search(text)):  # "[-] TSH", "TSH | -", "| TSH | |"
         return 'negated'
     if first and _RESULT_HEAD.search(head):
         return 'history'
@@ -201,36 +199,59 @@ def line_kind(line: str, text: str, clear: set[str]) -> str:
     return 'uncertain' if first and residue(line) else 'request'
 
 
-def read_line(line: str) -> str:
-    """The kind of one line, without its neighbours (read_page adds them)."""
-    return read_page([line])[0]
-
-
-def read_page(lines: list[str]) -> list[str]:
-    """The kind of each line: what the line itself says, then what a line that is only a negation says
-    of its neighbours ("Não realizar:" above an exam, "(suspensa)" below it, "retirar o item 2", a header
-    "Não realizar os seguintes:" over a list)."""
+def read_page(lines: list[str]) -> tuple[list[str], list[str | None]]:
+    """(each line's kind, why the exams it names are contested on the page or None): what the line says, then
+    what a cue-only line says of others ("(suspensa)", "retirar o item 2", a footnote, a block), then layout()."""
     texts = [plain(line) for line in lines]
     judged = [judge(text) for text in texts]
-    kinds = [line_kind(line, text, clear) for line, text, (clear, _, _) in zip(lines, texts, judged, strict=True)]
+    kinds = [line_kind(line, text, clear) for line, text, (clear, *_) in zip(lines, texts, judged, strict=True)]
+    contest = [kind if kind in BLOCKING else 'instruction' if cues else None for kind, (*_, cues) in zip(kinds, judged, strict=True)]
     numbers = {int(match.group(1)): index for index, text in enumerate(texts)
                if (match := re.match(r'\s*\(?(\d{1,2})\s*[.)\-]', text))}
-    for index, (_, items, points) in enumerate(judged):
-        for target in reached(texts, index, [numbers[number] for number in items if number in numbers], points):
-            if 0 <= target < len(kinds) and target != index and kinds[target] == 'request':
-                kinds[target] = 'uncertain'
-    return kinds
+    for index, (_, items, points, cues) in enumerate(judged):
+        targets, plainly = reached(texts, index, [numbers[number] for number in items if number in numbers], points)
+        for target in (target for target in targets if 0 <= target < len(kinds) and target != index):
+            if plainly:  # "Ferritina (1)" and "(1) suspenso"; a line under "Já realizados:"
+                kinds[target] = contest[target] = 'negated' if 'negated' in cues else 'history'
+            elif kinds[target] in ('request', 'uncertain'):
+                kinds[target], contest[target] = 'uncertain', contest[target] or 'instruction'
+    return [('table' if kind in ('request', 'uncertain') else kind) for kind in kinds] if layout(texts) else kinds, contest
 
 
-def reached(texts: list[str], index: int, items: list[int], points: str) -> list[int]:
-    """The lines a line that is only a negation talks about: the items it numbers, the lines next to it,
-    or every list item below a header, up to a blank line, a new header or a line that is no item."""
-    if items or points != 'block':
-        return items or ([index - 1] if points in ('previous', 'both') else []) + ([index + 1] if points == 'both' else [])
+def reached(texts: list[str], index: int, items: list[int], points: str) -> tuple[list[int], bool]:
+    """(the lines a cue-only line talks about, whether plainly): the items it numbers or the lines next to it;
+    plainly, the lines with its footnote's mark, or every line below a header up to a blank or a new header."""
+    mark = re.match(r'\s*(\(\w{1,2}\)|\*+)', texts[index]) if points else None
+    marked = [i for i, text in enumerate(texts) if mark and i != index and re.search(rf'\w\s*{re.escape(mark[1])}', text)]
+    if marked or items or points != 'block':
+        return marked or items or ([index - 1] if points in ('previous', 'both') else []) + (
+            [index + 1] if points == 'both' else []), bool(marked)
     targets = []
     for below in range(index + 1, len(texts)):
-        if not texts[below].strip() or texts[below].rstrip().endswith(':') or \
-                (not LIST_MARKER.match(texts[below]) and below > index + 1):
+        label = re.match(r'\s*([a-z][a-z .]{0,30}):', texts[below])
+        if not texts[below].strip() or texts[below].rstrip().endswith(':') or label and not exam_before(label[1], 99):
             break
         targets.append(below)
-    return targets
+    return targets, True
+
+
+# A table or columns: a yes/no header ("Realizar?"), 3 headers ("Exame Fazer Obs"), 2 rows ("TSH | -", "TSH Sim").
+_YES_NO = re.compile(r'\b(?:realizar|fazer)\s*\?|\bs(?:im)?\s*/\s*n(?:ao)?\b|^\W*(?:(?:exames?|solicitad[oa]s?|'
+                     r'realizar|fazer|obs|sim|nao)\b\W*){3,}$')
+_ROW = re.compile(r'\S\s*\|\s*\S|\s(?:sim|nao|n|s|x|[-–—✗✘✓✔])\s*$')
+
+
+def layout(texts: list[str]) -> bool:
+    rows = sum(bool(_ROW.search(text)) and ('|' in text or exam_before(text, len(text))) for text in texts)
+    return rows > 1 or any(_YES_NO.search(text) for text in texts)
+
+
+def contested(lines: list[str], reasons: list[str | None]) -> list[dict]:
+    """[{code, name, reason}] of the catalog exams named on lines with a reason (a no first): no word of the line."""
+    found: dict = {}
+    for line, why in zip(lines, reasons, strict=True):
+        written = f' {normalize(line)} ' if why else ''
+        for exam in (exam for exam in catalog() if any(f' {term} ' in written for term in exam['terms'])):
+            if found.get(exam['code'], {}).get('reason', 'instruction') == 'instruction':
+                found[exam['code']] = {'code': exam['code'], 'name': exam['name'], 'reason': why}
+    return list(found.values())

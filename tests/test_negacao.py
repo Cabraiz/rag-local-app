@@ -214,7 +214,7 @@ def ocr_read(lines):
 def agent_read(agent, lines, confidence=None):
     """The OCR's reply for these lines, through the agent's after_tool_callback."""
     reply = ocr_read(lines)
-    return read(agent, reply['lines'], confidence, reply['line_intent']), reply
+    return read(agent, reply['lines'], confidence, reply['line_intent'], contested_exams=reply['contested_exams']), reply
 
 
 def search(agent, context, query):
@@ -247,7 +247,10 @@ def test_the_reviews_order_leaves_the_ocr_with_its_negations_and_no_name():
     reply = ocr_read(REVIEW)
     assert reply['lines'] == ['Hemograma completo', 'TSH', 'Obs: NAO realizar Ferritina ([TEXTO_REMOVIDO])',
                               '[TEXTO_REMOVIDO] ja realizado [TEXTO_REMOVIDO]: PSA total - nao repetir', '[TEXTO_REMOVIDO]']
-    assert reply['line_intent'] == ['request', 'request', 'negated', 'negated', 'request']
+    assert reply['line_intent'] == ['request', 'request', 'negated', 'negated', 'uncertain']  # read as written
+    assert reply['contested_exams'] == [{'code': 'FICT-018', 'name': 'Ferritina', 'reason': 'negated'},
+                                        {'code': 'FICT-048', 'name': 'PSA total', 'reason': 'negated'},
+                                        {'code': 'FICT-023', 'name': 'Vitamina D', 'reason': 'instruction'}]
     assert reply['instructions_removed'] == 1  # the note to the "automated reader" is an order to add an exam
     assert 'NOME' not in reply['pii_masked']  # "NAO realizar" and "considere tambem" are no names
 
@@ -279,21 +282,25 @@ def test_the_cli_says_why_each_exam_of_the_reviews_order_was_not_booked(agent, r
     assert 'Instruções neutralizadas no OCR: 1' in out and 'ATENÇÃO' not in out
 
 
+def read_line(line):
+    return intent.read_page([line])[0][0]  # the kind of one line, without its neighbours
+
+
 # --- Every line ---------------------------------------------------------------------------------
 
 @pytest.mark.parametrize('line, kind, exam', NOT_REQUESTS)
 def test_lines_that_do_not_request_their_exam_are_read_as_such(line, kind, exam):
-    assert intent.read_line(line) == kind
+    assert read_line(line) == kind
 
 
 @pytest.mark.parametrize('line, exam', REQUESTS)
 def test_request_lines_stay_requests(line, exam):
-    assert intent.read_line(line) == 'request' and intent.residue(line) == []
+    assert read_line(line) == 'request' and intent.residue(line) == []
 
 
 @pytest.mark.parametrize('line, exam', OTHER_WORDS)
 def test_a_line_with_any_other_word_is_uncertain(line, exam):
-    assert intent.read_line(line) in ('uncertain', *intent.BLOCKING) and intent.residue(line)
+    assert read_line(line) in ('uncertain', *intent.BLOCKING) and intent.residue(line)
 
 
 @pytest.mark.parametrize('line, exam', OTHER_WORDS)
@@ -342,10 +349,10 @@ def test_a_search_of_a_negated_exam_left_out_by_the_model_is_not_an_omission(age
     assert booked == ['FICT-001', 'FICT-024'] and left_out == {'FICT-018': 'negated'}
 
 
-def test_an_exam_requested_and_negated_in_the_same_order_is_asked_not_booked(agent):
+def test_an_exam_requested_and_negated_in_the_same_order_is_reported_not_booked(agent):
     context, _ = agent_read(agent, ['- Ferritina', 'Obs: NAO realizar Ferritina'])
     booked, left_out = outcome(agent, context, 'Ferritina', 'Hemograma completo')
-    assert 'FICT-018' not in booked and left_out['FICT-018'] == 'needs_confirmation'
+    assert 'FICT-018' not in booked and left_out['FICT-018'] == 'negated'  # the page contests it
 
 
 # --- Preparation lines --------------------------------------------------------------------------
@@ -381,6 +388,24 @@ def test_without_one_kind_per_line_nothing_is_booked_without_a_yes(agent, intent
     assert booked == [] and left_out == {'FICT-024': 'needs_confirmation', 'FICT-005': 'needs_confirmation'}
 
 
+@pytest.mark.parametrize('contested', [ABSENT, None, 'FICT-024', [{'code': 'FICT-024'}], [{'code': 24, 'reason': 'negated'}]],
+                         ids=['ABSENT', 'None', 'text', 'no-reason', 'number'])
+def test_without_a_usable_contested_set_nothing_is_booked_without_a_yes(agent, contested):
+    # Fail closed: an OCR reply that cannot say which exams the page contests books nothing alone.
+    context = read(agent, ['- TSH', '- Creatinina'], None, None, contested_exams=contested)
+    booked, left_out = outcome(agent, context, 'TSH', 'Creatinina')
+    assert booked == [] and left_out == {'FICT-024': 'needs_confirmation', 'FICT-005': 'needs_confirmation'}
+
+
+def test_a_contested_exam_is_reported_or_asked_on_every_line_it_is_written(agent):
+    contested = [{'code': 'FICT-024', 'name': 'TSH', 'reason': 'negated'},
+                 {'code': 'FICT-005', 'name': 'Creatinina', 'reason': 'instruction'}]
+    context = read(agent, ['- Hemograma completo', '- TSH', '- Creatinina'], None, None, contested_exams=contested)
+    booked, left_out = outcome(agent, context, 'Hemograma completo', 'TSH', 'Creatinina')
+    assert booked == ['FICT-001'] and left_out == {'FICT-024': 'negated', 'FICT-005': 'needs_confirmation'}
+    assert [item.get('why') for item in context.state['low_confidence'] if item['code'] == 'FICT-005'] == ['instruction']
+
+
 def test_an_unknown_kind_counts_as_a_note(agent):
     context = read(agent, ['- TSH', '- Creatinina'], None, ['request', 'something-new'])
     booked, left_out = outcome(agent, context, 'TSH', 'Creatinina')
@@ -407,7 +432,7 @@ def test_the_words_of_a_negation_or_history_stay_in_the_line_and_count_for_nothi
 def test_a_printed_marker_only_suppresses():
     # A marker written on the image is only words: it leaves as written, counts for nothing, and can only negate.
     assert mask_page(['[NAO_REALIZAR] PSA total']) == (['[NAO_REALIZAR] PSA total'], {})
-    assert intent.read_line('[NAO_REALIZAR] PSA total') == 'negated'
+    assert read_line('[NAO_REALIZAR] PSA total') == 'negated'
 
 
 # --- Honest counts ------------------------------------------------------------------------------

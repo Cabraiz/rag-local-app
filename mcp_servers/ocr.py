@@ -100,23 +100,25 @@ def mask_lines(lines: list[str], joined: list[str] | None = None) -> dict:
     """Neutralize instructions to the model, read what each line asks for, then mask PII (line by
     line, plus a CPF split in two lines).
 
-    line_intent holds one kind per returned line (guardrails/intent.py: request, negated, history,
-    uncertain, prep), read from the whole page as written, before the mask. A list item whose text the safety net removed whole, or
+    line_intent holds one kind per returned line (guardrails/intent.py), read from the whole page as
+    written, before the guard and the mask. A list item whose text the safety net removed whole, or
     whose exam name it removed leaving only a modifier ("[TEXTO_REMOVIDO] total"), is 'unrecognized'
-    (unrecognized_request). pii_masked counts personal
-    data by type. Kept apart, as they are not PII: instructions_removed, the lines where an order
-    to the model was replaced, and text_removed, the pieces that did not look like an exam
-    ([TEXTO_REMOVIDO]). `joined` is join_split_orders(lines)[0] when the caller already has it.
+    (unrecognized_request). contested_exams: intent.contested(), also of each order to the model removed
+    here (codes and names only). pii_masked counts personal data by type. Kept apart, as they are not PII:
+    instructions_removed, the lines where an order to the model was replaced, and text_removed, the pieces
+    that did not look like an exam ([TEXTO_REMOVIDO]). `joined` is join_split_orders(lines)[0] if known.
     """
     if joined is None:
         joined = join_split_orders(lines)[0]
     lines, removed = neutralize_joined(joined)  # prompt injection: the text goes to the LLM
     masked, counts = mask_page(lines)
-    kinds = ['unrecognized' if kind in ('request', 'uncertain') and unrecognized_request(line, safe) else kind
-             for kind, line, safe in zip(intent.read_page(lines), lines, masked, strict=True)]
+    kinds, contest = intent.read_page(joined)
+    kinds = ['unrecognized' if kind in ('request', 'uncertain', 'table') and unrecognized_request(line, safe) else kind
+             for kind, line, safe in zip(kinds, lines, masked, strict=True)]
+    contest = [why or ('instruction' if MARKER in line else None) for why, line in zip(contest, lines, strict=True)]
     text_removed = counts.pop('TEXTO_REMOVIDO', 0)
     return {'lines': masked, 'line_intent': kinds, 'pii_masked': counts, 'instructions_removed': removed,
-            'text_removed': text_removed}
+            'text_removed': text_removed, 'contested_exams': intent.contested(joined, contest)}
 
 
 def unrecognized_request(line: str, masked: str) -> bool:
@@ -143,11 +145,11 @@ server = MCPServer('ocr-exams', instructions='Extrai o texto de um pedido médic
 
 @server.tool()
 async def extract_exam_text(filename: Annotated[str, or_default('')]) -> dict:
-    """Read /data/samples/<filename> with OCR; returns {lines, line_confidence, line_intent, pii_masked,
-    instructions_removed, text_removed}.
+    """Read /data/samples/<filename> with OCR; returns {lines, line_confidence, line_intent, contested_exams,
+    pii_masked, instructions_removed, text_removed}.
 
     PII already masked; line_confidence holds one 0-100 value per returned line, and line_intent one
-    kind (request, negated, history, note, prep, unrecognized), in the same order.
+    kind (request, negated, history, uncertain, prep, unrecognized, table), in the same order.
     """
     if not filename.strip():  # empty or not text (None, 123, a list)
         raise ToolError('filename deve ser o nome de um arquivo, ex.: pedido.png.')

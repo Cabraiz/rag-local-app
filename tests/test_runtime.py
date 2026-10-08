@@ -27,7 +27,7 @@ tool = lambda name: SimpleNamespace(name=name)
 context = SimpleNamespace(state={}, tool_confirmation=None, actions=SimpleNamespace(skip_summarization=False))
 agent.CALLBACKS.can_ask = lambda: False
 reply = {'lines': ['- Hemograma completo', '- Glicemia de jejum'], 'line_confidence': [95.0, 95.0],
-         'line_intent': ['request', 'request'], 'pii_masked': {}}
+         'line_intent': ['request', 'request'], 'contested_exams': [], 'pii_masked': {}}
 agent.CALLBACKS.after_tool(tool('extract_exam_text'), {}, context, {'content': [{'type': 'text', 'text': json.dumps(reply)}]})
 for code, name, score in (('FICT-001', 'Hemograma completo', 1.0), ('FICT-002', 'Glicemia de jejum', 0.8)):
     found = {'structuredContent': {'result': [{'code': code, 'name': name, 'score': score}]}}

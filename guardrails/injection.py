@@ -237,21 +237,9 @@ def sentence_at(lines: list[str], index: int) -> list[str]:
     return lines[index:end]
 
 
-MARK = re.compile(r'\s*(?:sim|s|n[aã]o|n|x|[-–—✓✔✗✘]|)\s*', re.IGNORECASE)  # a table's cell of a yes or a no
-
-
-def columns(pair: list[str]) -> list[str]:
-    """A table read in columns, a row of names over a row of marks ("| TSH | Ferritina |" / "| sim | não |"),
-    as one row per column ("| TSH | sim |"), so each exam keeps its own mark; [] for other lines."""
-    names, marks = ([cell.strip() for cell in line.strip().strip('|').split('|')] for line in [*pair, '', ''][:2])
-    table = '|' in pair[0] and len(names) == len(marks) > 1 and any(marks) and not all(map(MARK.fullmatch, names))
-    return [f'| {name} | {mark} |' for name, mark in zip(names, marks, strict=True)] if table and all(
-        map(MARK.fullmatch, marks)) else []
-
-
 def join_split_orders(lines: list[str]) -> tuple[list[str], list[range]]:
-    """The lines with each order to the model split over several lines joined into one, and each table
-    read in columns as one row per column (columns()), and where each came from.
+    """The lines with each order to the model split over several lines joined into one, and where each
+    came from. A table is no business of this join: on a page in a table nothing books alone (intent.layout).
 
     Returns (joined lines, sources): sources[i] is the range of indexes of `lines` that joined line i
     came from. The one rule for this join: neutralize_joined judges the joined text, and the OCR's
@@ -260,10 +248,7 @@ def join_split_orders(lines: list[str]) -> tuple[list[str], list[range]]:
     joined, sources, index = [], [], 0
     while index < len(lines):
         sentence = sentence_at(lines, index)
-        if rows := columns(lines[index:index + 2]):
-            joined += rows
-            sources += [range(index, index + 2)] * len(rows)
-        elif len(sentence) > 1 and is_instruction(' '.join(sentence)):
+        if len(sentence) > 1 and is_instruction(' '.join(sentence)):
             joined.append(' '.join(sentence))
             sources.append(range(index, index + len(sentence)))
         else:

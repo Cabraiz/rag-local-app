@@ -6,10 +6,10 @@ the OCR's own reading of that line). From `min_confidence` it is booked on its o
 its own piece of the order: one piece of text, one exam.
 
 What each line asks for comes from the OCR (`line_intent`, guardrails/intent.py), one kind per line.
-Only a 'request' line (nothing but exams) books alone; an 'uncertain' line (any other word) is asked; an
-exam is not booked from a line that says not to do it ('negated'), that it was done ('history'), or that
-prepares for it ('prep'). A reply without one usable kind per line fails closed, as a missing reading
-does: nothing is booked without a yes.
+Only a 'request' line (nothing but exams) books alone; an 'uncertain' or 'table' line is asked; an exam is
+not booked from a line that says not to do it ('negated'), that it was done ('history'), or that prepares
+for it ('prep'), nor from any line when the page contests it (`contested_exams`: reported, or asked for an
+'instruction'). A reply without a usable line_intent or contested_exams fails closed: nothing books alone.
 """
 import difflib
 import re
@@ -42,11 +42,11 @@ def resemblance(query, name, score):
     return score < RESEMBLANCE and not shares_a_word(query, name)
 
 
-# What a line asks for (the OCR's line_intent). Nothing is booked from a NOT_ANCHORS line; an exam whose
-# words are also on a BLOCKING line ("- Ferritina" and "Obs: não realizar Ferritina") is at most asked.
-INTENTS = {'request', 'negated', 'history', 'uncertain', 'prep', 'unrecognized'}
+# What a line asks for (the OCR's line_intent); nothing is booked from a NOT_ANCHORS line.
+INTENTS = {'request', 'negated', 'history', 'uncertain', 'prep', 'unrecognized', 'table'}
 BLOCKING = {'negated', 'history'}
 NOT_ANCHORS = BLOCKING | {'prep'}
+CONTESTS = BLOCKING | {'instruction'}  # why the page contests an exam: "- Ferritina", "Obs: cancele a Ferritina"
 
 
 def intent_of(state, line):
@@ -135,6 +135,10 @@ def remember_ocr(state, reply):
         isinstance(value, str) for value in intents)
     # None: no usable kind, every line asked at most; a kind this runtime does not know too
     state['ocr_intent'] = [value if value in INTENTS else 'unknown' for value in intents] if valid else None
+    contested = reply.get('contested_exams')
+    valid = isinstance(contested, list) and all(
+        isinstance(item, dict) and isinstance(item.get('code'), str) and item.get('reason') in CONTESTS for item in contested)
+    state['ocr_contested'] = {item['code']: item['reason'] for item in contested} if valid else None  # None: all asked
     state['text_removed'] = reply.get('text_removed', 0)
 
 
@@ -227,12 +231,12 @@ def remember_find(state, query, hits, policy):
     state['finds'] = finds
 
 
-def best_spot(candidate, taken, state, policy):
+def best_spot(candidate, taken, state, policy, contest=None):
     """((confidence, line, start, end), None, None) on the free piece of the order where the candidate
     is most confident: a whole-word occurrence of its words in any line, or else the line most like
     them. (None, exam holding it, None) when every such piece is taken; (None, None, (kind, line)) when
-    its only pieces are on lines that say not to do it, that it was done, or that prepare for it. A
-    piece on a note, or an exam also written on a line that says not to do it, is asked at most."""
+    its only pieces are on lines that say not to do it, that it was done, or that prepare for it, or the
+    page says so of it (`contest`). A piece on a note or a table, or of an exam contested otherwise, is asked."""
     lines, readings = state.get('ocr_lines', []), state.get('ocr_confidence')
     span, index = candidate['span'], candidate['line']
     spots = ([(i, *m.span(), candidate['support']) for i, line in enumerate(lines)
@@ -241,23 +245,18 @@ def best_spot(candidate, taken, state, policy):
     free, holders, refused = [], [], []
     for line, start, end, support in spots:
         kind = intent_of(state, line)
-        if kind in NOT_ANCHORS:
-            refused.append((kind, line))
+        if kind in NOT_ANCHORS or contest in BLOCKING:  # "Ferritina", then "Obs.: cancele a Ferritina"
+            refused.append((contest if contest in BLOCKING else kind, line))
             continue
         holder = next((name for held, s, e, name in taken if held == line and s < end and start < e), None)
-        if readings is None or line >= len(readings):  # no reading of the line: fail closed, asked at most
-            reading = policy.below_booking
-        else:  # below the floor a line is never booked alone, even a reading of 93 under a floor of 95
-            reading = 1.0 if readings[line] >= candidate['floor'] else min(readings[line] / 100, policy.below_booking)
-        if kind not in ('request', 'unrecognized'):
-            reading = min(reading, policy.below_booking)  # a note, a doubt, or no line_intent: asked at most
+        reading = reading_at(readings, line, candidate['floor'], policy)  # below its floor, never booked alone
+        if kind not in ('request', 'unrecognized') or contest:
+            reading = min(reading, policy.below_booking)  # a note, a doubt, a table, a contest: asked at most
         if holder:
             holders.append(holder)
         else:
-            doubt = None if kind in ('request', 'unrecognized') else 'uncertain'
+            doubt = contest or (None if kind in ('request', 'unrecognized') else 'table' if kind == 'table' else 'uncertain')
             free.append((round(min(candidate['score'], support, reading), 2), line, start, end, doubt))
-    if free and any(kind in BLOCKING for kind, _ in refused):  # "- Ferritina", then "não realizar Ferritina"
-        free = [(min(spot[0], policy.below_booking), *spot[1:4], 'uncertain') for spot in free]
     if holders and not free:
         return None, holders[0], None
     if refused and not free:  # a negation or a history first: the reason that matters most
@@ -275,7 +274,8 @@ def sort_out(codes, candidates, answers, state, policy, accounted=None):
     for code in sorted(codes, key=lambda code: -len(candidates[code]['span'] or '')):
         candidate = candidates[code]
         item = {key: candidate[key] for key in ('name', 'confidence', 'line', 'read')} | {'code': code}
-        spot, holder, refused = best_spot(candidate, taken, state, policy)
+        contest = state['ocr_contested'].get(code) if state.get('ocr_contested') is not None else 'unknown'  # asked
+        spot, holder, refused = best_spot(candidate, taken, state, policy, contest)
         if refused:  # the order says not to do it, that it was done, or only prepares for it: never booked
             kind, line = refused
             bands[None].append(item | {'reason': kind, 'line': line, 'read': state.get('ocr_read', [])[line]})
@@ -309,8 +309,7 @@ def held(claimed, query, line, start, end):
 
 
 def reading_at(readings, line, floor, policy):
-    """The OCR reading of a line as a confidence: 1.0 from its floor, below it at most below_booking;
-    no reading of the line fails closed, as in best_spot."""
+    """The OCR reading of a line as a confidence: 1.0 from its floor, below it (or none) at most below_booking."""
     if readings is None or line >= len(readings):
         return policy.below_booking
     return 1.0 if readings[line] >= floor else min(readings[line] / 100, policy.below_booking)
