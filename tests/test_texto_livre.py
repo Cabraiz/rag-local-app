@@ -70,6 +70,39 @@ def test_what_is_decided_and_its_reasons_come_from_every_line_not_from_the_model
         'FICT-001': 'needs_confirmation', 'FICT-018': 'negated', 'FICT-024': 'needs_confirmation'}
 
 
+NAMED = ['Paciente: Pessoa Sentinela', 'Solicito:', '- Hemograma completo maria souza', '- Glicemia de jejum Pedro',
+         '- Creatinina (mae: Ana Lima)', '- PSA total - Sr. Carlos', '- TSH', 'Dra. Fulana Ficticia - CRM 00000']
+
+
+def test_an_exam_line_with_the_patients_name_reaches_the_model_masked_and_is_asked():
+    # An independent evaluation: with the name on the exam's line, the whole line reached the model as the
+    # placeholder, so 4 of 11 exams of a real order were never searched nor booked.
+    reply = ocr.mask_lines(NAMED) | {'version': VERSION, 'line_confidence': [95.0] * len(NAMED)}
+    agent = callbacks()
+    agent.can_ask = lambda: False  # --yes: what would book alone
+    model, context = read(agent, **reply)
+    assert [line for line in model['structuredContent']['lines'] if line != FREE_TEXT] == [
+        '- Hemograma completo [NOME]', '- Glicemia de jejum [NOME]', '- Creatinina ([TEXTO_REMOVIDO]: [NOME]',
+        '- PSA total - [TEXTO_REMOVIDO]. [NOME]', '- TSH']
+    assert 'sentinela' not in json.dumps(model).casefold() and 'carlos' not in json.dumps(model).casefold()
+    assert not reply['page_clean']  # a name next to an exam: the page is asked, nothing books alone
+    for query in ('Hemograma completo', 'Glicemia de jejum', 'Creatinina', 'PSA total', 'TSH'):
+        agent.after_tool(SimpleNamespace(name='search_exams'), {'query': query}, context,
+                         {'structuredContent': {'result': rag.search_line(query, 3)}})
+    codes = ['FICT-001', 'FICT-002', 'FICT-005', 'FICT-048', 'FICT-024']
+    args = {'exams': [{'code': code} for code in codes]}
+    assert asyncio.run(agent.before_tool(SimpleNamespace(name='create_appointment'), args, context)) == {
+        'blocked': 'nenhum exame pode ser agendado sem a confirmação da lista: rode num terminal, sem --yes, para responder'}
+    assert sorted(item['code'] for item in context.state['low_confidence']
+                  if item['reason'] == 'needs_confirmation') == sorted(codes)
+
+
+@pytest.mark.parametrize('line', ['[NOME] ferro', 'Ferro, [NOME]', '- [NOME] ferro', '[NOME] - Hemograma completo'])
+def test_a_line_whose_name_comes_first_or_without_a_list_item_stays_hidden(line):
+    # "érica ferro", "Ferro, Érica": a surname that is a catalog word (Ferro sérico) is never searched as an exam.
+    assert ocr.names_an_exam(line) and not ocr.exam_before_name(line)
+
+
 def test_a_reply_without_exam_lines_sends_the_model_no_line():
     # Another reader, or a reply that lost the field: fail closed, every line is the placeholder.
     lines = ['Hemograma completo', 'Paciente: [NOME]']

@@ -101,7 +101,8 @@ def mask_lines(lines: Sequence[OcrLine | str]) -> dict:
     """The reply but its version (leitura.OcrReading): join an order to the model split over lines and neutralize the
     orders, read what each line asks for as written (guardrails/intent.py), mask the PII (guardrails/pii.py). A list item
     masked away is 'unrecognized'; an order removed, or a masked name on an exam line, leaves the page not clean.
-    exam_lines, the only lines the model reads: names_an_exam, no masked name, not negated, history or prep."""
+    exam_lines, the only lines the model reads: names_an_exam, not negated, history or prep, and a masked name only after
+    the exam of a list item (exam_before_name)."""
     read = [line if isinstance(line, OcrLine) else OcrLine(line) for line in lines]
     joined, sources = join_split_orders([line.text for line in read])
     breaks, odd = reading_marks(read) if len(joined) == len(read) else (frozenset(), [False] * len(joined))
@@ -119,7 +120,7 @@ def mask_lines(lines: Sequence[OcrLine | str]) -> dict:
             'instructions_removed': removed, 'text_removed': text_removed, 'contested_exams': intent.contested(joined, contest),
             'cancel_unlinked': unlinked, 'off_list': off, 'page_clean': not (removed or unlinked or named or off),
             'exam_terms': [[[term, NAMES[term]] for term in sorted(exams_on(line))] for line in masked],
-            'exam_lines': [at for at in exam_lines if kinds[at] not in NOT_ANCHORS and NAME_TAG not in masked[at]]}
+            'exam_lines': [at for at in exam_lines if kinds[at] not in NOT_ANCHORS and exam_before_name(masked[at])]}
 
 
 def joined_readings(read: list[OcrLine], sources: list[range]) -> tuple[list[float] | None, list[float]]:
@@ -154,6 +155,14 @@ def names_an_exam(line: str) -> bool:
     rest = [word for word in words(text).split() if word not in STRUCTURE]
     return bool(exams_on(text)) or matcher().search_score(' '.join(rest)) >= MIN_SCORE or any(
         word not in QUALIFIERS and exam_like(word) for word in rest)
+
+
+def exam_before_name(line: str) -> bool:
+    """Whether the model may read a masked line that has a name: only a list item whose exam is written before the
+    name ("- Hemograma completo [NOME]"), with [NOME] in place. A name line ("[NOME] ferro", "Ferro, [NOME]": a surname
+    that is a catalog word) stays hidden; either way a name on an exam line keeps the page asked (page_clean)."""
+    head = line.split(NAME_TAG, 1)[0]
+    return head == line or bool(LIST_MARKER.match(head)) and names_an_exam(head)
 
 
 def unrecognized_request(line: str, masked: str) -> bool:
