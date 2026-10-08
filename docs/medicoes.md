@@ -15,7 +15,7 @@ docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga ru
 | O que foi testado | Casos | Resultado | Como repetir |
 |---|---|---|---|
 | Dados sensíveis sob carga: OCR → RAG → API → SQLite | 500 pedidos, 6.000 campos sensíveis | **0 vazamentos** no texto do OCR; **0 valores em claro** nos bytes do SQLite e do WAL; 499 de 500 pedidos agendados, e o `GET` devolve os exames enviados nos 499 | `tests.load.carga --n 500 --concorrencia 8` |
-| Só as linhas de exame chegam ao modelo | 120 manuscritas, 30 fotos de celular, 200 pedidos da carga e `pedido.png` (5.028 linhas lidas) | 4.026 linhas de texto livre trocadas por `[linha de texto livre omitida]`; **0 PII** nas linhas que o modelo recebe; os mesmos exames agendados sem perguntar e perguntados que antes, **0 errados** ([detalhe](#texto-livre-fora-do-modelo)) | `pytest tests/test_texto_livre.py` |
+| Só as linhas de exame chegam ao modelo | 120 manuscritas, 30 fotos de celular, 200 pedidos da carga e `pedido.png` (5.028 linhas lidas) | 4.030 linhas de texto livre trocadas por `[linha de texto livre omitida]`; **0 PII** nas linhas que o modelo recebe; os mesmos exames agendados sem perguntar e perguntados que antes, **0 errados** ([detalhe](#texto-livre-fora-do-modelo)) | `pytest tests/test_texto_livre.py` |
 | A máscara não apaga exame | 1.445 linhas legítimas distintas (as 1.429 distintas de `tests/attacks/legit.txt` e 16 de `legit-pages.txt`); os 240 nomes e sinônimos do catálogo em MAIÚSCULAS, Title Case, com ". com jejum" e com 6 modificadores | 0 exames apagados | `pytest tests/test_pii.py` |
 | Formatos fora do gerador, em 2 conjuntos independentes de imagens: nome sem rótulo, com `'` ou `-`, em minúsculas ao lado do exame, CPF em 2 linhas, data por extenso | 79 + 79 imagens; 84 + 83 valores pessoais lidos pelo OCR | **0 de 84** e **0 de 83** não mascarados; 0 exames apagados pela máscara (na medição final do 2º conjunto, 1 exame não veio porque o OCR leu "Vitamina B1l2", não pela máscara) | cada caso virou teste em `tests/test_pii.py` (as imagens têm PII fictícia legível e ficam fora do repositório) |
 | Limiar de 0,90 para agendar | 631 consultas versionadas | 0 de 10 erros passam; 522 de 621 acertos ficam (84,1%). Só há 10 erros conhecidos no conjunto: é uma checagem de piso, não uma taxa de erro | `pytest tests/test_calibration.py` |
@@ -122,6 +122,8 @@ recebe todas as linhas mascaradas.
 | 30 fotos de celular (97) | 456 · 360 | 85 → 85 | 4 → 4 | 5 → 5 | 0 → 0 | 0 → 0 |
 | 200 pedidos da carga (618) | 3.149 · 2.531 | 602 → 602 | 12 → 12 | 4 → 4 | 0 → 0 | 0 → 0 |
 | `pedido.png` (3) | 10 · 7 | 3 → 3 | 0 → 0 | 0 → 0 | 0 → 0 | 0 → 0 |
+
+A tabela é da medição em que a troca entrou. Com as regras de página que vieram depois (nota abaixo da lista, nome mascarado, anotação), as 120 manuscritas ficam em 1.413 · 1.132, 24 agendados sem perguntar, 125 perguntados e 96 em baixa confiança, ainda com 0 errados e 0 PII nas linhas do modelo; as outras linhas não mudaram.
 
 - **As 2 de baixa confiança que saíram** (Creatinina em `medico-036` e `medico-038`) vinham do carimbo "Clínica
   Médica", que a busca aproximava de "Creatinina sérica" (0,65), e não da linha do exame, que o OCR não leu. É
