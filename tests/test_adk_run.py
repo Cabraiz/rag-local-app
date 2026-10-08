@@ -155,11 +155,12 @@ def all_three():
 def test_adk_run_books_the_order_from_only_its_file_name(adk_run, typed):
     out, new, checked = adk_run(typed, 'yes')
     assert new == all_three(), out  # read by the real OCR, searched in the real RAG, stored by the real API
-    assert ('[HITL confirm] Exames para agendar:\n- Hemograma completo (FICT-001)\n- Glicemia de jejum (FICT-002)\n'
+    assert ('[HITL confirm] Trechos removidos pelo OCR (não pareciam exame): 3\nExames para agendar:\n'
+            '- Hemograma completo (FICT-001)\n- Glicemia de jejum (FICT-002)\n'
             '- Creatinina (FICT-005)\nAgendar estes 3 exames?') in out  # ADK's console shows the list first
     stored_id = re.search(r'Agendamento confirmado pela API: id (\S+), status scheduled', out)
     assert stored_id and appointment(stored_id[1].rstrip(',')) == all_three()[0], out
-    assert 'PII mascarada pelo OCR: NOME x2, CPF x1, EMAIL x1, TELEFONE x1' in out
+    assert 'PII reconhecida e mascarada pelo OCR: NOME x2, CPF x1, EMAIL x1, TELEFONE x1' in out
     # The file name carries a (fictional) patient's name: the person typed it, no model ever saw it.
     assert SEEN and not [request for request in SEEN if 'joao' in request.lower() or 'silva' in request.lower()]
     assert all('Arquivo do pedido: pedido-1.png' in request for request in SEEN)
@@ -182,8 +183,8 @@ def test_the_question_is_answered_in_adk_runs_console_and_resumes_the_same_call(
                                         {'code': 'FICT-002', 'name': 'Glicemia de jejum'},
                                         {'code': 'FICT-067', 'name': 'Creatinoquinase'}])
     out, new, _ = adk_run(IMAGE, answer)
-    assert ('[HITL confirm] Exames para agendar:\n- Hemograma completo (FICT-001)\n- Glicemia de jejum (FICT-002)\n'
-            '- Creatinoquinase (FICT-067): lido "Exame: Creatinina", confiança 0,') in out
+    assert ('[HITL confirm] Trechos removidos pelo OCR (não pareciam exame): 3\nExames para agendar:\n'
+            '- Hemograma completo (FICT-001)\n- Glicemia de jejum (FICT-002)\n- Creatinoquinase (FICT-067): lido "Exame: Creatinina", confiança 0,') in out
     assert 'Agendar estes 3 exames?' in out
     assert [[code for code, _ in exams] for exams in new] == stored, out
     assert line in out.split('[clinic_scheduler]: ', 1)[1]
@@ -216,7 +217,9 @@ def test_an_exam_the_order_says_not_to_do_is_not_booked_under_adk_run(adk_run, m
     out, new, _ = adk_run(IMAGE, 'no')
     assert new == [], out  # answered no: nothing booked
     question, report = out.split('[clinic_scheduler]: ', 1)  # the report is written in code, not by the model
-    assert ('- TSH (FICT-024): lido "TSH", confiança 0,89; o pedido tem texto além da lista de exames; confira\n'
+    assert ('[HITL confirm] Atenção: o pedido tem texto além da lista de exames: linha 3 "Obs: NAO realizar Ferritina"; '
+            'confira o papel\nExames para agendar:\n') in question  # the page's reason once, above the list
+    assert ('- TSH (FICT-024): lido "TSH", confiança 0,89; confira\n'
             "Não agendados:\n- não agendado: 'Obs: NAO realizar Ferritina' → Ferritina FICT-018; o pedido diz para "
             'não realizar\nAgendar estes 2 exames?') in question
     assert "não agendado: 'Obs: NAO realizar Ferritina' → Ferritina FICT-018; o pedido diz para não realizar" in report

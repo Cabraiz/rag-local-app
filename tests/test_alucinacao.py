@@ -396,7 +396,7 @@ def test_exams_the_order_says_not_to_do_are_never_booked(run, services, monkeypa
     assert ("não agendado: '[TEXTO_REMOVIDO] ja realizado [TEXTO_REMOVIDO]: PSA total - nao repetir' → PSA total "
             'FICT-048; o pedido diz para não realizar') in out
     assert 'Instruções neutralizadas no OCR: 1' in out and '→ Vitamina D FICT-023' in out  # reported, not booked
-    assert 'PII mascarada pelo OCR: nenhuma' in out and 'ATENÇÃO' not in out
+    assert 'PII reconhecida e mascarada pelo OCR: nenhuma' in out and 'ATENÇÃO' not in out
     seen = ''.join(SEEN)
     # What reached the model: its exam lines only; the notes it never read still decide (above).
     assert 'Hemograma completo' in seen and '[linha de texto livre omitida]' in seen

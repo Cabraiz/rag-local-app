@@ -466,7 +466,7 @@ def test_the_cli_shows_the_removed_text_apart_from_the_pii(ready_run, monkeypatc
                                                     'text_removed': 3}))
     assert cli.main(ready_run) == 0
     out = capsys.readouterr().out
-    assert 'PII mascarada pelo OCR: NOME x1\nTrechos removidos pelo OCR (não pareciam exame): 3\n' in out
+    assert 'PII reconhecida e mascarada pelo OCR: NOME x1\nTrechos removidos pelo OCR (não pareciam exame): 3\n' in out
 
 
 # --- Long numbers and address fragments ---------------------------------------------------------

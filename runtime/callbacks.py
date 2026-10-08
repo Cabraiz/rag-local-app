@@ -5,6 +5,7 @@ report written from what the tools returned (report). The model only proposes; t
 code, on the order's record (runtime/pedido.py), never on the session state.
 """
 import asyncio
+import concurrent.futures
 import json
 import uuid
 
@@ -288,8 +289,10 @@ class BookingCallbacks:
         listed = booked + to_ask
         if not listed:
             return blocked(order, 'nenhum exame com confiança suficiente para agendar')
-        if asks and confirmation is None and hasattr(tool_context, 'request_confirmation'):
-            return confirmacao.pause_for_answer(tool_context, order, listed, confirmacao.review(booked, to_ask, left_out))
+        if asks and confirmation is None and hasattr(tool_context, 'request_confirmation'):  # the whole order checked
+            with concurrent.futures.ThreadPoolExecutor(1) as pool:  # first, on its own loop in a thread: the run's waits
+                late = pool.submit(asyncio.run, servidores.unreported_exams(order, self.search_url, self.search_tool, self.policy, listed)).result()[0]
+            return confirmacao.pause_for_answer(tool_context, order, listed, confirmacao.review(booked, to_ask, left_out + late, order))
         if asks and not (yes and [item['code'] for item in shown or []] == [item['code'] for item in listed]):
             order['refused'] = True  # a no, or no answer to this very list: nothing is booked
             return blocked(order, NOT_CONFIRMED)

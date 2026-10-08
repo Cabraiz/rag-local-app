@@ -195,5 +195,19 @@ def test_the_reserve_answers_per_request_and_nothing_is_asked_or_booked_twice(tm
 
 def test_the_guides_sample_question_is_the_one_the_cli_asks():
     sure = [{'code': 'FICT-001', 'name': 'Hemograma completo'}, {'code': 'FICT-002', 'name': 'Glicemia de jejum'},
-            {'code': 'FICT-005', 'name': 'Creatinina'}]  # pedido.png, read clearly
-    assert confirmacao.review(sure, [], []) + ' [s/N] s' in (ROOT / 'docs' / 'como-rodar.md').read_text('utf-8')
+            {'code': 'FICT-005', 'name': 'Creatinina'}]  # pedido.png, read clearly; its OCR removes 3 pieces
+    question = confirmacao.review(sure, [], [], {'text_removed': 3, 'ocr_read': [], 'off_list': []})
+    assert question + ' [s/N] s' in (ROOT / 'docs' / 'como-rodar.md').read_text('utf-8')
+
+
+def test_the_page_reason_comes_once_above_the_list_with_its_line_and_what_the_ocr_removed():
+    # A typed note above the list: each exam is asked, and the question says why once, pointing to the line.
+    order = {'ocr_read': ['[TEXTO_REMOVIDO]: [TEXTO_REMOVIDO], [TEXTO_REMOVIDO]', 'Paciente: [NOME]', '- TSH', '- T4 livre'],
+             'off_list': [0], 'text_removed': 3, 'instructions_removed': 1}
+    asked = [{'code': code, 'name': name, 'read': f'- {name}', 'confidence': 0.89, 'why': 'page'}
+             for code, name in (('FICT-024', 'TSH'), ('FICT-025', 'T4 livre'))]
+    assert confirmacao.review([], asked, [], order) == '\n'.join([
+        'Atenção: o pedido tem texto além da lista de exames: linha 1 "[TEXTO_REMOVIDO]: [TEXTO_REMOVIDO], '
+        '[TEXTO_REMOVIDO]"; confira o papel', 'Trechos removidos pelo OCR (não pareciam exame): 3',
+        'Instruções neutralizadas no OCR: 1', 'Exames para agendar:', '- TSH (FICT-024): lido "- TSH", confiança 0,89; '
+        'confira', '- T4 livre (FICT-025): lido "- T4 livre", confiança 0,89; confira', 'Agendar estes 2 exames?'])

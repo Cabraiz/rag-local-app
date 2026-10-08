@@ -342,7 +342,7 @@ def test_a_name_refused_before_the_order_is_checked_again_and_its_new_address_ke
         dns['switched'] = True
         events = send(client, new_session(client), [{'text': IMAGE}])
     assert rede.PINS['ocr'] == ['10.0.0.99']
-    assert 'PII mascarada pelo OCR: NOME' not in last_text(events), 'the OCR was read over another address'
+    assert 'PII reconhecida e mascarada pelo OCR: NOME' not in last_text(events), 'the OCR was read over another address'
 
 
 def test_the_address_checked_before_the_first_connection_is_the_one_every_connection_uses(web, services, monkeypatch):  # noqa: F811

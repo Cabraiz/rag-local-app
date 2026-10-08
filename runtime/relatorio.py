@@ -10,6 +10,7 @@ from google.genai import errors
 WHY = {'uncertain': '; o pedido tem outras palavras além do exame', 'table': '; o pedido está em tabela ou colunas',
        'instruction': '; o pedido tem uma instrução sobre este exame', 'page': '; o pedido tem texto além da lista de exames',
        'form': '; formulário com marcas: só os marcados contam; confira', 'longer': '; o nome escrito é de outro exame, mais longo'}
+SAID = WHY | {'page': ''}  # in the [s/N] question, the page's reason is said once, above the list
 # How each exam left out is shown, by its reason; {guess} is "'<line read>' → <exam> <code> (confiança 0,xx)".
 LEFT_OUT = {
     'needs_confirmation': 'não agendado sem confirmação: {guess}; rode num terminal, sem --yes, para responder',
@@ -40,15 +41,15 @@ def printable(text):
     return ''.join(char for char in str(text) if char.isprintable())
 
 
-def left_out_line(item):
+def left_out_line(item, why=WHY):
     """One exam left out, with the same number and words as the [s/N] question (the confidence the policy
     decided on), or with what the order says of it."""
     seen = f"'{printable(item['read'])}' → {item['name']} {item['code']}"
     if item.get('reason') in REFUSED:
         return REFUSED[item['reason']].format(seen=seen, used_by=item.get('used_by'))
     guess = f"{seen} (confiança {confidence(item['confidence'])})"
-    if item.get('why') in WHY:  # asked, not booked, for what its line says
-        guess += f'{WHY[item["why"]]}, confirme'
+    if why.get(item.get('why')):  # asked, not booked, for what its line says
+        guess += f'{why[item["why"]]}, confirme'
     return LEFT_OUT.get(item.get('reason'), LEFT_OUT['score']).format(guess=guess)
 
 
@@ -64,7 +65,7 @@ def reading_lines(values):
     """What the OCR masked or removed, the exams the person confirmed and the ones left out. `values`:
     the session state, or the CLI's record of the run (the same keys)."""
     masked = ', '.join(f'{kind} x{count}' for kind, count in (values.get('pii_masked') or {}).items())
-    lines = [f'PII mascarada pelo OCR: {masked or "nenhuma"}']
+    lines = [f'PII reconhecida e mascarada pelo OCR: {masked or "nenhuma"}']
     if values.get('text_removed'):  # not PII by the rules, but it may hold a name they did not recognize
         lines.append(f'Trechos removidos pelo OCR (não pareciam exame): {values["text_removed"]}')
     if values.get('instructions_removed'):

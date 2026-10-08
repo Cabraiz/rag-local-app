@@ -140,6 +140,7 @@ def remember_ocr(state, reply):
         isinstance(item, dict) and isinstance(item.get('code'), str) and item.get('reason') in CONTESTS for item in contested)
     state['ocr_contested'] = {item['code']: item['reason'] for item in contested} if valid else None  # None: all asked
     state['page_clean'], state['cancel_unlinked'] = reply.get('page_clean') is True, reply.get('cancel_unlinked') is True
+    state['off_list'] = [at for at in off if isinstance(at, int)] if isinstance(off := reply.get('off_list'), list) else []
     state['ocr_terms'] = terms if isinstance(terms := reply.get('exam_terms'), list) and len(terms) == len(state['ocr_read']) else []
     state['text_removed'] = reply.get('text_removed', 0)
     shown = reply.get('exam_lines') if isinstance(reply.get('exam_lines'), list) else []

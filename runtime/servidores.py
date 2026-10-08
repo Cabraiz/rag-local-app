@@ -1,6 +1,6 @@
-"""The two calls the runtime itself makes to the spec's MCP servers, outside any model turn: the
-reading server's check of an image before the first model turn, and the catalog search of every line
-read, for the check of the whole order after the run (runtime/reconcilia.py). No model sees either."""
+"""The two calls the runtime itself makes to the spec's MCP servers, outside any model turn: the reading server's check
+of an image before the first model turn, and the catalog search of every line read, for the check of the whole order
+before the [s/N] question and after the run (runtime/reconcilia.py). No model sees either."""
 import asyncio
 
 from mcp import ClientSession
@@ -43,9 +43,9 @@ async def search_lines(url, tool, texts, top_k):
         return dict(await asyncio.gather(*map(search, texts)))
 
 
-async def unreported_exams(order, url, tool, policy):
-    """(the exams of the order the run left in no reported state, True if the search did not answer):
-    every line read is searched on the spec's catalog server (runtime/reconcilia.py)."""
+async def unreported_exams(order, url, tool, policy, listed=()):
+    """(the exams of the order the run left in no reported state, besides `listed`, True if the search did not
+    answer): every line read is searched on the spec's catalog server (runtime/reconcilia.py)."""
     texts = list(dict.fromkeys(text for _, text, _ in order_lines(order.get('ocr_read', []))))
     if not texts or not (url and tool):
         return [], False
@@ -55,5 +55,5 @@ async def unreported_exams(order, url, tool, policy):
         return [], True
     appointment = order.get('booked_appointment') if isinstance(order.get('booked_appointment'), dict) else {}
     settled = {exam.get('code') for exam in appointment.get('exams') or [] if isinstance(exam, dict)}
-    settled |= {item['code'] for item in [*order.get('low_confidence', []), *order.get('confirmed', [])]}
+    settled |= {item['code'] for item in [*order.get('low_confidence', []), *order.get('confirmed', []), *listed]}
     return unreported(order, hits.get, policy, settled), False

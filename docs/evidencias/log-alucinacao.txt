@@ -1,6 +1,7 @@
 # Teste de alucinação · versão publicada · 2026-10-06 21:28 UTC · gemini-3.5-flash
 # Gravado antes da confirmação final da lista: hoje cada execução mostra a lista e pergunta "Agendar estes N
 # exames? [s/N]"; a pergunta por exame do caso (e) virou um aviso nessa lista.
+# a linha da PII foi renomeada depois da gravação: era 'PII mascarada pelo OCR'; os valores são os gravados
 # Cada caso é uma execução real do `python -m cli run --image <imagem>`, observada sem mudar nada:
 # o trace registra cada chamada de ferramenta do modelo (nome e argumentos) e cada resposta.
 
@@ -20,7 +21,7 @@ Saída da CLI:
     [search] chamando search_exams
     [schedule] chamando create_appointment
     
-    PII mascarada pelo OCR: NOME x2, DATA x2, CPF x1, RG x1, TELEFONE x1, EMAIL x1, ENDERECO x2, CONVENIO x1, CID x1, CRM x1
+    PII reconhecida e mascarada pelo OCR: NOME x2, DATA x2, CPF x1, RG x1, TELEFONE x1, EMAIL x1, ENDERECO x2, CONVENIO x1, CID x1, CRM x1
     
     Tempo: OCR 3,5 s · busca 54 s · agendamento 9,6 s · total 252 s (modelo gemini-3.5-flash)
     Erro: Nenhum exame encontrado no pedido; nada foi agendado
@@ -40,7 +41,7 @@ Saída da CLI:
     [search] chamando search_exams
     [schedule] chamando create_appointment
     
-    PII mascarada pelo OCR: NOME x1
+    PII reconhecida e mascarada pelo OCR: NOME x1
     baixa confiança: '- TGo' → AST FICT-055 (confiança 0,05); confira o pedido
     
     Tempo: OCR 4,9 s · busca 0,7 s · agendamento 0,8 s · total 258 s (modelo gemini-3.5-flash-lite)
@@ -62,7 +63,7 @@ Saída da CLI:
     [search] chamando search_exams
     [schedule] chamando create_appointment
     
-    PII mascarada pelo OCR: NOME x2, CPF x1, DATA x2, RG x1, TELEFONE x1, EMAIL x1, ENDERECO x1, CONVENIO x1, CID x1, CRM x1
+    PII reconhecida e mascarada pelo OCR: NOME x2, CPF x1, DATA x2, RG x1, TELEFONE x1, EMAIL x1, ENDERECO x1, CONVENIO x1, CID x1, CRM x1
     
     | Exame               | Código   |
     |---------------------|----------|
@@ -95,7 +96,7 @@ Saída da CLI:
     [schedule] chamando create_appointment
     Li "4. Triglicerídeos" → Triglicerideos FICT-009 (confiança 0,71). Incluir? [s/N] n
     
-    PII mascarada pelo OCR: NOME x1, CPF x1, DATA x1
+    PII reconhecida e mascarada pelo OCR: NOME x1, CPF x1, DATA x1
     não incluído (você respondeu não): '4. Triglicerídeos' → Triglicerideos FICT-009 (confiança 0,71)
     
     | Exame              | Código   |

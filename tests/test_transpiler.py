@@ -388,7 +388,7 @@ def test_cli_run_prints_exam_table_masked_pii_and_api_confirmation(ready_run, mo
     monkeypatch.setattr(cli, 'run_agent', fake_run({'pii_masked': {'NOME': 1, 'CPF': 1}, 'appointment': appointment}))
     assert cli.main(ready_run) == 0
     out = capsys.readouterr().out
-    assert 'PII mascarada pelo OCR: NOME x1, CPF x1' in out
+    assert 'PII reconhecida e mascarada pelo OCR: NOME x1, CPF x1' in out
     assert '| Hemograma completo | FICT-001 |' in out and '| Creatinina         | FICT-005 |' in out
     assert 'Agendamento confirmado pela API: id a1b2, status scheduled' in out
 
@@ -675,7 +675,7 @@ def test_order_without_exams_fills_inputs_and_ends_in_one_clear_line(tmp_path, r
     assert cli.main(ready_run) == 2
     out, err = capsys.readouterr()
     assert err.strip() == 'Erro: Nenhum exame encontrado no pedido; nada foi agendado'
-    assert 'PII mascarada pelo OCR: NOME x1' in out
+    assert 'PII reconhecida e mascarada pelo OCR: NOME x1' in out
 
 
 def test_misread_line_is_not_booked_as_another_exam(tmp_path):

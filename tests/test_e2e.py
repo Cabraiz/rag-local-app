@@ -48,7 +48,7 @@ def test_order_image_is_scheduled_with_codes_from_the_catalog(tmp_path, capsys):
     assert confirmed and confirmed[2] == 'scheduled', out
 
     # PII never reaches the terminal: the OCR masked it before the LLM saw the text.
-    assert 'PII mascarada pelo OCR:' in out
+    assert 'PII reconhecida e mascarada pelo OCR:' in out
     assert not re.search(r'\d{3}\.\d{3}\.\d{3}-\d{2}|[\w.]+@[\w.]+', out)
 
     # The appointment really exists in the API, with the same exams.

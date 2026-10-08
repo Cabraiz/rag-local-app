@@ -60,6 +60,24 @@ def test_the_reviewed_case_reports_the_exam_the_model_never_searched(agent):
         ('FICT-009', 'Triglicerideos', 'not_searched', 1.0, '2. Colesterol total e Triglicerideos')]
 
 
+def test_the_question_shows_the_exam_the_model_never_searched_before_the_answer(agent, monkeypatch):
+    async def in_process(url, tool, texts, top_k):  # the catalog server's search, without the server
+        return {text: catalog_search(text) for text in texts}
+    monkeypatch.setattr(servidores, 'search_lines', in_process)
+    monkeypatch.setattr(agent.CALLBACKS, 'can_ask', lambda: True)
+    context = read(agent, REVIEWED, READINGS)
+    queries = ['Hemoglobina glicada', 'Colesterol total e Triglicerideos', 'TGO', 'Ferritina']
+    for query in queries:
+        real_search(agent, context, query)
+    exams = {'exams': [{'code': code} for code in map(best_of, queries)]}
+    assert agent.CALLBACKS.before_tool(FakeTool('create_appointment'), exams, context) == {
+        'pending_confirmation': ['FICT-003', 'FICT-018', 'FICT-055']}
+    assert context.requested[-1].split('\n')[-3:] == [
+        "- baixa confiança: '2. Colesterol total e Triglicerideos' → Colesterol total FICT-006 (confiança 0,65); confira "
+        "o pedido", "- não buscado pelo agente: '2. Colesterol total e Triglicerideos' → Triglicerideos FICT-009 "
+        "(confiança 1,00); confira o pedido", 'Agendar estes 3 exames?']
+
+
 def test_the_reviewed_order_searched_piece_by_piece_raises_nothing(agent):
     context = read(agent, REVIEWED, READINGS)
     queries = ['Hemoglobina glicada', 'Colesterol total', 'Triglicerideos', 'TGO', 'Ferritina']

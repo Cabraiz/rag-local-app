@@ -1,12 +1,12 @@
 """The final confirmation of the list, asked in code: before the API, the booking call pauses (ADK's tool
-confirmation) with the whole list, each exam with its code and warning and the ones not booked, and one
-question. `cli run` asks it in the terminal (ask_person), `adk run`'s console and `adk web`'s page show
-the same text, and the same call resumes with the answer: only a yes to the list that call showed books.
+confirmation) with what the page holds besides the list, the whole list, each exam with its code and warning, the
+ones not booked, and one question. `cli run` asks it in the terminal (ask_person), `adk run`'s console and `adk web`'s
+page show the same text, and the same call resumes with the answer: only a yes to the list that call showed books.
 """
 import os
 import sys
 
-from .relatorio import WHY, confidence, left_out_line, printable
+from .relatorio import SAID, confidence, left_out_line, printable, reading_lines
 
 
 def can_ask():
@@ -14,13 +14,18 @@ def can_ask():
     return not os.environ.get('CI') and sys.stdin.isatty() and sys.stdout.isatty()
 
 
-def review(sure, asked, left_out):
-    """The list and the question: the exams to book (an asked one with what was read and why), then the
-    ones not booked, with the report's words (runtime/relatorio.py)."""
-    lines = ['Exames para agendar:'] + [f'- {item["name"]} ({item["code"]})' for item in sure]
+def review(sure, asked, left_out, order=None):
+    """The list and the question: once, above it, why the page is asked (its lines off the list) and what the OCR removed
+    (`order`: its record); the exams to book (an asked one with what was read and why), then the ones not booked."""
+    order, read = order or {}, (order or {}).get('ocr_read') or []
+    off = ', '.join(f'linha {at + 1} "{printable(read[at])[:80]}"' for at in (order.get('off_list') or [])[:3] if 0 <= at < len(read))
+    lines = [f'Atenção: o pedido tem texto além da lista de exames{": " * bool(off)}{off}; confira o papel'] * any(
+        item.get('why') == 'page' for item in [*asked, *left_out])
+    lines += reading_lines(order | {'low_confidence': [], 'confirmed': []})[1:] + ['Exames para agendar:']
+    lines += [f'- {item["name"]} ({item["code"]})' for item in sure]
     lines += [f'- {item["name"]} ({item["code"]}): lido "{printable(item["read"])}", confiança '
-              f'{confidence(item["confidence"])}{WHY.get(item.get("why"), "")}; confira' for item in asked]
-    lines += ['Não agendados:'] * bool(left_out) + [f'- {left_out_line(item)}' for item in left_out]
+              f'{confidence(item["confidence"])}{SAID.get(item.get("why"), "")}; confira' for item in asked]
+    lines += ['Não agendados:'] * bool(left_out) + [f'- {left_out_line(item, SAID)}' for item in left_out]
     count = len(sure) + len(asked)
     return '\n'.join(lines + ['Agendar este exame?' if count == 1 else f'Agendar estes {count} exames?'])
 
