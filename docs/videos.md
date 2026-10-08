@@ -4,7 +4,7 @@ Um vídeo por ponto do desafio, gravado com `API_PORT=18905` (o padrão é 8765)
 
 ### 10. Pedido manuscrito
 
-com Gemini, um exame lido com confiança média é perguntado no terminal (`[s/N]`), respondido "s" e agendado com os demais. A linha `[schedule] chamando create_appointment` aparece antes da pergunta porque a confirmação nativa do ADK pausa dentro dessa chamada: o `POST` só sai depois do "s" ([mp4](videos-do-desafio/10-manuscrito.mp4))
+com Gemini, numa letra de mão simulada (fonte, não escrita real), um exame lido com confiança média é perguntado no terminal (`[s/N]`), respondido "s" e agendado com os demais. A linha `[schedule] chamando create_appointment` aparece antes da pergunta porque a confirmação nativa do ADK pausa dentro dessa chamada: o `POST` só sai depois do "s" ([mp4](videos-do-desafio/10-manuscrito.mp4))
 
 https://github.com/user-attachments/assets/678ba071-31fb-466f-a79b-48cad6e8f4ca
 
@@ -22,7 +22,7 @@ https://github.com/user-attachments/assets/abd03f0b-d26b-4871-b108-990666682a03
 
 ### 11. Foto de celular
 
-com Gemini, uma foto de celular simulada de um pedido impresso (perspectiva, sombra): os 5 exames escritos são agendados e a PII sai mascarada ([mp4](videos-do-desafio/11-foto-celular.mp4))
+com Gemini, uma foto de celular simulada de um pedido impresso (perspectiva e sombra geradas): os 5 exames escritos são agendados e a PII sai mascarada ([mp4](videos-do-desafio/11-foto-celular.mp4))
 
 https://github.com/user-attachments/assets/4a07f2ed-78ad-4f74-a4cb-d334c3ea9b6e
 

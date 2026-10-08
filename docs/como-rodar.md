@@ -146,7 +146,7 @@ Exemplos prontos em `samples/`:
 - **`pedido-sem-exame.png`:** dados do paciente e nenhum exame, o caso (b) do [teste de alucinação](evidencias/log-alucinacao.txt): nada pode ser agendado (`Erro: Nenhum exame encontrado no pedido; nada foi agendado`). Gerado por `exemplos/gerar_pedido_sem_exame.py`, com semente fixa;
 - **`pedido-variacao.png`:** nome sem rótulo, marcadores, sinônimo `Glicose`, telefone sem rótulo, data e CRM;
 - **`ataque-injecao.png` e `ataque-exame-disfarcado.png`:** instruções escondidas no pedido. O OCR tira as ordens do texto (o que sobra sai como `[TEXTO_REMOVIDO]`) e a CLI mostra `Instruções neutralizadas no OCR: N`; só os exames legítimos são agendados (ver [Segurança em detalhe](arquitetura.md#segurança-em-detalhe)).
-- **`pedido-manuscrito.png` e `pedido-manuscrito-dificil.png`:** pedidos com aparência de letra de mão, fotografados com o celular (ver abaixo). Na primeira, o OCR lê os 5 exames; na segunda, de "letra de médico", quase nada é lido: o que o agente achar fica para a sua confirmação (`[s/N]`) ou sai em "baixa confiança", e nada é agendado sozinho.
+- **`pedido-manuscrito.png` e `pedido-manuscrito-dificil.png`:** pedidos com aparência de letra de mão e de foto de celular, ambos simulados (ver abaixo). Na primeira, o OCR lê os 5 exames; na segunda, de "letra de médico", quase nada é lido: o que o agente achar fica para a sua confirmação (`[s/N]`) ou sai em "baixa confiança", e nada é agendado sozinho.
 
 ### Pedidos manuscritos simulados
 
