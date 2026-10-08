@@ -270,7 +270,8 @@ O banco (SQLite) fica no volume `api-data`, e a chave que cifra as listas de exa
    ```
    - **A chave primeiro:** com o volume `api-key` intacto, nada a fazer. Numa máquina nova, ponha a chave guardada em `DB_ENCRYPTION_KEY=` no `.env` antes (ela tem precedência sobre o volume). Sem chave, a restauração para e não cria outra: `Erro: chave do banco não encontrada (…): restaure primeiro a chave da gravação; nada foi restaurado`.
    - **Conferida antes de gravar:** a cópia passa pelo `integrity_check` do SQLite e cada agendamento é decifrado com a chave atual. Com a chave errada, nada muda: `Erro: não foi possível decifrar o registro: a chave não é a da gravação ou o dado foi alterado no banco; nada foi restaurado`.
-   - **Banco com dados:** um banco que já tem agendamentos só é trocado com `--substituir` no fim do comando; o que entrou depois da cópia se perde.
+   - **Banco com dados:** um banco que já tem agendamentos só é trocado com `--substituir` no fim do comando; o que entrou depois da cópia se perde, inclusive as `Idempotency-Key` gravadas depois dela.
+   - **Com a API no ar, é recusada:** a API mantém o banco aberto, e a restauração pede uma trava exclusiva: `Erro: /state/appointments.db está em uso pela API: pare-a (docker compose stop api); nada foi restaurado`.
    - **Saída:** `banco restaurado em /state/appointments.db: 3 agendamento(s), todos decifrados com a chave atual`. Testes em [`test_backup.py`](../tests/test_backup.py).
 
 ## Quando algo falha

@@ -34,7 +34,7 @@ Visão para quem vai ler ou alterar o código. O resumo e os comandos estão no
 | `guardrails/injection.py` (detector de injeção) | Trocar por um marcador as linhas (ou trechos) escritas como ordem ao modelo, com normalização de acentos, homoglifos, leetspeak e palavras soletradas, e contá-las (`instructions_removed`); como o marcador não parece exame, ele sai do OCR como `[TEXTO_REMOVIDO]` | Decidir o que é exame |
 | `api/main.py` | Criar e consultar agendamentos (FastAPI + SQLite), com `Idempotency-Key` opcional, cabeçalhos de segurança em toda resposta e uma linha de log JSON por requisição. Ao subir (lifespan do FastAPI), prepara a chave do banco, o catálogo e o banco, nessa ordem; importar o módulo não lê configuração nem abre arquivo | Aceitar código fora de `FICT-\d{3}` |
 | `api/crypto.py` | Cifrar a lista de exames de cada agendamento (AES-256-GCM, presa ao `id`, ao status e à data); criar a chave no volume `api-key` na 1ª subida | Guardar a chave no volume do banco |
-| `api/backup.py` | Copiar o banco com a API no ar (API de backup do SQLite, consistente com o WAL) e restaurar a cópia depois de decifrar cada agendamento com a chave atual ([passos](como-rodar.md#backup-e-restauração)) | Copiar a chave junto com o banco |
+| `api/backup.py` | Copiar o banco com a API no ar (API de backup do SQLite, consistente com o WAL) e restaurar a cópia depois de decifrar cada agendamento com a chave atual, só com a API parada (a conexão que ela mantém aberta impede a trava exclusiva que a restauração pede) ([passos](como-rodar.md#backup-e-restauração)) | Copiar a chave junto com o banco |
 
 ### As regras que o `agent.py` importa
 
@@ -201,11 +201,19 @@ Cada linha passa por quatro etapas, nesta ordem:
    Fator reumatoide). Uma pista que não se liga a nenhum exame do catálogo (`cancel_unlinked`: "(favor não
    realizar)" embaixo de um item) faz o relatório dizer `o pedido tem um cancelamento que não foi ligado a um
    exame; confira`.
+   - `form`: numa lista em que só algumas linhas de exame têm uma marca antes ou depois do exame ("X", "x", "/",
+     "v", "✓", "[x]"), ou em que alguma tem uma caixa vazia, cada linha de exame: só os marcados contam. Pergunta,
+     com `; formulário com marcas: só os marcados contam; confira`.
    - **A página (`page_clean`, lista branca por página):** um exame só agenda sozinho se toda linha da página
-     for lista (só exames e qualificadores), rótulo da lista, tempo de jejum ou marcas, ou, acima do 1º exame
-     ou abaixo do último, um campo que a etapa de PII reconhece ("Paciente:", "CPF:", "Dra. … CRM", "Data:")
-     ou uma linha que ela tirou inteira (timbre, carimbo) com um campo entre ela e a lista, sem pista, sem
-     referência por posição ("2º", "nº 3", "o último") e sem palavra de adiamento. Qualquer outro texto (uma
+     for lista (só exames e qualificadores), rótulo da lista ("Solicito os seguintes exames:"), uma contagem
+     dos exames que bate com a lista ("Total de exames: 3"), tempo de jejum ou marcas, ou um campo que a etapa
+     de PII reconhece inteiro ("Paciente:", "CPF:", "Dra. … CRM", "Data:"): acima do 1º exame, ou abaixo do
+     último, sem nenhum texto tirado na linha. Só acima da lista, uma linha que ela tirou inteira (timbre,
+     carimbo) com um campo entre ela e a lista conta como timbre; abaixo do 1º exame, texto tirado ou não
+     reconhecido, em qualquer língua, tira a página da lista. Nada disso com pista, referência por posição
+     ("2º", "nº 3", "o último") ou palavra de adiamento. Uma contagem menor que as linhas de exame (um exame
+     acrescentado depois dela) e uma linha com um nome mascarado que nomeia um exame ("Érica Ferro - TSH")
+     também tiram a página da lista. Qualquer outro texto (uma
      observação, um cabeçalho desconhecido, um exame com outras palavras, uma ordem ao modelo tirada, um
      cancelamento sem exame), um exame em letra muito menor ou mais clara que a da página, ou texto tirado
      inteiro e lido com confiança abaixo de 60: todo exame da página é perguntado, com `; o pedido tem texto
@@ -218,7 +226,11 @@ Cada linha passa por quatro etapas, nesta ordem:
    `[TEXTO_REMOVIDO]`, ou `[NOME]` se tiverem um prenome comum (as palavras de negação e histórico
    ficam); dentro de um trecho de exame, o mesmo
    vale para cada palavra que não é de exame e para um número longo (5 dígitos ou mais, sem unidade:
-   "Glicose 98765432"; nenhum nome do catálogo tem mais de 3, como "CA 125" e "Urina 24h"). O que as
+   "Glicose 98765432"; nenhum nome do catálogo tem mais de 3, como "CA 125" e "Urina 24h"). Pela forma
+   (regra 5): uma palavra com maiúscula depois de um nome mascarado ou de uma inicial é do nome ("Érica
+   Ferro", "E. Ferro" viram `[NOME]`), e, depois do nome do exame, um número ou uma palavra com maiúscula que
+   não é de um nome do catálogo nem qualificador sai ("Glicemia 1234567 mg/dl", "Ureia (11)", "TSH Franco";
+   ficam "25(OH)D", "Vitamina B12", "jejum de 8h"). Uma linha com `[NOME]` não vai ao modelo. O que as
    regras da etapa 3 não reconhecem, como um nome manuscrito sozinho na linha ou um carimbo
    deformado, para aqui. Um item da lista de exames ("4) Ressonância magnética de crânio") que sai
    inteiro como `[TEXTO_REMOVIDO]` é marcado `unrecognized`, e a CLI avisa só o número da linha.
@@ -250,7 +262,7 @@ Limites:
   790 ataques e 1.482 linhas legítimas, 1.429 distintas). As imagens de exemplo usam só dados fictícios.
 - o detector de injeção reduz o risco, não o elimina: uma ordem escrita de um jeito que as regras
   não preveem passa. A garantia é o `before_tool_callback` do agente, que só agenda códigos do
-  catálogo ancorados nas linhas lidas.
+  catálogo ancorados nas linhas lidas, no nome mais longo do catálogo escrito ali.
 - o detector de injeção erra para o lado seguro: algumas linhas legítimas também caem.
   "Laboratório System Lab" e "Prompt Diagnóstico Ltda" são tiradas como ordem (saem como
   `[TEXTO_REMOVIDO]`); em "Ignorar jejum para TSH" (verbo de comando junto de um exame), só a ordem
@@ -291,7 +303,7 @@ O README traz o resumo; aqui está cada camada com os números e os exemplos.
 
 ## Agendamento conferido em código
 
-Em [`runtime/callbacks.py`](../runtime/callbacks.py), antes do `POST`, o `before_tool_callback` confere cada código. Ele precisa ter vindo de uma busca no catálogo nesta execução e ocupar um trecho próprio do pedido, em qualquer linha: "Clearance de creatinina" numa linha e "Creatinina" na outra são 2 exames, em qualquer ordem; "Exames: Hemograma completo, Creatinina e TSH" são 3; um nome que só aparece dentro de outro ("Hemoglobina" em "Hemoglobina glicada", escrito uma vez) ou uma linha que só se parece com várias buscas vale um só, e o outro sai como `não agendado: '<linha>' → <exame> <código>; o mesmo trecho da linha já foi usado por <outro exame>`. Um "e" que o OCR grudou no exame não junta os dois num trecho só: em "2) Ureiae Creatinina", a busca por "Ureia" acha o pedaço "Ureiae" (0,91, o mesmo corte do `split_exams` do RAG), e Ureia e Creatinina são agendadas, seja qual for a consulta do modelo. A confiança no trecho é o menor entre o score do RAG e o quanto a busca bate com a linha. A confiança que o OCR dá a cada linha (`line_confidence`, 0 a 100) também entra no mínimo: uma linha lida com menos de 75 não agenda sozinha; uma sigla de até 3 letras precisa de 85, e uma sigla que só bate como outro nome de um exame mais longo precisa de 95 (um "TGP" manuscrito lido "TAP" com 93 é Tempo de protrombina). Medido com a resposta real do OCR: nas 120 manuscritas ([`tests/load/manuscritos.py`](../tests/load/manuscritos.py)), nenhum exame errado é agendado sem confirmação (5 erros de leitura viram pergunta); na calibração do piso, com 200 pedidos da carga, 605 dos 618 exames são agendados sozinhos e 9 são perguntados. Três faixas:
+Em [`runtime/callbacks.py`](../runtime/callbacks.py), antes do `POST`, o `before_tool_callback` confere cada código. Ele precisa ter vindo de uma busca no catálogo nesta execução e ocupar um trecho próprio do pedido, em qualquer linha: "Clearance de creatinina" numa linha e "Creatinina" na outra são 2 exames, em qualquer ordem; "Exames: Hemograma completo, Creatinina e TSH" são 3; um nome que só aparece dentro de outro ("Hemoglobina" em "Hemoglobina glicada", escrito uma vez) ou uma linha que só se parece com várias buscas vale um só, e um código cujo trecho está dentro de um nome mais longo de outro exame que o OCR achou na linha (`exam_terms`: "Proteína C" em "Proteína C reativa", "CK" em "CK MB") é no máximo perguntado, com `; o nome escrito é de outro exame, mais longo`, e o outro sai como `não agendado: '<linha>' → <exame> <código>; o mesmo trecho da linha já foi usado por <outro exame>`. Um "e" que o OCR grudou no exame não junta os dois num trecho só: em "2) Ureiae Creatinina", a busca por "Ureia" acha o pedaço "Ureiae" (0,91, o mesmo corte do `split_exams` do RAG), e Ureia e Creatinina são agendadas, seja qual for a consulta do modelo. A confiança no trecho é o menor entre o score do RAG e o quanto a busca bate com a linha. A confiança que o OCR dá a cada linha (`line_confidence`, 0 a 100) também entra no mínimo: uma linha lida com menos de 75 não agenda sozinha; uma sigla de até 3 letras precisa de 85, e uma sigla que só bate como outro nome de um exame mais longo precisa de 95 (um "TGP" manuscrito lido "TAP" com 93 é Tempo de protrombina). Medido com a resposta real do OCR: nas 120 manuscritas ([`tests/load/manuscritos.py`](../tests/load/manuscritos.py)), nenhum exame errado é agendado sem confirmação (5 erros de leitura viram pergunta); na calibração do piso, com 200 pedidos da carga, 605 dos 618 exames são agendados sozinhos e 9 são perguntados. Três faixas:
   - **≥ 0,90:** agenda;
   - **0,70 a 0,90:** o exame entra na lista com aviso: `- <exame> (<código>): lido "<linha lida>", confiança 0,82; confira`. Com `--yes`, fica de fora (`não agendado sem confirmação`);
   - **abaixo de 0,70:** sai como `baixa confiança: '<linha lida>' → <exame> <código> (confiança 0,68); confira o pedido`.
