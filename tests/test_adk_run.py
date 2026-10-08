@@ -213,10 +213,11 @@ def test_an_exam_the_order_says_not_to_do_is_not_booked_under_adk_run(adk_run, m
     monkeypatch.setitem(BOOK, 'exams', [{'code': 'FICT-001', 'name': 'Hemograma completo'},
                                         {'code': 'FICT-024', 'name': 'TSH'}, {'code': 'FICT-018', 'name': 'Ferritina'}])
     out, new, _ = adk_run(IMAGE)
-    assert new == [[('FICT-001', 'Hemograma completo'), ('FICT-024', 'TSH')]], out
+    assert new == [], out  # a note besides the list: nothing books alone (nobody answers [s/N] here)
     report = out.split('[clinic_scheduler]: ', 1)[1]  # the message written in code, not the model's
     assert "não agendado: 'Obs: NAO realizar Ferritina' → Ferritina FICT-018; o pedido diz para não realizar" in report
-    assert 'Agendamento confirmado pela API' in report and 'ATENÇÃO' not in report
+    assert "'TSH' → TSH FICT-024 (confiança 0,89); o pedido tem texto além da lista de exames, confirme" in report
+    assert 'Agendamento confirmado pela API' not in report and 'ATENÇÃO' not in report
 
 
 def test_one_order_per_session(adk_run):

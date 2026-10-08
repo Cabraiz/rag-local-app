@@ -46,7 +46,7 @@ def read(agent, lines, confidence=None, intent=None, **more):
     """The OCR's reply through the after_tool_callback (lines read clearly, 95, and requests, unless
     told otherwise, plus any other field of the reply); returns a fresh context."""
     context = FakeContext()
-    reply = {'lines': lines, 'pii_masked': {}, **more}
+    reply = {'lines': lines, 'pii_masked': {}, 'page_clean': True, **more}  # a clean page, unless told otherwise
     if intent is not ABSENT:
         reply['line_intent'] = ['request'] * len(lines) if intent is None else intent
     if confidence is not ABSENT:

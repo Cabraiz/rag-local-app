@@ -68,6 +68,8 @@ def reading_lines(values):
         lines.append(f'Trechos removidos pelo OCR (não pareciam exame): {values["text_removed"]}')
     if values.get('instructions_removed'):
         lines.append(f'Instruções neutralizadas no OCR: {values["instructions_removed"]}')
+    if values.get('cancel_unlinked'):  # guardrails/intent.py: nothing on the page books alone
+        lines.append('Aviso: o pedido tem um cancelamento que não foi ligado a um exame; confira')
     # the text of an unrecognized line never leaves the OCR: only where it is
     lines += [f'lido mas não reconhecido no catálogo: linha {number}; confira o pedido' for number in unrecognized(values)]
     lines += [f"incluído com a sua confirmação: '{printable(item['read'])}' → {item['name']} {item['code']}"

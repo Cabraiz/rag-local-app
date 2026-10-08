@@ -194,7 +194,7 @@ async def run_agent(app, image, spec, found):
         # The agent's callbacks left a copy of the order's record in the session state.
         state = (await runner.session_service.get_session(app_name=app.name, user_id='cli', session_id=session.id)).state
         for key in ('pii_masked', 'text_removed', 'instructions_removed', 'candidates', 'low_confidence', 'confirmed',
-                    'listing', 'invented', 'model_error'):
+                    'listing', 'invented', 'model_error', 'cancel_unlinked'):
             found[key] = state.get(key, found.get(key))
         found['unrecognized'] = [index + 1 for index, kind in enumerate(state.get('ocr_intent') or [])
                                  if kind == 'unrecognized']

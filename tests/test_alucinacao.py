@@ -388,8 +388,9 @@ def test_exams_the_order_says_not_to_do_are_never_booked(run, services, monkeypa
     extract = [EXTRACT[0], lambda request: '\n'.join(ocr_lines(request))]  # it repeats what the OCR returned
     code, out, err, new = run({'extract': extract, 'search': search,
                                'schedule': schedule(proposed)}, image=NEGATED)
-    assert code == 0, out + err
-    assert new == [[('FICT-001', 'Hemograma completo'), ('FICT-024', 'TSH')]]
+    assert code == 2 and new == [], out + err  # notes besides the list: nothing books alone, all is said
+    assert ("não agendado sem confirmação: 'TSH' → TSH FICT-024 (confiança 0,89); o pedido tem texto além da lista "
+            'de exames, confirme') in out
     assert ("não agendado: 'Obs: NAO realizar Ferritina ([TEXTO_REMOVIDO])' → Ferritina FICT-018; "
             'o pedido diz para não realizar') in out
     assert ("não agendado: '[TEXTO_REMOVIDO] ja realizado [TEXTO_REMOVIDO]: PSA total - nao repetir' → PSA total "

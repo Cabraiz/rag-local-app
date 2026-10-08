@@ -7,7 +7,7 @@ import sys
 
 # Why an exam is asked although it is written clearly: what its line says (runtime/confianca.py, 'why').
 WHY = {'uncertain': '; o pedido tem outras palavras além do exame', 'table': '; o pedido está em tabela ou colunas',
-       'instruction': '; o pedido tem uma instrução sobre este exame'}
+       'instruction': '; o pedido tem uma instrução sobre este exame', 'page': '; o pedido tem texto além da lista de exames'}
 
 
 def can_ask():

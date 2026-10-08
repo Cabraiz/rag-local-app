@@ -5,11 +5,10 @@ the OCR's own reading of that line). From `min_confidence` it is booked on its o
 `ask_from` only if the person says yes; below that it is only reported. Each exam takes
 its own piece of the order: one piece of text, one exam.
 
-What each line asks for comes from the OCR (`line_intent`, guardrails/intent.py), one kind per line.
-Only a 'request' line (nothing but exams) books alone; an 'uncertain' or 'table' line is asked; an exam is
-not booked from a line that says not to do it ('negated'), that it was done ('history'), or that prepares
-for it ('prep'), nor from any line when the page contests it (`contested_exams`: reported, or asked for an
-'instruction'). A reply without a usable line_intent or contested_exams fails closed: nothing books alone.
+From the OCR (guardrails/intent.py): only a 'request' line (nothing but exams) of a clean page (`page_clean`)
+books alone; any other exam found is asked. None is booked from a line that says not to do it ('negated'), that it
+was done ('history') or that prepares for it ('prep'), nor anywhere the page contests it (`contested_exams`). Without
+a usable line_intent, contested_exams or a true page_clean in the OCR's reply (in the order's record): fail closed.
 """
 import difflib
 import re
@@ -139,6 +138,7 @@ def remember_ocr(state, reply):
     valid = isinstance(contested, list) and all(
         isinstance(item, dict) and isinstance(item.get('code'), str) and item.get('reason') in CONTESTS for item in contested)
     state['ocr_contested'] = {item['code']: item['reason'] for item in contested} if valid else None  # None: all asked
+    state['page_clean'], state['cancel_unlinked'] = reply.get('page_clean') is True, reply.get('cancel_unlinked') is True
     state['text_removed'] = reply.get('text_removed', 0)
 
 
@@ -250,12 +250,13 @@ def best_spot(candidate, taken, state, policy, contest=None):
             continue
         holder = next((name for held, s, e, name in taken if held == line and s < end and start < e), None)
         reading = reading_at(readings, line, candidate['floor'], policy)  # below its floor, never booked alone
-        if kind not in ('request', 'unrecognized') or contest:
+        doubt = contest or (None if kind in ('request', 'unrecognized') else 'table' if kind == 'table' else 'uncertain')
+        doubt = doubt or (None if state.get('page_clean') is True else 'page')  # text besides the list: asked
+        if doubt:
             reading = min(reading, policy.below_booking)  # a note, a doubt, a table, a contest: asked at most
         if holder:
             holders.append(holder)
         else:
-            doubt = contest or (None if kind in ('request', 'unrecognized') else 'table' if kind == 'table' else 'uncertain')
             free.append((round(min(candidate['score'], support, reading), 2), line, start, end, doubt))
     if holders and not free:
         return None, holders[0], None

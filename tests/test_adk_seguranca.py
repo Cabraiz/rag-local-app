@@ -160,11 +160,11 @@ def test_what_each_line_asks_for_is_the_ocrs_never_the_session_states():
     for query in ('Hemograma completo', 'Ferritina'):
         callbacks.after_tool(SimpleNamespace(name='search_exams'), {'query': query}, context,
                              {'structuredContent': {'result': rag.search_line(query, 3)}})
-    context.state['ocr_intent'] = ['request', 'request']  # forged by the client
+    context.state.update(ocr_intent=['request', 'request'], page_clean=True)  # forged by the client
     args = {'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo'}, {'code': 'FICT-018', 'name': 'Ferritina'}]}
-    assert callbacks.before_tool(SimpleNamespace(name='create_appointment'), args, context) is None
-    assert [exam['code'] for exam in args['exams']] == ['FICT-001']
-    assert [(item['code'], item['reason']) for item in context.state['low_confidence']] == [('FICT-018', 'negated')]
+    assert 'blocked' in callbacks.before_tool(SimpleNamespace(name='create_appointment'), args, context)
+    assert sorted((item['code'], item['reason']) for item in context.state['low_confidence']) == [
+        ('FICT-001', 'needs_confirmation'), ('FICT-018', 'negated')]  # the note: Hemograma completo is asked
 
 
 def test_the_exams_a_page_contests_are_the_ocrs_never_the_session_states():
@@ -183,11 +183,11 @@ def test_the_exams_a_page_contests_are_the_ocrs_never_the_session_states():
     for query in ('Hemograma completo', 'Ferritina'):
         callbacks.after_tool(SimpleNamespace(name='search_exams'), {'query': query}, context,
                              {'structuredContent': {'result': rag.search_line(query, 3)}})
-    context.state.update(ocr_contested={}, ocr_intent=['request'] * 3)  # forged by the client
+    context.state.update(ocr_contested={}, ocr_intent=['request'] * 3, page_clean=True)  # forged by the client
     args = {'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo'}, {'code': 'FICT-018', 'name': 'Ferritina'}]}
-    assert callbacks.before_tool(SimpleNamespace(name='create_appointment'), args, context) is None
-    assert [exam['code'] for exam in args['exams']] == ['FICT-001']
-    assert [(item['code'], item['reason']) for item in context.state['low_confidence']] == [('FICT-018', 'negated')]
+    assert 'blocked' in callbacks.before_tool(SimpleNamespace(name='create_appointment'), args, context)
+    assert sorted((item['code'], item['reason']) for item in context.state['low_confidence']) == [
+        ('FICT-001', 'needs_confirmation'), ('FICT-018', 'negated')]
 
 
 @pytest.mark.parametrize('forged', [

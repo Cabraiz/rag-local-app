@@ -34,7 +34,7 @@ def extract_exam_text(filename: str) -> dict:
     """Reads the order (stand-in for the OCR server)."""
     CALLS['extract_exam_text'].append(filename)
     return {'structuredContent': {'lines': ORDER, 'line_confidence': [96.0] * len(ORDER),
-                                  'line_intent': ['request'] * len(ORDER), 'contested_exams': [], 'pii_masked': {}}}
+                                  'line_intent': ['request'] * len(ORDER), 'contested_exams': [], 'page_clean': True, 'pii_masked': {}}}
 
 
 def search_exams(query: str, top_k: int = 3) -> dict:

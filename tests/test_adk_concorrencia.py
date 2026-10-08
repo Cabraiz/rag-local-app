@@ -35,7 +35,7 @@ pytestmark = [
 ]
 
 HONEST = adk.Scripted
-OTHER = 'pedido-manuscrito.png'
+OTHER = 'pedido-foto-celular.jpg'  # a clean page too: it books alone
 MID = threading.Event()  # set when a run is mid-way (its search step started)
 
 
