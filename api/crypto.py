@@ -24,6 +24,7 @@ KEY_VARIABLE = 'DB_ENCRYPTION_KEY'
 NONCE_BYTES = 12
 HOW_TO_CREATE = ('gere uma com `docker compose run --rm --no-deps api python -m api.crypto --gerar-chave` '
                  'e coloque em DB_ENCRYPTION_KEY no .env')
+UNREADABLE = 'não foi possível decifrar o registro: a chave não é a da gravação ou o dado foi alterado no banco'
 
 
 class CryptoError(Exception):
@@ -93,8 +94,7 @@ def decrypt(cipher: AESGCM, token: str, bound_to: str) -> str:
         raw = base64.urlsafe_b64decode(token.encode('ascii'))
         return cipher.decrypt(raw[:NONCE_BYTES], raw[NONCE_BYTES:], bound_to.encode('utf-8')).decode('utf-8')
     except (InvalidTag, ValueError, binascii.Error, UnicodeError):
-        raise CryptoError('não foi possível decifrar o registro: a chave não é a da gravação '
-                          'ou o dado foi alterado no banco') from None
+        raise CryptoError(UNREADABLE) from None
 
 
 if __name__ == '__main__':

@@ -1,5 +1,7 @@
 import json
+import re
 import sqlite3
+from contextlib import closing
 
 import pytest
 from fastapi.testclient import TestClient
@@ -106,6 +108,40 @@ def test_swagger_describes_every_route_and_field(client):
         for name, field in schema['components']['schemas'][model]['properties'].items():
             assert field.get('description'), (model, name)
     assert client.get('/docs').status_code == 200
+
+
+def examples(schema):
+    """{(path, method, status): the `detail` of the example /docs shows} for the errors with one text."""
+    return {(path, method, status): response['content']['application/json']['example']['detail']
+            for path, operations in schema['paths'].items() for method, operation in operations.items()
+            for status, response in operation['responses'].items() if status not in ('200', '201', '422')}
+
+
+def test_each_documented_error_shows_the_text_the_api_really_returns(tmp_path, monkeypatch):
+    # An independent run-through: every Message example in /docs showed the 404's text, also for 409 and 429.
+    with limited_client(tmp_path, monkeypatch, '1000') as client:
+        shown = examples(client.get('/openapi.json').json())
+        created = client.post('/appointments', json=ONE_EXAM, headers={'Idempotency-Key': 'k1'}).json()
+        returned = {
+            '400': client.get('/health', headers={'Host': 'evil.example'}),
+            '404': client.get('/appointments/00000000-0000-0000-0000-000000000000'),
+            '409': client.post('/appointments', json={'exams': [{'code': 'FICT-001'}, {'code': 'FICT-002'}]},
+                               headers={'Idempotency-Key': 'k1'}),
+            '413': client.post('/appointments', content='x' * 20_000, headers={'content-type': 'application/json'}),
+        }
+        with closing(sqlite3.connect(client.app.state.db_path)) as connection, connection:  # a row edited in the db
+            connection.execute("UPDATE appointments SET exams = 'alterado' WHERE id = ?", (created['id'],))
+        returned['500'] = client.get(f"/appointments/{created['id']}")
+    with limited_client(tmp_path, monkeypatch, '1') as client:
+        client.get('/openapi.json')
+        returned['429'] = client.get('/openapi.json')
+    detail = {status: response.json()['detail'] for status, response in returned.items()
+              if response.status_code == int(status)}
+    assert set(detail) == {'400', '404', '409', '413', '429', '500'}
+    assert {status for _, _, status in shown} == set(detail)
+    for (path, method, status), example in shown.items():
+        # the 429's wait varies; the text around it does not
+        assert re.sub(r'\d+ s\.', 'N s.', example) == re.sub(r'\d+ s\.', 'N s.', detail[status]), (path, method, status)
 
 
 # --- Security: hostile input never breaks the API, leaks data or reaches SQL unparameterized.

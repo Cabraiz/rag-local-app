@@ -35,7 +35,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from api.crypto import KEY_VARIABLE, CryptoError, decrypt, encrypt, key_bytes, load_key, resolve_key
+from api.crypto import KEY_VARIABLE, UNREADABLE, CryptoError, decrypt, encrypt, key_bytes, load_key, resolve_key
 
 # Defaults of DB_PATH, DB_KEY_FILE and EXAMS_PATH, which are read when the server starts (lifespan).
 DEFAULT_DB_PATH = '/state/appointments.db'
@@ -189,7 +189,7 @@ class Appointment(BaseModel):
 
 
 class Message(BaseModel):
-    detail: str = Field(description='Explicação do erro.', examples=['Agendamento não encontrado.'])
+    detail: str = Field(description='Explicação do erro.')
 
 
 class ErrorItem(BaseModel):
@@ -202,10 +202,29 @@ class ValidationErrors(BaseModel):
     detail: list[ErrorItem] = Field(description='Um item por problema encontrado.')
 
 
-TOO_MANY_REQUESTS = {'model': Message, 'description': 'Muitas requisições deste cliente (`API_RATE_LIMIT_PER_MINUTE`); '
-                     'tente de novo depois de `Retry-After` segundos.', 'headers': {'Retry-After': {
-                         'description': 'Segundos até a próxima requisição ser aceita.', 'schema': {'type': 'integer'}}}}
-HOST_REFUSED = {'model': Message, 'description': 'Cabeçalho `Host` fora de `API_ALLOWED_HOSTS`.'}
+# The `detail` of each error this API returns, also shown as its example in /docs.
+NOT_FOUND = 'Agendamento não encontrado.'
+KEY_REUSED = 'Esta Idempotency-Key já agendou um destes exames, com outra lista. Para um novo agendamento, use uma chave nova.'
+HOST_NOT_ALLOWED = ('Cabeçalho Host não permitido: chame a API por 127.0.0.1 ou localhost (no host) ou por api (na rede '
+                    'do compose), ou inclua o nome em API_ALLOWED_HOSTS.')
+TOO_LARGE = f'Corpo maior que {MAX_BODY_BYTES} bytes.'
+
+
+def too_many(wait: int) -> str:
+    return f'Muitas requisições deste cliente: tente de novo em {wait} s.'
+
+
+def error_response(description: str, detail: str, **more) -> dict:
+    """A documented error with its own example: the shared Message schema alone would show one text for all."""
+    return {'model': Message, 'description': description,
+            'content': {'application/json': {'example': {'detail': detail}}}, **more}
+
+
+TOO_MANY_REQUESTS = error_response(
+    'Muitas requisições deste cliente (`API_RATE_LIMIT_PER_MINUTE`); tente de novo depois de `Retry-After` segundos.',
+    too_many(60), headers={'Retry-After': {'description': 'Segundos até a próxima requisição ser aceita.',
+                                           'schema': {'type': 'integer'}}})
+HOST_REFUSED = error_response('Cabeçalho `Host` fora de `API_ALLOWED_HOSTS`.', HOST_NOT_ALLOWED)
 
 
 app = FastAPI(title='API de agendamento de exames (fictícia)', version='1.0.0', lifespan=lifespan,
@@ -243,7 +262,7 @@ class BodyLimit(Middleware):
     async def __call__(self, scope, receive, send):
         if scope['type'] != 'http':
             return await self.app(scope, receive, send)
-        too_large = JSONResponse({'detail': f'Corpo maior que {MAX_BODY_BYTES} bytes.'}, status_code=413)
+        too_large = JSONResponse({'detail': TOO_LARGE}, status_code=413)
         length = dict(scope['headers']).get(b'content-length', b'0')
         if length.isdigit() and int(length) > MAX_BODY_BYTES:
             return await too_large(scope, receive, send)
@@ -276,8 +295,7 @@ class RateLimit(Middleware):
             return await self.app(scope, receive, send)
         wait = limiter.take((scope.get('client') or ('',))[0])
         if wait:  # refused before routing: the access log shows this 429 with the route "(sem rota)"
-            response = JSONResponse({'detail': f'Muitas requisições deste cliente: tente de novo em {wait} s.'},
-                                    status_code=429, headers={'Retry-After': str(wait)})
+            response = JSONResponse({'detail': too_many(wait)}, status_code=429, headers={'Retry-After': str(wait)})
             return await response(scope, receive, send)
         await self.app(scope, receive, send)
 
@@ -289,9 +307,7 @@ class TrustedHost(Middleware):
     async def __call__(self, scope, receive, send):
         host = re.sub(r':\d+$', '', dict(scope.get('headers', [])).get(b'host', b'').decode('latin-1').lower())
         if scope['type'] == 'http' and host not in getattr(scope['app'].state, 'allowed_hosts', ()):
-            return await JSONResponse({'detail': 'Cabeçalho Host não permitido: chame a API por 127.0.0.1 ou localhost '
-                                                 '(no host) ou por api (na rede do compose), ou inclua o nome em '
-                                                 'API_ALLOWED_HOSTS.'}, status_code=400)(scope, receive, send)
+            return await JSONResponse({'detail': HOST_NOT_ALLOWED}, status_code=400)(scope, receive, send)
         await self.app(scope, receive, send)
 
 
@@ -433,8 +449,8 @@ def health(request: Request) -> dict:
                       'aponta o campo (`loc`) e explica o motivo (`msg`). Corpo acima de 16 KB retorna 413. '
                       'Com `Idempotency-Key`, os mesmos códigos devolvem o mesmo agendamento; nenhum exame se repete.',
           responses={400: HOST_REFUSED,
-                     409: {'model': Message, 'description': '`Idempotency-Key` já usada com um destes códigos.'},
-                     413: {'model': Message, 'description': 'Corpo da requisição grande demais.'},
+                     409: error_response('`Idempotency-Key` já usada com um destes códigos.', KEY_REUSED),
+                     413: error_response('Corpo da requisição grande demais.', TOO_LARGE),
                      422: {'model': ValidationErrors, 'description': 'Corpo inválido ou código de exame desconhecido.'},
                      429: TOO_MANY_REQUESTS})
 def create_appointment(
@@ -469,8 +485,7 @@ def create_appointment(
             if len(seen) == len(hashes) and all(hmac.compare_digest(row[0], body) for row in seen):
                 return load_appointment(connection, seen[0][1], state.cipher)  # the same codes: a replay
             if seen:
-                raise HTTPException(409, detail='Esta Idempotency-Key já agendou um destes exames, com outra lista. '
-                                                'Para um novo agendamento, use uma chave nova.')
+                raise HTTPException(409, detail=KEY_REUSED)
             connection.executemany('INSERT INTO idempotency_keys VALUES (?, ?, ?, ?)',
                                    [(hashed, body, appointment.id, created) for hashed in hashes])
         connection.execute('INSERT INTO appointments VALUES (?, ?, ?, ?)',
@@ -485,10 +500,10 @@ def create_appointment(
          response_model=Appointment, summary='Consultar agendamento',
          description='Retorna um agendamento criado anteriormente pelo seu `id` (UUID); '
                      'um `id` que não é UUID retorna 422.',
-         responses={400: HOST_REFUSED, 404: {'model': Message, 'description': 'Agendamento não encontrado.'},
+         responses={400: HOST_REFUSED, 404: error_response(NOT_FOUND, NOT_FOUND),
                     422: {'model': ValidationErrors, 'description': '`id` não é um UUID.'},
                     429: TOO_MANY_REQUESTS,
-                    500: {'model': Message, 'description': 'Registro cifrado ilegível (chave diferente ou dado alterado).'}})
+                    500: error_response('Registro cifrado ilegível (chave diferente ou dado alterado).', UNREADABLE)})
 def get_appointment(appointment_id: uuid.UUID, http: Request) -> Appointment:
     with closing(connect(http.app.state.db_path)) as connection:
         return load_appointment(connection, str(appointment_id), http.app.state.cipher)
@@ -498,7 +513,7 @@ def load_appointment(connection: sqlite3.Connection, appointment_id: str, cipher
     row = connection.execute('SELECT id, status, exams, created_at FROM appointments WHERE id = ?',
                              (appointment_id,)).fetchone()
     if row is None:
-        raise HTTPException(404, detail='Agendamento não encontrado.')
+        raise HTTPException(404, detail=NOT_FOUND)
     try:
         exams = json.loads(decrypt(cipher, row[2], row_fields(row[0], row[1], row[3])))
     except CryptoError as error:
