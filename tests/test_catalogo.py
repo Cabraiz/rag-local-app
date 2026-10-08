@@ -20,12 +20,14 @@ def test_guardrails_and_the_rag_server_do_not_import_each_other():
     for path in (ROOT / 'guardrails').glob('*.py'):
         assert not any(name.startswith('mcp_servers') for name in imported_modules(path)), path.name
     assert not any(name.startswith('guardrails') for name in imported_modules(ROOT / 'mcp_servers' / 'rag.py'))
-    assert imported_modules(ROOT / 'catalogo.py') <= {'difflib', 'functools', 'json', 'os', 're', 'unicodedata', 'pathlib'}
+    assert imported_modules(ROOT / 'catalogo.py') <= {'difflib', 'functools', 'json', 'os', 're', 'unicodedata', 'pathlib',
+                                                      'collections.abc', 'typing'}
 
 
 def test_the_search_and_the_pii_safety_net_score_against_the_same_catalog():
-    assert rag.CATALOG is catalogo.CATALOG and rag.MIN_SCORE == pii.MIN_SCORE == catalogo.MIN_SCORE
-    assert pii.rag_score('Hemograma completo') == 1.0 == rag.search('Hemograma completo', 1)[0]['score']
+    assert rag.MATCHER is pii.MATCHER is catalogo.matcher() and rag.MATCHER.exams is catalogo.CATALOG
+    assert rag.MIN_SCORE == pii.MIN_SCORE == catalogo.MIN_SCORE
+    assert pii.MATCHER.search_score('Hemograma completo') == 1.0 == rag.search('Hemograma completo', 1)[0]['score']
 
 
 def test_only_catalogo_reads_the_catalog_file():

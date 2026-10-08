@@ -12,7 +12,7 @@ def first_code(query):
 
 
 def test_catalog_has_120_unique_fictional_codes():
-    codes = [exam['code'] for exam in rag.CATALOG]
+    codes = [exam['code'] for exam in rag.MATCHER.exams]
     assert len(codes) == 120 == len(set(codes))
     assert all(re.fullmatch(r'FICT-\d{3}', code) for code in codes)
 
@@ -80,7 +80,7 @@ def test_normalization_expands_request_form_writing(text, expected):
 
 def test_no_abbreviation_names_two_exams():
     owners = {}
-    for exam in rag.CATALOG:
+    for exam in rag.MATCHER.exams:
         for term in exam['terms']:
             owners.setdefault(term, set()).add(exam['code'])
     assert {term: codes for term, codes in owners.items() if len(codes) > 1} == {}

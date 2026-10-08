@@ -5,9 +5,6 @@ from pii_corpus import cases
 
 from guardrails.pii import mask, mask_page
 
-VOCABULARY = frozenset({'hemograma', 'completo', 'glicemia', 'jejum', 'glicose', 'creatinina',
-                        'hemoglobina', 'glicada'})
-
 
 @pytest.mark.parametrize('text, expected, kind', [
     ('Paciente: Maria da Silva Souza', 'Paciente: [NOME]', 'NOME'),
@@ -39,11 +36,11 @@ VOCABULARY = frozenset({'hemograma', 'completo', 'glicemia', 'jejum', 'glicose',
     ('Diagnóstico: hipertensão', 'Diagnóstico: [CLINICO]', 'CLINICO'),
 ])
 def test_each_pii_type_is_masked_and_counted(text, expected, kind):
-    assert mask(text, VOCABULARY) == (expected, {kind: 1})
+    assert mask(text) == (expected, {kind: 1})
 
 
 def test_a_labelled_name_stops_before_the_next_label():
-    assert mask('Paciente: Maria Souza   CPF: 123.456.789-00', VOCABULARY) == (
+    assert mask('Paciente: Maria Souza   CPF: 123.456.789-00') == (
         'Paciente: [NOME]   CPF: [CPF]', {'NOME': 1, 'CPF': 1})
 
 
@@ -82,7 +79,7 @@ def test_unlabelled_name_lines_are_masked_but_exams_and_headers_are_not(line, ex
     'Hemoglobina glicada (HbA1c)', 'Nome do exame: Creatinina', 'Urina tipo 1', '',
 ])
 def test_exam_names_are_not_masked(exam):
-    assert mask(exam, VOCABULARY) == (exam, {})
+    assert mask(exam) == (exam, {})
 
 
 def test_default_vocabulary_comes_from_the_catalog():
@@ -275,14 +272,14 @@ def test_two_misread_exams_joined_by_e_are_kept():
     # Anti DNA) reads as the title "Dra.", so a few in a hundred may still lose a piece.
     import random
 
-    from guardrails.pii import catalog_terms as terms
+    from guardrails.pii import MATCHER
     rng, errors = random.Random(20261006), {'i': 'l', 'l': '1', 'o': '0', 'e': 'c', 'a': 'o', 'u': 'o', 'n': 'r', 's': '5'}
 
     def misread(term):
         spot = rng.choice([i for i, char in enumerate(term) if char.lower() in errors])
         return term[:spot] + errors[term[spot].lower()] + term[spot + 1:]
 
-    names = sorted({term for term in terms() if len(term) >= 6})
+    names = sorted({term for term in MATCHER.names if len(term) >= 6})
     lines = [f'{misread(a)} e {misread(b)}' for a, b in (rng.sample(names, 2) for _ in range(400))]
     lost = [line for line in lines if '[' in mask_page([line])[0][0]]
     assert len(lost) <= 4, lost  # 1% at most
@@ -318,10 +315,10 @@ def test_first_names_are_never_exam_or_header_words():
 
 def catalog_terms(spellings=True):
     """Every exam name and synonym, in 6 spellings (or just as written)."""
-    from guardrails.pii import catalog_terms as terms
+    from guardrails.pii import MATCHER
     if not spellings:
-        return sorted(set(terms()))
-    return sorted({v for t in terms() for v in (t, t.upper(), t.lower(), t.title(), '- ' + t, 'Exame: ' + t)})
+        return sorted(set(MATCHER.names))
+    return sorted({v for t in MATCHER.names for v in (t, t.upper(), t.lower(), t.title(), '- ' + t, 'Exame: ' + t)})
 
 
 MODIFIERS = ('ultrassensível', 'frações', 'com plaquetas', 'total', 'livre', 'sérico')
@@ -344,10 +341,10 @@ def legitimate_lines():
 def test_masking_never_removes_an_exam_from_a_legitimate_line(line):
     # Through mask_page: the masking rules and the safety net (rule 4) together.
     from catalogo import words
-    from guardrails.pii import EXAM_TERMS
+    from guardrails.pii import MATCHER
     masked = mask_page([line])[0][0]
-    before = {term for term in EXAM_TERMS if f' {term} ' in f' {words(line)} '}
-    after = {term for term in EXAM_TERMS if f' {term} ' in f' {words(masked)} '}
+    before = {term for term in MATCHER.written if f' {term} ' in f' {words(line)} '}
+    after = {term for term in MATCHER.written if f' {term} ' in f' {words(masked)} '}
     assert before <= after, masked
 
 

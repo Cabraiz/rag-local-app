@@ -28,7 +28,7 @@ Visão para quem vai ler ou alterar o código. O resumo e os comandos estão no
 | `mcp_servers/preprocessamento.py` | Luz achatada, autocontraste, endireitamento até ±6°, uma passada `--psm 11`, palavras regrupadas em linhas e a confiança média de cada linha | Decidir o que é exame |
 | `mcp_servers/arguments.py` | Um argumento de tipo errado numa ferramenta MCP recebe uma frase em português, não o dump do pydantic; o schema publicado continua `string`/`integer` com `required` | Mudar o contrato das ferramentas |
 | `mcp_servers/rag.py` | Busca nos 120 exames, sinônimos e abreviações de pedido (`Hemogr.`, `25(OH)D`, `β-HCG`) de `data/exams.json` (palavras em comum + `difflib`, score ≥ 0,6) | Usar dados reais ou embeddings |
-| `catalogo.py` | Carregar o catálogo (`data/exams.json`) e dar o score (palavras em comum + `difflib`); é a única peça comum à busca do RAG e à rede de segurança da PII, e nenhuma das duas importa a outra. Também guarda a normalização de texto de todo o projeto: `fold` (caixa baixa, sem acento), `words` (só as palavras) e `normalize` (a variante da busca, com letras gregas e abreviações de pedido expandidas) | Buscar ou mascarar |
+| `catalogo.py` | Carregar o catálogo (`data/exams.json`) e dar o score (palavras em comum + `difflib`); é a única peça comum à busca do RAG, à máscara de PII e às regras de intenção, e nenhuma delas importa a outra. Um só `ExamMatcher` guarda os nomes e sinônimos nas duas formas que elas comparam (como escritos e normalizados para a busca), uma regex dos nomes, as palavras de que são feitos e a pergunta "é palavra de exame, a um erro de OCR?" com uma tolerância nomeada por decisão: `LIST_WORD` (0,85, de 4 letras: linha que agenda sozinha), `NOT_A_NAME` (0,85, de 5 letras: nunca parte de um nome, porque "Edna" está a 0,86 de "DNA") e `MAY_LEAVE` (0,80, de 4 letras: pode sair do OCR dentro de um exame, prenomes fora). Também guarda a normalização de texto de todo o projeto: `fold` (caixa baixa, sem acento), `plain` (o `fold` letra a letra), `words` (só as palavras) e `normalize` (a variante da busca, com letras gregas e abreviações de pedido expandidas) | Buscar ou mascarar |
 | `guardrails/pii.py` (o motor) e `guardrails/pii_rules.py` (as regex e as listas de palavras, + `prenomes.txt`) | Detectar e mascarar nome (inclusive depois de `Dr.`, `Dra.`, `Dr(a).`), CPF, RG, telefone, e-mail, data, CRM (`CRM 123`, `CRM-SP`, `CRM=SP 123`), endereço, cartão SUS, prontuário, CID, indicação clínica, convênio e idade; depois, deixar sair só o que parece exame ou estrutura do pedido (o resto vira `[TEXTO_REMOVIDO]`) | Decidir o fluxo |
 | `guardrails/intent.py` | Ler o que cada linha pede, na página inteira e antes da máscara: só uma linha que é só exame (`request`) agenda sozinha; outras palavras (`uncertain`) perguntam; `negated`, `history` e `prep` avisam. O OCR manda os tipos em `line_intent` | Decidir o que é agendado |
 | `guardrails/injection.py` (detector de injeção) | Trocar por um marcador as linhas (ou trechos) escritas como ordem ao modelo, com normalização de acentos, homoglifos, leetspeak e palavras soletradas, e contá-las (`instructions_removed`); como o marcador não parece exame, ele sai do OCR como `[TEXTO_REMOVIDO]` | Decidir o que é exame |
@@ -178,7 +178,8 @@ Cada linha passa por quatro etapas, nesta ordem:
      "Solreito:") e das marcas que juntam exames (",", ";", "/", "+", " e ", parênteses), a linha só tem
      nomes e sinônimos do catálogo, qualificadores do exame (`catalogo.QUALIFIERS`: "completo", "total",
      "livre", "sérico", "frações", "de jejum", "8h", "tipo I", "IgG", "controle", "rotina", "para" de uma
-     sorologia...) e palavras a um erro de OCR de uma palavra de exame ("compieto"). Agenda sozinha.
+     sorologia...) e palavras a um erro de OCR de uma palavra de exame ("compieto", tolerância `LIST_WORD` do
+     `catalogo.py`). Agenda sozinha.
    - `uncertain`: qualquer outra palavra ou marca ("Ferritina - pedido por engano", "Vitamina B12 (laudo
      anexo)", "Colesterol total ?", "=Creatinina", um nome, uma data, um número que não é do nome, uma
      caixa vazia "[ ]"), ou uma anotação feita de palavras do catálogo: um exame entre parênteses ou ao lado de um
@@ -228,7 +229,7 @@ Cada linha passa por quatro etapas, nesta ordem:
    `(`, `)`, `:` e ` - `) só sai se parecer exame, pela mesma régua do RAG, ou se for estrutura do
    pedido em volta de valores já mascarados (`Solicito:`, `CPF: [CPF]`). Os outros viram
    `[TEXTO_REMOVIDO]`, ou `[NOME]` se tiverem um prenome comum (as palavras de negação e histórico
-   ficam); dentro de um trecho de exame, o mesmo
+   ficam: é o mesmo vocabulário de onde a etapa 2 tira as pistas, em `guardrails/pii_rules.py`); dentro de um trecho de exame, o mesmo
    vale para cada palavra que não é de exame e para um número longo (5 dígitos ou mais, sem unidade:
    "Glicose 98765432"; nenhum nome do catálogo tem mais de 3, como "CA 125" e "Urina 24h"). Pela forma
    (regra 5): uma palavra com maiúscula depois de um nome mascarado ou de uma inicial é do nome ("Érica

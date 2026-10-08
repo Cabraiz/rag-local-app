@@ -26,42 +26,27 @@ import difflib
 import functools
 import re
 
-import catalogo  # the same score as the RAG search: what it can find may leave the OCR
-from catalogo import EXAM_MODIFIERS, MIN_SCORE, QUALIFIERS, fold, words
+import catalogo
+from catalogo import MAY_LEAVE, MIN_SCORE, NOT_A_NAME, QUALIFIERS, fold, plain, words
 from guardrails import pii_rules as rules
 
-
-def catalog_terms(catalog: list[dict] = catalogo.CATALOG) -> list[str]:
-    """Every exam name and synonym, as written. The default argument reads the catalog when this
-    module is imported, so pii.py fails at import without it: names could not be told from exams."""
-    return [term for row in catalog for term in [row['name'], *row.get('synonyms', [])]]
-
-
-VOCABULARY = catalogo.vocabulary() | EXAM_MODIFIERS
-EXAM_TERMS = frozenset(words(term) for term in catalog_terms())
-EXAMS = re.compile('|'.join(r'(?<![a-z0-9])' + r'[\W_]+'.join(map(re.escape, term.split())) + r'(?![a-z0-9])'
-                            for term in sorted(EXAM_TERMS, key=len, reverse=True) if term))  # on plain() text
-
-
-def plain(text: str) -> str:  # fold() char by char, so a position in it is the same in the line: "NÃO" -> "nao"
-    return ''.join((fold(char) or ' ')[:1] for char in text)
+MATCHER = catalogo.matcher()  # the RAG's own: what it finds may leave. Read at import: without it, no name is told from an exam
+VOCABULARY = MATCHER.with_modifiers
 
 
 @functools.lru_cache(maxsize=65536)
-def exam_word(word: str, vocabulary: frozenset[str] = VOCABULARY) -> bool:
-    """An exam word, or one OCR typo away from one ("Hemogrma"): never part of a name."""
+def exam_word_or_typo(word: str) -> bool:
+    """An exam word, or one OCR typo away from one ("Hemogrma", NOT_A_NAME): never part of a name."""
     parts = [fold(part) for part in re.findall(r'\w+', word)]  # the "d" of "D'Ávila" is not "Vitamina D"
-    return any(part in vocabulary or (len(part) >= 5 and difflib.get_close_matches(part, vocabulary, 1, 0.85))
-               for part in parts if len(part) > 1 or len(parts) == 1)
+    return any(MATCHER.is_exam_word(part, NOT_A_NAME) for part in parts if len(part) > 1 or len(parts) == 1)
 
 
-def kind(word: str, vocabulary: frozenset[str], label: bool = False, line_exams: frozenset[str] = frozenset()) -> str:
-    """'particle', 'exam', 'header', 'label', 'phrase', 'name' (a capital or a common first
-    name) or 'other'."""
+def kind(word: str, label: bool = False, line_exams: frozenset[str] = frozenset()) -> str:
+    """'particle', 'exam', 'header', 'label', 'phrase', 'name' (a capital or a common first name) or 'other'."""
     folded = fold(word)
     if folded in rules.NAME_PARTICLES or len(folded) < 2:
         return 'particle'  # "do" and "E" are also in exam names ("Hormônio do crescimento")
-    if folded in line_exams or exam_word(word, vocabulary):  # line_exams: words of the exams on this line
+    if folded in line_exams or exam_word_or_typo(word):  # line_exams: words of the exams on this line
         return 'exam'
     if folded in rules.NOT_NAMES:
         return 'header'
@@ -74,12 +59,12 @@ def kind(word: str, vocabulary: frozenset[str], label: bool = False, line_exams:
     return 'other'  # a lower-case word: OCR junk or a surname, never the start of a name
 
 
-def mask_names(line: str, counts: dict[str, int], vocabulary: frozenset[str] = VOCABULARY) -> str:
+def mask_names(line: str, counts: dict[str, int]) -> str:
     """Rules 2a and 2b of the module docstring, on one line."""
     tagged = [match.span() for match in rules.TAG.finditer(line)]
     exams = exams_on(line)
     line_exams = frozenset(word for term in exams for word in term.split())
-    items = [(match.start(), match.end(), kind(match.group(), vocabulary, is_label(line, match), line_exams))
+    items = [(match.start(), match.end(), kind(match.group(), is_label(line, match), line_exams))
              for match in rules.WORD.finditer(line) if not any(start <= match.start() < end for start, end in tagged)]
     spans = labelled_names(line, items) or names_next_to_exam(line, items, exams)
     for start, end in sorted(spans, reverse=True):
@@ -97,12 +82,8 @@ def is_label(line: str, match: re.Match) -> bool:
 
 
 def labelled_names(line, items):
-    """2a. After a name label, the rest of the line up to the next label, masked value or exam.
-
-    "Paciente: * Bianta Inventado e . [" -> "Paciente: [NOME]". Without a colon ("paciente
-    maria"), the name must start with a capital or a common first name: "Paciente nascida
-    em" is kept.
-    """
+    """2a. After a name label, the rest of the line up to the next label, masked value or exam. Without a colon
+    ("paciente maria"), the name starts with a capital or a common first name: "Paciente nascida em" is kept."""
     starts = [(match.end(), match.group('colon') is not None, match.group('title') is not None)
               for match in rules.LABEL.finditer(line)]
     spans = []
@@ -136,7 +117,7 @@ def whole_name(region):
 def exams_on(line: str) -> list[str]:
     """The whole exam names and synonyms of the catalog on this line (catalogo.words)."""
     line_words = f' {words(line)} '
-    return [term for term in EXAM_TERMS if f' {term} ' in line_words]
+    return [term for term in MATCHER.written if f' {term} ' in line_words]
 
 
 def names_next_to_exam(line, items, exams):
@@ -163,22 +144,21 @@ def name_span(run, least=2):
     return [(run[0][0], run[-1][1])] if sum(kind_ != 'particle' for _, _, kind_ in run) >= least else []
 
 
-def looks_like_email(text: str, vocabulary: frozenset[str] = VOCABULARY) -> bool:
+def looks_like_email(text: str) -> bool:
     """An address whose "@" the OCR misread, not a sentence ending in ". com": it has a digit,
     a "+", a domain name or a glued domain ("correio.hospital.org.br"), and no exam word."""
-    return not any(exam_word(word, vocabulary) for word in re.findall(r'\w+', text)) and bool(
+    return not any(exam_word_or_typo(word) for word in re.findall(r'\w+', text)) and bool(
         re.search(r'\d|\+|exemplo|example|gmail|hotmail|yahoo|outlook|\w\.\w+\.\w', text))
 
 
-def mask(text: str, vocabulary: frozenset[str] = VOCABULARY) -> tuple[str, dict[str, int]]:
+def mask(text: str) -> tuple[str, dict[str, int]]:
     """Return (masked_text, counts). Only types that were found appear in counts."""
     counts: dict[str, int] = {}
 
     def substitute(match, kind):
-        # A regex with alternatives has one "value..." group per alternative (group names
-        # must be unique); the one that matched is the only one not None.
+        # One "value..." group per alternative (names are unique): the one that matched is the only one not None.
         group = next(name for name, value in match.groupdict().items() if value is not None)
-        if group == 'value_domain' and not looks_like_email(match.group(group), vocabulary):
+        if group == 'value_domain' and not looks_like_email(match.group(group)):
             return match.group(0)  # "Glicemia de jejum. com 8h": a sentence, not an e-mail
         counts[kind] = counts.get(kind, 0) + 1
         start, end = (i - match.start() for i in match.span(group))
@@ -186,7 +166,7 @@ def mask(text: str, vocabulary: frozenset[str] = VOCABULARY) -> tuple[str, dict[
 
     for kind_, pattern in rules.COMPILED:
         text = pattern.sub(functools.partial(substitute, kind=kind_), text)
-    return '\n'.join(mask_names(line, counts, vocabulary) for line in text.split('\n')), counts
+    return '\n'.join(mask_names(line, counts) for line in text.split('\n')), counts
 
 
 COUNTED = frozenset(kind for kind, _ in rules.COMPILED) | {'NOME', 'TEXTO_REMOVIDO'}
@@ -216,26 +196,29 @@ def mask_page(lines: list[str]) -> tuple[list[str], dict[str, int]]:
 def shaped(line: str) -> str:
     """Rule 5 of the module docstring, on a line the safety net already went through."""
     line = rules.NAME_TAIL.sub('[NOME]', line)
-    text, spans = plain(line), [match.span() for match in EXAMS.finditer(plain(line))]
-    loose = [token.span() for token in rules.TOKEN.finditer(line, spans[0][0] if spans else len(line))
-             if (token.group()[0].isupper() or any(char.isdigit() for char in token.group())) and not (
-                 any(s <= token.start() < e for s, e in spans) or rules.HOURS.match(text, token.start())
-                 or (word := fold(token.group())) in VOCABULARY or word in rules.KEPT or visible(word) or not word.isdigit()
-                 and (exam_word(word.translate(rules.OCR_DIGITS)) or short_exam_word(word)))]  # misread: "Antl", "Potassi0"
+    text = plain(line)
+    spans = [match.span() for match in MATCHER.pattern.finditer(text)]
+    loose = [token.span() for token in rules.TOKEN.finditer(line, spans[0][0] if spans else len(line)) if goes(token, text, spans)]
     for start, end in reversed(loose):  # a run of them, with only marks between ("4.500.000"), is one piece
         joined = re.match(r'[ \t.,/-]*(?=\[TEXTO_REMOVIDO\])', line[end:])
         line = line[:start] + ('' if joined else '[TEXTO_REMOVIDO]') + line[end + (joined.end() if joined else 0):]
     return line
 
 
-def only_what_may_leave(line: str, counts: dict[str, int]) -> str:
-    """Rule 4 on one line: each piece that is neither exam-like nor structure is replaced, and
-    in a piece kept as an exam only the exam's own words stay.
+def goes(token: re.Match[str], text: str, spans: list[tuple[int, int]]) -> bool:
+    """Rule 5 for a token after an exam's name: a capital or a digit, outside the names (`spans` of plain() `text`), and
+    no hour, exam word, qualifier, negation, nor exam word misread ("Antl", "Potassi0")."""
+    word, written = fold(token.group()), token.group()
+    if not (written[0].isupper() or any(char.isdigit() for char in written)) or rules.HOURS.match(text, token.start()):
+        return False
+    if any(start <= token.start() < end for start, end in spans) or word in VOCABULARY or word in rules.KEPT or visible(word):
+        return False
+    return word.isdigit() or not (exam_word_or_typo(word.translate(rules.OCR_DIGITS)) or short_exam_word(word))
 
-    "Paciente: CPF: Celina Inventado" -> "Paciente: CPF: [NOME]"; "DADOS FICTICIOS" ->
-    "[TEXTO_REMOVIDO]" (no common first name, so it is not counted as a name); "Anti HCV
-    tobias fagundes" -> "Anti HCV [NOME]".
-    """
+
+def only_what_may_leave(line: str, counts: dict[str, int]) -> str:
+    """Rule 4 on one line: each piece that is neither exam-like nor structure is replaced ("Paciente: CPF: Celina
+    Inventado" -> "Paciente: CPF: [NOME]"), and in a piece kept as an exam only its words stay ("Anti HCV [NOME]")."""
     pieces = rules.PIECES.split(line)
     for index in range(0, len(pieces), 2):  # pieces at even positions, separators between them
         parts = [pieces[index]] if may_leave(pieces[index]) else rules.JOINED.split(pieces[index])
@@ -249,18 +232,12 @@ def only_what_may_leave(line: str, counts: dict[str, int]) -> str:
 
 
 def only_exam_words(piece: str, counts: dict[str, int]) -> str:
-    """In a piece kept as an exam, the words that are not exam-like, structure (connectors,
-    labels), short numbers or units go: each run of them becomes [NOME] if it has a common first
-    name (the name rule), else [TEXTO_REMOVIDO]. "Hemograma completo - José Neto" is the name rule's
-    (rule 2b); here "Hemograma completo uirá araripe" -> "Hemograma completo [TEXTO_REMOVIDO]" and
-    "Glicose 98765432" -> "Glicose [TEXTO_REMOVIDO]" (LONG_NUMBER: no exam name has 5 digits)."""
+    """In a piece kept as an exam, each run of words that are not the exam's (the_exams) becomes [NOME] if it has a
+    common first name, else [TEXTO_REMOVIDO]: "Hemograma completo uirá araripe", "Glicose 98765432" (LONG_NUMBER)."""
     tokens = list(re.finditer(r'[^\s-]+', piece))  # "Ferritina-naorealizar": the exam stays, the rest goes
     long_numbers, named = [match.span() for match in rules.LONG_NUMBER.finditer(piece)], after_the_name(tokens)
-    outside = [token for token in tokens if token in named or not rules.TAG.fullmatch(token.group()) and (
-        any(start < token.end() and token.start() < end for start, end in long_numbers) or not all(
-            word in rules.STRUCTURE or word in rules.UNITS or rules.AMOUNT.fullmatch(word) or exam_like(word)
-            or short_exam_word(word) or visible(word) for word in words(token.group()).split())
-            and not short_cue(piece, token) and not roman_one(piece, token))]
+    outside = [token for token in tokens
+               if token in named or not rules.TAG.fullmatch(token.group()) and not the_exams(piece, token, long_numbers)]
     # An exam word the OCR split in two ("Colesti erol total"): glued again, it is exam-like, and stays.
     split = {index for index, (first, second) in enumerate(zip(outside, outside[1:], strict=False))
              if not piece[first.end():second.start()].strip() and exam_like(words(first.group() + second.group()))}
@@ -278,17 +255,25 @@ def only_exam_words(piece: str, counts: dict[str, int]) -> str:
     return piece
 
 
+def the_exams(piece: str, token: re.Match[str], long_numbers: list[tuple[int, int]]) -> bool:
+    """Whether a token of a piece kept as an exam is the exam's: no long number, and words of the exam or the order."""
+    if any(start < token.end() and token.start() < end for start, end in long_numbers):
+        return False
+    return all(word in rules.STRUCTURE or word in rules.UNITS or rules.AMOUNT.fullmatch(word) or exam_like(word)
+               or short_exam_word(word) or visible(word) for word in words(token.group()).split()) or (
+        short_cue(piece, token) or roman_one(piece, token))
+
+
 def after_the_name(tokens: list[re.Match[str]]) -> list[re.Match[str]]:
-    """The tokens of a name after an exam's whole name ("Ferritina Albina Ferro": a surname may be an exam too): from
-    the first one that neither qualifies the exam (catalogo.QUALIFIERS, or one OCR error from one), nor is an exam word
-    as written, structure, a unit or an amount, up to the next connective. One word alone only if it is capitalized and
-    not one OCR error from an exam word: "TSH Zé" goes, "Proteina C reotiva" stays (and so does "Ferritina Albina")."""
+    """The tokens of a name after an exam's whole name ("Ferritina Albina Ferro"): from the first that neither qualifies
+    the exam (or is one OCR error from a qualifier) nor is an exam word, structure, a unit or an amount, up to the next
+    connective; one word alone only capitalized and not exam-like: "TSH Zé" goes, "Proteina C reotiva" stays."""
     plain, at, named = [words(token.group()) for token in tokens], 0, False
     while at < len(plain):
-        size = max((n for n in range(1, 7) if ' '.join(plain[at:at + n]) in EXAM_TERMS), default=0)
+        size = max((n for n in range(1, 7) if ' '.join(plain[at:at + n]) in MATCHER.written), default=0)
         if size or not named or all(word in QUALIFIERS or word in VOCABULARY or word in rules.STRUCTURE or visible(word)
                                     or word in rules.UNITS or rules.AMOUNT.fullmatch(word)
-                                    or difflib.get_close_matches(word, QUALIFIERS, 1, 0.8) for word in plain[at].split()):
+                                    or difflib.get_close_matches(word, QUALIFIERS, 1, MAY_LEAVE.cutoff) for word in plain[at].split()):
             at, named = at + (size or 1), (named or size > 0) and plain[at] not in ('', 'e')  # a new exam may follow
             continue
         run = tokens[at:next((i for i in range(at, len(plain)) if plain[i] in ('', 'e')), len(plain))]
@@ -299,32 +284,25 @@ def after_the_name(tokens: list[re.Match[str]]) -> list[re.Match[str]]:
 def roman_one(piece: str, token: re.Match[str]) -> bool:
     """Whether the token is the "I" of the exam before it, read "l": "Troponina l", "Urina tipo l"."""
     return token.group() == 'l' and f' {words(piece[:token.start()])} i'.endswith(
-        tuple(f' {term}' for term in EXAM_TERMS if term.endswith(' i')))
+        tuple(f' {term}' for term in MATCHER.written if term.endswith(' i')))
 
 
 @functools.lru_cache(maxsize=65536)
 def short_exam_word(word: str) -> bool:
-    """Inside an exam, a 2-4 letter word one letter off an exam word: "lgM" (IgM), "Co" (CA),
-    "Arti" (Anti). Never a common first name."""
+    """Inside an exam, a 2-4 letter word one letter off an exam word ("lgM", "Arti"); never a common first name."""
     return 2 <= len(word) <= 4 and word not in rules.FIRST_NAMES and any(
         len(exam) == len(word) and sum(a != b for a, b in zip(exam, word, strict=True)) == 1 for exam in VOCABULARY)
 
 
 def is_structure(piece: str) -> bool:
-    """Only the order's structure around masked values, or what it says of its exams: "Solicito:",
-    "CPF: [CPF]", "não precisa"."""
+    """Only the order's structure around masked values, or what it says of its exams: "CPF: [CPF]", "não precisa"."""
     return all(word in rules.STRUCTURE or (word.isdigit() and len(word) <= 2) or visible(word)
                for word in words(rules.TAG.sub(' ', piece)).split()) and not rules.LONG_NUMBER.search(piece)
 
 
 def short_cue(piece: str, token: re.Match[str]) -> bool:
-    """Whether the token is a short "não" or "sem" (SHORT_CUE), marks before it aside: "(n/"."""
-    return (found := SHORT_CUE.search(piece, token.start())) is not None and found.start() < token.end()
-
-
-# The short forms of "não" and "sem" ("n/ realizar", "ñ fazer", "s/ necessidade"): visible too, but only
-# written this way, so a lone letter ("D.N.", the initial of a name) is still removed.
-SHORT_CUE = re.compile(r'(?<![^\s(\[-])(?:[nNsS]/|[ñÑ])(?=\s)')
+    """Whether the token is a short "não" or "sem" (pii_rules.SHORT_CUE), marks before it aside: "(n/"."""
+    return (found := rules.SHORT_CUE.search(piece, token.start())) is not None and found.start() < token.end()
 
 
 def visible(word: str) -> bool:
@@ -333,29 +311,24 @@ def visible(word: str) -> bool:
 
 
 def may_leave(piece: str) -> bool:
-    """Structure around masked values, an exam (a whole name, or only exam words), or as close
-    to an exam as the RAG accepts with an exam-like word in it: a misread exam keeps one
-    ("Hemogrma compieto"), a name does not ("MARIA DO RIBEIRO" is 0.6 from "Hormônio do
-    crescimento" by characters). One word alone must be exam-like, or start an exam word:
-    "Lima" stops, "Ferrit." stays."""
+    """Structure, an exam (a whole name or only exam words), or as close to one as the RAG accepts with an exam-like
+    word in it ("Hemogrma compieto"; not "MARIA DO RIBEIRO", 0.6 from "Hormônio do crescimento"). One word alone must
+    be exam-like or start an exam word: "Lima" stops, "Ferrit." stays."""
     text = rules.TAG.sub(' ', piece)
     rest = words(text).split()
     if is_structure(piece) or exams_on(text) or all(word in VOCABULARY or word in rules.STRUCTURE for word in rest):
         return True  # "D ultrassensível" of "25(OH)D ultrassensível" is only exam words
     if len(rest) == 1:
         return exam_like(rest[0]) or (len(rest[0]) >= 4 and any(word.startswith(rest[0]) for word in VOCABULARY))
-    return any(exam_like(word) for word in rest if word not in rules.PARTICLES) and rag_score(text) >= MIN_SCORE
+    return any(exam_like(word) for word in rest if word not in rules.PARTICLES) and MATCHER.search_score(text) >= MIN_SCORE
 
 
 @functools.lru_cache(maxsize=65536)
 def exam_like(word: str) -> bool:
-    """An exam word, exact however short ("T3", "GT", "19" of CA 19-9), or 4+ letters one OCR
-    error from one ("Dlmero" 0.83, "Urlna" 0.8), also with digits read as letters; never a
-    common first name ("Márcia" is 0.77 from "parcial")."""
+    """An exam word, exact however short ("T3", "19" of CA 19-9), or misread (MAY_LEAVE: "Urlna", "Potassi0"); never a
+    common first name ("Márcia" is 0.77 from "parcial"; no first name is an exam word)."""
     forms = {word, word.translate(rules.OCR_DIGITS)} if any(char.isalpha() for char in word) else {word}
-    return any(form in VOCABULARY or (len(form) >= 4 and form not in rules.FIRST_NAMES
-                                      and difflib.get_close_matches(form, VOCABULARY, 1, 0.8))
-               for form in forms)
+    return any(form not in rules.FIRST_NAMES and MATCHER.is_exam_word(form, MAY_LEAVE) for form in forms)
 
 
 def has_first_name(text: str) -> bool:
@@ -366,8 +339,7 @@ def has_first_name(text: str) -> bool:
 def removed(piece: str, counts: dict[str, int]) -> str:
     """The piece without its text, but for the negation, history and exception words in it: "não
     tomar café" -> "não [TEXTO_REMOVIDO]". Each stretch between them is replaced."""
-    kept = [match for match in rules.WORD.finditer(piece) if visible(match.group())
-            or SHORT_CUE.match(piece, match.start())]
+    kept = [match for match in rules.WORD.finditer(piece) if visible(match.group()) or rules.SHORT_CUE.match(piece, match.start())]
     out, at = [], 0
     for start, end in [(match.start(), match.end()) for match in kept] + [(len(piece), len(piece))]:
         stretch = piece[at:start]
@@ -382,11 +354,3 @@ def replaced(piece: str, counts: dict[str, int]) -> str:
     counts[tag] = counts.get(tag, 0) + 1
     before, after = rules.MARKS_BEFORE.match(piece), rules.MARKS_AFTER.search(piece)  # both always match, maybe empty
     return (before.group() if before else '') + f'[{tag}]' + (after.group() if after else '')
-
-
-@functools.lru_cache(maxsize=65536)
-def rag_score(text: str) -> float:
-    """The best score the RAG search (mcp_servers/rag.py) would give this text, list number aside."""
-    query = catalogo.normalize(text).lstrip('0123456789 ').strip()
-    return max((catalogo.similarity(query, term) for exam in catalogo.CATALOG for term in exam['terms']), default=0.0) \
-        if query else 0.0

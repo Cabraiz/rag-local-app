@@ -568,6 +568,14 @@ def test_an_exam_glued_to_the_connective_is_its_own_piece_whatever_the_query(age
     assert sorted(booked) == ['FICT-004', 'FICT-005'] and left_out == {}
 
 
+@pytest.mark.parametrize('line, cue', [('(susp.)', 'susp'), ('(canc.)', 'canc'), ('- Acido urico - anulado', 'anulado'),
+                                       ('Eliminar PSA total del pedido', 'Eliminar')])
+def test_every_cue_word_the_rules_read_reaches_the_model_as_written(line, cue):
+    # The cues and the words the safety net keeps come from one vocabulary (pii_rules): these four were cues the
+    # net removed, so the model read "- Acido urico - [TEXTO_REMOVIDO]" on a line the rules had already negated.
+    assert any(pattern.search(intent.plain(line)) for _, pattern, *_ in intent.CUES) and cue in mask_page([line])[0][0]
+
+
 def test_a_used_line_names_the_exam_left_out_and_the_one_holding_the_text(ready_run, monkeypatch, capsys):  # noqa: F811
     appointment = {'id': 'a1', 'status': 'scheduled', 'exams': [{'code': 'FICT-094', 'name': 'Clearance de creatinina'}]}
     low = [{'code': 'FICT-005', 'name': 'Creatinina', 'confidence': 1.0, 'line': 0, 'read': 'Clearance de creatinina',

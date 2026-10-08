@@ -2,31 +2,26 @@
 
 mcp_servers/ocr.py runs read_page() and clean_page() on the lines as written (before the injection guard and the mask)
 and sends `line_intent`, `contested_exams`, `cancel_unlinked`, `page_clean` and `off_list`. The page allowlist (clean_page):
-an exam books alone only on a page where every line is a list line (only catalog names, qualifiers and words one OCR
-error from them, after a marker and a label), a label, a count of the exams that matches, a fasting time, marks, a field
-the PII step recognized whole, or, above the list, a letterhead it removed that looks like one; with no cue, reference
-by position or word of a delay, and no exam in letters far smaller or lighter than the page's. Otherwise every exam is
-asked. By line: 'negated'/'history': a cue plainly about the exam ("não realizar Ferritina", "TSH - NR", "já realizado
-em 2025"), a box or cell that says no, a line under a header ("Já realizados:") down to a blank, a gap between blocks or
-a new header, or marked by a footnote that says no: reported, and contested on the whole page; 'prep' with an exam:
-reported; 'uncertain' (an exam and other words, or a note on it in catalog words: "(HIV +)"), 'table' and 'form' (marks
-on some exams only): asked. A cue is plainly about the exam that follows it with only fillers between, or that it ends
-the line after; whether a cue's line names an exam is exact ("favor" is not Fator reumatoide). Matching ignores accents
-and case and takes OCR misreadings ("NA0").
+an exam books alone only on a page whose every line is a list line (catalog names, qualifiers and words one OCR error from
+them), a label, a matching count, a fasting time, marks, a field the PII step recognized whole or, above the list, a
+letterhead; with no cue, reference by position or delay, and no exam in letters far smaller or lighter. By line:
+'negated'/'history' (a cue plainly about the exam: right before it or ending its line, "não realizar Ferritina", "TSH -
+NR"; a box or cell that says no; a line under such a header or footnote) are reported and contested on the whole page,
+'prep' is reported, 'uncertain', 'table' and 'form' are asked. Matching ignores accents, case and OCR misreadings ("NA0").
 """
 import difflib
 import re
 
-from catalogo import LIST_MARKER, QUALIFIERS, catalog, exam_word, normalize, words
-from guardrails.pii import EXAMS, exam_like, plain
-from guardrails.pii_rules import FIELD_NAMES, NOT_NAMES, STRUCTURE
+from catalogo import LIST_MARKER, QUALIFIERS, exam_word, matcher, normalize, plain, words
+from guardrails.pii import exam_like
+from guardrails.pii_rules import DONE, EXCEPT, FIELD_NAMES, NOT, NOT_NAMES, STOP_CUE, STRUCTURE
 
 BLOCKING = ('negated', 'history')  # never booked from this line
+EXAMS = matcher().pattern  # a catalog name or synonym, on plain() text
 
-_NOT = r'n[a4][o0]'
-_NOT_SHORT = r'(?:n[a4][o0]|n/|n(?=\s))'  # "n/ realizar", "ñ fazer" (plain() reads "ñ" as "n"), before a verb only
+# The cues are built from the one negation vocabulary of guardrails/pii_rules.py (NOT, DONE, STOP_CUE, EXCEPT).
+_NOT_SHORT = rf'(?:{NOT}|n/|n(?=\s))'  # "n/ realizar", "ñ fazer" (plain() reads "ñ" as "n"), before a verb only
 _SEP = r'[\s_-]*'  # "não realizar", "não-realizar", "nao_realizar", "naorealizar" (the OCR glued it)
-_DONE = r'(?:r[e3]a[l1i]{1,2}[zs]ad[oa]s?|feit[oa]s?|colhid[oa]s?|coletad[oa]s?|dosad[oa]s?)'
 _DO = (r'(?:r[e3]a[l1i]{1,2}[zs]\w*|faz\w*|fa[cz]a\w*|feit\w*|repet\w*|refaz\w*|colh\w*|colet\w*|dos[ae]\w*|'
        r'solicit\w*|ped\w*|agend\w*|marc\w*|inclu\w*|autoriz\w*|liberad\w*)')
 _MODAL = r'(?:(?:e|eh)\s+(?:necessario|preciso)|precisa\w*(?:\s+de)?|deve\w*|pode\w*|vai|mais)'
@@ -36,18 +31,16 @@ _WHEN = (r'(?:ontem|anteontem|hoje|(?:n[ao]\s+)?(?:semana|mes|ano)\s+passad[oa]|
 # (kind, cue, how many filler words may come between the cue and the exam, whether it may end the line)
 CUES = [
     ('negated', re.compile(rf'\b{_NOT_SHORT}{_SEP}(?:{_MODAL}\s+)?{_DO}'), 3, True),  # não realizar, n/ realizar
-    ('negated', re.compile(rf'\b{_NOT}{_SEP}(?:(?:e|eh)\s+)?(?:necessari\w*|precis[ao]\w*|indicad\w*)'), 3, True),
-    ('negated', re.compile(rf'\b(?:{_NOT}|nr|n/r)\b'), 1, True),  # "NÃO: Ferritina", "Ferritina: não", "TSH - NR"
-    ('negated', re.compile(r'\b(?:suspen[ds]\w*|susp\b|canc\b|cancel\w*|desmarc\w*|dispens\w*|evit\w*|vet(?:ad[oa]s?|ar|e|ou)\b|'
-                           r'exclu(?:a|am|ir|ido|ida|idos|idas)\b|retir(?:ar|e|ado|ada)\b|contra\W?indicad\w*|'
-                           r'desnecessari\w*|nunca|jamais|anulad[oa]s?|desconsider\w*|remov\w*|elimin\w*)'), 3, True),
+    ('negated', re.compile(rf'\b{NOT}{_SEP}(?:(?:e|eh)\s+)?(?:necessari\w*|precis[ao]\w*|indicad\w*)'), 3, True),
+    ('negated', re.compile(rf'\b(?:{NOT}|nr|n/r)\b'), 1, True),  # "NÃO: Ferritina", "Ferritina: não", "TSH - NR"
+    ('negated', re.compile(rf'\b{STOP_CUE}'), 3, True),  # "suspenso", "anulado", "vetado"
     ('negated', re.compile(r'\b(?:do\s+not|don\W?t|not)\s+(?:perform|repeat|do|order|run)\b|\bno\s+(?:realizar|repetir|hacer)\b'),
      3, True),  # English and Spanish
     ('negated', re.compile(r'\b(?:sem|s/)\s*(?:necessidade|indicacao)(?:\s+de)?(?:\s+(?:repetir|realizar|fazer|colher))?'),
      2, True),
-    ('negated', re.compile(r'\b(?:sem|exceto|excluindo|tirando|(?<!pelo )menos)\b'), 2, False),  # "todos menos PSA"
-    ('history', re.compile(rf'\bj[a4]\s+(?:(?:foi|foram)\s+)?(?:{_DONE}|fez|fizemos|realizou|tem)(?:\s+em)?'), 3, True),
-    ('history', re.compile(rf'\b{_DONE}\s+(?:em\b|{_WHEN})'), 3, True),  # "realizado em 03/2025", "feita mês passado"
+    ('negated', re.compile(rf'\b{EXCEPT}\b'), 2, False),  # "todos menos PSA"
+    ('history', re.compile(rf'\bj[a4]\s+(?:(?:foi|foram)\s+)?(?:{DONE}|fez|fizemos|realizou|tem)(?:\s+em)?'), 3, True),
+    ('history', re.compile(rf'\b{DONE}\s+(?:em\b|{_WHEN})'), 3, True),  # "realizado em 03/2025", "feita mês passado"
     ('history', re.compile(r'\bresultados?\s+(?:de\s+)?(?:anterior\w*|previo\w*|antigo\w*)|'
                            r'\b(?:ultim[oa]s?|anterior\w*)\s+(?:exames?|resultados?|dosage\w*)|\bexames?\s+anterior\w*'),
      4, False),
@@ -76,7 +69,7 @@ LABEL_WORDS = ('solicito', 'exames', 'exame', 'pedido')
 _JOINERS = re.compile(r'[\s,;/+:.()\[\]{}–-]+')
 _NO_BOX = re.compile(r'^\s*(?:\[\s*[-–—✗✘]\s*\]|\(\s*[-–—✗✘]\s*\)|[✗✘])')
 _MARK, _BOX = re.compile(r'[\[(]?\s*[xv✓✔]\s*[\])]?|[/☑☒]'), re.compile(r'[\[(]\s*[\])]|[☐□◻⬜]')  # form()
-_NO_CELL = re.compile(r'\|\s*(?:(?:-+|[–—✗✘]|n[a4][o0]|n)\s*\|?|\|)\s*$')  # a row's last cell: no, or blank
+_NO_CELL = re.compile(rf'\|\s*(?:(?:-+|[–—✗✘]|{NOT}|n)\s*\|?|\|)\s*$')  # a row's last cell: no, or blank
 _RESULT = re.compile(r'\W*(?:\+|-\W*$|positiv\w*|negativ\w*|(?:nao\s+)?reagente|normal|alterad\w*)(?![a-z])')  # annotated()
 SENSITIVE = {'hiv', 'hcv', 'hbsag', 'vdrl', 'sifilis', 'htlv'}  # an exam only as a list item of its own
 
@@ -168,10 +161,19 @@ def annotated(text: str) -> bool:
     """Whether a catalog word after the line's first exam notes something on it: in a parenthesis opened after it, next to
     a result ("Glicemia de jejum (HIV +)") or, sensitive, with no joiner before it ("Glicemia HIV"); not its other name."""
     first = EXAMS.search(text)
-    rest, own = (text[first.end():], {w for exam in catalog() if normalize(first.group()) in exam['terms'] for t in exam['terms'] for w in t.split()}) if first else ('', set())
-    return any(word[0] not in own | NOT_AN_EXAM and exam_word(word[0]) and (
-        (gap := rest[:word.start()]).count('(') > gap.count(')') or _RESULT.match(rest, word.end()) or
-        word[0] in SENSITIVE and not re.search(r'(?:[,;/+-]|\be)\W*$', gap)) for word in re.finditer(r'[a-z0-9]+', rest))
+    if not first:
+        return False
+    exam = matcher().searched.get(normalize(first.group()))
+    own = NOT_AN_EXAM | ({word for term in exam['terms'] for word in term.split()} if exam else set())
+    rest = text[first.end():]
+    return any(word[0] not in own and exam_word(word[0]) and notes_on(rest, word) for word in re.finditer(r'[a-z0-9]+', rest))
+
+
+def notes_on(rest: str, word: re.Match[str]) -> bool:
+    """Whether a word after an exam is in a parenthesis opened after it, before a result, or sensitive with no joiner."""
+    gap = rest[:word.start()]
+    return gap.count('(') > gap.count(')') or bool(_RESULT.match(rest, word.end())) or (
+        word[0] in SENSITIVE and not re.search(r'(?:[,;/+-]|\be)\W*$', gap))
 
 
 def line_kind(line: str, text: str, clear: set[str]) -> str:
@@ -237,11 +239,11 @@ def layout(texts: list[str]) -> bool:
 def form(texts: list[str], kinds: list[str]) -> bool:
     """A selection form: an exam line with an empty box, or a mark (X, ✓, "/", "v") before or after the exams on some
     exam lines but not all, where only the marked ones count ("Exames: X Hemograma completo", then "TSH")."""
-    ends = [(_LIST_LABEL.sub('', LIST_MARKER.sub('', text[:found[0].start()], count=1), count=1).strip(),
-             text[found[-1].end():].strip()) for text, kind in zip(texts, kinds, strict=True)
-            if kind in ('request', 'uncertain') and (found := [*EXAMS.finditer(text)])]
-    return any(_BOX.fullmatch(end) for pair in ends for end in pair) or any(
-        marked := [any(_MARK.fullmatch(end) for end in pair) for pair in ends]) and not all(marked)
+    found = [(text, [*EXAMS.finditer(text)]) for text, kind in zip(texts, kinds, strict=True) if kind in ('request', 'uncertain')]
+    ends = [(_LIST_LABEL.sub('', LIST_MARKER.sub('', text[:exams[0].start()], count=1), count=1).strip(),
+             text[exams[-1].end():].strip()) for text, exams in found if exams]
+    marked = [any(_MARK.fullmatch(end) for end in pair) for pair in ends]
+    return any(_BOX.fullmatch(end) for pair in ends for end in pair) or (any(marked) and not all(marked))
 
 
 def contested(lines: list[str], reasons: list[str | None]) -> list[dict]:
@@ -249,7 +251,7 @@ def contested(lines: list[str], reasons: list[str | None]) -> list[dict]:
     found: dict = {}
     for line, why in zip(lines, reasons, strict=True):
         written = f' {normalize(line)} ' if why else ''
-        for exam in (exam for exam in catalog() if any(f' {term} ' in written for term in exam['terms'])):
+        for exam in (exam for exam in matcher().exams if any(f' {term} ' in written for term in exam['terms'])):
             found.setdefault(exam['code'], {'code': exam['code'], 'name': exam['name'], 'reason': why})
     return list(found.values())
 
@@ -286,12 +288,17 @@ def clean_page(lines: list[str], masked: list[str], kinds: list[str], odd: list[
         quiet = not (any(cue.search(text) for _, cue, *_ in CUES) or POSITION.search(text) or DELAY.search(text))
         listed = COUNT.match(text) or kinds[i] in ('request', 'prep') and not exam_before(text, len(text)) and not residue(
             PREP_LABEL.sub(' ', text).rstrip(' :') + ':')  # "Pedido de exames", "Obs: jejum de 8 horas", "Soleito:"
-        # a field read whole (a signature, a CRM, a date); only above the list, a letterhead removed, then a field
-        field = rest <= FIELDS and (named[i] and (i < exams[0] or i > exams[-1] and 'TEXTO_REMOVIDO' not in tags) or i <
-                                    exams[0] and any(named[i + 1:exams[0]]) and not safe.rstrip().endswith(':') and (LETTERHEAD.search(text)
-            or NAME.fullmatch(lines[i].strip()) or all(difflib.get_close_matches(w, HEADER, 1, 0.8) for w in re.findall(r'[a-z]{4,}', text))))
+        field = rest <= FIELDS and a_field(i, lines[i], text, safe, tags, named, exams)
         worded = re.search(r'[a-z]{3}', text)  # without a word of 3 letters, it is noise ("t", "- We 2", "|")
         hidden = worded and not named[i] and 'TEXTO_REMOVIDO' in tags and readings[i] < LOW_READING  # removed, read poorly
         if not (not odd[i] if i in exams else quiet and not hidden and (listed or field or not worded)):
             off.append(i)
     return off
+
+
+def a_field(i: int, line: str, text: str, safe: str, tags: set[str], named: list[bool], exams: list[int]) -> bool:
+    """A field read whole (a signature, a CRM, a date) off the list; only above it, a letterhead removed, then a field."""
+    if named[i]:
+        return i < exams[0] or (i > exams[-1] and 'TEXTO_REMOVIDO' not in tags)
+    return i < exams[0] and any(named[i + 1:exams[0]]) and not safe.rstrip().endswith(':') and bool(
+        LETTERHEAD.search(text) or NAME.fullmatch(line.strip()) or all(difflib.get_close_matches(w, HEADER, 1, 0.8) for w in re.findall(r'[a-z]{4,}', text)))

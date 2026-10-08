@@ -155,14 +155,22 @@ FIRST_NAMES = frozenset(fold(line.strip()) for line in Path(__file__).with_name(
 # A line is split in pieces; a piece that fails is split again where two exams may be joined
 # by the OCR ("Acido urlco e Vitamlna D"): the whole piece first keeps "HIV antigeno e anticorpos".
 PIECES = re.compile(r'([,;():]|\s[-–—]\s)')
-# Words of a negation, history or exception ("não", "exceto", "suspenso", "já realizado", "trouxe"): no
-# personal data, and what the order says of its exams (guardrails/intent.py). The safety net never
-# removes them, so the model and the CLI read "Obs: NAO realizar Ferritina" as written.
-VISIBLE = re.compile(r'(?:nao|na0|nr|apenas|somente|seguintes?|seguir|nunca|jamais|sem|exceto|menos|excluindo|tirando|suspen[ds]\w*|cancel\w*|retir\w*|'
-                     r'desmarc\w*|vet(?:ad[oa]s?|ar|e|ou)|dispens\w*|evit\w*|exclu\w*|contra\w*indicad\w*|'
-                     r'desnecessari\w*|necessari\w*|necessidade|precis\w*|realiz\w*|feit[oa]s?|fez|fazer|faca|ja|resultados?|trouxe|'
-                     r'anterior\w*|ultim[oa]s?|colhid[oa]s?|coletad[oa]s?|repetir|refazer|controle|deixar|esquecer|'
-                     r'itens|item|acima|abaixo|todos|todas|autorizad[oa]s?|liberad[oa]s?|indicad[oa]s?)')
+# The one vocabulary of a negation, history or exception: guardrails/intent.py builds its cues from these pieces, and
+# VISIBLE, every word of them and of such a note ("trouxe", "acima"), is never removed by the safety net, so the model
+# reads "Obs: NAO realizar Ferritina" as written. Only STOP_CUE has "remov-", the word of the masks' [TEXTO_REMOVIDO],
+# and "desconsider-", an order the injection guard takes away first.
+NOT = r'n[a4][o0]'  # "não", also read "NA0"
+DONE = r'(?:r[e3]a[l1i]{1,2}[zs]ad[oa]s?|feit[oa]s?|colhid[oa]s?|coletad[oa]s?|dosad[oa]s?)'  # "realizado", "feita"
+STOP = (r'(?:suspen[ds]\w*|susp\b|canc\b|cancel\w*|desmarc\w*|dispens\w*|evit\w*|vet(?:ad[oa]s?|ar|e|ou)\b|'  # on their own:
+        r'exclu(?:a|am|ir|ido|ida|idos|idas)\b|retir(?:ar|e|ado|ada)\b|contra\W?indicad\w*|'  # "TSH (suspenso)"
+        r'desnecessari\w*|nunca|jamais|anulad[oa]s?|elimin\w*)')
+STOP_CUE = rf'(?:{STOP}|desconsider\w*|remov\w*)'
+EXCEPT = r'(?:sem|exceto|excluindo|tirando|(?<!pelo )menos)'  # "todos menos PSA"
+# The short "não" and "sem" ("n/ realizar", "ñ fazer", "s/ necessidade"), visible only written so: "D.N." still goes.
+SHORT_CUE = re.compile(r'(?<![^\s(\[-])(?:[nNsS]/|[ñÑ])(?=\s)')
+VISIBLE = re.compile(rf'(?:{NOT}|nr|{STOP}|{EXCEPT}|{DONE}|apenas|somente|seguintes?|seguir|exclu\w*|retir\w*|necessari\w*|'
+                     r'necessidade|precis\w*|realiz\w*|fez|fazer|faca|ja|resultados?|trouxe|anterior\w*|ultim[oa]s?|repetir|'
+                     r'refazer|controle|deixar|esquecer|itens|item|acima|abaixo|todos|todas|autorizad[oa]s?|liberad[oa]s?|indicad[oa]s?)')
 JOINED = re.compile(r'(\s(?:e|E|\+|/)\s)')
 # Words of an order's structure: with labels and masked values they make a piece that may leave.
 STRUCTURE = NOT_NAMES | FIELD_NAMES | PARTICLES | frozenset((

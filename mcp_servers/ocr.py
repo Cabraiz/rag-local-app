@@ -26,10 +26,10 @@ from mcp.server.transport_security import TransportSecuritySettings
 from PIL import Image, UnidentifiedImageError
 from starlette.responses import JSONResponse
 
-from catalogo import CATALOG, EXAM_MODIFIERS, LIST_MARKER, MIN_SCORE, QUALIFIERS, words
+from catalogo import EXAM_MODIFIERS, LIST_MARKER, MIN_SCORE, QUALIFIERS, matcher, words
 from guardrails import intent
 from guardrails.injection import MARKER, join_split_orders, neutralize_joined
-from guardrails.pii import exam_like, exams_on, mask_page, rag_score
+from guardrails.pii import exam_like, exams_on, mask_page
 from guardrails.pii_rules import STRUCTURE
 from mcp_servers.arguments import or_default, quiet_logs
 from mcp_servers.preprocessamento import ImagemGirada, confianca_por_linha, ler_linhas, sobre_branco
@@ -46,7 +46,7 @@ MAX_PIXELS = 25_000_000  # checked from the header, before decoding
 OCR_TIMEOUT_SECONDS = 30
 # reading_marks: a gap of GAP letter heights ends a block; letters under SMALL of the page's, or LIGHT tones lighter.
 GAP, SMALL, LIGHT = 1.5, 0.6, 100
-NAMES = {words(term): row['name'] for row in CATALOG for term in [row['name'], *row['synonyms']]}  # exam_terms
+NAMES = {term: exam['name'] for term, exam in matcher().written.items()}  # exam_terms
 
 
 def resolve_sample(filename: str) -> Path:
@@ -142,7 +142,7 @@ def names_an_exam(line: str) -> bool:
     values aside, a word one OCR error from an exam word (not a qualifier) or text the search finds (MIN_SCORE)."""
     text = LIST_MARKER.sub(' ', re.sub(r'\[[A-Z_]+\]', ' ', line))
     rest = [word for word in words(text).split() if word not in STRUCTURE]
-    return bool(exams_on(text)) or rag_score(' '.join(rest)) >= MIN_SCORE or any(
+    return bool(exams_on(text)) or matcher().search_score(' '.join(rest)) >= MIN_SCORE or any(
         word not in QUALIFIERS and exam_like(word) for word in rest)
 
 
