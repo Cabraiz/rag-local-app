@@ -1,0 +1,19 @@
+# Weekly update PRs for the pinned Python dependencies and the GitHub Actions of the CI.
+# pip: requirements.txt (what the services run) and requirements-dev.txt (tests and checks), both
+# at the root. The CI's pip-audit step is what blocks a known vulnerability with a fix.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # fastapi 0.142 and later require opentelemetry-api>=1.44, and google-adk (2.10.0, and 2.11.0 too)
+      # caps it at <=1.42.1: such a bump cannot be installed next to the ADK, so its PR could only fail.
+      # Remove this entry once a google-adk release allows opentelemetry-api 1.44.
+      - dependency-name: fastapi
+        versions: [">=0.142"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
