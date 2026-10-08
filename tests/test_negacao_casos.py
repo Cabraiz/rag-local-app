@@ -179,7 +179,7 @@ CASES = [
 ]
 # Above, what each line's rule decides. The page allowlist comes on top: on a page with anything but the list,
 # its labels and fields (all of these but CLEAN), what a line would book alone is asked.
-CLEAN = {'F22', 'J11', 'J13', 'J14', 'N4', 'P04', 'P05', 'P14'}
+CLEAN = {'F22', 'J11', 'J13', 'J14', 'P04', 'P05', 'P14'}  # N4: a form with empty boxes, asked whole
 CASES = [(cid, lines, booked if cid in CLEAN else [], asked if cid in CLEAN else booked + asked, reported)
          for cid, lines, booked, asked, reported in CASES]
 TABLES = CASES[-7:]
@@ -202,7 +202,7 @@ def decide(agent, reply, queries):
     # The OCR's own reading of each line when it has one (Tesseract's, on a drawn page), else 95.
     context = read(agent, reply['lines'], reply.get('line_confidence'), reply['line_intent'],
                    contested_exams=reply['contested_exams'], page_clean=reply['page_clean'],
-                   cancel_unlinked=reply['cancel_unlinked'])
+                   cancel_unlinked=reply['cancel_unlinked'], exam_terms=reply.get('exam_terms'))
     for query in queries:
         search(agent, context, query)
     candidates = context.state.get('candidates', {})
@@ -530,3 +530,109 @@ def test_the_sample_order_still_books_its_3_exams_alone_with_nothing_asked(agent
     found = decide(agent, reply, [query for query in map(consulta, reply['lines']) if len(query) >= 2])
     assert {code for code, state in found.items() if state == 'booked'} == {HEMO, GLI, CRE}, found
     assert 'needs_confirmation' not in str(found.values()), found
+
+
+# The page as a whole: what is below the list, a selection form, a count of the exams, a name line, a shorter name.
+SIGNED = ['CLINICA FICTICIA VIDA PLENA', 'Paciente: Pessoa Sentinela', 'Solicito:', '- Hemograma completo', '- TSH',
+          '- Ferritina', '- Creatinina', 'Dra. Fulana Ficticia - CRM 00000']
+WHOLE = {
+    # A note below the list or the signature is never a letterhead, in any language: the page is asked whole.
+    'nota-pt': (SIGNED + ['Tirar o da tireoide'], False),
+    'nota-pt2': (SIGNED + ['O de tireoide fica para outra vez'], False),
+    'nota-en': (SIGNED + ['Note: third one was already drawn last week'], False),
+    'nota-fr': (SIGNED + ['NB : ne pas faire le troisieme, deja fait en mars'], False),
+    'nota-de': (SIGNED + ['Hinweis: dritte Untersuchung bereits erledigt'], False),
+    'nota-it': (SIGNED + ['N.B.: annullare il terzo esame (gia eseguito)'], False),
+    'nota-meio': (SIGNED[:5] + ['Uso continuo de levotiroxina'] + SIGNED[5:], False),
+    'assinatura': (SIGNED + ['Data: 05/10/2026'], True),  # a signature, a CRM and a date: still the list
+    # Marks on some exam lines only: a selection form, where only the marked ones count.
+    'marcas-x': (SIGNED[:3] + ['Exames: X Hemograma completo', 'Glicemia de jejum', 'TSH', 'Ferritina'], False),
+    'marcas-visto': (SIGNED[:3] + ['Exames: / Hemograma completo', 'Glicemia de jejum', '/ TSH', 'Ferritina'], False),
+    'caixas': (SIGNED[:3] + ['[x] Hemograma completo', '[ ] Ferritina', '[x] TSH'], False),
+    'todas-marcadas': (SIGNED[:3] + ['[x] Hemograma completo', '[x] TSH'], True),
+    # A count of the exams is the list's structure; a count below the exams listed means one was added.
+    'contagem': (SIGNED[:6] + ['Total de exames: 3'], True),
+    'contagem-menor': (SIGNED[:6] + ['Total de exames: 3', '- Ferritina'], False),
+    'solicito-os-seguintes': (['Paciente: Pessoa Sentinela', 'Solicito os seguintes exames:', '- Hemograma completo',
+                               '- TSH'], True),
+    'solicito-na-linha': (['Paciente: Pessoa Sentinela', 'Solicito os seguintes exames: Acido urico', 'Creatinina'], True),
+}
+
+
+@pytest.mark.parametrize('name', WHOLE)
+def test_the_page_books_alone_only_when_it_is_the_list(agent, name):
+    from tests.load.manuscritos import consulta
+    ocr = pytest.importorskip('mcp_servers.ocr')
+    lines, clean = WHOLE[name]
+    reply = ocr.mask_lines(lines)
+    assert reply['page_clean'] is clean, (reply['lines'], reply['line_intent'])
+    found = decide(agent, reply, [query for query in map(consulta, reply['lines']) if len(query) >= 2])
+    assert ('booked' in found.values()) is clean, found
+
+
+def test_a_form_says_why_its_exams_are_asked(agent):
+    ocr = pytest.importorskip('mcp_servers.ocr')
+    reply = ocr.mask_lines(WHOLE['marcas-x'][0])
+    assert reply['line_intent'][3:] == ['form'] * 4
+    context = read(agent, reply['lines'], None, reply['line_intent'], page_clean=False)
+    for query in ('Hemograma completo', 'Glicemia de jejum'):
+        search(agent, context, query)
+    book(agent, context, HEMO, GLI)
+    assert {item['code']: item.get('why') for item in context.state['low_confidence']} == {HEMO: 'form', GLI: 'form'}
+
+
+@pytest.mark.parametrize('top', ['Érica Ferro', 'ÉRICA FERRO', 'E. Ferro', 'érica ferro', 'Ferro, Érica'])
+def test_a_name_line_never_books_alone_nor_reaches_the_model(agent, top):
+    # A surname that is also a catalog synonym (Ferro sérico), on the patient's line without a label.
+    from tests.load.manuscritos import consulta
+    ocr = pytest.importorskip('mcp_servers.ocr')
+    reply = ocr.mask_lines(['CLINICA FICTICIA SAO LUCAS', top, 'PEDIDO DE EXAMES', '- Hemograma completo',
+                            '- Glicemia de jejum'])
+    assert reply['exam_lines'] == [3, 4]
+    found = decide(agent, reply, [query for query in map(consulta, reply['lines']) if len(query) >= 2] + ['Ferro'])
+    assert found.get(FERRO) != 'booked', found
+
+
+def test_a_name_line_that_names_an_exam_makes_the_page_asked():
+    ocr = pytest.importorskip('mcp_servers.ocr')
+    reply = ocr.mask_lines(['Érica Ferro - Hemograma completo', '- Glicemia de jejum'])
+    assert reply['lines'][0] == '[NOME] - Hemograma completo' and reply['exam_lines'] == [1] and not reply['page_clean']
+
+
+# A model that searches only part of the name written: the code anchors only to the longest catalog name there.
+SHORTER = [('- Proteina C reativa', 'Proteina C'), ('- CK MB', 'CK'), ('- Clearance de creatinina', 'Creatinina'),
+           ('- Toxoplasmose IgG', 'IgG'), ('- PSA livre', 'PSA'), ('- Hemoglobina glicada', 'Hemoglobina'),
+           ('- Calcio ionizado', 'Calcio'), ('- Testosterona livre', 'Testosterona'), ('- Dengue IgM', 'IgM'),
+           ('- Anti HBc total', 'Anti HBs'), ('- Bilirrubina direta', 'Bilirrubina')]
+
+
+@pytest.mark.parametrize('line, query', SHORTER)
+def test_a_shorter_catalog_name_inside_the_written_one_is_never_booked_alone(agent, line, query):
+    ocr, rag = pytest.importorskip('mcp_servers.ocr'), pytest.importorskip('mcp_servers.rag')
+    reply = ocr.mask_lines(['Paciente: Pessoa Sentinela', 'Solicito:', line, '- Hemograma completo',
+                            'Dra. Fulana Ficticia - CRM 00000'])
+    assert reply['page_clean']
+    context = read(agent, reply['lines'], None, reply['line_intent'], exam_terms=reply['exam_terms'])
+    for text in (query, 'Hemograma completo'):
+        search(agent, context, text)
+    reply_, args = book(agent, context, rag.search_line(query, 3)[0]['code'], HEMO)
+    assert [exam['code'] for exam in ([] if reply_ else args['exams'])] == [HEMO]
+
+
+IMAGES = {'nota-ingles-rodape.png': [], 'nota-italiano-rodape.png': [], 'nota-pt-tirar-tireoide.png': [],
+          'lista-impressa-x-a-mao.png': [], 'lista-impressa-visto.png': [], 'simples.png': [HEMO, GLI, CRE, TSH]}
+
+
+@pytest.mark.skipif(shutil.which('tesseract') is None, reason='Tesseract runs inside the Docker image')
+@pytest.mark.parametrize('name', IMAGES)
+def test_notes_below_the_signature_and_marked_forms_in_images_book_nothing_alone(agent, monkeypatch, name):
+    # Fictional orders drawn by an outside review: a note below the signature (removed whole by the mask) and a
+    # printed list where the doctor marked only some exams. The honest page next to them still books alone.
+    from pathlib import Path
+
+    from tests.load.manuscritos import consulta
+    ocr = pytest.importorskip('mcp_servers.ocr')
+    monkeypatch.setattr(ocr, 'SAMPLES_DIR', Path(__file__).resolve().parent / 'attacks' / 'imagens')
+    reply = asyncio.run(ocr.extract_exam_text(name))
+    found = decide(agent, reply, [query for query in map(consulta, reply['lines']) if len(query) >= 2])
+    assert {code for code, state in found.items() if state == 'booked'} == set(IMAGES[name]), (reply['lines'], found)

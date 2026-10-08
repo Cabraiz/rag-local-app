@@ -131,7 +131,8 @@ def test_every_line_is_masked_and_counted(monkeypatch):
     assert result == {'lines': ['[CPF]', 'Hemograma completo', '[CPF]'], 'pii_masked': {'CPF': 2},
                       'line_intent': ['request', 'request', 'request'], 'contested_exams': [],
                       'instructions_removed': 0, 'text_removed': 0, 'cancel_unlinked': False, 'page_clean': True,
-                      'exam_lines': [1]}
+                      'exam_lines': [1], 'exam_terms': [[], [['hemograma', 'Hemograma completo'],
+                                                              ['hemograma completo', 'Hemograma completo']], []]}
 
 
 needs_tesseract = pytest.mark.skipif(shutil.which('tesseract') is None, reason='Tesseract runs inside the Docker image')

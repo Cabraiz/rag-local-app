@@ -8,7 +8,8 @@ from google.genai import errors
 
 # Why an exam is asked although it is written clearly: what its line says (runtime/confianca.py, 'why').
 WHY = {'uncertain': '; o pedido tem outras palavras além do exame', 'table': '; o pedido está em tabela ou colunas',
-       'instruction': '; o pedido tem uma instrução sobre este exame', 'page': '; o pedido tem texto além da lista de exames'}
+       'instruction': '; o pedido tem uma instrução sobre este exame', 'page': '; o pedido tem texto além da lista de exames',
+       'form': '; formulário com marcas: só os marcados contam; confira', 'longer': '; o nome escrito é de outro exame, mais longo'}
 # How each exam left out is shown, by its reason; {guess} is "'<line read>' → <exam> <code> (confiança 0,xx)".
 LEFT_OUT = {
     'needs_confirmation': 'não agendado sem confirmação: {guess}; rode num terminal, sem --yes, para responder',

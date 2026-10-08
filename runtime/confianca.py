@@ -42,7 +42,7 @@ def resemblance(query, name, score):
 
 
 # What a line asks for (the OCR's line_intent); nothing is booked from a NOT_ANCHORS line.
-INTENTS = {'request', 'negated', 'history', 'uncertain', 'prep', 'unrecognized', 'table'}
+INTENTS = {'request', 'negated', 'history', 'uncertain', 'prep', 'unrecognized', 'table', 'form'}
 BLOCKING = {'negated', 'history'}
 NOT_ANCHORS = BLOCKING | {'prep'}
 CONTESTS = BLOCKING | {'instruction'}  # why the page contests an exam: "- Ferritina", "Obs: cancele a Ferritina"
@@ -140,6 +140,7 @@ def remember_ocr(state, reply):
         isinstance(item, dict) and isinstance(item.get('code'), str) and item.get('reason') in CONTESTS for item in contested)
     state['ocr_contested'] = {item['code']: item['reason'] for item in contested} if valid else None  # None: all asked
     state['page_clean'], state['cancel_unlinked'] = reply.get('page_clean') is True, reply.get('cancel_unlinked') is True
+    state['ocr_terms'] = terms if isinstance(terms := reply.get('exam_terms'), list) and len(terms) == len(state['ocr_read']) else []
     state['text_removed'] = reply.get('text_removed', 0)
     shown = reply.get('exam_lines') if isinstance(reply.get('exam_lines'), list) else []
     return {'lines': [line if index in shown else FREE_TEXT for index, line in enumerate(state['ocr_read'])]}
@@ -253,7 +254,8 @@ def best_spot(candidate, taken, state, policy, contest=None):
             continue
         holder = next((name for held, s, e, name in taken if held == line and s < end and start < e), None)
         reading = reading_at(readings, line, candidate['floor'], policy)  # below its floor, never booked alone
-        doubt = contest or (None if kind in ('request', 'unrecognized') else 'table' if kind == 'table' else 'uncertain')
+        doubt = contest or longer(state, line, start, end, candidate['name']) or (
+            None if kind in ('request', 'unrecognized') else kind if kind in ('table', 'form') else 'uncertain')
         doubt = doubt or (None if state.get('page_clean') is True else 'page')  # text besides the list: asked
         if doubt:
             reading = min(reading, policy.below_booking)  # a note, a doubt, a table, a contest: asked at most
@@ -266,6 +268,13 @@ def best_spot(candidate, taken, state, policy, contest=None):
     if refused and not free:  # a negation or a history first: the reason that matters most
         return None, None, min(refused, key=lambda item: (item[0] not in BLOCKING, item[0] != 'negated', item[1]))
     return max(free, key=lambda spot: spot[0], default=(0.0, index, 0, 0, None)), None, None  # on a tie, the first
+
+
+def longer(state, line, start, end, name):
+    """'longer' (asked at most) when the OCR read another exam's longer name over this piece: "proteina c reativa"."""
+    return 'longer' if any(other != name and len(str(term)) > end - start and any(s <= start and end <= e for s, e in (
+        m.span() for m in re.finditer(rf'\b{re.escape(str(term))}\b', state['ocr_lines'][line])))
+        for found in (state.get('ocr_terms') or [])[line:line + 1] for term, other in found) else None
 
 
 def sort_out(codes, candidates, answers, state, policy, accounted=None):

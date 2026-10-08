@@ -255,7 +255,7 @@ def test_a_cpf_split_in_two_lines_is_masked_on_both(page, expected):
       'Hemograma completo [TEXTO_REMOVIDO]']),
     # ...while its modifiers, amounts, units and short words the OCR misread stay with it.
     (['1. Glicemia de jejum 8h', 'Glicose 100 mg/dl', 'Rubeola lgM e Bil. lndireta', 'Co total e Proteina C reotiva'],
-     ['1. Glicemia de jejum 8h', 'Glicose 100 mg/dl', 'Rubeola lgM e Bil. lndireta', 'Co total e Proteina C reotiva']),
+     ['1. Glicemia de jejum 8h', 'Glicose [TEXTO_REMOVIDO] mg/dl', 'Rubeola lgM e Bil. lndireta', 'Co total e Proteina C reotiva']),
     # An abbreviation of an exam stays; a capitalized word that is not a first name is not a name.
     (['- Ferrit.', 'DADOS FICTICIOS - DEMONSTRACAO'], ['- Ferrit.', '[TEXTO_REMOVIDO] - [TEXTO_REMOVIDO]']),
     (['Clínica Exemplo de Diagnóstico'], ['[TEXTO_REMOVIDO]']),
@@ -363,12 +363,21 @@ def test_no_catalog_exam_is_masked(line):
     ('Creatinina 1 2 3 4 5 6 7 8 9', 'Creatinina [TEXTO_REMOVIDO]'),
     ('Hemograma 123/456/789-00', 'Hemograma [CPF]'),
     ('CPF: 12_34_56_78_90_1', 'CPF: [TEXTO_REMOVIDO]'),  # short groups are no structure when they add up
-    # A long number before a unit: hours never have 5 digits; a count keeps up to 7.
+    # After the exam's name, a number goes, whatever unit follows; a fasting time and a number of the name stay.
     ('Hemograma completo 12345678 h', 'Hemograma completo [TEXTO_REMOVIDO] h'),
     ('TSH 1234567 horas', 'TSH [TEXTO_REMOVIDO] horas'),
-    ('Glicose 4.500.000 celulas', 'Glicose 4.500.000 [TEXTO_REMOVIDO]'),
-    ('TSH 12345 mg', 'TSH 12345 mg'),
+    ('Glicose 4.500.000 celulas', 'Glicose [TEXTO_REMOVIDO]'),
+    ('TSH 12345 mg', 'TSH [TEXTO_REMOVIDO] mg'),
+    ('- Glicemia 1234567 mg/dl', '- Glicemia [TEXTO_REMOVIDO] mg/dl'),
+    ('- Ureia (11) 9O876-5432', '- Ureia ([TEXTO_REMOVIDO]) [TEXTO_REMOVIDO]'),
+    ('- Creatinina Av Paulista 1000', '- Creatinina [NOME] [TEXTO_REMOVIDO]'),
+    ('TSH 45 anos', 'TSH [TEXTO_REMOVIDO]'),
+    ('Glicemia de jejum 12 horas', 'Glicemia de jejum 12 horas'),
     ('Urina 24 h', 'Urina 24 h'),
+    # A capitalized word after the exam's name that is neither of an exam's name nor a qualifier: a surname.
+    ('Exame: TSH Nascimento', 'Exame: TSH [TEXTO_REMOVIDO]'),
+    ('Exame: Ureia (Franco)', 'Exame: Ureia ([TEXTO_REMOVIDO])'),
+    ('Rubeola IgM e Goma glutamil transferase', 'Rubeola IgM e Goma glutamil transferase'),  # misread, kept
     # A name after the exam's whole name, even made of exam words ("Albina" is one OCR error from Albumina,
     # "Ferro" is an exam): 2 or more words that neither qualify the exam nor start another.
     ('Ferritina Albina Ferro', 'Ferritina [TEXTO_REMOVIDO]'),

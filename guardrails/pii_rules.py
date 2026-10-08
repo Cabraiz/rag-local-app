@@ -5,7 +5,7 @@ guardrails/pii.py applies them, in the order of its docstring; nothing here runs
 import re
 from pathlib import Path
 
-from catalogo import fold
+from catalogo import QUALIFIERS, fold
 
 # --- 1. One regex per type -------------------------------------------------------------
 # "[ \t]" (space or tab) instead of "\s": a value never continues on the next line.
@@ -173,10 +173,14 @@ STRUCTURE = NOT_NAMES | FIELD_NAMES | PARTICLES | frozenset((
 UNITS = frozenset(('mg', 'ml', 'dl', 'ui', 'h', 'hs', 'hrs', 'min', 'x'))
 AMOUNT = re.compile(r'\d+(?:' + '|'.join(UNITS) + r')?')  # "100", "8h", "12hs"
 # A long number on an exam line is a document, card or phone ("TSH 898*0010*0123*4567"): 5+ digits, any one mark
-# between two (exam names have 3 at most); a count before its unit keeps up to 7 ("4.500.000 células"), hours none.
-LAB_UNIT = (r'(?:%|/[ \t]*mm[³3]?|mm[³3]|[mµun]?g[ \t]*/[ \t]*d?l|[mµ]?ui[ \t]*/[ \t]*m?l|u[ \t]*/[ \t]*l|mmol|meq|'
-            r'ng|pg|ml|mg|ui|cels?|c[ée]lulas)(?![^\W\d_])')
+# between two (exam names have 3 at most); after an exam's name, any number goes (rule 5).
 DIGIT = r'(?:[^\w\n]|_)?\d'  # the next digit of a number: "898*0010", "9_8765", "123/456"
-LONG_NUMBER = re.compile(rf'(?<![\w.,/-])(?!\d(?:{DIGIT}){{4,6}}[ \t]*{LAB_UNIT})\d(?:{DIGIT}){{4,}}(?!\w)', re.I)
+LONG_NUMBER = re.compile(rf'(?<![\w.,/-])\d(?:{DIGIT}){{4,}}(?!\w)')
 OCR_DIGITS = str.maketrans('0158', 'olsb')  # digits the OCR reads for letters: "25(0H)D", "Lipa5e"
 MARKS_BEFORE, MARKS_AFTER = re.compile(r'[^\w\[\]]*'), re.compile(r'[^\w\[\]]*$')  # marks around a piece
+
+# 5. By shape: a capitalized word after a masked name or a line's initial, up to the line's end, a mark or another one.
+NAME_TAIL = re.compile(r"(?:\[NOME\]|^[^\w\[]*[A-Z]\.)(?:[ \t]+[A-ZÀ-Ý][^\W\d_]*(?:['’-][^\W\d_]+)*)+"
+                       r"(?=[ \t]*(?:$|[,;|–—-]))")
+TOKEN, HOURS = re.compile(r'(?<!\[)\b[^\W_]+'), re.compile(r'\d{1,2}[ \t]*(?:h|hs|hrs|horas?)\b')
+KEPT = QUALIFIERS | UNITS | PARTICLES  # after an exam's name: what qualifies it ("Livre", "8h", "E")

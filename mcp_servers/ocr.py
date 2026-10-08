@@ -26,7 +26,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from PIL import Image, UnidentifiedImageError
 from starlette.responses import JSONResponse
 
-from catalogo import EXAM_MODIFIERS, LIST_MARKER, MIN_SCORE, QUALIFIERS, words
+from catalogo import CATALOG, EXAM_MODIFIERS, LIST_MARKER, MIN_SCORE, QUALIFIERS, words
 from guardrails import intent
 from guardrails.injection import MARKER, join_split_orders, neutralize_joined
 from guardrails.pii import exam_like, exams_on, mask_page, rag_score
@@ -46,6 +46,7 @@ MAX_PIXELS = 25_000_000  # checked from the header, before decoding
 OCR_TIMEOUT_SECONDS = 30
 # reading_marks: a gap of GAP letter heights ends a block; letters under SMALL of the page's, or LIGHT tones lighter.
 GAP, SMALL, LIGHT = 1.5, 0.6, 100
+NAMES = {words(term): row['name'] for row in CATALOG for term in [row['name'], *row['synonyms']]}  # exam_terms
 
 
 def resolve_sample(filename: str) -> Path:
@@ -101,28 +102,28 @@ def checked_image(path: Path, then: Callable[[Image.Image], Any]) -> Any:
 
 
 def mask_lines(lines: list[str], joined: list[str] | None = None) -> dict:
-    """Neutralize instructions to the model, read what each line asks for, then mask PII (line by line, plus a
-    CPF split in two lines). line_intent, contested_exams, cancel_unlinked and page_clean: guardrails/intent.py, on
-    the page as written, before the guard and the mask; a list item the safety net removed whole, or left only a
-    modifier of ("[TEXTO_REMOVIDO] total"), is 'unrecognized'; an order to the model removed leaves the page not
-    clean. pii_masked counts personal data by type; apart, as not PII: instructions_removed (lines where an order
-    to the model was replaced) and text_removed ([TEXTO_REMOVIDO] pieces). `joined`: join_split_orders(lines)[0].
-    exam_lines: the only lines the model reads (runtime/confianca.py): names_an_exam, not negated, history or prep.
-    """
+    """Neutralize orders to the model, read what each line asks for (guardrails/intent.py, on the page as written:
+    line_intent, contested_exams, cancel_unlinked, page_clean), then mask PII (guardrails/pii.py). A list item the
+    safety net removed whole, or left only a modifier of, is 'unrecognized'; an order to the model removed, or a line
+    with a masked name that names an exam ("[NOME] - TSH"), leaves the page not clean. pii_masked counts personal data
+    by type; apart: instructions_removed and text_removed ([TEXTO_REMOVIDO] pieces). `joined`: join_split_orders(lines)[0].
+    exam_lines, the only lines the model reads: names_an_exam, no masked name, not negated, history or prep."""
     if joined is None:
         joined = join_split_orders(lines)[0]
     breaks, odd = reading_marks(lines) if len(joined) == len(lines) else (frozenset(), [False] * len(joined))
     lines, removed = neutralize_joined(joined)  # prompt injection: the text goes to the LLM
     masked, counts = mask_page(lines)
     kinds, contest, unlinked = intent.read_page(joined, breaks)
-    kinds = ['unrecognized' if kind in ('request', 'uncertain', 'table') and unrecognized_request(line, safe) else kind
+    kinds = ['unrecognized' if kind in ('request', 'uncertain', 'table', 'form') and unrecognized_request(line, safe) else kind
              for kind, line, safe in zip(kinds, lines, masked, strict=True)]
     readings = [getattr(line, 'confianca', 100.0) for line in joined]
+    exam_lines = {at: line for at, line in enumerate(masked) if names_an_exam(line)}  # a name's line never books alone
     return {'text_removed': counts.pop('TEXTO_REMOVIDO', 0), 'lines': masked, 'line_intent': kinds, 'pii_masked': counts,
             'instructions_removed': removed, 'contested_exams': intent.contested(joined, contest), 'cancel_unlinked':
-            unlinked, 'page_clean': not removed and not unlinked and intent.clean_page(joined, masked, kinds, odd, readings),
-            'exam_lines': [at for at, (kind, line) in enumerate(zip(kinds, masked, strict=True))
-                           if kind not in ('negated', 'history', 'prep') and names_an_exam(line)]}
+            unlinked, 'page_clean': not removed and not unlinked and not any('[NOME]' in line for line in exam_lines.values())
+            and intent.clean_page(joined, masked, kinds, odd, readings), 'exam_terms': [
+                [[term, NAMES[term]] for term in sorted(exams_on(line))] for line in masked], 'exam_lines': [
+                at for at, line in exam_lines.items() if kinds[at] not in ('negated', 'history', 'prep') and '[NOME]' not in line]}
 
 
 def reading_marks(lines: list[str]) -> tuple[frozenset[int], list[bool]]:

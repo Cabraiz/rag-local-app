@@ -193,7 +193,6 @@ OTHER_WORDS = [
     ('TSH ~', 'TSH'),
     ('Ferritina ***', 'Ferritina'),
     ('Vitamina D !!', 'Vitamina D'),
-    ('Glicemia de jejum x', 'Glicemia de jejum'),
     ('Ferritina - retorno em 90 dias', 'Ferritina'),
     ('TSH - trazer resultado', 'TSH'),
     ('Hemograma completo (repetido)', 'Hemograma completo'),

@@ -1,21 +1,14 @@
 """Mask personal data (PII) in OCR text before it leaves the OCR server.
 
-mask(text) returns (masked text, count per type), for example "Paciente: Maria Souza"
--> ("Paciente: [NOME]", {"NOME": 1}). mask_page(lines) does the same for the lines of
-an order. Nothing here raises: masking must never stop the flow.
-
-Types: NOME, CPF, RG, TELEFONE, EMAIL, DATA and CRM (the project's interface
-contract), plus ENDERECO, SUS, PRONTUARIO, CID, CLINICO, CONVENIO and IDADE.
-
-The rules, in the order they run on each line:
-1. PATTERNS, one regex per type, most specific first. The sensitive part is the
-   group named "value..."; a label before it stays ("CPF: [CPF]"). Each regex also
-   accepts what the OCR does to it: "," for ".", "@" read as "g", "Q" or "€", ...
-2. Names, word by word (mask_names):
-   a. after a name label ("Paciente:", "Dr.", "Sr(a)."), the rest of the line up to the
-      next label or exam;
-   b. on a line with an exam, 2 or more name words next to it.
-   An exam word, or a word one OCR typo away from one, is never part of a name.
+mask(text) returns (masked text, count per type), for example "Paciente: Maria Souza" -> ("Paciente: [NOME]",
+{"NOME": 1}); mask_page(lines) does the same for the lines of an order. Nothing here raises: masking must never stop
+the flow. Types: NOME, CPF, RG, TELEFONE, EMAIL, DATA and CRM (the project's interface contract), plus ENDERECO, SUS,
+PRONTUARIO, CID, CLINICO, CONVENIO and IDADE. The rules, in the order they run on each line:
+1. PATTERNS, one regex per type, most specific first. The sensitive part is the group named "value..."; a label
+   before it stays ("CPF: [CPF]"). Each regex also accepts what the OCR does to it: "," for ".", "@" read as "g"...
+2. Names, word by word (mask_names): a. after a name label ("Paciente:", "Dr.", "Sr(a)."), the rest of the line up
+   to the next label or exam; b. on a line with an exam, 2 or more name words next to it. An exam word, or a word
+   one OCR typo away from one, is never part of a name.
 3. mask_page: a CPF the OCR split in two lines ("CPF: 517.916." / "257-38").
 4. mask_page, the safety net: only what looks like an exam leaves the OCR. Each piece of a line stays only if
    it is as close to an exam as the RAG accepts, or is the order's structure ("Solicito:", "CPF: [CPF]"); any other
@@ -24,7 +17,9 @@ The rules, in the order they run on each line:
    has a common first name, else [TEXTO_REMOVIDO]. A name alone on a line, or a doctor's stamp the OCR deformed,
    stops here. So NOME counts only what a name rule saw (a label, capitals next to an exam, a first name); the rest
    is counted as TEXTO_REMOVIDO, which may hold a name the rules did not recognize.
-
+5. mask_page, by shape (shaped): a capitalized word next to a masked name or an initial is the name's ("Érica Ferro",
+   "E. Ferro"), and after an exam's name a number or a capitalized word that is neither part of an exam's name nor a
+   qualifier goes ("Glicemia 1234567 mg/dl", "Ureia (11)", "TSH Franco"; "25(OH)D", "Vitamina B12" stay).
 The regexes and word lists are in guardrails/pii_rules.py; this module is the engine.
 """
 import difflib
@@ -44,6 +39,12 @@ def catalog_terms(catalog: list[dict] = catalogo.CATALOG) -> list[str]:
 
 VOCABULARY = catalogo.vocabulary() | EXAM_MODIFIERS
 EXAM_TERMS = frozenset(words(term) for term in catalog_terms())
+EXAMS = re.compile('|'.join(r'(?<![a-z0-9])' + r'[\W_]+'.join(map(re.escape, term.split())) + r'(?![a-z0-9])'
+                            for term in sorted(EXAM_TERMS, key=len, reverse=True) if term))  # on plain() text
+
+
+def plain(text: str) -> str:  # fold() char by char, so a position in it is the same in the line: "NÃO" -> "nao"
+    return ''.join((fold(char) or ' ')[:1] for char in text)
 
 
 @functools.lru_cache(maxsize=65536)
@@ -192,13 +193,8 @@ COUNTED = frozenset(kind for kind, _ in rules.COMPILED) | {'NOME', 'TEXTO_REMOVI
 
 
 def mask_page(lines: list[str]) -> tuple[list[str], dict[str, int]]:
-    """mask() line by line, plus a CPF the OCR split in two lines ("CPF: 517.916." / "257-38"),
-    then the safety net of rule 4: a line that does not look like an exam does not leave.
-
-    The counts are the markers each line leaves the OCR with, so a value the safety net then took
-    with the text around it counts as the [TEXTO_REMOVIDO] that stays, not as the type it first got;
-    a marker already written in the order counts for nothing; the 2nd half of a split CPF is the
-    same CPF."""
+    """mask() line by line, then rules 3 (a CPF split in two lines: one CPF), 4 (the safety net) and 5 (by shape). Counts:
+    the markers each line leaves with (a value the net took with its text is that [TEXTO_REMOVIDO]; one written, 0)."""
     masked: list[str] = []
     counts: dict[str, int] = {}
     for index, line in enumerate(lines):
@@ -208,13 +204,28 @@ def mask_page(lines: list[str]) -> tuple[list[str], dict[str, int]]:
         split_cpf = bool(previous and rest and sum(c.isdigit() for c in previous.group('part') + rest.group('part')) == 11)
         if split_cpf and rest:
             safe = safe[:rest.start('part')] + '[CPF]' + safe[rest.end('part'):]
-        masked.append(only_what_may_leave(safe, found))
+        masked.append(shaped(only_what_may_leave(safe, found)))
         written, left = (re.findall(r'\[([A-Z_]+)\]', text) for text in (line, masked[-1]))
         for kind_ in COUNTED:
             amount = left.count(kind_) - written.count(kind_) - (kind_ == 'CPF' and split_cpf)
             if amount > 0:
                 counts[kind_] = counts.get(kind_, 0) + amount
     return masked, counts
+
+
+def shaped(line: str) -> str:
+    """Rule 5 of the module docstring, on a line the safety net already went through."""
+    line = rules.NAME_TAIL.sub('[NOME]', line)
+    text, spans = plain(line), [match.span() for match in EXAMS.finditer(plain(line))]
+    loose = [token.span() for token in rules.TOKEN.finditer(line, spans[0][0] if spans else len(line))
+             if (token.group()[0].isupper() or any(char.isdigit() for char in token.group())) and not (
+                 any(s <= token.start() < e for s, e in spans) or rules.HOURS.match(text, token.start())
+                 or (word := fold(token.group())) in VOCABULARY or word in rules.KEPT or visible(word) or not word.isdigit()
+                 and (exam_word(word.translate(rules.OCR_DIGITS)) or short_exam_word(word)))]  # misread: "Antl", "Potassi0"
+    for start, end in reversed(loose):  # a run of them, with only marks between ("4.500.000"), is one piece
+        joined = re.match(r'[ \t.,/-]*(?=\[TEXTO_REMOVIDO\])', line[end:])
+        line = line[:start] + ('' if joined else '[TEXTO_REMOVIDO]') + line[end + (joined.end() if joined else 0):]
+    return line
 
 
 def only_what_may_leave(line: str, counts: dict[str, int]) -> str:
