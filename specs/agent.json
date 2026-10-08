@@ -16,13 +16,13 @@
     },
     {
       "name": "search",
-      "instruction": "Para cada exame da lista abaixo, chame search_exams com o nome do exame como foi lido, sem corrigir e sem marcadores ou conectivos (como \"-\" ou \"e\"), e fique com o resultado de maior score. Responda somente com JSON: uma lista de objetos {\"code\": ..., \"name\": ...}, sem texto extra. Omita exames sem resultado.\nExames:\n{exam_names}",
+      "instruction": "Para cada exame da lista abaixo, chame search_exams com o nome do exame como foi lido, sem corrigir e sem marcadores ou conectivos (como \"-\" ou \"e\"), e fique com o resultado de maior score. Responda somente com JSON: uma lista de objetos {\"code\": ..., \"name\": ...}, sem texto extra. Omita exames sem resultado.\nExames:\n{exam_names?}",
       "output_key": "exam_codes",
       "tools": ["rag.search_exams"]
     },
     {
       "name": "schedule",
-      "instruction": "Agende os exames abaixo chamando a ferramenta que cria um agendamento (POST /appointments) com o corpo {\"exams\": <lista abaixo>}. Depois responda com o id e o status devolvidos pela API.\nExames:\n{exam_codes}",
+      "instruction": "Agende os exames abaixo chamando a ferramenta que cria um agendamento (POST /appointments) com o corpo {\"exams\": <lista abaixo>}. Depois responda com o id e o status devolvidos pela API.\nExames:\n{exam_codes?}",
       "output_key": "appointment",
       "tools": ["api.create_appointment"]
     }

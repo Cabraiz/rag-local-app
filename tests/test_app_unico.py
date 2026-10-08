@@ -14,8 +14,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from runtime import BookingCallbacks, pedido
+from runtime import pedido
 from runtime.adk import LiveOpenAPIToolset
+from runtime.callbacks import BookingCallbacks
 from tests.test_adk_seguranca import call, two_medium_exams
 from transpiler import transpile
 

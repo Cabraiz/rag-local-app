@@ -12,7 +12,7 @@ from string import Template
 from runtime import API_VERSION
 
 from .live import check_live, live_tools
-from .spec import TranspileError, load_plugins, parse_spec
+from .spec import TranspileError, imported_classes, load_plugins, parse_spec
 
 TEMPLATE = Template((Path(__file__).parent / 'agent_template.py.tmpl').read_text(encoding='utf-8'))
 WIDTH = 120  # the generated file keeps the repository's line length (pyproject.toml)
@@ -28,8 +28,7 @@ RUNTIME_DOC = {  # the docstring line of each name imported from runtime
     'LiveOpenAPIToolset': "- LiveOpenAPIToolset: ADK's OpenAPIToolset, built from an API's live /openapi.json on first use,\n"
                           '  on a host that ALLOWED_HOSTS allows;',
     'McpToolset': "- McpToolset: ADK's McpToolset, on a host that ALLOWED_HOSTS allows (checked on import);",
-    'gemini': '- gemini, guarded: the model with retries (and the reserve model), and the fixed rule put before each '
-              'instruction;',
+    'gemini': '- gemini: the model with retries (and the reserve model);',
     'require_api': '- require_api: stops this file on a runtime with another interface.',
 }
 
@@ -81,11 +80,13 @@ def render_agent(spec, agent):
     for reference in dict.fromkeys(agent.tools):  # a tool written twice is filtered once
         server, name = reference.split('.')
         servers.setdefault(server, []).append(name)
-    instruction = 'guarded(\n' + '\n'.join(literal(agent.instruction, 8)) + '\n    )'
+    instruction = '(\n' + '\n'.join(literal(agent.instruction, 8)) + '\n    )'
     arguments = [('name', repr(agent.name)), ('model', model_call(spec, agent.model) if agent.model else 'MODEL'),
                  ('instruction', instruction)]
     if servers:
         arguments.append(('tools', listing([toolset(spec, server, names) for server, names in servers.items()], 4)))
+    if agent.output_schema:
+        arguments.append(('output_schema', agent.output_schema.rpartition('.')[2]))
     return f'\n{agent.name} = ' + call('LlmAgent', [*arguments, ('output_key', repr(agent.output_key))]) + '\n'
 
 
@@ -122,11 +123,13 @@ def imports(spec, plugins):
     if True in kinds:
         adk.append('from google.adk.tools.mcp_tool.mcp_session_manager import SseConnectionParams')
     names = [*(['LiveOpenAPIToolset'] if False in kinds else []), *(['McpToolset'] if True in kinds else []),
-             'gemini', 'guarded', 'require_api']
+             'gemini', 'require_api']
     ours = [f'from runtime import {", ".join(names)}']
-    for plugin, found in plugins:
-        module = plugin.path.rpartition('.')[0]
-        (adk if module.startswith('google.') else ours).append(f'from {module} import {found.__name__}')
+    classes: dict[str, set[str]] = {}  # module -> the classes of the spec imported from it
+    for module, _, name in (path.rpartition('.') for _, path in imported_classes(spec)):
+        classes.setdefault(module, set()).add(name)
+    for module, found in classes.items():
+        (adk if module.startswith('google.') else ours).append(f'from {module} import {", ".join(sorted(found))}')
     doc = [RUNTIME_DOC[name] for name in names if name in RUNTIME_DOC]
     if plugins:
         doc.append(fill("The App's plugins (ADK's BasePlugin), each with the kwargs the spec gives it: "

@@ -3,7 +3,6 @@ import builtins
 import importlib
 import json
 import keyword
-import os
 import re
 import unicodedata
 from typing import Literal
@@ -13,29 +12,23 @@ from google.adk.plugins.base_plugin import BasePlugin
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
-from runtime.pedido import RECORD_KEYS
+from runtime import rede
 
 IDENTIFIER = r'^[a-z][a-z0-9_]{0,39}$'
 TOOL_REF = r'^[a-z][a-z0-9_]{0,39}\.[a-z][a-z0-9_]{0,39}$'
 SSE_URL = r'^https?://[A-Za-z0-9.-]+(:\d+)?/sse$'
 OPENAPI_URL = r'^https?://[A-Za-z0-9.-]+(:\d+)?/openapi\.json$'
 MODEL = r'^gemini-[a-z0-9.-]{1,40}$'
-PLUGIN_PATH = r'^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)*\.[A-Z][A-Za-z0-9]{0,39}$'  # module.Class
-# The packages a spec may load an App plugin from: the project's runtime and ADK's own plugins. A spec
-# never makes the transpiler import any other module; another package is added here, in code.
-PLUGIN_PACKAGES = ('runtime', 'google.adk.plugins')
-# Names of the generated module that a plugin class must not shadow.
+CLASS_PATH = r'^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)*\.[A-Z][A-Za-z0-9]{0,39}$'  # module.Class
+# The packages a spec may load a class from (an App plugin, an agent's output_schema): the project's runtime
+# and ADK's own plugins. A spec never makes the transpiler import any other module; another package is added
+# here, in code.
+CLASS_PACKAGES = ('runtime', 'google.adk.plugins')
+# Names of the generated module that a class it imports must not shadow.
 GENERATED_NAMES = {'App', 'LiveOpenAPIToolset', 'LlmAgent', 'LoopAgent', 'McpToolset', 'ParallelAgent',
                    'ResumabilityConfig', 'SequentialAgent', 'SseConnectionParams'}
-# The hosts a server URL may name, unless ALLOWED_HOSTS (comma separated; "host" for any port,
-# "host:port" for one) says otherwise: by default, exactly the three compose services on their ports.
-# A spec cannot point the agent at another host or port (SSRF: 169.254.169.254, the internal network,
-# a local service such as localhost:2375); the deployment can, and tests that run servers on this
-# machine set ALLOWED_HOSTS themselves.
-DEFAULT_ALLOWED_HOSTS = 'ocr:8001,rag:8002,api:8000'
-ALLOWED_HOST = re.compile(r'[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?')  # "host" or "host:port"
 # Names an agent cannot have: each agent becomes a variable of the generated module.
-RESERVED = {'app', 'user', 'gemini', 'guarded', 'root_agent', 'runtime'}
+RESERVED = {'app', 'user', 'gemini', 'root_agent', 'runtime'}
 
 
 class TranspileError(Exception):
@@ -92,7 +85,7 @@ class Server(Strict):
 
 class Plugin(Strict):
     """An App plugin (ADK's BasePlugin): its class as module.Class and the keyword arguments it gets."""
-    path: str = Field(pattern=PLUGIN_PATH)
+    path: str = Field(pattern=CLASS_PATH)
     kwargs: dict[str, JsonValue] = {}
 
     @field_validator('kwargs')
@@ -112,6 +105,8 @@ class Agent(Strict):
     output_key: str = Field(pattern=IDENTIFIER)
     model: str | None = Field(default=None, pattern=MODEL)
     tools: list[str] = []
+    # ADK's output_schema: a pydantic model (module.Class) the agent's answer is validated against, also with tools.
+    output_schema: str | None = Field(default=None, pattern=CLASS_PATH)
 
     @field_validator('instruction')
     @classmethod
@@ -184,7 +179,7 @@ PATTERN_HINTS = {
     OPENAPI_URL: 'esperado http://host:porta/openapi.json',
     MODEL: 'esperado gemini-<versão>',
     TOOL_REF: 'use servidor.ferramenta, ex.: ocr.extract_exam_text',
-    PLUGIN_PATH: 'esperado modulo.Classe, ex.: runtime.plugin.BookingPlugin',
+    CLASS_PATH: 'esperado modulo.Classe, ex.: runtime.plugin.BookingPlugin',
 }
 
 
@@ -223,34 +218,24 @@ def reject_duplicates(pairs):
     return dict(pairs)
 
 
-def allowed_hosts():
-    """(hosts, problems): ALLOWED_HOSTS, or DEFAULT_ALLOWED_HOSTS when it is unset or names no host
-    (empty, blank, only commas). An entry that is not "host" or "host:port" is a problem, never ignored."""
-    hosts = [host.strip().lower() for host in os.environ.get('ALLOWED_HOSTS', '').split(',') if host.strip()]
-    if not hosts:
-        hosts = DEFAULT_ALLOWED_HOSTS.split(',')
-    problems = [f'ALLOWED_HOSTS: "{host}" não é host nem host:porta (ex.: ocr:8001,clinica.interna:8443)'
-                for host in hosts if not ALLOWED_HOST.fullmatch(host)]
-    return hosts, problems
-
-
 def check_servers(spec) -> list[str]:
     """Every server is on an allowed host (and port, if the entry names one); no tool name is
-    exposed by two servers, since an agent and its plugins know a tool by its name."""
-    hosts, problems = allowed_hosts()
+    exposed by two servers, since an agent and its plugins know a tool by its name. An ALLOWED_HOSTS
+    entry that is not "host" or "host:port" is a problem, never ignored."""
+    hosts = rede.allowed_hosts()
+    problems = [f'ALLOWED_HOSTS: "{host}" não é host nem host:porta (ex.: ocr:8001,clinica.interna:8443)'
+                for host in hosts if not rede.ALLOWED_HOST.fullmatch(host)]
     owners: dict[str, list[str]] = {}  # tool -> the servers that declare it
     if problems:  # a broken allowlist: say so instead of judging the servers against it
         return problems
     for name, server in spec.servers.items():
         field, url = server.address
-        parts = urlsplit(url)
-        written = parts.netloc.rpartition(':')[2] if ':' in parts.netloc else ''  # the URL patterns allow digits only
-        if written and not 1 <= int(written) <= 65535:  # port 0 would otherwise read as the default 80
-            problems.append(f'servers.{name}.{field}: porta inválida ({written}); use de 1 a 65535')
+        host, port = rede.host_and_port(url)
+        if not port:  # the URL patterns allow digits only
+            problems.append(f'servers.{name}.{field}: porta inválida ({urlsplit(url).netloc.rpartition(":")[2]}); '
+                            'use de 1 a 65535')
             continue
-        host = (parts.hostname or '').lower()
-        port = int(written) if written else (443 if parts.scheme == 'https' else 80)
-        if host not in hosts and f'{host}:{port}' not in hosts:
+        if not rede.host_allowed(url, hosts):
             problems.append(f'servers.{name}.{field}: host "{host}:{port}" fora de ALLOWED_HOSTS '
                             f'({", ".join(hosts)}); quem implanta pode incluí-lo em ALLOWED_HOSTS')
         for tool in server.names:
@@ -270,26 +255,49 @@ def check_workflow(spec):
     return problems
 
 
+def load_class(path, base):
+    """The class `path` (module.Class) names, if it is in CLASS_PACKAGES and a subclass of `base`; else
+    the reason it is not, after the field: the spec never makes the transpiler import another module."""
+    module, _, name = path.rpartition('.')
+    if not any(module == package or module.startswith(package + '.') for package in CLASS_PACKAGES):
+        kind = 'de plugins' if base is BasePlugin else 'permitidos'
+        return f'"{path}" fora dos pacotes {kind} ({", ".join(CLASS_PACKAGES)})'
+    try:
+        found = getattr(importlib.import_module(module), name, None)
+    except ImportError:
+        found = None
+    if not (isinstance(found, type) and issubclass(found, base)):
+        kind = 'uma classe de plugin do ADK (BasePlugin)' if base is BasePlugin else 'um modelo pydantic (BaseModel)'
+        return f'"{path}" não é {kind}'
+    return found
+
+
+def imported_classes(spec):
+    """(field, path) of every class the generated file imports: the agents' output_schema, then the plugins."""
+    return ([(f'agents.{index}.output_schema', agent.output_schema) for index, agent in enumerate(spec.agents)
+             if agent.output_schema] + [(f'plugins.{index}.path', plugin.path) for index, plugin in enumerate(spec.plugins)])
+
+
+def check_schemas(spec):
+    """Each output_schema is a pydantic model of CLASS_PACKAGES (whose class names are the project's own)."""
+    loaded = [(index, load_class(agent.output_schema, BaseModel)) for index, agent in enumerate(spec.agents)
+              if agent.output_schema]
+    return [f'agents.{index}.output_schema: {found}' for index, found in loaded if isinstance(found, str)]
+
+
 def load_plugins(spec):
     """(class, checked kwargs, field) of each plugin of the spec that loads, and the problems of the others.
     A plugin class may declare `Config` (a pydantic model of its kwargs), checked here with the spec's
     messages, `check_spec(spec, config, field)` and `check_live(spec, config, live, field)`."""
     loaded, problems, names = [], [], set()
     for index, plugin in enumerate(spec.plugins):
-        where, (module, _, name) = f'plugins.{index}', plugin.path.rpartition('.')
-        if not any(module == package or module.startswith(package + '.') for package in PLUGIN_PACKAGES):
-            problems.append(f'{where}.path: "{plugin.path}" fora dos pacotes de plugins ({", ".join(PLUGIN_PACKAGES)})')
+        where, found = f'plugins.{index}', load_class(plugin.path, BasePlugin)
+        if isinstance(found, str):
+            problems.append(f'{where}.path: {found}')
             continue
-        try:
-            found = getattr(importlib.import_module(module), name, None)
-        except ImportError:
-            found = None
-        if not (isinstance(found, type) and issubclass(found, BasePlugin)):
-            problems.append(f'{where}.path: "{plugin.path}" não é uma classe de plugin do ADK (BasePlugin)')
-            continue
-        if name in names | GENERATED_NAMES:  # each plugin class is a name of the generated module
-            problems.append(f'{where}.path: "{name}" já é usado (ou é reservado)')
-        names.add(name)
+        if found.__name__ in names | GENERATED_NAMES:  # each plugin class is a name of the generated module
+            problems.append(f'{where}.path: "{found.__name__}" já é usado (ou é reservado)')
+        names.add(found.__name__)
         try:
             config = found.Config.model_validate(plugin.kwargs) if hasattr(found, 'Config') else plugin.kwargs
         except ValidationError as error:
@@ -315,12 +323,11 @@ def placeholder_problem(field, match, available):
     """Why ADK would fail on this {...} at run time, or None if it is fine or plain text.
 
     ADK fills a valid state name ({key}, {temp:key}, {key?}) or {artifact.name}; anything
-    else ({"code": ...}) stays as text. Only {key} written by an earlier agent is allowed, with single
-    braces: ADK has no escape, so {{key}} would be filled as {key} too.
+    else ({"code": ...}) stays as text. Only {key} written by an earlier agent is allowed, or {key?}, which
+    ADK fills with nothing when that agent wrote nothing; with single braces: ADK has no escape, so
+    {{key}} would be filled as {key} too.
     """
-    name = match.group(1).strip()
-    optional = name.endswith('?')
-    name = name.removesuffix('?')
+    name = match.group(1).strip().removesuffix('?')
     prefix, _, rest = name.partition(':')
     if name.startswith('artifact.'):
         return f'{field}: {match.group(0)} lê um artefato do ADK; use só {{output_key}} de um agente anterior'
@@ -332,8 +339,6 @@ def placeholder_problem(field, match, available):
         # ADK strips every brace around a valid name: {{key}} is the placeholder {key}, not the text {key}.
         return (f'{field}: {match.group(0)} não é texto literal: o ADK não tem escape para chaves e lê isso como '
                 f'o placeholder {{{name}}}; para citar o nome, escreva-o sem chaves')
-    if optional:
-        return f'{field}: {match.group(0)} é opcional ("?") e não é aceito; use {{{name}}} de um agente anterior'
     if name not in available:
         return f'{field}: {{{name}}} não é saída de um agente anterior'
     return None
@@ -356,8 +361,6 @@ def check_agents(spec) -> list[str]:
                 problems.append(problem)
         if agent.output_key in keys:
             problems.append(f'{where}.output_key: "{agent.output_key}" já é usado por outro agente')
-        elif agent.output_key in RECORD_KEYS:  # the runtime's copy of the order goes to the session state
-            problems.append(f'{where}.output_key: "{agent.output_key}" é reservado: o runtime usa essa chave do estado')
         keys.add(agent.output_key)
         if spec.workflow in ('SequentialAgent', 'LoopAgent'):  # in a ParallelAgent no agent runs before another
             available.append(agent.output_key)
@@ -388,7 +391,7 @@ def parse_spec(text):
         spec = AgentSpec.model_validate(data)
     except ValidationError as error:
         raise TranspileError([describe(item) for item in error.errors()]) from None
-    problems = check_servers(spec) + check_agents(spec) + check_workflow(spec) + check_plugins(spec)
+    problems = check_servers(spec) + check_agents(spec) + check_workflow(spec) + check_schemas(spec) + check_plugins(spec)
     if problems:
         raise TranspileError(problems)
     return spec

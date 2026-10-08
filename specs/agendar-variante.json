@@ -16,12 +16,12 @@
     },
     {
       "name": "revisar",
-      "instruction": "Revise a lista de exames abaixo: remova os códigos repetidos e os itens sem code, sem acrescentar nem trocar nenhum exame. Responda somente com a lista JSON resultante, sem texto extra.\nLista:\n{achados}",
+      "instruction": "Revise a lista de exames abaixo: remova os códigos repetidos e os itens sem code, sem acrescentar nem trocar nenhum exame. Responda somente com a lista JSON resultante, sem texto extra.\nLista:\n{achados?}",
       "output_key": "para_agendar"
     },
     {
       "name": "agendar",
-      "instruction": "Agende os exames abaixo chamando a ferramenta que cria um agendamento (POST /appointments) com o corpo {\"exams\": <lista abaixo>}. Depois responda com o id e o status devolvidos pela API.\nExames:\n{para_agendar}",
+      "instruction": "Agende os exames abaixo chamando a ferramenta que cria um agendamento (POST /appointments) com o corpo {\"exams\": <lista abaixo>}. Depois responda com o id e o status devolvidos pela API.\nExames:\n{para_agendar?}",
       "output_key": "agendamento",
       "tools": ["clinica.create_appointment"]
     }

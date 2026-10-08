@@ -1,15 +1,17 @@
 """The booking policy as an ADK plugin of the App, its tools and thresholds given by the spec as kwargs. It is
 the BookingCallbacks of runtime/callbacks.py, called by the agent's place in the pipeline: the root opens the
-order and reports it, a later step fills what earlier ones left empty, and a pipeline that lists exams without
-booking reviews the last answer. The transpiler checks a spec with its Config, check_spec and check_live."""
+order and reports it, and a pipeline that lists exams without booking reviews the last answer. The transpiler
+checks a spec with its Config, check_spec and check_live."""
 from google.adk.plugins.base_plugin import BasePlugin
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
 
 from .callbacks import BookingCallbacks
 from .confianca import BookingPolicy
+from .pedido import RECORD_KEYS
 
 PATH = 'runtime.plugin.BookingPlugin'  # how a spec names it in "plugins"
+LISTED = 'runtime.plugin.ListedExams'  # the output_schema of the last agent of a spec that lists exams
 ROLES = ('read', 'search', 'book')
 # What the runtime sends to the tool of each role (runtime/callbacks.py).
 ROLE_PARAMETERS = {'read': ('filename',), 'search': ('query', 'top_k')}
@@ -52,6 +54,16 @@ class BookingConfig(BaseModel):
         return value
 
 
+class ListedExam(BaseModel):
+    code: str
+    name: str
+
+
+class ListedExams(BaseModel):
+    """The answer of the agent that lists exams without booking (its output_schema): ADK checks it."""
+    exams: list[ListedExam]
+
+
 class BookingPlugin(BasePlugin, BookingCallbacks):
     """BookingCallbacks as an App plugin. `servers` (server name -> address) comes from the spec's servers,
     so the kwargs name each tool as server.tool; the rest is BookingConfig, checked again here, so a
@@ -78,18 +90,14 @@ class BookingPlugin(BasePlugin, BookingCallbacks):
         return found[0]
 
     async def before_agent_callback(self, *, agent, callback_context):
-        if agent.parent_agent is None:
-            return await self.start_order(callback_context)
-        steps = agent.parent_agent.sub_agents
-        earlier = [step.output_key for step in steps[:steps.index(agent)] if getattr(step, 'output_key', None)]
-        return self.fill_missing(*earlier)(callback_context) if earlier else None
+        return await self.start_order(callback_context) if agent.parent_agent is None else None
 
     async def after_agent_callback(self, *, agent, callback_context):
         if agent.parent_agent is None:
             return await self.report(callback_context)
         lists = self.booking_tool is None and self.search_tool is not None  # it searches and books nothing
         if lists and agent is agent.parent_agent.sub_agents[-1]:
-            return self.review_list(agent.output_key)(callback_context)
+            self.review_list(callback_context, agent.output_key)
         return None
 
     async def before_model_callback(self, *, callback_context, llm_request):
@@ -107,7 +115,7 @@ class BookingPlugin(BasePlugin, BookingCallbacks):
     @classmethod
     def check_spec(cls, spec, config, where):
         """The roles on tools the agents use, of the kind the runtime reads, and booking only with the
-        reading and the search that make an exam's confidence; then each agent's tools."""
+        reading and the search that make an exam's confidence; then each agent's tools and output."""
         problems, refs = [], {role: getattr(config, role) for role in ROLES}
         used = {tool for agent in spec.agents for tool in agent.tools}
         if spec.workflow != 'SequentialAgent':
@@ -131,7 +139,7 @@ class BookingPlugin(BasePlugin, BookingCallbacks):
         for index, agent in enumerate(spec.agents):
             problems += agent_problems(spec, refs, f'agents.{index}.tools', agent, done, where)
             done |= set(agent.tools)
-        return problems
+        return problems + output_problems(spec, refs)
 
     @classmethod
     def check_live(cls, spec, config, live, where):
@@ -145,6 +153,18 @@ class BookingPlugin(BasePlugin, BookingCallbacks):
             if missing:
                 problems.append(f'{where}.{role}: "{reference}" não recebe {" nem ".join(missing)}, que o runtime envia')
         return problems + book_problems(config.book, live, where)
+
+
+def output_problems(spec, refs):
+    """No agent writes a key of the order's copy in the session state, and a spec that lists exams ends with
+    an agent whose answer ADK checks against ListedExams, what the plugin reads."""
+    problems = [f'agents.{index}.output_key: "{agent.output_key}" é reservado: o BookingPlugin usa essa chave do '
+                'estado' for index, agent in enumerate(spec.agents) if agent.output_key in RECORD_KEYS]
+    last = len(spec.agents) - 1
+    if refs['search'] and not refs['book'] and spec.agents[last].output_schema != LISTED:
+        problems.append(f'agents.{last}.output_schema: o último agente de uma spec que lista exames responde com '
+                        f'{LISTED}, que o BookingPlugin lê')
+    return problems
 
 
 def agent_problems(spec, refs, where, agent, done, plugin):

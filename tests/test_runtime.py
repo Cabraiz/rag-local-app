@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 import runtime
-from runtime import BookingCallbacks
+from runtime.callbacks import BookingCallbacks
 from tests.versionados import EXAMPLE_SPECS
 from transpiler import transpile
 

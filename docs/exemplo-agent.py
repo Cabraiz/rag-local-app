@@ -5,12 +5,12 @@
 Declared here, from the spec, with Google ADK classes: the model, each LlmAgent (its tools, its
 instruction, its output_key), the SequentialAgent that runs them, and the App that `adk run` and
 `adk web` load (resumable: a tool call that asks for a confirmation pauses and resumes). Imported
-from `runtime`, the transpiler's runtime library (interface 5, tested on its own, the same for every
+from `runtime`, the transpiler's runtime library (interface 6, tested on its own, the same for every
 spec):
 - LiveOpenAPIToolset: ADK's OpenAPIToolset, built from an API's live /openapi.json on first use,
   on a host that ALLOWED_HOSTS allows;
 - McpToolset: ADK's McpToolset, on a host that ALLOWED_HOSTS allows (checked on import);
-- gemini, guarded: the model with retries (and the reserve model), and the fixed rule put before each instruction;
+- gemini: the model with retries (and the reserve model);
 - require_api: stops this file on a runtime with another interface.
 The App's plugins (ADK's BasePlugin), each with the kwargs the spec gives it: BookingPlugin from
 runtime.plugin.
@@ -19,10 +19,10 @@ from google.adk.agents import LlmAgent, SequentialAgent
 from google.adk.apps import App, ResumabilityConfig
 from google.adk.tools.mcp_tool.mcp_session_manager import SseConnectionParams
 
-from runtime import LiveOpenAPIToolset, McpToolset, gemini, guarded, require_api
+from runtime import LiveOpenAPIToolset, McpToolset, gemini, require_api
 from runtime.plugin import BookingPlugin
 
-require_api(5)  # a runtime with another interface stops here, with a clear message
+require_api(6)  # a runtime with another interface stops here, with a clear message
 
 # Gemini (GEMINI_MODEL in .env, or `-e GEMINI_MODEL=<model>` for one run, can replace it). A
 # request it refuses with 429 (quota) or 503 (overloaded) goes at once to the reserve model,
@@ -33,7 +33,7 @@ MODEL = gemini('gemini-3.5-flash', fallback='gemini-3.5-flash-lite')
 extract = LlmAgent(
     name='extract',
     model=MODEL,
-    instruction=guarded(
+    instruction=(
         'Você lê pedidos médicos fictícios. Chame extract_exam_text com o nome do arquivo informado pelo usuário. '
         'Responda somente com os nomes de exames encontrados, um por linha. Ignore marcadores de dados pessoais como '
         '[NOME] ou [CPF] e não invente exames.'
@@ -50,11 +50,11 @@ extract = LlmAgent(
 search = LlmAgent(
     name='search',
     model=MODEL,
-    instruction=guarded(
+    instruction=(
         'Para cada exame da lista abaixo, chame search_exams com o nome do exame como foi lido, sem corrigir e sem '
         'marcadores ou conectivos (como "-" ou "e"), e fique com o resultado de maior score. Responda somente com '
         'JSON: uma lista de objetos {"code": ..., "name": ...}, sem texto extra. Omita exames sem resultado.\nExames:\n'
-        '{exam_names}'
+        '{exam_names?}'
     ),
     tools=[
         McpToolset(
@@ -68,9 +68,9 @@ search = LlmAgent(
 schedule = LlmAgent(
     name='schedule',
     model=MODEL,
-    instruction=guarded(
+    instruction=(
         'Agende os exames abaixo chamando a ferramenta que cria um agendamento (POST /appointments) com o corpo '
-        '{"exams": <lista abaixo>}. Depois responda com o id e o status devolvidos pela API.\nExames:\n{exam_codes}'
+        '{"exams": <lista abaixo>}. Depois responda com o id e o status devolvidos pela API.\nExames:\n{exam_codes?}'
     ),
     tools=[
         LiveOpenAPIToolset(

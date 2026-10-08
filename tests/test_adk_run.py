@@ -17,6 +17,7 @@ import socket
 import sys
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
@@ -30,7 +31,8 @@ from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import Runner
 from google.genai import types
 
-from runtime import BookingCallbacks, rede
+from runtime import rede
+from runtime.callbacks import BookingCallbacks
 from runtime.entrada import image_names
 from tests.test_alucinacao import IMAGE, NAMED, PORTS, ROOT, appointment, services, stored_ids  # noqa: F401
 from transpiler import transpile
@@ -99,10 +101,10 @@ class ScriptedRunner(Runner):
 
 
 @pytest.fixture
-def agent_folder(services, tmp_path, monkeypatch):  # noqa: F811
+def agent_folder(services, tmp_path, monkeypatch, new_process):  # noqa: F811
     """The folder `cli transpile` writes (agent.py, __init__.py), with the spec's hosts on this machine.
     Yields (the folder, the URLs each order checked); afterwards, as for a new `adk` process, the
-    folder's modules, sys.path and the log handler `adk run` adds are gone."""
+    folder's modules, sys.path, the names pinned and the log handler `adk run` adds are gone."""
     real = socket.getaddrinfo
 
     def local(host, *args, **kwargs):  # the spec's hosts (ocr, rag, api) are this machine
@@ -250,7 +252,7 @@ def resolver(answers):
     """getaddrinfo where each name in `answers` resolves to its next address; the rest are unknown."""
     def getaddrinfo(host, port, *args, **kwargs):
         name = host.decode() if isinstance(host, bytes) else host
-        if rede.is_address(name):
+        if rede.host_of(f'http://[{name}]/' if ':' in name else f'http://{name}/') is None:  # an address
             return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (name, port))]
         if name not in answers:
             raise socket.gaierror(socket.EAI_NONAME, 'Name or service not known')
@@ -268,7 +270,8 @@ def order(callbacks, text, holder=None):
 
 
 @pytest.mark.parametrize('address', ['127.0.0.1', '169.254.169.254', '100.100.100.200'])
-def test_outside_cli_run_a_name_on_a_local_address_stops_the_order_before_any_model_turn(monkeypatch, address):
+def test_outside_cli_run_a_name_on_a_local_address_stops_the_order_before_any_model_turn(monkeypatch, new_process,
+                                                                                          address):
     monkeypatch.setenv('ALLOWED_HOSTS', 'ocr:8001,rag:8002,clinica.exemplo:8443')
     monkeypatch.setattr(socket, 'getaddrinfo', resolver({'clinica.exemplo': [address], 'ocr': ['10.0.0.5'],
                                                          'rag': ['10.0.0.6']}))
@@ -279,42 +282,42 @@ def test_outside_cli_run_a_name_on_a_local_address_stops_the_order_before_any_mo
         f'Endereço recusado: https://clinica.exemplo:8443/openapi.json: "clinica.exemplo" resolve para {address}, '
         f'{rede.REFUSED}. Nada foi lido nem agendado.')
     assert state == {}  # no image taken, no order started
-    with pytest.raises(socket.gaierror):  # and the name reaches no address in this process
-        socket.getaddrinfo('clinica.exemplo', 8443)
+    with pytest.raises(httpx.ConnectError):  # and the runtime's clients reach the name at no address
+        rede.pinned(httpx.Request('GET', 'https://clinica.exemplo:8443/openapi.json'), httpx.ConnectError)
 
 
-def test_outside_cli_run_the_addresses_checked_are_kept_for_the_process(monkeypatch):
+def test_outside_cli_run_the_addresses_checked_are_kept_for_the_process(monkeypatch, new_process):
     monkeypatch.delenv('ALLOWED_HOSTS', raising=False)
     rebinding = resolver({'ocr': ['10.0.0.5', '127.0.0.1'], 'rag': ['10.0.0.6'], 'api': ['10.0.0.7']})
     monkeypatch.setattr(socket, 'getaddrinfo', rebinding)
     callbacks = BookingCallbacks(servers=['http://ocr:8001/sse', 'http://rag:8002/sse', 'http://api:8000/openapi.json'])
     said, state = order(callbacks, 'qualquer texto')  # a spec with no reading role takes no image
     assert said is None and state == {'order_invocation': 'i1'}
-    # The DNS now answers 127.0.0.1 for ocr: every client of the process still gets the address checked.
-    assert [info[4][0] for info in socket.getaddrinfo('OCR', 8001)] == ['10.0.0.5']
+    # The DNS now answers 127.0.0.1 for ocr: every client of the runtime still goes to the address checked.
+    assert rede.pinned(httpx.Request('GET', 'http://OCR:8001/sse'), httpx.ConnectError).url.host == '10.0.0.5'
     assert rede.PINS == {'ocr': ['10.0.0.5'], 'rag': ['10.0.0.6'], 'api': ['10.0.0.7']}
     said, _ = order(callbacks, 'outra mensagem', 'i0')  # a 2nd order in the same session
     assert said.parts[0].text.startswith('Esta sessão já tratou um pedido')
 
 
-COMPOSE_DNS = {'ocr': '10.0.0.5', 'rag': '10.0.0.6', 'api': '10.0.0.7'}  # private, as Docker's DNS answers
-
-
 def test_adk_run_with_the_real_address_rule_books_over_the_addresses_it_checked(adk_run, monkeypatch):
-    # The real rule, with the compose names on private addresses (allowed); those addresses lead to
-    # this machine's servers, like a NAT, so the run can only connect through the pinned addresses.
-    local = socket.getaddrinfo  # the fixture's: the names are this machine
+    # The real rule. 127.0.0.1, where this machine's servers are, stands for the private address Docker's DNS
+    # gives each compose name (rede.unsafe is told so). After its first answer, the DNS sends each name where
+    # nothing answers: the run still books, so every connection went to the address the order checked.
+    local, answered = socket.getaddrinfo, set()  # the fixture's: the names are this machine
 
     def compose_dns(host, port, *args, **kwargs):
         name = host.decode() if isinstance(host, bytes) else host
-        if name in COMPOSE_DNS:
-            return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (COMPOSE_DNS[name], port))]
-        return local('127.0.0.1' if name in COMPOSE_DNS.values() else host, port, *args, **kwargs)
+        if name in PORTS and name in answered:
+            return local('10.0.0.99', port, *args, **kwargs)
+        answered.add(name)
+        return local(host, port, *args, **kwargs)
     monkeypatch.setattr(socket, 'getaddrinfo', compose_dns)
     monkeypatch.setattr(rede, 'check_urls', CHECK_URLS)
+    monkeypatch.setattr(rede, 'unsafe', lambda address: False)
     out, new, _ = adk_run(NAMED, 'yes')
     assert new == all_three(), out
-    assert rede.PINS == {name: [address] for name, address in COMPOSE_DNS.items()}
+    assert rede.PINS == {name: ['127.0.0.1'] for name in PORTS}
 
 
 def test_adk_web_books_the_order_from_only_its_file_name(agent_folder, services, monkeypatch):  # noqa: F811

@@ -19,11 +19,11 @@ import httpx
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
-from runtime import confirmacao, servidores
+from runtime import confirmacao, rede, servidores
 from runtime.entrada import CONFIRMATION, IMAGE_SUFFIXES, image_token
+from runtime.pedido import session_key
 from runtime.plugin import BookingPlugin, roles_of
-from runtime.rede import pinned_names
-from runtime.relatorio import UNDECIDED, api_error_in, api_refusal, model_failure, reading_lines
+from runtime.relatorio import UNDECIDED, api_error_in, api_refusal, model_failure, reading_lines, unrecognized
 from runtime.servidores import CHECK_SECONDS, IMAGE_CHECK
 from transpiler import TranspileError, load_root_agent, load_spec, render, transpile
 from transpiler.live import check_addresses, check_live, live_tools
@@ -32,6 +32,7 @@ from transpiler.spec import MODEL
 DEFAULT_SPEC = 'specs/agent.json'
 DEFAULT_AGENT = 'generated/agent.py'
 NO_TERMINAL = 'sem terminal para confirmar a lista de exames: rode num terminal ou com --yes'
+SET_ANSWER = 'set_model_response'  # ADK's tool for an output_schema (runtime/plugin.py, ListedExams): writes nothing
 
 
 def redact(text):
@@ -61,6 +62,14 @@ def cmd_transpile(args):
     return 0
 
 
+def answers(url):
+    """GET the server's address, at the address the run checked for its name (runtime/rede.py)."""
+    async def get():
+        async with rede.client(timeout=3) as client, client.stream('GET', url) as response:
+            response.raise_for_status()
+    asyncio.run(get())
+
+
 def check_services(spec):
     """Fail before calling Gemini when a server's name resolves to a local address, it is down or it
     lacks a tool the spec declares; returns what each server listed (transpiler/live.py)."""
@@ -70,8 +79,7 @@ def check_services(spec):
     for name, server in spec.servers.items():
         label, url = name.upper() + (' (MCP)' if server.mcp else ''), server.address[1]
         try:
-            with httpx.stream('GET', url, timeout=3) as response:
-                response.raise_for_status()
+            answers(url)
         except httpx.HTTPError as error:
             raise RunError(f'{label} fora do ar em {url} ({type(error).__name__}); '
                            'suba os serviços com `docker compose up -d --wait`') from None
@@ -128,19 +136,17 @@ def note_reply(found, spec, response):
     without a role, so this is defense in depth: the CLI never says nothing was written."""
     if response.name == tool_for(spec, 'book'):
         record(found, response.response)
-    elif response.name not in (tool_for(spec, 'read'), tool_for(spec, 'search'), CONFIRMATION):
+    elif response.name not in (tool_for(spec, 'read'), tool_for(spec, 'search'), CONFIRMATION, SET_ANSWER):
         reply = response.response
         if not (isinstance(reply, dict) and {'blocked', 'pending_confirmation'} & reply.keys()):
             found['api_called'] = True
 
 
 def new_found():
-    """What one run left, filled by run_agent from the events and the session state: the API's reply
-    (appointment, api_error, blocked; api_called: a POST, or a tool without a role, answered), the OCR's
-    counts (pii_masked, text_removed, instructions_removed, unrecognized lines, ocr_read, ocr_error,
-    file_refused), the policy's sorting (candidates, low_confidence, confirmed; listing, invented), the
-    run (tools_called, tool_seconds, model, model_error, order_unchecked), and one input: questions,
-    whether someone answers [s/N]."""
+    """What one run left, filled by run_agent: from the events, the API's reply (appointment, api_error,
+    blocked; api_called: a POST, or a tool without a role, answered) and the run (tools_called,
+    tool_seconds, model); the rest from the plugin's record of the order (take_record); and one input:
+    questions, whether someone answers [s/N]."""
     return {'api_called': False, 'appointment': None, 'api_error': None, 'blocked': None, 'pii_masked': {},
             'text_removed': 0, 'unrecognized': [], 'instructions_removed': 0, 'candidates': {}, 'low_confidence': [], 'confirmed': [],
             'tools_called': set(), 'tool_seconds': {}, 'ocr_read': True,
@@ -201,22 +207,22 @@ async def run_agent(app, image, spec, found):
                 for name, span in spans.items():
                     found['tool_seconds'][name] = found['tool_seconds'].get(name, 0) + span
             message = await answers_to(requests, started, found) if requests else None
-        # The agent's callbacks left a copy of the order's record in the session state.
-        saved = await runner.session_service.get_session(app_name=app.name, user_id='cli', session_id=session.id)
-        state = saved.state if saved else {}  # the run's session: always there
-        for key in ('pii_masked', 'text_removed', 'instructions_removed', 'candidates', 'low_confidence', 'confirmed',
-                    'listing', 'invented', 'model_error', 'cancel_unlinked'):
-            found[key] = state.get(key, found.get(key))
-        found['unrecognized'] = [index + 1 for index, kind in enumerate(state.get('ocr_intent') or [])
-                                 if kind == 'unrecognized']
-        found['ocr_read'] = 'ocr_lines' in state
-        found['ocr_error'] = state.get('ocr_error')
-        found['file_refused'] = state.get('file_refused', False)
-        # The check of the whole order, made by the agent's report (runtime/callbacks.py) as the run ended.
-        found['low_confidence'] = found['low_confidence'] + state.get('unreported', [])
-        found['order_unchecked'] = state.get('order_unchecked', False)
+        take_record(found, BookingPlugin.of(app).orders.open(session_key(session)))
     finally:
         await runner.close()
+
+
+def take_record(found, order):
+    """What the plugin's record of the order (runtime/pedido.py) says of the run: what the OCR read, masked
+    and removed, the policy's sorting, and the check of the whole order the report made as the run ended."""
+    found.update(pii_masked=order.pii_masked or {}, text_removed=order.text_removed or 0,
+                 instructions_removed=order.instructions_removed or 0, candidates=order.candidates or {},
+                 low_confidence=[*(order.low_confidence or []), *(order.unreported or [])],
+                 confirmed=order.confirmed or [], listing=order.listing or [], invented=order.invented or [],
+                 model_error=order.model_error, cancel_unlinked=order.cancel_unlinked,
+                 unrecognized=unrecognized(order.view()), ocr_read=order.ocr_lines is not None,
+                 ocr_error=order.ocr_error, file_refused=bool(order.file_refused),
+                 order_unchecked=bool(order.order_unchecked))
 
 
 def failure_message(error, found):
@@ -391,7 +397,7 @@ def cmd_run(args):
     validate_args(args)
     # The names check_services resolves keep those addresses for the whole run, and the agent imported
     # is a private copy of the bytes check_agent compared: agent.py changed after the check is not run.
-    with pinned_names(), tempfile.TemporaryDirectory(prefix='agent-') as folder:
+    with rede.pinned_names(), tempfile.TemporaryDirectory(prefix='agent-') as folder:
         args.checked_agent = Path(folder) / 'agent.py'
         return checked_run(args)
 

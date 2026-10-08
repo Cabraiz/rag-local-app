@@ -1,18 +1,23 @@
 """Asks each declared server which tools it really has, when it answers: an MCP server its
 list_tools, an API its /openapi.json. A server that does not answer (offline transpile, CI)
 keeps the spec's declared list; `cli run` asks again before calling Gemini, and there every
-server has to answer."""
+server has to answer. A server that answers with something that is not JSON is a problem."""
 import asyncio
 import concurrent.futures
 import re
 
 import httpx
+import httpx2
+from mcp.shared.exceptions import MCPError
 
 from runtime import rede
 
-from .spec import load_plugins
+from .spec import TranspileError, load_plugins
 
 SECONDS = 3  # per server, all at once
+# What a server that did not answer raises: down, unknown host, not that kind of server (an MCP
+# stream that is not SSE, an HTTP error). Anything else is a defect, never "offline".
+UNANSWERED = (OSError, httpx.HTTPError, httpx2.HTTPError, MCPError)
 
 
 async def mcp_tools(url):
@@ -20,14 +25,15 @@ async def mcp_tools(url):
     from mcp import ClientSession  # the MCP SDK comes with google-adk
     from mcp.client.sse import sse_client
 
-    async with sse_client(url, timeout=SECONDS, sse_read_timeout=SECONDS) as streams, ClientSession(*streams) as session:
+    async with (sse_client(url, timeout=SECONDS, sse_read_timeout=SECONDS, httpx_client_factory=rede.mcp_client) as streams,
+                ClientSession(*streams) as session):
         await session.initialize()
         return {tool.name: tool.input_schema or {} for tool in (await session.list_tools()).tools}
 
 
 async def api_operations(url):
     """operationId -> describe_operation() for every operation of the API's OpenAPI document."""
-    async with httpx.AsyncClient(timeout=SECONDS) as client:
+    async with rede.client(timeout=SECONDS) as client:
         response = await client.get(url)
         response.raise_for_status()
     return operations(response.json())
@@ -72,14 +78,30 @@ def describe_operation(document, method, operation, shared=None):
             'body': body | {'properties': properties}}
 
 
+def unanswered(error: Exception) -> bool:
+    """Whether the error says the server did not answer, also inside the MCP SDK's error group."""
+    inner = getattr(error, 'exceptions', None)  # an ExceptionGroup
+    return all(map(unanswered, inner)) if inner is not None else isinstance(error, UNANSWERED)
+
+
 async def ask_servers(spec):
+    problems = []
+
     async def ask(name, server):
         try:
             listing = mcp_tools(server.url) if server.mcp else api_operations(server.openapi_url)
             return name, await asyncio.wait_for(listing, SECONDS * 2)
-        except Exception:  # down, unknown host, not that kind of server: None (see check_live)
-            return name, None
-    return dict(await asyncio.gather(*(ask(name, server) for name, server in spec.servers.items())))
+        except ValueError as error:  # it answered, but not with JSON (a malformed /openapi.json)
+            field, url = server.address
+            problems.append(f'servers.{name}.{field}: {url} respondeu, mas não com JSON ({type(error).__name__})')
+        except Exception as error:
+            if not unanswered(error):
+                raise
+        return name, None  # see check_live
+    live = dict(await asyncio.gather(*(ask(name, server) for name, server in spec.servers.items())))
+    if problems:
+        raise TranspileError(problems)
+    return live
 
 
 def live_tools(spec):
@@ -95,24 +117,13 @@ def live_tools(spec):
 
 
 def check_addresses(spec):
-    """Resolve each server's name once, before any request of `cli run`. ALLOWED_HOSTS allows names;
-    a name that resolves to a local or metadata address (DNS rebinding, an /etc/hosts entry) is a
-    problem (runtime/rede.py). Only a host written as that address (an IP, or localhost), and so listed
-    by itself in ALLOWED_HOSTS, may point there. Inside rede.pinned_names(), the run keeps the addresses
-    checked here, and a name that did not resolve keeps none."""
-    problems = []
-    for name, server in spec.servers.items():
-        field, url = server.address
-        resolved = rede.resolve(url)
-        if resolved is None:
-            continue
-        host, addresses = resolved
-        refused = [address for address in addresses if rede.unsafe(address)]
-        if refused:
-            problems.append(f'servers.{name}.{field}: "{host}" resolve para {", ".join(refused)}, {rede.REFUSED}')
-        elif rede.PINS is not None:
-            rede.PINS.setdefault(host, addresses)
-    return problems
+    """Resolve each server's name once, before any request of `cli run`: one at a local or metadata address
+    is a problem (runtime/rede.py). Inside rede.pinned_names(), the run keeps the addresses checked here,
+    and a name that did not resolve keeps none."""
+    fields = {server.address[1]: f'servers.{name}.{server.address[0]}' for name, server in spec.servers.items()}
+    with rede.LOCK:
+        refused = rede.pin(fields, rede.PINS if rede.PINS is not None else {})
+    return [f'{fields[url]}: "{host}" resolve para {", ".join(bad)}, {rede.REFUSED}' for url, (host, bad) in refused.items()]
 
 
 def check_live(spec, live, required=False):

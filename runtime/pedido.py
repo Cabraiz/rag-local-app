@@ -126,7 +126,7 @@ class OrderRecord:
                 if name not in PRIVATE and (value is not None or read and name in UNUSABLE)}
 
 
-RECORD_KEYS = tuple(field.name for field in fields(OrderRecord))  # never a spec's output_key (transpiler/spec.py)
+RECORD_KEYS = tuple(field.name for field in fields(OrderRecord))  # never a spec's output_key (runtime/plugin.py)
 PRIVATE = ('image_file', 'finished', 'own_key')  # never copied to the session state
 UNUSABLE = ('ocr_confidence', 'ocr_intent', 'ocr_contested')  # None once read: every exam asked at most
 KEEP_FINISHED, KEEP_EVICTED, IDLE_SECONDS = 256, 4096, 6 * 3600

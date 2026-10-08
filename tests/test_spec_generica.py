@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from google.adk.agents import LlmAgent, ParallelAgent
 from google.adk.models.base_llm import BaseLlm
@@ -22,6 +23,7 @@ from google.genai import types
 
 import cli
 import transpiler.live
+from runtime import rede
 from runtime.plugin import BookingPlugin
 from tests.test_agent_mcp import servers  # noqa: F401  (the real MCP servers, as processes)
 from tests.versionados import EXAMPLE_SPECS
@@ -59,18 +61,22 @@ def booking(spec):
     return spec['plugins'][0]['kwargs']
 
 
-@pytest.fixture
-def servers_answer(monkeypatch):
-    """The servers answer by their host, with REAL_TOOLS unless a test changes `answers`."""
-    answers = copy.deepcopy(REAL_TOOLS)
-
+def servers_answer_by_host(answers):
+    """A server's listing by the URL's host: `answers[host]`, or down when it is None."""
     async def by_host(url):
         host = re.match(r'https?://([^:/]+)', url)[1]
         if answers.get(host) is None:
             raise OSError('connection refused')
         return answers[host]
-    monkeypatch.setattr(transpiler.live, 'mcp_tools', by_host)
-    monkeypatch.setattr(transpiler.live, 'api_operations', by_host)
+    return by_host
+
+
+@pytest.fixture
+def servers_answer(monkeypatch):
+    """The servers answer by their host, with REAL_TOOLS unless a test changes `answers`."""
+    answers = copy.deepcopy(REAL_TOOLS)
+    monkeypatch.setattr(transpiler.live, 'mcp_tools', servers_answer_by_host(answers))
+    monkeypatch.setattr(transpiler.live, 'api_operations', servers_answer_by_host(answers))
     return answers
 
 
@@ -321,6 +327,7 @@ def test_the_booking_operation_takes_only_what_the_runtime_sends(tmp_path, serve
     ('get_appointment', {'blocked': 'sem papel'}, False),  # refused by the runtime: nothing was sent
     ('search_exams', {'result': []}, False),
     ('extract_exam_text', {'lines': []}, False),
+    ('set_model_response', {'exams': []}, False),  # ADK's, for an output_schema: it only sets the answer
 ])
 def test_any_tool_that_may_have_written_is_never_called_nothing_written(name, reply, called):
     found = cli.new_found()
@@ -338,8 +345,8 @@ def test_generated_code_fits_120_columns_imports_only_what_it_uses_and_keeps_eac
                 for alias in node.names}
     assert imported <= {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
     # A long instruction is written as adjacent literals: the same text as in the spec.
-    written = [ast.literal_eval(node.args[0]) for node in ast.walk(tree)
-               if isinstance(node, ast.Call) and getattr(node.func, 'id', None) == 'guarded']
+    written = [ast.literal_eval(keyword.value) for node in ast.walk(tree) if isinstance(node, ast.Call)
+               for keyword in node.keywords if keyword.arg == 'instruction']
     assert written == [agent.instruction for agent in spec.agents]
 
 # --- tools checked on the servers that answer -----------------------------------------------------
@@ -347,6 +354,27 @@ def test_generated_code_fits_120_columns_imports_only_what_it_uses_and_keeps_eac
 def test_transpile_checks_the_tools_on_the_servers_that_answer(tmp_path, servers_answer, capsys):
     assert cli.main(['transpile', str(SPECS / 'agent.json'), '--output', str(tmp_path / 'agent.py')]) == 0
     assert capsys.readouterr().out.splitlines()[-1] == 'Ferramentas conferidas nos servidores: ocr, rag, api'
+
+
+def test_a_malformed_openapi_is_reported_as_malformed_not_as_a_server_offline(monkeypatch):
+    # The API answers its GET, but not with JSON: the transpile stops, it does not go on with the declared list.
+    monkeypatch.setattr(rede, 'Pinned', lambda: httpx.MockTransport(lambda request: httpx.Response(200, text='<html>')))
+    monkeypatch.setattr(transpiler.live, 'mcp_tools', lambda url: asyncio.sleep(0, REAL_TOOLS['ocr' if 'ocr' in url else 'rag']))
+    with pytest.raises(TranspileError) as error:
+        live_tools(parse_spec(json.dumps(SPEC)))
+    assert error.value.problems == ['servers.api.openapi_url: http://api:8000/openapi.json respondeu, mas não com JSON '
+                                    '(JSONDecodeError)']
+
+
+def test_a_defect_while_asking_a_server_is_not_taken_for_a_server_offline(servers_answer, monkeypatch):
+    async def defect(url):
+        raise KeyError('a bug, not the network')
+    monkeypatch.setattr(transpiler.live, 'api_operations', defect)
+    with pytest.raises(KeyError, match='a bug'):
+        live_tools(parse_spec(json.dumps(SPEC)))
+    servers_answer['api'] = None  # a server that is down still keeps the declared list
+    monkeypatch.setattr(transpiler.live, 'api_operations', servers_answer_by_host(servers_answer))
+    assert live_tools(parse_spec(json.dumps(SPEC)))['api'] is None
 
 
 @pytest.mark.parametrize('change, answers, expected', [
@@ -387,24 +415,12 @@ def test_cli_run_asks_the_servers_again_before_calling_gemini(tmp_path, servers_
         raise AssertionError('Gemini called with a tool the server does not have')
 
     monkeypatch.setenv('GOOGLE_API_KEY', 'not-used')
-    monkeypatch.setattr(cli.httpx, 'stream', lambda *args, **kwargs: FakeStream())
+    monkeypatch.setattr(cli, 'answers', lambda url: None)  # each service answers its GET
     monkeypatch.setattr(cli, 'run_agent', must_not_run)
     argv = ['run', '--image', 'pedido.png', '--spec', str(tmp_path / 'spec.json'), '--agent', str(tmp_path / 'agent.py')]
     assert cli.main(argv) == 2
     assert capsys.readouterr().err == \
         'Erro: servers.rag.tools: "search_exam" não existe neste servidor (use search_exams)\n'
-
-
-class FakeStream:
-    """httpx.stream of a healthy service."""
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
-
-    def raise_for_status(self):
-        return None
 
 
 # The real servers on the spec's ports (test_agent_mcp's fixture): same pytest-xdist worker as that module.
@@ -491,9 +507,10 @@ def scripted(spec_file, tmp_path, turns):
 
 READ = [('extract_exam_text', {'filename': 'pedido-1.png'})]
 SEARCH = [('search_exams', {'query': query}) for query in ('IgA', 'Creatinina', 'TSH')]
-LISTED = json.dumps([{'code': 'FICT-079', 'name': 'IgA'}, {'code': 'FICT-005', 'name': 'Creatinina'},
-                     {'code': 'FICT-999', 'name': 'Inventado'}])  # TSH left out, one code invented
-LISTING_TURNS = {'ler': [READ, 'IgA\nCreatinina\nTSH'], 'listar': [SEARCH, f'```json\n{LISTED}\n```']}
+LISTED = {'exams': [{'code': 'FICT-079', 'name': 'IgA'}, {'code': 'FICT-005', 'name': 'Creatinina'},
+                    {'code': 'FICT-999', 'name': 'Inventado'}]}  # TSH left out, one code invented
+# The listing step's answer, through ADK's tool for an output_schema (ListedExams), as Gemini gives it.
+LISTING_TURNS = {'ler': [READ, 'IgA\nCreatinina\nTSH'], 'listar': [SEARCH, [('set_model_response', LISTED)]]}
 
 
 def run(app, spec_file):
@@ -578,10 +595,24 @@ def test_the_generic_example_is_one_llm_agent_with_one_mcp_toolset_and_no_plugin
     [toolset] = app.root_agent.tools
     assert type(toolset).__name__ == 'McpToolset' and toolset.tool_filter == ['search_docs']
     assert app.root_agent.output_key == 'answer' and app.name == 'docs_assistant'
-    assert app.root_agent.instruction.startswith('Regra fixa:')  # the fixed rule is not a booking rule
+    # The spec's instruction as written: the booking plugin's rule on what an order says is not put before it.
+    assert app.root_agent.instruction == load_spec(GENERIC).agents[0].instruction
     # Nothing of the booking domain is written in it: no word, no callback, no plugin.
     source = (tmp_path / 'agent.py').read_text(encoding='utf-8')
     assert not BOOKING_WORDS.findall(source), BOOKING_WORDS.findall(source)
+
+
+GENERIC_MODULES = "['runtime', 'runtime.adk', 'runtime.rede']"  # the runtime's generic part, nothing of booking
+
+
+def loaded_after(code):
+    """The runtime, catalog, OCR contract and CLI modules a fresh interpreter has loaded after `code`."""
+    check = (f'import sys; sys.path.insert(0, "."); {code}; print(sorted(name for name in sys.modules'
+             ' if name.split(".")[0] in ("runtime", "catalogo", "leitura", "cli")))')
+    done = subprocess.run([sys.executable, '-c', check], cwd=ROOT, capture_output=True, text=True, timeout=120,
+                          env=os.environ | {'PYTHONWARNINGS': 'ignore'})
+    assert done.returncode == 0, done.stderr
+    return done.stdout.strip()
 
 
 def test_the_generic_example_imports_without_the_runtimes_booking_code(tmp_path, monkeypatch):
@@ -589,15 +620,25 @@ def test_the_generic_example_imports_without_the_runtimes_booking_code(tmp_path,
     # booking policy (callbacks, confidence, the order's record, the plugin) nor the catalog.
     monkeypatch.setenv('ALLOWED_HOSTS', WITH_DOCS)
     transpile(GENERIC, tmp_path / 'agent.py')
-    check = ('import importlib.util, sys; sys.path.insert(0, ".");'
-             f'spec = importlib.util.spec_from_file_location("agent", {str(tmp_path / "agent.py")!r});'
-             'module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module);'
-             'print(module.app.root_agent.name, sorted(name for name in sys.modules'
-             ' if name.split(".")[0] in ("runtime", "catalogo", "transpiler", "cli")))')
-    done = subprocess.run([sys.executable, '-c', check], cwd=ROOT, capture_output=True, text=True, timeout=120,
-                          env=os.environ | {'PYTHONWARNINGS': 'ignore'})
-    assert done.returncode == 0, done.stderr
-    assert done.stdout.split(' ', 1) == ['answer', "['runtime', 'runtime.adk', 'runtime.rede']\n"]
+    assert loaded_after('import importlib.util;'
+                        f'spec = importlib.util.spec_from_file_location("agent", {str(tmp_path / "agent.py")!r});'
+                        'spec.loader.exec_module(importlib.util.module_from_spec(spec))') == GENERIC_MODULES
+
+
+def test_transpiling_the_generic_example_loads_no_booking_code(tmp_path, monkeypatch):
+    # The transpiler imports nothing of the booking domain: only a spec that declares the plugin loads it.
+    monkeypatch.setenv('ALLOWED_HOSTS', WITH_DOCS)
+    assert loaded_after(f'import transpiler; transpiler.transpile({str(GENERIC)!r}, {str(tmp_path / "agent.py")!r})'
+                        ) == GENERIC_MODULES
+    assert 'runtime.plugin' in loaded_after(f'import transpiler; transpiler.load_spec({str(LISTING)!r})')
+
+
+def test_a_spec_without_the_booking_plugin_may_name_an_output_key_after_its_record():
+    # The keys of the order's copy in the session state are the plugin's to reserve, not the transpiler's.
+    spec = json.loads(GENERIC.read_text(encoding='utf-8'))
+    spec['agents'][0]['output_key'] = 'candidates'
+    spec['servers']['docs']['url'] = 'http://ocr:8001/sse'
+    assert parse_spec(json.dumps(spec)).agents[0].output_key == 'candidates'
 
 
 def two_agents(workflow, **more):

@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 
 from mcp_servers import rag
-from runtime import BookingPolicy
+from runtime.confianca import BookingPolicy
 
 ROOT = Path(__file__).resolve().parents[1]
 QUERIES = [json.loads(line) for line in (ROOT / 'tests/calibration/queries.jsonl').read_text(encoding='utf-8').splitlines()]

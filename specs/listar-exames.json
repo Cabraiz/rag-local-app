@@ -15,8 +15,9 @@
     },
     {
       "name": "listar",
-      "instruction": "Para cada exame da lista abaixo, chame search_exams com o nome do exame como foi lido, sem corrigir e sem marcadores ou conectivos (como \"-\" ou \"e\"), e fique com o resultado de maior score. Responda somente com JSON: uma lista de objetos {\"code\": ..., \"name\": ...}, sem texto extra. Omita exames sem resultado.\nExames:\n{exames_lidos}",
+      "instruction": "Para cada exame da lista abaixo, chame search_exams com o nome do exame como foi lido, sem corrigir e sem marcadores ou conectivos (como \"-\" ou \"e\"), e fique com o resultado de maior score. Responda com os exames encontrados, cada um com o code e o name desse resultado. Omita exames sem resultado.\nExames:\n{exames_lidos?}",
       "output_key": "exames_listados",
+      "output_schema": "runtime.plugin.ListedExams",
       "tools": ["rag.search_exams"]
     }
   ],

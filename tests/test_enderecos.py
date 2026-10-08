@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import httpx
+import httpx2
 import pytest
 from google.adk.tools.mcp_tool.mcp_session_manager import SseConnectionParams
 
@@ -18,7 +19,7 @@ import cli
 import runtime
 import transpiler.live
 from runtime import rede
-from tests.test_spec_generica import REAL_TOOLS, SPEC, VARIANT, FakeStream, servers_answer, spec_with  # noqa: F401
+from tests.test_spec_generica import REAL_TOOLS, SPEC, VARIANT, servers_answer, spec_with  # noqa: F401
 from transpiler import TranspileError, load_root_agent, parse_spec, transpile
 from transpiler.live import live_tools
 
@@ -171,7 +172,7 @@ def test_cli_run_stops_when_a_server_answers_but_lists_nothing(tmp_path, servers
 
     monkeypatch.setattr(socket, 'getaddrinfo', resolver(COMPOSE_DNS))
     monkeypatch.setenv('GOOGLE_API_KEY', 'not-used')
-    monkeypatch.setattr(cli.httpx, 'stream', lambda *args, **kwargs: FakeStream())
+    monkeypatch.setattr(cli, 'answers', lambda url: None)  # each service answers its GET
     monkeypatch.setattr(cli, 'run_agent', must_not_run)
     assert cli.main(['run', '--image', 'pedido.png', '--agent', str(agent)]) == 2
     assert capsys.readouterr().err == f'Erro: {expected}\n'
@@ -286,7 +287,7 @@ def test_cli_run_stops_when_an_allowed_name_resolves_to_a_local_address(tmp_path
 
     monkeypatch.setattr(socket, 'getaddrinfo', resolver({'clinica.exemplo': [address], 'ocr': ['10.0.0.5'], 'rag': ['10.0.0.6']}))
     monkeypatch.setenv('GOOGLE_API_KEY', 'not-used')
-    monkeypatch.setattr(cli.httpx, 'stream', must_not_run)
+    monkeypatch.setattr(cli, 'answers', must_not_run)
     monkeypatch.setattr(cli, 'run_agent', must_not_run)
     argv = ['run', '--image', 'pedido.png', '--spec', str(tmp_path / 'spec.json'), '--agent', str(tmp_path / 'agent.py')]
     assert cli.main(argv) == 2
@@ -311,10 +312,9 @@ def test_a_name_that_does_not_resolve_keeps_no_address_for_the_whole_run(monkeyp
     with rede.pinned_names() as pins:
         assert transpiler.live.check_addresses(parse_spec(json.dumps(SPEC))) == []
         assert pins['rag'] == []
-        with pytest.raises(socket.gaierror, match='"rag" não resolveu no início da execução'):
-            socket.getaddrinfo('rag', 8002, type=socket.SOCK_STREAM)  # the DNS now answers 127.0.0.1
-        with pytest.raises(httpx.ConnectError):  # what the GET of check_services sees: "fora do ar"
-            httpx.get('http://rag:8002/sse', timeout=1)
+        # The DNS now answers 127.0.0.1: what the GET of check_services sees is "fora do ar".
+        with pytest.raises(httpx.ConnectError, match='"rag" não resolveu no início da execução'):
+            cli.answers('http://rag:8002/sse')
 
 
 def test_a_host_written_as_the_address_is_not_resolved(monkeypatch):
@@ -332,7 +332,7 @@ def test_a_host_written_as_the_address_is_not_resolved(monkeypatch):
     assert transpiler.live.check_addresses(spec) == []
 
 
-def test_the_run_keeps_the_address_it_checked_when_the_dns_answer_changes(monkeypatch):
+def test_the_run_keeps_the_address_it_checked_when_the_dns_answer_changes(monkeypatch, new_process):
     monkeypatch.setenv('ALLOWED_HOSTS', 'ocr:8001,rag:8002,clinica.exemplo:8443')
     spec = parse_spec(spec_with(lambda s: s['servers']['api'].update(openapi_url='https://clinica.exemplo:8443/openapi.json')))
     rebinding = resolver({'clinica.exemplo': ['10.0.0.7', '127.0.0.1'], 'ocr': ['10.0.0.5'], 'rag': ['10.0.0.6']})
@@ -340,8 +340,54 @@ def test_the_run_keeps_the_address_it_checked_when_the_dns_answer_changes(monkey
     with rede.pinned_names() as pins:
         assert transpiler.live.check_addresses(spec) == []
         assert pins == {'ocr': ['10.0.0.5'], 'rag': ['10.0.0.6'], 'clinica.exemplo': ['10.0.0.7']}
-        # The DNS now answers 127.0.0.1; every client of the run still gets the address checked.
-        assert [info[4] for info in socket.getaddrinfo('CLINICA.exemplo', 443, type=socket.SOCK_STREAM)] == [('10.0.0.7', 443)]
-        assert [info[4][0] for info in socket.getaddrinfo(b'clinica.exemplo', 8443, type=socket.SOCK_STREAM)] == ['10.0.0.7']
-    assert socket.getaddrinfo is rebinding  # restored after the run
-    assert [info[4][0] for info in socket.getaddrinfo('clinica.exemplo', 443)] == ['127.0.0.1']
+        # The DNS now answers 127.0.0.1; every client of the run still goes to the address checked, under
+        # the name it was given (the Host header and TLS).
+        for client in (httpx, httpx2):
+            sent = rede.pinned(client.Request('GET', 'https://CLINICA.exemplo:8443/openapi.json'), client.ConnectError)
+            assert (str(sent.url), sent.headers['host']) == ('https://10.0.0.7:8443/openapi.json', 'clinica.exemplo:8443')
+            assert sent.extensions['sni_hostname'] == 'clinica.exemplo'
+    assert rede.PINS is None and socket.getaddrinfo is rebinding  # nothing pinned after the run, and no resolver replaced
+    request = httpx.Request('GET', 'https://clinica.exemplo:8443/openapi.json')
+    assert rede.pinned(request, httpx.ConnectError) is request
+
+
+class HostRecorder(BaseHTTPRequestHandler):
+    hosts: list[str] = []
+
+    def do_GET(self):  # noqa: N802 (http.server's name)
+        type(self).hosts.append(self.headers['Host'])
+        self.send_response(204)
+        self.end_headers()
+
+    def log_message(self, *args):
+        pass
+
+
+def test_the_runtimes_clients_connect_to_the_pinned_address_without_asking_the_dns(monkeypatch):
+    server = ThreadingHTTPServer(('127.0.0.1', 0), HostRecorder)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    url = f'http://servico.exemplo:{server.server_port}/sse'
+
+    real = socket.getaddrinfo
+
+    def no_dns(host, *args, **kwargs):  # an address is still "resolved" by the socket, without any DNS
+        assert host not in ('servico.exemplo', b'servico.exemplo'), 'a pinned name was resolved again'
+        return real(host, *args, **kwargs)
+    monkeypatch.setattr(socket, 'getaddrinfo', no_dns)
+
+    async def mcp_get():
+        async with rede.mcp_client() as client:
+            return (await client.get(url)).status_code
+
+    async def api_get():
+        async with rede.client() as client:
+            return (await client.get(url)).status_code
+    try:
+        with rede.pinned_names() as pins:
+            pins['servico.exemplo'] = ['127.0.0.1']  # as check_addresses keeps it
+            assert asyncio.run(mcp_get()) == asyncio.run(api_get()) == 204
+            cli.answers(url)
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert HostRecorder.hosts == [f'servico.exemplo:{server.server_port}'] * 3

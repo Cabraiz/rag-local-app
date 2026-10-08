@@ -13,7 +13,7 @@ import pytest
 
 from leitura import VERSION
 from mcp_servers import ocr, rag
-from runtime import BookingCallbacks
+from runtime.callbacks import BookingCallbacks
 from runtime.confianca import FREE_TEXT
 
 PAGE = ['CLINICA EXEMPLO - PEDIDO MEDICO', 'Paciente: Maria Aparecida Souza', 'CPF: 123.456.789-09',

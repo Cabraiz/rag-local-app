@@ -12,6 +12,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from runtime import rede
 from tests.test_api import api_module, client, configure  # noqa: F401 (fixture)
 from tests.test_transpiler import (  # noqa: F401 (ready_run is a fixture)
     SPEC_FILE,
@@ -178,11 +179,10 @@ def test_the_key_is_documented_and_the_agent_still_reads_the_contract(client, tm
     assert header['name'] == 'Idempotency-Key' and header['in'] == 'header' and not header.get('required')
     assert header['description'] and '409' in post['responses']
     # The generated agent's OpenAPIToolset, fed this API's real /openapi.json.
-    real_client = httpx.AsyncClient
     def serve(request):
         return httpx.Response(200, json=schema)
 
-    monkeypatch.setattr(httpx, 'AsyncClient', lambda **kw: real_client(transport=httpx.MockTransport(serve), **kw))
+    monkeypatch.setattr(rede, 'Pinned', lambda: httpx.MockTransport(serve))  # the transport of the runtime's clients
     toolset = transpile(SPEC_FILE, tmp_path / 'agent.py').sub_agents[2].tools[0]
     [tool] = asyncio.run(toolset.get_tools())
     parameters = tool._get_declaration().parameters_json_schema

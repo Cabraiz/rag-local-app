@@ -24,7 +24,7 @@ from PIL import Image
 import cli
 from mcp_servers import ocr, rag
 from mcp_servers.arguments import KEEP_ALIVE_SECONDS
-from runtime import BookingCallbacks
+from runtime.callbacks import BookingCallbacks
 from transpiler import TranspileError, load_root_agent, parse_spec, transpile
 from transpiler.live import mcp_tools
 

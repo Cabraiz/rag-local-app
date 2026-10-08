@@ -21,7 +21,8 @@ from google.adk.tools.tool_confirmation import ToolConfirmation
 from google.genai import types
 
 import tests.test_adk_run as adk
-from runtime import BookingCallbacks, pedido, rede
+from runtime import pedido, rede
+from runtime.callbacks import BookingCallbacks
 from runtime.pedido import Candidate, OrderRecord
 from tests.test_adk_run import adk_run, agent_folder  # noqa: F401  (fixtures)
 from tests.test_alucinacao import IMAGE, NAMED, PORTS, appointment, services, stored_ids  # noqa: F401

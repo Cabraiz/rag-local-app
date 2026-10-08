@@ -3,16 +3,22 @@ of an image before the first model turn, and the catalog search of every line re
 before the [s/N] question and after the run (runtime/reconcilia.py). No model sees either."""
 import asyncio
 from collections.abc import Iterable
+from typing import Any
 
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 
+from . import rede
 from .confianca import BookingPolicy
 from .pedido import Item, OrderRecord
 from .reconcilia import order_lines, unreported
 
 IMAGE_CHECK = 'check_image'  # the OCR server's check of a file without the OCR; no spec, so no agent, has it
 SEARCHES_AT_ONCE, CHECK_SECONDS = 8, 30  # the check of the whole order: searches in flight, and its limit
+
+
+def connected(url: str) -> Any:  # an MCP session's streams, at the address checked for the server's name
+    return sse_client(url, timeout=5, sse_read_timeout=CHECK_SECONDS, httpx_client_factory=rede.mcp_client)
 
 
 def tool_error(texts: Iterable[str], tool: str) -> str:
@@ -24,7 +30,7 @@ async def image_problem(url: str, filename: str) -> str | None:
     """Why the reading server refuses the file (missing, too large, not the format its name says,
     corrupt, a photo it would barely read), or None. A server without IMAGE_CHECK (another spec's
     reader) leaves the file to the run. Raises when the server does not answer."""
-    async with sse_client(url, timeout=5, sse_read_timeout=CHECK_SECONDS) as streams, ClientSession(*streams) as session:
+    async with connected(url) as streams, ClientSession(*streams) as session:
         await session.initialize()
         if IMAGE_CHECK not in [tool.name for tool in (await session.list_tools()).tools]:
             return None
@@ -37,7 +43,7 @@ async def search_lines(url: str, tool: str, texts: list[str], top_k: int) -> dic
     line into its exams and tags each hit with its piece. The searches share one session and run at
     once, a few at a time."""
     limit = asyncio.Semaphore(SEARCHES_AT_ONCE)
-    async with sse_client(url, timeout=5, sse_read_timeout=CHECK_SECONDS) as streams, ClientSession(*streams) as session:
+    async with connected(url) as streams, ClientSession(*streams) as session:
         await session.initialize()
 
         async def search(text: str) -> tuple[str, list[object]]:
