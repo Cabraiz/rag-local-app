@@ -1,5 +1,6 @@
 """The agent image runs the CLI only; the test tools and the tests live in the `test` stage."""
 import re
+from importlib import metadata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +24,10 @@ def pins(name):
     return dict(re.findall(r'^([A-Za-z0-9_.-]+)==(\S+)$', (ROOT / name).read_text(encoding='utf-8'), re.M))
 
 
+def normalized(name):
+    return re.sub(r'[-_.]+', '-', name).lower()
+
+
 def test_the_agent_stage_has_no_test_tools_tests_or_ocr_engine():
     base, agent = stages()['agent']
     assert base == 'base'  # not the Tesseract stage
@@ -42,3 +47,23 @@ def test_runtime_and_dev_requirements_are_split_and_pinned():
     assert not set(DEV_TOOLS) & set(runtime)
     assert set(dev) == set(DEV_TOOLS)
     assert (ROOT / 'requirements-dev.txt').read_text(encoding='utf-8').count('-c requirements.txt') == 1
+
+
+def test_every_stage_installs_with_the_pins_of_the_transitive_dependencies():
+    for stage, (_, instructions) in stages().items():
+        installs = re.findall(r'pip install .*', instructions)
+        assert all('-c constraints.txt' in line for line in installs), stage
+    assert 'COPY requirements.txt constraints.txt ./' in stages()['base'][1]
+
+
+def test_every_package_of_the_test_image_is_pinned_once_at_its_installed_version():
+    """The test image has every runtime dependency: what pip installed there is exactly what the three files pin,
+    and constraints.txt repeats no direct pin (a bump in requirements*.txt would then conflict with itself)."""
+    direct = {normalized(name) for name in [*pins('requirements.txt'), *pins('requirements-dev.txt')]}
+    transitive = {normalized(name): version for name, version in pins('constraints.txt').items()}
+    assert transitive and not direct & set(transitive)
+    pinned = {normalized(name): version for name, version in
+              [*pins('requirements.txt').items(), *pins('requirements-dev.txt').items(), *pins('constraints.txt').items()]}
+    installed = {normalized(dist.metadata['Name']): dist.version for dist in metadata.distributions()}
+    installed = {name: version for name, version in installed.items() if name not in ('pip', 'setuptools', 'wheel')}
+    assert installed == pinned

@@ -1,15 +1,15 @@
-# One Dockerfile, one lean stage per role. requirements.txt is the single source of
-# versions: each stage installs only what it needs, pinned with `-c requirements.txt`.
+# One Dockerfile, one lean stage per role. requirements.txt pins the direct dependencies and
+# constraints.txt everything they pull in: each stage installs only what it needs, pinned with both.
 # The base image is pinned by digest (the multi-platform index of python:3.12-slim): a moved tag changes nothing.
 FROM python:3.12-slim@sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f AS base
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app
 WORKDIR /app
-COPY requirements.txt .
+COPY requirements.txt constraints.txt ./
 RUN useradd --uid 10001 --create-home app
 
 # Scheduling API: FastAPI + SQLite (stored in the /state volume).
 FROM base AS api
-RUN pip install --no-cache-dir -c requirements.txt fastapi uvicorn pydantic cryptography \
+RUN pip install --no-cache-dir -c requirements.txt -c constraints.txt fastapi uvicorn pydantic cryptography \
     && mkdir /state /keys && chown app:app /state /keys
 COPY --chown=app:app api api
 COPY --chown=app:app data data
@@ -19,7 +19,7 @@ CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--timeou
 
 # RAG MCP server: search over the exam catalog, no OCR engine.
 FROM base AS rag
-RUN pip install --no-cache-dir -c requirements.txt mcp
+RUN pip install --no-cache-dir -c requirements.txt -c constraints.txt mcp
 COPY --chown=app:app catalogo.py catalogo.py
 COPY --chown=app:app mcp_servers mcp_servers
 COPY --chown=app:app data data
@@ -34,7 +34,7 @@ RUN apt-get update \
 
 # OCR MCP server: Tesseract + PII masking before anything leaves the container.
 FROM tesseract AS ocr
-RUN pip install --no-cache-dir -c requirements.txt mcp pillow pytesseract
+RUN pip install --no-cache-dir -c requirements.txt -c constraints.txt mcp pillow pytesseract
 COPY --chown=app:app catalogo.py catalogo.py
 COPY --chown=app:app mcp_servers mcp_servers
 COPY --chown=app:app guardrails guardrails
@@ -47,7 +47,7 @@ CMD ["python", "-m", "mcp_servers.ocr"]
 FROM base AS agent
 # ADK's telemetry off: `adk run` and `adk web` ask "Enable telemetry? [Y/n]" (Enter says yes) until
 # ~/.adk/config.json answers, and the read-only container cannot save the answer. No env var turns it off.
-RUN pip install --no-cache-dir -c requirements.txt google-adk google-genai mcp httpx \
+RUN pip install --no-cache-dir -c requirements.txt -c constraints.txt google-adk google-genai mcp httpx \
     && mkdir /app/generated /home/app/.adk && chown app:app /app/generated \
     && printf '{"telemetry": false}\n' > /home/app/.adk/config.json
 COPY --chown=app:app cli.py catalogo.py ./
@@ -67,7 +67,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por \
     && rm -rf /var/lib/apt/lists/*
 COPY requirements-dev.txt .
-RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt -c constraints.txt
 COPY --chown=app:app . .
 USER app
 CMD ["pytest", "-q"]
