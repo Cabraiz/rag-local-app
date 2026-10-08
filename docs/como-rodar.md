@@ -1,7 +1,7 @@
 # Como rodar: guia completo
 
 O resumo e os 4 comandos estão no [README](../README.md#rodar-em-4-comandos). Este guia traz os
-pré-requisitos, as variações e o que fazer quando algo falha. Este repositório é só o desafio, com um
+pré-requisitos, as variações e o que fazer quando algo falha. Este repositório contém só este estudo, com um
 `Dockerfile` e um `docker-compose.yml` na raiz.
 
 ## Pré-requisitos

@@ -1,5 +1,5 @@
-# Challenge CI at the repository root (.github/workflows/challenge.yml).
-name: challenge
+# CI at the repository root (.github/workflows/ci.yml).
+name: ci
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: challenge-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

@@ -2,7 +2,9 @@
 
 Do pedido médico em foto ao agendamento confirmado. Um JSON descreve o agente, e o transpilador gera o código Google ADK que lê o pedido (OCR via MCP), acha os códigos dos exames (RAG via MCP), mascara os dados pessoais e agenda numa API FastAPI, tudo em Docker Compose.
 
-[![CI](https://github.com/Cabraiz/rag-local-app/actions/workflows/challenge.yml/badge.svg)](https://github.com/Cabraiz/rag-local-app/actions/workflows/challenge.yml) ![Python 3.12](https://img.shields.io/badge/python-3.12-blue) ![Google ADK 2.10](https://img.shields.io/badge/Google%20ADK-2.10-4285F4) ![MCP SSE](https://img.shields.io/badge/MCP-SSE-6E56CF) ![Docker Compose](https://img.shields.io/badge/docker-compose-2496ED)
+É um projeto de estudo, pensado para servir de base a outros agentes Google ADK com MCP.
+
+[![CI](https://github.com/Cabraiz/rag-local-app/actions/workflows/ci.yml/badge.svg)](https://github.com/Cabraiz/rag-local-app/actions/workflows/ci.yml) ![Python 3.12](https://img.shields.io/badge/python-3.12-blue) ![Google ADK 2.10](https://img.shields.io/badge/Google%20ADK-2.10-4285F4) ![MCP SSE](https://img.shields.io/badge/MCP-SSE-6E56CF) ![Docker Compose](https://img.shields.io/badge/docker-compose-2496ED)
 
 ### Rodar em 4 comandos
 **Requer** Docker com Compose ≥ 2.1.1 e uma [chave Gemini](https://aistudio.google.com/apikey) (a gratuita serve: os dados são fictícios). Rode dentro do clone (`git clone https://github.com/Cabraiz/rag-local-app`), em PowerShell ou Git Bash. A API usa a porta 8765. Se algo falhar: [guia completo](docs/como-rodar.md#quando-algo-falha).
@@ -20,10 +22,10 @@ docker compose run --rm agent python -m cli run --image pedido.png       # image
 
 https://github.com/user-attachments/assets/2bf4ca61-0f7f-42d9-a174-16b3377d8f16
 
-<sub>Todos os pontos do desafio em um vídeo, gravado numa execução real ([mp4](docs/videos-do-desafio/00-desafio-completo.mp4)).</sub>
+<sub>O fluxo completo em um vídeo, gravado numa execução real ([mp4](docs/gravacoes/00-visao-geral.mp4)).</sub>
 
-### Onde está cada requisito
-| Requisito do enunciado | Onde | Prova |
+### O que o sistema cobre
+| Escopo do estudo | Onde | Prova |
 |---|---|---|
 | Transpilador: JSON → Python que instancia agentes só com o Google ADK | [`transpiler/`](transpiler/), [`runtime/`](runtime/), [4 specs](specs/) | [vídeo 01](docs/videos.md#01-transpilador) · [testes](tests/test_transpiler.py) · [specs diferentes](tests/test_spec_generica.py) · [com `adk run`](tests/test_adk_run.py) · [doc](docs/transpilador.md) |
 | Valida inputs, erros claros, código gerado executável e nas boas práticas do ADK | [`transpiler/spec.py`](transpiler/spec.py), [`transpiler/live.py`](transpiler/live.py), [`transpiler/generator.py`](transpiler/generator.py) | [erros reais](docs/transpilador.md#validação-e-mensagens-de-erro) · [código gerado](docs/exemplo-agent.py) |
@@ -34,7 +36,7 @@ https://github.com/user-attachments/assets/2bf4ca61-0f7f-42d9-a174-16b3377d8f16
 | Só dados fictícios | [`data/exams.json`](data/exams.json) (`FICT-xxx`), [`samples/`](samples/), [`tests/load/pedidos.py`](tests/load/pedidos.py) | e-mails `.invalid` (RFC 2606), CPFs com dígito verificador errado ([como](docs/medicoes.md#dados-sensíveis-como-contornamos)) |
 | PII mascarada antes do LLM e da persistência | [`guardrails/pii.py`](guardrails/pii.py), [`guardrails/injection.py`](guardrails/injection.py), [`guardrails/intent.py`](guardrails/intent.py) | vídeos [06](docs/videos.md#06-pii) e [08](docs/videos.md#08-segurança) · [PII](tests/test_pii.py) · [negação](tests/test_negacao.py) · [onde](docs/arquitetura.md#onde-a-pii-é-mascarada) · [carga](docs/medicoes.md#carga-de-dados-sensíveis) |
 | Tudo em Docker, orquestrado por um `docker-compose.yml` | [`Dockerfile`](Dockerfile) (multi-stage), [`docker-compose.yml`](docker-compose.yml) | [vídeo 07](docs/videos.md#07-docker-e-testes) · [testes](docs/como-rodar.md#testes) |
-| README, evidências e uso de IA | este arquivo, [`docs/evidencias/`](docs/evidencias/), [`docs/videos-do-desafio/`](docs/videos-do-desafio/) | [guia completo](docs/como-rodar.md) · [Evidências](#evidências) · [Uso de IA](#uso-de-ia) |
+| README, evidências e uso de IA | este arquivo, [`docs/evidencias/`](docs/evidencias/), [`docs/gravacoes/`](docs/gravacoes/) | [guia completo](docs/como-rodar.md) · [Evidências](#evidências) · [Uso de IA](#uso-de-ia) |
 
 ## Limites conhecidos
 
@@ -76,7 +78,7 @@ Cada uma: escolha → por quê → custo.
 - **Busca lexical (palavras em comum + `difflib`), sem embeddings.** Por quê: a base tem 120 exames fictícios, a busca é determinística e explicável (cada resultado diz o termo que deu o score), e a semântica, medida, não agendou nenhum exame a mais. Custo: não entende paráfrases ([medição](docs/medicoes.md#busca-semântica-avaliada-não-adotada)).
 - **Filtros determinísticos dentro do OCR, antes de qualquer modelo.** A máscara deixa sair só o que parece exame, e a injeção é tirada da linha. Por quê: a falha fica local, reproduzível e testável, sem depender do prompt. Custo: manter regras, mitigado por corpora de regressão (3.600 casos gerados de PII, 790 ataques).
 - **PII mascarada na origem, banco sem PII.** Nome, CPF, telefone, e-mail e mais 10 tipos viram `[NOME]`, `[CPF]`… no container do OCR; a API só aceita código e nome de exame, grava o nome do catálogo e cifra a lista (AES-256-GCM). Por quê: o LLM recebe o texto já mascarado, nunca a imagem, e o banco não depende da máscara; o que a regra não reconhece (um nome escrito de um jeito não testado) pode chegar ao modelo. Custo: detecção por regras, válida para os formatos testados ([camadas](docs/arquitetura.md#segurança-em-detalhe)).
-- **MCP só via SSE, rede interna, containers endurecidos.** OCR e RAG não têm internet nem porta no host; containers sem root, somente leitura e sem capabilities; só a API publica porta, em `127.0.0.1`. Por quê: o enunciado pede SSE, e cada serviço só tem o que usa. Custo: a especificação 2025-03-26 do MCP trocou o SSE pelo Streamable HTTP; mudar é trocar a conexão no template e o `run` dos servidores.
+- **MCP só via SSE, rede interna, containers endurecidos.** OCR e RAG não têm internet nem porta no host; containers sem root, somente leitura e sem capabilities; só a API publica porta, em `127.0.0.1`. Por quê: o escopo do estudo fixa SSE, e cada serviço só tem o que usa. Custo: a especificação 2025-03-26 do MCP trocou o SSE pelo Streamable HTTP; mudar é trocar a conexão no template e o `run` dos servidores.
 - **Transpilador estrito, com ferramentas conferidas ao vivo.** Pydantic com campos extras proibidos e tipos estritos, valores da spec entram por `repr()`, o arquivo é compilado e importado antes do OK, e cada servidor que responde confirma as ferramentas (um servidor fora do ar no `transpile` só é conferido no `run`). Por quê: o erro aparece no `transpile`, com campo e motivo, não no meio de um agendamento. Custo: a spec descreve agentes em sequência com as ferramentas permitidas, não qualquer agente ([validação](docs/transpilador.md#validação-e-mensagens-de-erro)).
 - **Biblioteca de runtime versionada, não a política copiada em cada arquivo.** O `agent.py` (cerca de 120 linhas) só declara os agentes e confere `API_VERSION` ao importar. Por quê: a regra é testada uma vez, para toda spec. Custo: o arquivo gerado depende de `runtime/` ([decisão](docs/arquitetura.md#decisões-técnicas-em-detalhe)).
 - **Pedido em papel, em produção: receita estruturada primeiro; no papel, um leitor de visão que só propõe.** Para letra de médico, um modelo de visão em GPU local, ou em nuvem sob contrato de operador de dados (dado de saúde é sensível na LGPD), aceito só quando a transcrição livre e a escolha no catálogo concordam; o que não é certo vai para uma pessoa conferir. Por quê: o leitor local medido em CPU aceitou 24% da letra de médico simulada sem errar, mas nenhum exame da foto real, e a escolha no catálogo sozinha aceitou 71 errados. Custo: GPU ou contrato, e revisão humana dos pedidos duvidosos ([medição](docs/medicoes.md#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão)).
@@ -84,7 +86,7 @@ Cada uma: escolha → por quê → custo.
 
 ## Evidências
 
-Execução real com `gemini-3.5-flash`. Vídeos 00 a 12: [miniaturas](docs/videos-do-desafio/README.md) · [players](docs/videos.md).
+Execução real com `gemini-3.5-flash`. Vídeos 00 a 12: [miniaturas](docs/gravacoes/README.md) · [players](docs/videos.md).
 
 - **Logs:** [`run` com `pedido.png`](docs/evidencias/log-run-pedido.txt) (com a linha `Tempo:`) · [alucinação com o Gemini real](docs/evidencias/log-alucinacao.txt) (o que o modelo pediu × o que foi agendado), além do teste roteirizado.
 - **CLI:** [`transpile`](docs/evidencias/cli-transpile.png) · [`transpile` com erro claro](docs/evidencias/cli-transpile-erro.png) · [`run` com `pedido.png`](docs/evidencias/cli-run-pedido.png) · [injeção](docs/evidencias/cli-run-ataque.png) · [PII](docs/evidencias/cli-run-pii.png) · [manuscrito com `[s/N]`](docs/evidencias/cli-run-manuscrito.png) · [foto de celular](docs/evidencias/cli-run-foto-celular.png) · [`adk run`, sem a CLI](docs/evidencias/adk-run.png).

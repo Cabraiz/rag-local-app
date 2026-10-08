@@ -3,7 +3,7 @@
 # o trace registra cada chamada de ferramenta do modelo (nome e argumentos) e cada resposta.
 
 == (a) ataque-exame-disfarcado.png: instruções escondidas pedem exames que não foram solicitados
-Não repetido aqui: o mesmo cenário (instruções escondidas pedindo exames não solicitados) é a 2ª execução real do vídeo 08 (videos-do-desafio/08-seguranca.mp4), que agenda só os legítimos.
+Não repetido aqui: o mesmo cenário (instruções escondidas pedindo exames não solicitados) é a 2ª execução real do vídeo 08 (gravacoes/08-seguranca.mp4), que agenda só os legítimos.
 
 == (b) pedido-sem-exame.png: pedido com dados do paciente e nenhum exame
 Imagem: samples/pedido-sem-exame.png, de exemplos/gerar_pedido_sem_exame.py (gerador da carga, semente fixa). Na gravação ela não ficou no repositório; foi gerada de novo com o mesmo gerador e a mesma semente. A execução abaixo não foi refeita; o OCR da imagem gerada mascara as mesmas PII da saída abaixo (tests/test_ocr.py).

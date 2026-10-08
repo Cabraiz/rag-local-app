@@ -1,4 +1,4 @@
-# Quality checks that run in CI (.github/workflows/challenge.yml), in the tests service:
+# Quality checks that run in CI (.github/workflows/ci.yml), in the tests service:
 #   docker compose run --rm --no-deps tests ruff check .
 #   docker compose run --rm --no-deps tests mypy
 #   docker compose run --rm tests pytest -q --cov
@@ -6,7 +6,7 @@
 [tool.ruff]
 line-length = 120
 cache-dir = "/tmp/.ruff_cache"  # the project files are read-only in the container
-extend-exclude = ["generated", "docs/evidencias", "docs/videos-do-desafio"]
+extend-exclude = ["generated", "docs/evidencias", "docs/gravacoes"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "C901"]  # pycodestyle, pyflakes, import order, bugbear, complexity
@@ -44,7 +44,7 @@ skip_empty = true
 pythonpath = ["."]
 testpaths = ["tests"]
 # ADK 2.10 marks SequentialAgent as deprecated in favor of Workflow, but Workflow is not
-# a BaseAgent and cannot be a sub-agent yet; the challenge asks for agents, so we keep it.
+# a BaseAgent and cannot be a sub-agent yet; the spec asks for agents, so we keep it.
 # The experimental ADK features this project uses print an [EXPERIMENTAL] notice once per process;
 # with -n auto that is once per worker, and which notices show depends on which worker meets them
 # first. Each one is filtered by its own name, so a new experimental feature still shows.
