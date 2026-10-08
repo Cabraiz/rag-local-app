@@ -20,7 +20,7 @@ PRIVATE = ('image_file', 'finished', 'own_key')  # never copied to the session s
 RECORD_KEYS = tuple((  # every key of the record (tests/test_transpiler.py finds them): never a spec's output_key
     'accounted api_error ask blocked booked_appointment cancel_unlinked candidates confirmed file_refused '
     'finds finished idempotency_key image_file image_token instructions_removed invented listing low_confidence '
-    'model_error ocr_confidence ocr_contested ocr_error ocr_intent ocr_lines ocr_read order_invocation posted '
+    'model_error ocr_confidence ocr_contested ocr_error ocr_intent ocr_lines ocr_read ocr_terms order_invocation posted '
     'order_unchecked own_key page_clean pending pii_masked refused text_removed unreported').split())
 KEEP_FINISHED, KEEP_EVICTED, IDLE_SECONDS = 256, 4096, 6 * 3600
 EVICTED = ('order_invocation', 'idempotency_key', 'booked_appointment')  # enough to say "não repita"
