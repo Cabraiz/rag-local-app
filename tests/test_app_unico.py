@@ -79,7 +79,8 @@ def test_without_anyone_to_answer_the_record_leaves_the_middle_band_out():
     state = {}
     two_medium_exams(callbacks, ask=False)
     reply = asyncio.run(callbacks.before_tool(tool, {'exams': [{'code': 'A'}]}, call(state, 'c1')))
-    assert reply == {'blocked': 'nenhum exame com confiança suficiente para agendar'}
+    # the reason is the missing yes, not the confidence (an independent run-through: a handwritten order with --yes)
+    assert reply == {'blocked': 'nenhum exame pode ser agendado sem a confirmação da lista: rode num terminal, sem --yes, para responder'}
     assert [(item['code'], item['reason']) for item in state['low_confidence']] == [('A', 'needs_confirmation')]
 
 

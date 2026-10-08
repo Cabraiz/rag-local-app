@@ -703,7 +703,7 @@ def test_misread_line_is_not_booked_as_another_exam(tmp_path):
     agent.CALLBACKS.after_tool(FakeTool('extract_exam_text'), {}, context, ocr_reply('- GA'))
     search(agent, context, 'IgA', ('FICT-079', 'IgA', 1.0))
     reply, _ = book(agent, context, 'FICT-079')
-    assert reply == {'blocked': 'nenhum exame com confiança suficiente para agendar'}
+    assert reply == {'blocked': 'nenhum exame pode ser agendado sem a confirmação da lista: rode num terminal, sem --yes, para responder'}
     # 0.80 is in the band that asks the person; with nobody to ask (no terminal), it is left out.
     assert context.state['low_confidence'] == [{'code': 'FICT-079', 'name': 'IgA', 'confidence': 0.8, 'line': 0,
                                                 'read': '- GA', 'reason': 'needs_confirmation'}]

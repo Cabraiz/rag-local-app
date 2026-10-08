@@ -39,6 +39,8 @@ RAN_BEFORE = ('Esta sessão já tratou um pedido, antes de o agente ser reinicia
               'repita este pedido. Para outro pedido, abra uma nova sessão. Nada foi lido nem agendado.')
 NO_KEY = 'GOOGLE_API_KEY não definida: preencha GOOGLE_API_KEY= no .env e rode de novo. Nada foi agendado.'
 NOT_CONFIRMED = 'você não confirmou a lista de exames'
+# --yes leaves out the exams that need a yes: when that leaves none, the reason is the missing confirmation.
+ONLY_WITH_CONFIRMATION = 'nenhum exame pode ser agendado sem a confirmação da lista: rode num terminal, sem --yes, para responder'
 ONE_ORDER = ('Esta sessão já tratou um pedido. Para outro pedido, abra uma nova sessão (no `adk run`, saia com '
              'exit e rode de novo; no `adk web`, New Session). Nada foi lido nem agendado.')
 Reply = dict[str, Any]  # a tool's reply, or the one a callback gives instead of the call
@@ -285,7 +287,8 @@ class BookingCallbacks:
         order.low_confidence = left_out = by_confidence(left_out, exams)
         listed = booked + to_ask
         if not listed:
-            return blocked(order, 'nenhum exame com confiança suficiente para agendar')
+            unasked = any(item.get('reason') == 'needs_confirmation' for item in left_out)
+            return blocked(order, ONLY_WITH_CONFIRMATION if unasked else 'nenhum exame com confiança suficiente para agendar')
         if asks and confirmation is None and hasattr(tool_context, 'request_confirmation'):  # the whole order checked
             late, _ = await servidores.unreported_exams(order, self.search_url, self.search_tool, self.policy, listed)
             return confirmacao.pause_for_answer(tool_context, order, listed, confirmacao.review(booked, to_ask, left_out + late, order))
