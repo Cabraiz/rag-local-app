@@ -11,6 +11,7 @@ import pytest
 
 import cli
 from runtime import relatorio, servidores
+from runtime.pedido import OrderRecord
 from runtime.reconcilia import order_lines, unreported
 from tests.test_agent_mcp import servers  # noqa: F401  (the real MCP servers, as processes)
 from tests.test_confianca import agent, best_of, book, read, real_search  # noqa: F401  (agent is a fixture)
@@ -34,7 +35,7 @@ def check(agent, context, booked):
     """What the check of the whole order adds after the booking call (the CLI's settled codes)."""
     settled = set(booked) | {item['code'] for item in context.state.get('low_confidence', [])}
     return [(item['code'], item['name'], item['reason'], item['confidence'], item['read'])
-            for item in unreported(context.state, catalog_search, agent.CALLBACKS.policy, settled)]
+            for item in unreported(agent.CALLBACKS.orders.of(context), catalog_search, agent.CALLBACKS.policy, settled)]
 
 
 def test_only_the_exam_lines_of_the_reviewed_order_are_checked_and_the_search_cuts_them():
@@ -70,7 +71,7 @@ def test_the_question_shows_the_exam_the_model_never_searched_before_the_answer(
     for query in queries:
         real_search(agent, context, query)
     exams = {'exams': [{'code': code} for code in map(best_of, queries)]}
-    assert agent.CALLBACKS.before_tool(FakeTool('create_appointment'), exams, context) == {
+    assert asyncio.run(agent.CALLBACKS.before_tool(FakeTool('create_appointment'), exams, context)) == {
         'pending_confirmation': ['FICT-003', 'FICT-018', 'FICT-055']}
     assert context.requested[-1].split('\n')[-3:] == [
         "- baixa confiança: '2. Colesterol total e Triglicerideos' → Colesterol total FICT-006 (confiança 0,65); confira "
@@ -168,10 +169,11 @@ def test_without_the_catalog_search_the_report_says_the_order_was_not_checked(ag
     async def down(url, tool, texts, top_k):
         raise OSError('connection refused')
     monkeypatch.setattr(servidores, 'search_lines', down)
-    state = {'ocr_read': ['- Glicose'], 'ocr_lines': ['glicose']}
+    order = OrderRecord(ocr_read=['- Glicose'], ocr_lines=['glicose'])
     callbacks = agent.CALLBACKS
-    assert asyncio.run(servidores.unreported_exams(state, callbacks.search_url, callbacks.search_tool, callbacks.policy)) == ([], True)
-    assert 'Aviso: o pedido não foi conferido por inteiro' in relatorio.report(state | {'order_unchecked': True}, True)
+    assert asyncio.run(servidores.unreported_exams(order, callbacks.search_url, callbacks.search_tool, callbacks.policy)) == ([], True)
+    order.order_unchecked = True
+    assert 'Aviso: o pedido não foi conferido por inteiro' in relatorio.report(order, True)
 
 
 @pytest.mark.xdist_group('spec-ports')  # the real servers, on the spec's ports: one worker, in turn

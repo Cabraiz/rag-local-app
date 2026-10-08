@@ -237,7 +237,7 @@ def check(agent, context, booked):
     rag = pytest.importorskip('mcp_servers.rag')
     settled = set(booked) | {item['code'] for item in context.state.get('low_confidence', [])}
     return [(item['code'], item['reason'])
-            for item in unreported(context.state, lambda text: rag.search_line(text, 3), agent.CALLBACKS.policy, settled)]
+            for item in unreported(agent.CALLBACKS.orders.of(context), lambda text: rag.search_line(text, 3), agent.CALLBACKS.policy, settled)]
 
 
 # --- The review's order ------------------------------------------------------------------------
@@ -378,22 +378,33 @@ def test_a_preparation_line_is_no_alarm_when_its_exam_is_not_requested(agent):
 
 # --- The OCR's contract -------------------------------------------------------------------------
 
-@pytest.mark.parametrize('intents', [ABSENT, [], ['request'], 'request', [1, 2]],
-                         ids=lambda value: 'ABSENT' if value is ABSENT else repr(value))  # the same ids in every worker
-def test_without_one_kind_per_line_nothing_is_booked_without_a_yes(agent, intents):
+def test_without_the_kind_of_each_line_nothing_is_booked_without_a_yes(agent):
     # Fail closed, as without line_confidence: every line counts as a note.
-    context = read(agent, ['- TSH', '- Creatinina'], None, intents)
+    context = read(agent, ['- TSH', '- Creatinina'], None, ABSENT)
     booked, left_out = outcome(agent, context, 'TSH', 'Creatinina')
     assert booked == [] and left_out == {'FICT-024': 'needs_confirmation', 'FICT-005': 'needs_confirmation'}
 
 
-@pytest.mark.parametrize('contested', [ABSENT, None, 'FICT-024', [{'code': 'FICT-024'}], [{'code': 24, 'reason': 'negated'}]],
-                         ids=['ABSENT', 'None', 'text', 'no-reason', 'number'])
-def test_without_a_usable_contested_set_nothing_is_booked_without_a_yes(agent, contested):
-    # Fail closed: an OCR reply that cannot say which exams the page contests books nothing alone.
+@pytest.mark.parametrize('contested', [ABSENT, None], ids=['ABSENT', 'None'])  # the same ids in every worker
+def test_without_a_contested_set_nothing_is_booked_without_a_yes(agent, contested):
+    # Fail closed: an OCR reply that does not say which exams the page contests books nothing alone.
     context = read(agent, ['- TSH', '- Creatinina'], None, None, contested_exams=contested)
     booked, left_out = outcome(agent, context, 'TSH', 'Creatinina')
     assert booked == [] and left_out == {'FICT-024': 'needs_confirmation', 'FICT-005': 'needs_confirmation'}
+
+
+@pytest.mark.parametrize('reading', [
+    {'intent': []}, {'intent': ['request']}, {'intent': 'request'}, {'intent': [1, 2]},
+    {'intent': ['request', 'something-new']},  # a kind of another version of the contract
+    {'contested_exams': 'FICT-024'}, {'contested_exams': [{'code': 'FICT-024'}]},
+    {'contested_exams': [{'code': 24, 'name': 'TSH', 'reason': 'negated'}]},
+], ids=repr)
+def test_a_kind_or_a_contested_set_outside_the_contract_leaves_the_reply_unread(agent, reading):
+    # Fail closed: one kind per line, and each contested exam with its code, name and reason (leitura.OcrReading),
+    # or the reply is not read: nothing of the page is booked or asked.
+    context = read(agent, ['- TSH', '- Creatinina'], **reading)
+    booked, left_out = outcome(agent, context, 'TSH', 'Creatinina')
+    assert booked == [] and left_out == {'FICT-024': 'score', 'FICT-005': 'score'} and 'ocr_lines' not in context.state
 
 
 def test_a_contested_exam_is_reported_or_asked_on_every_line_it_is_written(agent):
@@ -405,10 +416,6 @@ def test_a_contested_exam_is_reported_or_asked_on_every_line_it_is_written(agent
     assert [item.get('why') for item in context.state['low_confidence'] if item['code'] == 'FICT-005'] == ['instruction']
 
 
-def test_an_unknown_kind_counts_as_a_note(agent):
-    context = read(agent, ['- TSH', '- Creatinina'], None, ['request', 'something-new'])
-    booked, left_out = outcome(agent, context, 'TSH', 'Creatinina')
-    assert booked == ['FICT-024'] and left_out == {'FICT-005': 'needs_confirmation'}
 
 
 @pytest.mark.parametrize('line, masked', [

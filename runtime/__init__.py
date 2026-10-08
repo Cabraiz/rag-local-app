@@ -5,8 +5,8 @@ Its building blocks (adk) and the booking policy, an App plugin (plugin) made of
 the final confirmation of the list (confirmacao), the addresses the agent may reach (rede), its own calls to the MCP
 servers (servidores) and the run's report (relatorio). A generated file only
 declares the agent; the rules live here, the same for every spec, tested on their own
-(tests/test_confianca.py, tests/test_runtime.py). Besides Google ADK (and the MCP SDK it brings) it
-needs only `catalogo`, for words(): a query is compared word for word the way the RAG search wrote it.
+(tests/test_confianca.py, tests/test_runtime.py). Besides Google ADK (and the MCP SDK it brings) it needs
+`catalogo`, for words() (a query is compared word for word the way the RAG search wrote it), and `leitura`.
 
 The names below are its interface. API_VERSION changes when one of them changes meaning or
 signature, or a name is added that generated files use; the transpiler writes it into each

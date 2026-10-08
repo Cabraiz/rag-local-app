@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from leitura import VERSION
 from mcp_servers import ocr, rag
 from runtime import BookingCallbacks
 from runtime.confianca import FREE_TEXT
@@ -37,7 +38,7 @@ def read(agent, **reply):
 
 
 def page():
-    return ocr.mask_lines(PAGE) | {'line_confidence': [95.0] * len(PAGE)}
+    return ocr.mask_lines(PAGE) | {'version': VERSION, 'line_confidence': [95.0] * len(PAGE)}
 
 
 def test_the_model_reads_only_the_exam_lines_masked():
@@ -62,7 +63,7 @@ def test_what_is_decided_and_its_reasons_come_from_every_line_not_from_the_model
                          {'structuredContent': {'result': rag.search_line(query, 3)}})
     args = {'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo'}, {'code': 'FICT-018', 'name': 'Ferritina'},
                       {'code': 'FICT-024', 'name': 'TSH'}]}
-    agent.before_tool(SimpleNamespace(name='create_appointment'), args, context)
+    asyncio.run(agent.before_tool(SimpleNamespace(name='create_appointment'), args, context))
     # A page with text besides the list asks every exam; with nobody to answer, none is booked. Ferritina is not
     # even asked: the note the model never read says not to do it.
     assert {item['code']: item['reason'] for item in context.state['low_confidence']} == {
@@ -72,17 +73,18 @@ def test_what_is_decided_and_its_reasons_come_from_every_line_not_from_the_model
 def test_a_reply_without_exam_lines_sends_the_model_no_line():
     # Another reader, or a reply that lost the field: fail closed, every line is the placeholder.
     lines = ['Hemograma completo', 'Paciente: [NOME]']
-    model, context = read(callbacks(), lines=lines, line_intent=['request', 'request'])
+    model, context = read(callbacks(), version=VERSION, lines=lines, line_intent=['request', 'request'])
     assert model['structuredContent'] == {'lines': [FREE_TEXT, FREE_TEXT]}
     assert context.state['ocr_read'] == lines
 
 
 def test_the_model_gets_the_lines_and_nothing_else_of_the_reply():
-    # Not the kinds, counts or readings, nor the exams a note contests (what it named), nor another reader's field.
-    model, _ = read(callbacks(), lines=['Hemograma completo'], exam_lines=[0], line_intent=['request'],
-                    contested_exams=[{'code': 'FICT-018', 'name': 'Ferritina', 'reason': 'negated'}],
-                    texto='Paciente Maria Souza, CPF 123')
-    assert model['structuredContent'] == {'lines': ['Hemograma completo']}
+    # Not the kinds, counts or readings, nor the exams a note contests (what it named); a reply with another
+    # reader's field is outside the contract, and the model gets no line of it.
+    reply = {'version': VERSION, 'lines': ['Hemograma completo'], 'exam_lines': [0], 'line_intent': ['request'],
+             'contested_exams': [{'code': 'FICT-018', 'name': 'Ferritina', 'reason': 'negated'}]}
+    assert read(callbacks(), **reply)[0]['structuredContent'] == {'lines': ['Hemograma completo']}
+    assert read(callbacks(), **reply, texto='Paciente Maria Souza, CPF 123')[0]['structuredContent'] == {'lines': []}
 
 
 @pytest.mark.parametrize('line, shown', [

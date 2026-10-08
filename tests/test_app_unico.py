@@ -75,8 +75,9 @@ def test_without_anyone_to_answer_the_record_leaves_the_middle_band_out():
     # `cli run --yes` (or no terminal) says so in the order's record, not in an environment variable.
     callbacks, tool = BookingCallbacks(booking_tool='create_appointment'), SimpleNamespace(name='create_appointment')
     callbacks.can_ask = lambda: True  # a terminal is there, but the record says nobody answers
-    state = two_medium_exams() | {'ask': False}
-    reply = callbacks.before_tool(tool, {'exams': [{'code': 'A'}]}, call(state, 'c1'))
+    state = {}
+    two_medium_exams(callbacks, ask=False)
+    reply = asyncio.run(callbacks.before_tool(tool, {'exams': [{'code': 'A'}]}, call(state, 'c1')))
     assert reply == {'blocked': 'nenhum exame com confiança suficiente para agendar'}
     assert [(item['code'], item['reason']) for item in state['low_confidence']] == [('A', 'needs_confirmation')]
 
@@ -91,9 +92,9 @@ def test_a_long_adk_web_keeps_a_bounded_number_of_orders(monkeypatch):
     monkeypatch.setattr(pedido, 'KEEP_FINISHED', 3)
     orders = pedido.Orders()
     for number in range(5):  # five orders that ended: only the 3 most recent are kept
-        orders.of(SimpleNamespace(session=session(number)))['finished'] = True
+        orders.of(SimpleNamespace(session=session(number))).finished = True
     running = orders.of(SimpleNamespace(session=session(9)))  # one that stopped past the POST: never finished
-    running['booked_appointment'] = {'id': 'a1'}
+    running.booked_appointment = {'id': 'a1'}
     assert [key[2] for key in orders.records] == ['s2', 's3', 's4', 's9']
     clock[0] = pedido.IDLE_SECONDS - 1
     assert orders.of(SimpleNamespace(session=session(9))) is running  # still answers "já foi criado"
@@ -138,9 +139,9 @@ def test_the_contract_is_fetched_under_a_lock_of_each_event_loop(monkeypatch):
 
 def test_copying_a_record_keeps_the_file_name_private():
     context = SimpleNamespace(state={})
-    pedido.Orders.publish(context, {'image_file': 'pedido-joao-silva.png', 'image_token': 'pedido-1.png',
-                                    'finished': True, 'answers': {'A': True}})
-    assert context.state == {'image_token': 'pedido-1.png', 'answers': {'A': True}}
+    pedido.Orders.publish(context, pedido.OrderRecord(image_file='pedido-joao-silva.png', image_token='pedido-1.png',
+                                                      finished=True, own_key='k', refused=True))
+    assert context.state == {'image_token': 'pedido-1.png', 'refused': True}
 
 
 pytestmark = pytest.mark.filterwarnings(r'ignore:\[EXPERIMENTAL\]:UserWarning')
@@ -154,7 +155,8 @@ def test_a_missing_api_key_ends_the_step_with_one_clear_line():
 
     booking = callbacks.BookingCallbacks.__new__(callbacks.BookingCallbacks)
     published = {}
-    booking.orders = SimpleNamespace(of=lambda context: {}, publish=lambda context, order: published.update(order))
+    booking.orders = SimpleNamespace(of=lambda context: pedido.OrderRecord(),
+                                     publish=lambda context, order: published.update(order.view()))
     error = ValueError('No API key was provided. Please pass a valid API key.')
     reply = booking.model_failed(None, None, error)
     assert 'GOOGLE_API_KEY não definida' in reply.content.parts[0].text

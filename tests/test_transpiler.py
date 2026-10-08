@@ -2,6 +2,7 @@
 import ast
 import asyncio
 import copy
+import dataclasses
 import json
 import logging
 import os
@@ -27,7 +28,7 @@ import runtime
 from runtime import confirmacao
 from runtime.callbacks import mcp_payload
 from runtime.confianca import BookingPolicy, line_support
-from runtime.pedido import RECORD_KEYS
+from runtime.pedido import PRIVATE, RECORD_KEYS, OrderRecord
 from runtime.plugin import ROLES, BookingConfig, BookingPlugin
 from transpiler import TranspileError, load_root_agent, parse_spec, render, transpile
 
@@ -138,23 +139,17 @@ def test_an_output_key_named_after_a_key_of_the_order_record_is_refused(key):
     assert f'agents.0.output_key: "{key}" é reservado: o runtime usa essa chave do estado' in problems(spec_with(collide))
 
 
-def test_the_reserved_keys_are_every_key_the_runtime_keeps_in_the_order_record():
-    """Every constant key runtime/ reads or writes on the record (named order, state or record there, and the
-    record of an evicted session), so a key added to the runtime cannot be forgotten in RECORD_KEYS."""
-    found = set()
-    for path in (ROOT / 'runtime').glob('*.py'):
-        for node in ast.walk(ast.parse(path.read_text(encoding='utf-8'))):
-            if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name):
-                owner, keys = node.value.id, [node.slice]
-            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
-                owner = node.func.value.id
-                keys = node.args[:1] if node.func.attr in ('get', 'setdefault', 'pop') else (
-                    node.args[0].keys if node.func.attr == 'update' and node.args and isinstance(node.args[0], ast.Dict) else [])
-            else:
-                continue
-            if owner in ('order', 'state', 'record', 'gone', 'kept'):
-                found |= {key.value for key in keys if isinstance(key, ast.Constant) and isinstance(key.value, str)}
-    assert 'ocr_read' in found and found == set(RECORD_KEYS)
+def test_every_key_the_runtime_writes_to_the_session_state_is_reserved(tmp_path):
+    """The runtime copies the order's record into the session state field by field (OrderRecord.view): the
+    reserved keys are the record's fields, so a field added to the record is refused as an output_key too."""
+    assert RECORD_KEYS == tuple(field.name for field in dataclasses.fields(OrderRecord)) and 'ocr_read' in RECORD_KEYS
+    agent, context = generated_module(tmp_path), FakeContext()
+    agent.CALLBACKS.after_tool(FakeTool('extract_exam_text'), {}, context, ocr_reply('- Hemograma completo', '- TSH'))
+    search(agent, context, 'Hemograma completo', ('FICT-001', 'Hemograma completo', 1.0))
+    book(agent, context, 'FICT-001')
+    every = OrderRecord(**{name: [] for name in RECORD_KEYS})
+    assert 'ocr_read' in context.state and set(context.state) <= set(RECORD_KEYS)
+    assert set(every.view()) == set(RECORD_KEYS) - set(PRIVATE)
 
 
 @pytest.mark.parametrize('change, expected', [
@@ -637,7 +632,7 @@ def generated_module(tmp_path):
 
 def ocr_reply(*lines):
     """The OCR's reply for lines read clearly: it always sends one reading (0-100) and one kind per line."""
-    reply = {'lines': list(lines), 'line_confidence': [95.0] * len(lines), 'line_intent': ['request'] * len(lines),
+    reply = {'version': 1, 'lines': list(lines), 'line_confidence': [95.0] * len(lines), 'line_intent': ['request'] * len(lines),
              'contested_exams': [], 'page_clean': True, 'pii_masked': {'NOME': 1}}
     return {'content': [{'type': 'text', 'text': json.dumps(reply)}]}
 
@@ -654,7 +649,7 @@ def book(agent, context, *codes):
     and runs again with it. Returns (reply, args as sent)."""
     def call():
         args = {'exams': [{'code': code, 'name': code} for code in codes]}
-        return agent.CALLBACKS.before_tool(FakeTool('create_appointment'), args, context), args
+        return asyncio.run(agent.CALLBACKS.before_tool(FakeTool('create_appointment'), args, context)), args
 
     reply, args = call()
     if context.requested:
@@ -672,7 +667,7 @@ def book(agent, context, *codes):
 def test_callbacks_keep_ocr_lines_counts_and_confidence(tmp_path):
     agent, context = generated_module(tmp_path), FakeContext()
     reply = {'content': [{'type': 'text', 'text': json.dumps({
-        'lines': ['Paciente: [NOME]', 'Exame: Creatinina', 'Glicemia jejum'], 'line_confidence': [90, 96, 94],
+        'version': 1, 'lines': ['Paciente: [NOME]', 'Exame: Creatinina', 'Glicemia jejum'], 'line_confidence': [90, 96, 94],
         'line_intent': ['request'] * 3, 'contested_exams': [], 'page_clean': True,
         'pii_masked': {'NOME': 1}, 'instructions_removed': 2})}]}
     agent.CALLBACKS.after_tool(FakeTool('extract_exam_text'), {}, context, reply)
@@ -759,7 +754,7 @@ def test_invented_code_or_two_exams_from_one_line_are_not_booked(tmp_path, monke
     assert [(item['code'], item['reason'], item['used_by']) for item in context.state['low_confidence']] == [
         ('FICT-001', 'line_used', 'Hemoglobina glicada')]
     # A tool without a role (here another API operation) never goes out unchecked.
-    assert agent.CALLBACKS.before_tool(FakeTool('get_appointment'), {'exams': []}, context) == {
+    assert asyncio.run(agent.CALLBACKS.before_tool(FakeTool('get_appointment'), {'exams': []}, context)) == {
         'blocked': 'ferramenta sem papel conferido pelo runtime (get_appointment); nada foi enviado'}
 
 
@@ -1227,15 +1222,15 @@ def test_a_tool_written_twice_is_filtered_once(tmp_path):
 def test_the_search_always_returns_the_specs_top_k_and_other_tools_are_refused(tmp_path):
     agent, context = generated_module(tmp_path), FakeContext()
     args = {'query': 'Glicose', 'top_k': 1}
-    assert agent.CALLBACKS.before_tool(FakeTool('search_exams'), args, context) is None
+    assert asyncio.run(agent.CALLBACKS.before_tool(FakeTool('search_exams'), args, context)) is None
     assert args == {'query': 'Glicose', 'top_k': agent.CALLBACKS.policy.top_k} == {'query': 'Glicose', 'top_k': 3}
     args = {'query': 'Glicose'}
-    agent.CALLBACKS.before_tool(FakeTool('search_exams'), args, context)
+    asyncio.run(agent.CALLBACKS.before_tool(FakeTool('search_exams'), args, context))
     assert args['top_k'] == 3  # added when the model leaves it out
     # Any tool outside the roles is refused, its args untouched (the OCR's file name has its own gate,
     # test_confianca).
     args = {'id': 'a1'}
-    assert agent.CALLBACKS.before_tool(FakeTool('get_appointment'), args, context) == {
+    assert asyncio.run(agent.CALLBACKS.before_tool(FakeTool('get_appointment'), args, context)) == {
         'blocked': 'ferramenta sem papel conferido pelo runtime (get_appointment); nada foi enviado'}
     assert args == {'id': 'a1'}
 

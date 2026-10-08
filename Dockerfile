@@ -35,7 +35,7 @@ RUN apt-get update \
 # OCR MCP server: Tesseract + PII masking before anything leaves the container.
 FROM tesseract AS ocr
 RUN pip install --no-cache-dir -c requirements.txt -c constraints.txt mcp pillow pytesseract
-COPY --chown=app:app catalogo.py catalogo.py
+COPY --chown=app:app catalogo.py leitura.py ./
 COPY --chown=app:app mcp_servers mcp_servers
 COPY --chown=app:app guardrails guardrails
 COPY --chown=app:app data data
@@ -50,7 +50,7 @@ FROM base AS agent
 RUN pip install --no-cache-dir -c requirements.txt -c constraints.txt google-adk google-genai mcp httpx \
     && mkdir /app/generated /home/app/.adk && chown app:app /app/generated \
     && printf '{"telemetry": false}\n' > /home/app/.adk/config.json
-COPY --chown=app:app cli.py catalogo.py ./
+COPY --chown=app:app cli.py catalogo.py leitura.py ./
 COPY --chown=app:app data data
 COPY --chown=app:app runtime runtime
 COPY --chown=app:app transpiler transpiler

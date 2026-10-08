@@ -40,6 +40,7 @@ class Linha(str):
     """Uma linha lida, com a confiança média do Tesseract nas suas palavras (0 a 100) e a `caixa`: (topo,
     base, altura da maior palavra, tinta: a mediana do tom mais escuro de cada palavra, 0 preto a 255)."""
     confianca: float
+    caixa: tuple[int, int, int, float] | None
 
     def __new__(cls, texto, confianca, caixa=None):
         linha = super().__new__(cls, texto)
@@ -53,14 +54,14 @@ def preparar(imagem):
     cinza = ImageOps.autocontrast(cinza, cutoff=1)
     angulo = inclinacao(cinza)
     if angulo:
-        cinza = cinza.rotate(angulo, resample=Image.BICUBIC, expand=True, fillcolor=255)
+        cinza = cinza.rotate(angulo, resample=Image.Resampling.BICUBIC, expand=True, fillcolor=255)
     return cinza
 
 
 def achatar_luz(cinza):
     """Tira sombra e luz desigual: o fundo (papel) é o máximo local numa versão reduzida."""
-    pequeno = cinza.resize((max(1, cinza.width // 8), max(1, cinza.height // 8)), Image.BOX)
-    fundo = pequeno.filter(ImageFilter.MaxFilter(7)).filter(ImageFilter.BoxBlur(2)).resize(cinza.size, Image.BILINEAR)
+    pequeno = cinza.resize((max(1, cinza.width // 8), max(1, cinza.height // 8)), Image.Resampling.BOX)
+    fundo = pequeno.filter(ImageFilter.MaxFilter(7)).filter(ImageFilter.BoxBlur(2)).resize(cinza.size, Image.Resampling.BILINEAR)
     return ImageChops.invert(ImageChops.subtract(fundo, cinza))  # 255 - (fundo - pixel): papel branco por igual
 
 
@@ -70,8 +71,8 @@ def inclinacao(cinza):
     pequeno = ImageOps.invert(cinza.resize((max(1, round(cinza.width * escala)), max(1, round(cinza.height * escala)))))
 
     def nitidez(angulo):
-        girado = pequeno.rotate(angulo, resample=Image.BILINEAR, fillcolor=0)
-        linhas = list(girado.resize((1, girado.height), Image.BOX).tobytes())  # modo L: um byte por linha
+        girado = pequeno.rotate(angulo, resample=Image.Resampling.BILINEAR, fillcolor=0)
+        linhas = list(girado.resize((1, girado.height), Image.Resampling.BOX).tobytes())  # modo L: um byte por linha
         media = fmean(linhas)
         return fmean((valor - media) ** 2 for valor in linhas)
 
@@ -102,7 +103,7 @@ def juntar_por_altura(lidas):
     Depois, um rótulo sem valor ("Paciente:") leva a linha logo abaixo, onde o nome escrito
     à mão costuma cair, para a máscara de PII ver os dois juntos.
     """
-    linhas = []
+    linhas: list[dict] = []
     for palavra in sorted(lidas, key=lambda p: p[1] + p[3] / 2):
         topo, base = palavra[1], palavra[1] + palavra[3]
         for linha in linhas:
@@ -113,7 +114,7 @@ def juntar_por_altura(lidas):
                 break
         else:
             linhas.append({'topo': topo, 'base': base, 'palavras': [palavra]})
-    juntas = []
+    juntas: list[dict] = []
     for linha in sorted(linhas, key=lambda item: item['topo']):
         linha['palavras'].sort()  # da esquerda para a direita
         anterior = juntas[-1] if juntas else None

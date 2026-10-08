@@ -16,10 +16,22 @@ reported with that reason instead, which is no warning about the agent. No exam 
 ends in silence. Nothing is booked here.
 """
 import re
+from collections.abc import Callable, Iterable
 
 from catalogo import LIST_MARKER, exam_word, words
 
-from .confianca import FIND_FLOOR, NOT_ANCHORS, NOT_SHARED, RESEMBLANCE, intent_of, pieces_of, reading_at
+from .confianca import (
+    NOT_ANCHORS,
+    RESEMBLANCE,
+    BookingPolicy,
+    by_piece,
+    intent_of,
+    pieces_of,
+    reading_at,
+    shares_a_word,
+    untied_best,
+)
+from .pedido import Accounted, Item, OrderRecord
 
 MARKER = re.compile(rf'{LIST_MARKER.pattern}|^\s*(?:\d{{1,2}}\s+(?=[^\W\d_])|[A-Za-z][.)])\s*', re.I)  # "1 TGP", "A."
 MASKED = re.compile(r'\[[A-Z_]+\]')  # what the OCR masked: [NOME], [CPF], [TEXTO_REMOVIDO]...
@@ -36,7 +48,7 @@ DATA = {'paciente', 'nome', 'data', 'nascimento', 'medico', 'medica', 'dr', 'dra
 LABELS = LISTS | NOTES | DATA
 FOLLOW_UP = {'rotina', 'controle', 'urgente'}  # qualifiers of when, never of which exam: no help to the search
 
-def exams_only(text):
+def exams_only(text: str) -> str:
     """Every other word made a separator, so each exam reaches the search on its own, whatever is written
     around it: "solicito TSH", "Não deixar de fazer TSH", "Ferritina somente se hemoglobina baixa", "TSH controle"."""
     return re.sub(r'[^\W_]+', lambda word: word.group() if word.group().isdigit() or (
@@ -51,18 +63,19 @@ WHEN = re.compile(r'\b(?:em|ap[oó]s|daqui a|dentro de)\s+\d+\s*(?:dias?|semanas
                   re.IGNORECASE)
 
 
-def first_word(text):
+def first_word(text: str) -> str:
     return (words(text).split() or [''])[0]
 
 
-def is_label(text):
+def is_label(text: str) -> bool:
     return first_word(text) in LABELS or words(text) == 'e mail'
 
 
-def parts(text):
+def parts(text: str) -> list[tuple[str, str]]:
     """(label, value) of each part of a line: a known label before ":" (one or two words: "Exames
     solicitados:", "Obs.:", "E-mail:") opens a part; any other ":" stays in the text."""
-    found, label, start = [], '', 0
+    found: list[tuple[str, str]] = []
+    label, start = '', 0
     for colon in re.finditer(':', text):
         before = text[start:colon.start()]
         tail = before.split()
@@ -74,11 +87,11 @@ def parts(text):
     return [*found, (label, text[start:])]
 
 
-def order_lines(read):
+def order_lines(read: list[str]) -> list[tuple[int, str, bool]]:
     """(line index, text, note) of each part of the order that may name exams, as the search takes it:
     without its marker and label, the value of a personal-data label left out; any other ":" is a
     separator, so its two sides are checked. `note`: the part is the text of a note."""
-    lines = []
+    lines: list[tuple[int, str, bool]] = []
     for index, line in enumerate(read):
         for label, value in parts(MARKER.sub('', MASKED.sub(' ', str(line)))):
             if first_word(label) in DATA or words(label) == 'e mail':
@@ -92,56 +105,46 @@ def order_lines(read):
     return lines
 
 
-def by_piece(text, hits):
-    """(piece, its hits) of one search: the pieces the search cut the line into, or the line itself."""
-    pieces: dict = {}
-    for hit in hits or []:
-        if isinstance(hit, dict) and 'code' in hit:
-            pieces.setdefault(str(hit.get('piece') or text), []).append(hit)
-    return pieces.items()
-
-
-def taken(claimed, texts, line, start, end):
+def taken(claimed: list[Accounted], texts: list[str], line: int, start: int, end: int) -> bool:
     """Whether a piece is text a proposed exam stands on as that exam: the piece's words, or the
     exam they match, are words of that exam's name ("Proteína OC" on the line of a Proteína C
     reativa). The rest of a line the exam only shares stays free: "Triglicerideos" after a
     "Colesterol total" that took the whole line as the model searched it."""
-    return any(other == line and s < end and start < e and any(pieces_of(text, [exam]) for text in texts)
-               for other, s, e, _, exam in claimed)
+    return any(other.line == line and other.start < end and start < other.end
+               and any(pieces_of(text, [other.exam]) for text in texts) for other in claimed)
 
 
-def unreported(state, hits_of, policy, settled):
+def unreported(order: OrderRecord, hits_of: Callable[[str], object], policy: BookingPolicy,
+               settled: Iterable[str | None]) -> list[Item]:
     """The exams of the order that ended in no reported state, as left out items (reason
     'not_searched', or 'omitted' when a search returned the code but the model did not propose it).
     hits_of(text): the catalog search's hits for a line (each with its "piece" when the search split
     it); settled: the codes booked or already reported.
     One report per exam, at the confidence the order gives it there (search score, OCR reading)."""
-    lines, read, readings = state.get('ocr_lines', []), state.get('ocr_read', []), state.get('ocr_confidence')
-    claimed = [tuple(entry) for entry in state.get('accounted', [])]  # the text the proposed exams stand on
-    candidates, settled, reported = state.get('candidates', {}), set(settled), []
+    lines, read, readings = order.ocr_lines or [], order.ocr_read or [], order.ocr_confidence
+    claimed = list(order.accounted or [])  # the text the proposed exams stand on
+    candidates, done = order.candidates or {}, set(settled)
+    reported: list[Item] = []
     for index, text, note, hits in ((index, piece, note, hits) for index, line, note in order_lines(read)
-                                    for piece, hits in by_piece(line, hits_of(line))):
-        scores = sorted((float(hit.get('score', 0)) for hit in hits), reverse=True)
-        if not scores or scores[0] < FIND_FLOOR or (len(scores) > 1 and scores[1] == scores[0]):
+                                    for piece, hits in by_piece(line, hits_of(line)).items()):
+        best = untied_best(hits)
+        if best is None:
             continue
-        best = next(hit for hit in hits if float(hit.get('score', 0)) == scores[0])
-        query = words(text)
-        name = words(best.get('name', ''))
-        shared = (set(query.split()) & set(name.split())) - NOT_SHARED
+        query, name = words(text), words(best.name)
         starts = f'{query} '.startswith(f'{name} ')  # "TSH em 30 dias"
         # a line that says something of its exam is checked in full, even under a note's label ("Preparo:")
-        note = note and intent_of(state, index) not in (*NOT_ANCHORS, 'uncertain')
-        if scores[0] < RESEMBLANCE and not starts and (note or not shared):  # in a note, a close match or the name first
+        note = note and intent_of(order, index) not in (*NOT_ANCHORS, 'uncertain')
+        if best.score < RESEMBLANCE and not starts and (note or not shares_a_word(query, name)):  # in a note, a close match or the name first
             continue
         spots = pieces_of(query, [lines[index]]) if index < len(lines) else []
         start, end = spots[0][1:3] if spots else (0, len(lines[index]) if index < len(lines) else 0)
-        if best['code'] in settled or taken(claimed, [query, words(best.get('name', ''))], index, start, end):
+        if best.code in done or taken(claimed, [query, name], index, start, end):
             continue
-        reading = reading_at(readings, index, policy.ocr_floor(query, words(best.get('name', ''))), policy)
-        kind = intent_of(state, index)
-        reported.append({'code': best['code'], 'name': str(best.get('name', '')), 'line': index,
-                         'reason': kind if kind in NOT_ANCHORS else 'omitted' if best['code'] in candidates else 'not_searched',
-                         'confidence': round(min(scores[0], reading), 2), 'read': read[index]})
-        settled.add(best['code'])
-        claimed.append((index, start, end, None, words(best.get('name', ''))))
+        reading = reading_at(readings, index, policy.ocr_floor(query, name), policy)
+        kind = intent_of(order, index)
+        reported.append({'code': best.code, 'name': best.name, 'line': index,
+                         'reason': kind if kind in NOT_ANCHORS else 'omitted' if best.code in candidates else 'not_searched',
+                         'confidence': round(min(best.score, reading), 2), 'read': read[index]})
+        done.add(best.code)
+        claimed.append(Accounted(index, start, end, None, name))
     return reported

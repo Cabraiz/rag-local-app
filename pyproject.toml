@@ -18,7 +18,7 @@ ignore = [
 max-complexity = 10  # a function with more branches than this is split
 
 [tool.ruff.lint.isort]
-known-first-party = ["api", "catalogo", "cli", "guardrails", "mcp_servers", "runtime", "tests", "transpiler"]
+known-first-party = ["api", "catalogo", "cli", "guardrails", "leitura", "mcp_servers", "runtime", "tests", "transpiler"]
 
 [tool.ruff.lint.per-file-ignores]
 # pytest fixtures imported from another test module and then requested by name.
@@ -28,14 +28,20 @@ known-first-party = ["api", "catalogo", "cli", "guardrails", "mcp_servers", "run
 
 [tool.mypy]
 python_version = "3.12"
-files = ["api", "catalogo.py", "cli.py", "guardrails", "mcp_servers", "runtime", "transpiler"]
+files = ["api", "catalogo.py", "cli.py", "guardrails", "leitura.py", "mcp_servers", "runtime", "transpiler"]
 ignore_missing_imports = true
+check_untyped_defs = true  # the bodies of functions without annotations too
 explicit_package_bases = true  # api/, guardrails/... are packages without __init__.py
 cache_dir = "/tmp/.mypy_cache"  # the project files are read-only in the container
 
+[[tool.mypy.overrides]]
+# Off for these modules only, until a few lists and sets in them get a declared type.
+module = ["guardrails.pii", "transpiler.spec"]
+check_untyped_defs = false
+
 [tool.coverage.run]
 data_file = "/tmp/.coverage"  # the project files are read-only in the container
-source = ["api", "catalogo", "cli", "guardrails", "mcp_servers", "runtime", "transpiler"]
+source = ["api", "catalogo", "cli", "guardrails", "leitura", "mcp_servers", "runtime", "transpiler"]
 
 [tool.coverage.report]
 skip_empty = true

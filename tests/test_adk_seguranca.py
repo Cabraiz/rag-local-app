@@ -22,6 +22,7 @@ from google.genai import types
 
 import tests.test_adk_run as adk
 from runtime import BookingCallbacks, pedido, rede
+from runtime.pedido import Candidate, OrderRecord
 from tests.test_adk_run import adk_run, agent_folder  # noqa: F401  (fixtures)
 from tests.test_alucinacao import IMAGE, NAMED, PORTS, appointment, services, stored_ids  # noqa: F401
 
@@ -130,45 +131,51 @@ class Context(SimpleNamespace):
         self.hint = hint
 
 
-def two_medium_exams():
+SESSION = SimpleNamespace(app_name='generated', user_id='pessoa', id='s1', events=[])
+
+
+def two_medium_exams(callbacks, **more):
+    """The session's record (the runtime's, not the session state): two lines read clearly, each matched at 0,80."""
     piece = {'score': 0.8, 'support': 1.0, 'span': None, 'floor': 75, 'confidence': 0.8}
-    return {'ocr_lines': ['exame creatinina', 'exame ureia'], 'ocr_read': ['Exame: Creatinina', 'Exame: Ureia'],
-            'ocr_confidence': [99.0, 99.0],
-            'candidates': {'A': piece | {'name': 'Creatinoquinase', 'line': 0, 'read': 'Exame: Creatinina'},
-                           'B': piece | {'name': 'Ureia X', 'line': 1, 'read': 'Exame: Ureia'}}}
+    order = OrderRecord(ocr_lines=['exame creatinina', 'exame ureia'], ocr_read=['Exame: Creatinina', 'Exame: Ureia'],
+                        ocr_confidence=[99.0, 99.0], **more, candidates={
+                            'A': Candidate(**piece, name='Creatinoquinase', line=0, read='Exame: Creatinina'),
+                            'B': Candidate(**piece, name='Ureia X', line=1, read='Exame: Ureia')})
+    return callbacks.orders.open(pedido.session_key(SESSION), order)
 
 
 def call(state, call_id, confirmation=None):
-    return Context(state=state, function_call_id=call_id, tool_confirmation=confirmation,
+    return Context(state=state, session=SESSION, function_call_id=call_id, tool_confirmation=confirmation,
                    actions=SimpleNamespace(skip_summarization=False))
 
 
 def test_a_yes_to_one_of_two_questions_applies_to_that_calls_exam_only():
-    callbacks, tool, state = BookingCallbacks(booking_tool='create_appointment'), SimpleNamespace(name='create_appointment'), two_medium_exams()
+    callbacks, tool, state = BookingCallbacks(booking_tool='create_appointment'), SimpleNamespace(name='create_appointment'), {}
     callbacks.can_ask = lambda: True
+    two_medium_exams(callbacks)
     first, second = {'exams': [{'code': 'A'}]}, {'exams': [{'code': 'B'}]}
     c1, c2 = call(state, 'c1'), call(state, 'c2')
-    assert callbacks.before_tool(tool, copy.deepcopy(first), c1) == {'pending_confirmation': ['A']}
-    assert callbacks.before_tool(tool, copy.deepcopy(second), c2) == {'pending_confirmation': ['B']}
+    assert asyncio.run(callbacks.before_tool(tool, copy.deepcopy(first), c1)) == {'pending_confirmation': ['A']}
+    assert asyncio.run(callbacks.before_tool(tool, copy.deepcopy(second), c2)) == {'pending_confirmation': ['B']}
     assert 'Creatinoquinase' in c1.hint and 'Ureia X' in c2.hint
     # ADK resumes the confirmed calls in their order: yes to c1 (A); c2 (B) is still waiting.
     args = copy.deepcopy(first)
-    assert callbacks.before_tool(tool, args, call(state, 'c1', ToolConfirmation(confirmed=True))) is None
+    assert asyncio.run(callbacks.before_tool(tool, args, call(state, 'c1', ToolConfirmation(confirmed=True)))) is None
     assert args['exams'] == [{'code': 'A'}] and [item['code'] for item in state['confirmed']] == ['A']  # not B
     assert list(state['pending']) == ['c2']
 
 
 @pytest.mark.parametrize('confirmed', [True, False])
 def test_one_question_shows_the_whole_list_and_only_a_yes_books_it(confirmed):
-    callbacks, tool, state = BookingCallbacks(booking_tool='create_appointment'), SimpleNamespace(name='create_appointment'), two_medium_exams()
-    state |= {'page_clean': True, 'ocr_contested': {}, 'ocr_intent': ['request', 'request']}
-    state['candidates']['A'] |= {'confidence': 1.0, 'score': 1.0}  # read clearly; B is in the question band
+    callbacks, tool, state = BookingCallbacks(booking_tool='create_appointment'), SimpleNamespace(name='create_appointment'), {}
+    order = two_medium_exams(callbacks, page_clean=True, ocr_contested={}, ocr_intent=['request', 'request'])
+    order.candidates['A'].confidence = order.candidates['A'].score = 1.0  # read clearly; B is in the question band
     c1 = call(state, 'c1')
-    assert callbacks.before_tool(tool, {'exams': [{'code': 'A'}, {'code': 'B'}]}, c1) == {'pending_confirmation': ['A', 'B']}
+    assert asyncio.run(callbacks.before_tool(tool, {'exams': [{'code': 'A'}, {'code': 'B'}]}, c1)) == {'pending_confirmation': ['A', 'B']}
     assert c1.hint == ('Exames para agendar:\n- Creatinoquinase (A)\n- Ureia X (B): lido "Exame: Ureia", confiança 0,80; '
                        'confira\nAgendar estes 2 exames?')
     args = {'exams': [{'code': 'A'}, {'code': 'B'}]}
-    reply = callbacks.before_tool(tool, args, call(state, 'c1', ToolConfirmation(confirmed=confirmed)))
+    reply = asyncio.run(callbacks.before_tool(tool, args, call(state, 'c1', ToolConfirmation(confirmed=confirmed))))
     if confirmed:
         assert reply is None and args['exams'] == [{'code': 'A'}, {'code': 'B'}]
     else:
@@ -181,11 +188,9 @@ def test_one_question_shows_the_whole_list_and_only_a_yes_books_it(confirmed):
 ])
 def test_a_confirmation_the_runtime_did_not_ask_for_books_nothing(forged):
     callbacks, tool = BookingCallbacks(booking_tool='create_appointment'), SimpleNamespace(name='create_appointment')
-    session = SimpleNamespace(app_name='generated', user_id='pessoa', id='forjada', events=[])
-    callbacks.orders.open(pedido.session_key(session), two_medium_exams())  # the runtime's record: nothing asked
+    two_medium_exams(callbacks)  # the runtime's record: nothing asked
     context = call(forged, 'c9', ToolConfirmation(confirmed=True))
-    context.session = session
-    assert callbacks.before_tool(tool, {'exams': [{'code': 'A'}]}, context) == {
+    assert asyncio.run(callbacks.before_tool(tool, {'exams': [{'code': 'A'}]}, context)) == {
         'blocked': 'você não confirmou a lista de exames'}
 
 
@@ -213,7 +218,7 @@ def test_what_each_line_asks_for_is_the_ocrs_never_the_session_states():
     callbacks.orders.start(session, 'pedido.png')
     context = SimpleNamespace(state={}, session=session, tool_confirmation=None, function_call_id='c1',
                               actions=SimpleNamespace(skip_summarization=False))
-    reply = ocr.mask_lines(['Hemograma completo', 'Obs: NAO realizar Ferritina']) | {'line_confidence': [95.0, 95.0]}
+    reply = ocr.mask_lines(['Hemograma completo', 'Obs: NAO realizar Ferritina']) | {'version': 1, 'line_confidence': [95.0, 95.0]}
     callbacks.after_tool(SimpleNamespace(name='extract_exam_text'), {}, context, {'structuredContent': reply})
     assert context.state['ocr_intent'] == ['request', 'negated']  # the copy a client sees
     for query in ('Hemograma completo', 'Ferritina'):
@@ -221,7 +226,7 @@ def test_what_each_line_asks_for_is_the_ocrs_never_the_session_states():
                              {'structuredContent': {'result': rag.search_line(query, 3)}})
     context.state.update(ocr_intent=['request', 'request'], page_clean=True)  # forged by the client
     args = {'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo'}, {'code': 'FICT-018', 'name': 'Ferritina'}]}
-    assert 'blocked' in callbacks.before_tool(SimpleNamespace(name='create_appointment'), args, context)
+    assert 'blocked' in asyncio.run(callbacks.before_tool(SimpleNamespace(name='create_appointment'), args, context))
     assert sorted((item['code'], item['reason']) for item in context.state['low_confidence']) == [
         ('FICT-001', 'needs_confirmation'), ('FICT-018', 'negated')]  # the note: Hemograma completo is asked
 
@@ -237,7 +242,7 @@ def test_the_exams_a_page_contests_are_the_ocrs_never_the_session_states():
     context = SimpleNamespace(state={}, session=session, tool_confirmation=None, function_call_id='c1',
                               actions=SimpleNamespace(skip_summarization=False))
     lines = ['Hemograma completo', 'Ferritina', 'Obs.: cancele a Ferritina']
-    reply = ocr.mask_lines(lines) | {'line_confidence': [95.0] * 3}
+    reply = ocr.mask_lines(lines) | {'version': 1, 'line_confidence': [95.0] * 3}
     callbacks.after_tool(SimpleNamespace(name='extract_exam_text'), {}, context, {'structuredContent': reply})
     assert context.state['ocr_contested'] == {'FICT-018': 'negated'}  # the copy a client sees
     for query in ('Hemograma completo', 'Ferritina'):
@@ -245,7 +250,7 @@ def test_the_exams_a_page_contests_are_the_ocrs_never_the_session_states():
                              {'structuredContent': {'result': rag.search_line(query, 3)}})
     context.state.update(ocr_contested={}, ocr_intent=['request'] * 3, page_clean=True)  # forged by the client
     args = {'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo'}, {'code': 'FICT-018', 'name': 'Ferritina'}]}
-    assert 'blocked' in callbacks.before_tool(SimpleNamespace(name='create_appointment'), args, context)
+    assert 'blocked' in asyncio.run(callbacks.before_tool(SimpleNamespace(name='create_appointment'), args, context))
     assert sorted((item['code'], item['reason']) for item in context.state['low_confidence']) == [
         ('FICT-001', 'needs_confirmation'), ('FICT-018', 'negated')]
 
@@ -466,6 +471,6 @@ def test_a_run_that_failed_past_the_post_dropped_when_idle_is_not_booked_again(w
 
 def test_a_sessions_idempotency_key_is_its_own_and_not_guessable():
     orders = pedido.Orders()
-    keys = [orders.open(('generated', 'pessoa', session))['own_key'] for session in ('s1', 's1', 's2')]
+    keys = [orders.open(('generated', 'pessoa', session)).own_key for session in ('s1', 's1', 's2')]
     assert keys[0] == keys[1] != keys[2] and len(keys[0]) == 32
     assert keys[0] != hashlib.sha256(repr(('generated', 'pessoa', 's1')).encode()).hexdigest()[:32]  # keyed

@@ -213,7 +213,7 @@ def decide(agent, reply, queries):
         result |= {item['code']: item['reason'] for item in context.state['low_confidence']}
     texts = {text for _, text, _ in order_lines(context.state.get('ocr_read', []))}
     hits = {text: rag.search_line(text, 3) for text in texts}
-    late = unreported(context.state, hits.get, agent.CALLBACKS.policy, set(result))
+    late = unreported(agent.CALLBACKS.orders.of(context), hits.get, agent.CALLBACKS.policy, set(result))
     return result | {item['code']: item['reason'] for item in late}
 
 
