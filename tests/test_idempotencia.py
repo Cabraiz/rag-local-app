@@ -200,7 +200,7 @@ def test_the_agent_sends_one_key_of_its_own_per_run_never_the_models(tmp_path):
     keys = []
     for _ in range(2):
         args = {'exams': [{'code': 'FICT-001', 'name': 'Hemograma'}], 'idempotency_key': 'pedido-Maria'}
-        assert agent.CALLBACKS.before_tool(FakeTool('create_appointment'), args, context) is None
+        assert asyncio.run(agent.CALLBACKS.before_tool(FakeTool('create_appointment'), args, context)) is None
         assert args['exams'] == [{'code': 'FICT-001'}]  # the API names it from its catalog
         keys.append(args['idempotency_key'])
     assert keys[0] == keys[1] and re.fullmatch(r'[0-9a-f]{32}', keys[0])
@@ -208,7 +208,7 @@ def test_the_agent_sends_one_key_of_its_own_per_run_never_the_models(tmp_path):
     agent.CALLBACKS.after_tool(FakeTool('extract_exam_text'), {}, other, ocr_reply('1. Hemograma completo'))
     search(agent, other, 'Hemograma', ('FICT-001', 'Hemograma completo', 1.0))
     args = {'exams': [{'code': 'FICT-001', 'name': 'Hemograma'}]}
-    agent.CALLBACKS.before_tool(FakeTool('create_appointment'), args, other)
+    asyncio.run(agent.CALLBACKS.before_tool(FakeTool('create_appointment'), args, other))
     assert args['idempotency_key'] != keys[0]
 
 
@@ -221,7 +221,7 @@ def test_the_booking_body_has_only_the_codes_whatever_the_model_adds(client, tmp
     proposed = [{'code': 'FICT-001', 'name': 'Maria ' * 40, 'notes': {'paciente': 'Maria'}, 'extra': [1]}]
     assert client.post('/appointments', json={'exams': proposed}).status_code == 422  # what the model's body would get
     args = {'exams': proposed}
-    assert agent.CALLBACKS.before_tool(FakeTool('create_appointment'), args, context) is None
+    assert asyncio.run(agent.CALLBACKS.before_tool(FakeTool('create_appointment'), args, context)) is None
     assert args['exams'] == [{'code': 'FICT-001'}]
     created = client.post('/appointments', json={'exams': args['exams']}, headers={'Idempotency-Key': args['idempotency_key']})
     assert created.status_code == 201 and created.json()['exams'] == [{'code': 'FICT-001', 'name': 'Hemograma completo'}]
@@ -234,13 +234,13 @@ def test_after_the_first_appointment_a_new_call_never_reaches_the_api(tmp_path, 
     search(agent, context, 'Hemograma', ('FICT-001', 'Hemograma completo', 1.0))
     search(agent, context, 'Creatinina', ('FICT-005', 'Creatinina', 1.0))
     first = {'exams': [{'code': 'FICT-001', 'name': 'Hemograma'}]}
-    assert agent.CALLBACKS.before_tool(FakeTool('create_appointment'), first, context) is None
+    assert asyncio.run(agent.CALLBACKS.before_tool(FakeTool('create_appointment'), first, context)) is None
     created = {'id': 'a1', 'status': 'scheduled', 'exams': first['exams']}
     agent.CALLBACKS.after_tool(FakeTool('create_appointment'), first, context, created)  # the API's 201
     codes = ['FICT-001'] if second_body == 'the same' else ['FICT-001', 'FICT-005']
     second = {'exams': [{'code': code, 'name': code} for code in codes]}
     # the same appointment comes back as the tool's reply, and nothing is sent
-    assert agent.CALLBACKS.before_tool(FakeTool('create_appointment'), second, context) == created
+    assert asyncio.run(agent.CALLBACKS.before_tool(FakeTool('create_appointment'), second, context)) == created
 
 
 @pytest.fixture

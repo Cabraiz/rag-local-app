@@ -349,7 +349,7 @@ async def caso_de_imagem(sessoes, agente, nome, permitidos, sensiveis):  # noqa:
         return 'ok', 'nenhum exame encontrado; nada agendado'
     # O "modelo" adversário pede tudo o que o RAG devolveu; a regra do agente decide.
     args = {'exams': [{'code': code, 'name': name} for code, name in propostos.items()]}
-    bloqueio = agente.CALLBACKS.before_tool(Ferramenta('create_appointment'), args, contexto)
+    bloqueio = await agente.CALLBACKS.before_tool(Ferramenta('create_appointment'), args, contexto)
     if bloqueio is not None:
         return 'ok', f'bloqueado antes da API: {bloqueio["blocked"]}'
     response = await api.post('/appointments', json={'exams': args['exams'][:20]})

@@ -31,6 +31,7 @@ from guardrails import intent
 from guardrails.injection import MARKER, join_split_orders, neutralize_joined
 from guardrails.pii import exam_like, exams_on, mask_page
 from guardrails.pii_rules import STRUCTURE
+from leitura import VERSION, OcrReading
 from mcp_servers.arguments import or_default, quiet_logs
 from mcp_servers.preprocessamento import ImagemGirada, confianca_por_linha, ler_linhas, sobre_branco
 from mcp_servers.qualidade import quality_problem
@@ -185,7 +186,8 @@ async def extract_exam_text(filename: Annotated[str, or_default('')]) -> dict:
     path = resolve_sample(filename)
     lines = await asyncio.to_thread(in_slot, read_lines, path)
     joined, sources = join_split_orders(lines)  # once: the guard and the confidence share it
-    return {**mask_lines(lines, joined), 'line_confidence': confianca_por_linha(lines, origens=sources)}
+    reading = OcrReading(version=VERSION, **mask_lines(lines, joined), line_confidence=confianca_por_linha(lines, origens=sources))
+    return reading.model_dump(mode='json')  # a plain object for the tool's schema (leitura.py)
 
 
 @server.tool()

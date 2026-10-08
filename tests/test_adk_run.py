@@ -259,9 +259,11 @@ def resolver(answers):
     return getaddrinfo
 
 
-def order(callbacks, text, state=None):
-    context = SimpleNamespace(state=state if state is not None else {}, invocation_id='i1',
+def order(callbacks, text, holder=None):
+    """start_order for a message of a context with no session; `holder`: the invocation that already holds its order."""
+    context = SimpleNamespace(state={}, invocation_id='i1',
                               user_content=types.Content(role='user', parts=[types.Part(text=text)]))
+    callbacks.orders.of(context).order_invocation = holder
     return asyncio.run(callbacks.start_order(context)), context.state
 
 
@@ -291,7 +293,7 @@ def test_outside_cli_run_the_addresses_checked_are_kept_for_the_process(monkeypa
     # The DNS now answers 127.0.0.1 for ocr: every client of the process still gets the address checked.
     assert [info[4][0] for info in socket.getaddrinfo('OCR', 8001)] == ['10.0.0.5']
     assert rede.PINS == {'ocr': ['10.0.0.5'], 'rag': ['10.0.0.6'], 'api': ['10.0.0.7']}
-    said, _ = order(callbacks, 'outra mensagem', {'order_invocation': 'i0'})  # a 2nd order in the same session
+    said, _ = order(callbacks, 'outra mensagem', 'i0')  # a 2nd order in the same session
     assert said.parts[0].text.startswith('Esta sessão já tratou um pedido')
 
 

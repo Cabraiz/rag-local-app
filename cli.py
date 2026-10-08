@@ -20,10 +20,10 @@ from google.adk.runners import InMemoryRunner
 from google.genai import types
 
 from runtime import confirmacao, servidores
-from runtime.entrada import image_token
+from runtime.entrada import CONFIRMATION, IMAGE_SUFFIXES, image_token
 from runtime.plugin import BookingPlugin, roles_of
 from runtime.rede import pinned_names
-from runtime.relatorio import api_error_in, api_refusal, model_failure, reading_lines
+from runtime.relatorio import UNDECIDED, api_error_in, api_refusal, model_failure, reading_lines
 from runtime.servidores import CHECK_SECONDS, IMAGE_CHECK
 from transpiler import TranspileError, load_root_agent, load_spec, render, transpile
 from transpiler.live import check_addresses, check_live, live_tools
@@ -31,8 +31,6 @@ from transpiler.spec import MODEL
 
 DEFAULT_SPEC = 'specs/agent.json'
 DEFAULT_AGENT = 'generated/agent.py'
-IMAGE_SUFFIXES = {'.png', '.jpg', '.jpeg'}
-CONFIRMATION = 'adk_request_confirmation'  # ADK's call that asks the client to confirm a tool call
 NO_TERMINAL = 'sem terminal para confirmar a lista de exames: rode num terminal ou com --yes'
 
 
@@ -53,7 +51,7 @@ def tool_for(spec, role):
 
 
 def cmd_transpile(args):
-    checked = []
+    checked: list[str] = []
     root_agent = transpile(args.spec, args.output, checked)
     steps = ': ' + ' -> '.join(agent.name for agent in root_agent.sub_agents) if root_agent.sub_agents else ''
     print(f'OK: {args.output} gerado e importado; root_agent "{root_agent.name}" '
@@ -178,7 +176,7 @@ async def run_agent(app, image, spec, found):
     # answers the questions, go to the order's record in the agent's callbacks (runtime/pedido.py).
     session = await runner.session_service.create_session(app_name=app.name, user_id='cli')
     BookingPlugin.of(app).orders.start(session, image, ask=found.get('questions'))
-    message = types.Content(role='user', parts=[types.Part(text=f'Arquivo do pedido: {image_token(image)}')])
+    message: types.Content | None = types.Content(role='user', parts=[types.Part(text=f'Arquivo do pedido: {image_token(image)}')])
     started, invocation = {}, None  # call id -> timestamp of the event that asked for it
     try:
         while message is not None:
@@ -187,7 +185,7 @@ async def run_agent(app, image, spec, found):
                                                 invocation_id=invocation):
                 invocation = event.invocation_id
                 found['model'] = getattr(event, 'model_version', None) or found.get('model')
-                spans = {}  # tool -> longest call answered in this event (parallel calls overlap)
+                spans: dict[str | None, float] = {}  # tool -> longest call answered in this event (parallel calls overlap)
                 for part in (event.content.parts if event.content else None) or []:
                     if part.function_call and part.function_call.name == CONFIRMATION:
                         requests.append(part.function_call)
@@ -204,7 +202,8 @@ async def run_agent(app, image, spec, found):
                     found['tool_seconds'][name] = found['tool_seconds'].get(name, 0) + span
             message = await answers_to(requests, started, found) if requests else None
         # The agent's callbacks left a copy of the order's record in the session state.
-        state = (await runner.session_service.get_session(app_name=app.name, user_id='cli', session_id=session.id)).state
+        saved = await runner.session_service.get_session(app_name=app.name, user_id='cli', session_id=session.id)
+        state = saved.state if saved else {}  # the run's session: always there
         for key in ('pii_masked', 'text_removed', 'instructions_removed', 'candidates', 'low_confidence', 'confirmed',
                     'listing', 'invented', 'model_error', 'cancel_unlinked'):
             found[key] = state.get(key, found.get(key))
@@ -292,7 +291,7 @@ def print_result(found):
         print(f'| {exam["name"]:<{width}} | {exam["code"]:<8} |')
     appointment = found['appointment']
     # The appointment exists, so the exit code stays 0; the line says when the agent left exams out.
-    left = sum(item.get('reason') in ('omitted', 'not_searched') for item in found['low_confidence'])
+    left = sum(item.get('reason') in UNDECIDED for item in found['low_confidence'])
     check = (f'; ATENÇÃO: {left} possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima'
              if left else '')
     print(f'\nAgendamento confirmado pela API: id {appointment["id"]}, status {appointment["status"]}{check}')
@@ -468,7 +467,7 @@ def main(argv=None):
     warnings.filterwarnings('ignore', message=r'\[EXPERIMENTAL\]')
     logging.disable(logging.CRITICAL)
     parser = Parser(prog='python -m cli', description='Transpilador JSON -> agente Google ADK.')
-    common = argparse.ArgumentParser(add_help=False)
+    common = Parser(add_help=False)
     common.add_argument('--verbose', action='store_true',
                         help='mostra no stderr os logs das bibliotecas (ADK, Gemini, MCP), sem a chave da API')
     commands = parser.add_subparsers(dest='command', required=True)

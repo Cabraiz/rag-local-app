@@ -99,7 +99,7 @@ class BookingPlugin(BasePlugin, BookingCallbacks):
         return self.model_failed(callback_context, llm_request, error)
 
     async def before_tool_callback(self, *, tool, tool_args, tool_context):
-        return self.before_tool(tool, tool_args, tool_context)
+        return await self.before_tool(tool, tool_args, tool_context)
 
     async def after_tool_callback(self, *, tool, tool_args, tool_context, result):
         return self.after_tool(tool, tool_args, tool_context, result)

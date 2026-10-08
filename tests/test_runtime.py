@@ -1,4 +1,5 @@
 """The generated agent.py with the runtime library only, outside the repository."""
+import asyncio
 import shutil
 import subprocess
 import sys
@@ -18,7 +19,7 @@ SPEC_FILE = ROOT / 'specs' / 'agent.json'
 # the path: import the agent, then one booking through its plugin's callbacks, as the runner calls them,
 # with nobody to answer [s/N]: one exam read clearly is booked, one in the middle band is left out.
 CHECK = '''
-import json, sys
+import asyncio, json, sys
 from types import SimpleNamespace
 sys.path.insert(0, '')
 import agent, catalogo, runtime
@@ -27,7 +28,7 @@ tool = lambda name: SimpleNamespace(name=name)
 context = SimpleNamespace(state={}, tool_confirmation=None, actions=SimpleNamespace(skip_summarization=False))
 [booking] = agent.app.plugins
 booking.can_ask = lambda: False
-reply = {'lines': ['- Hemograma completo', '- Glicemia de jejum'], 'line_confidence': [95.0, 95.0],
+reply = {'version': 1, 'lines': ['- Hemograma completo', '- Glicemia de jejum'], 'line_confidence': [95.0, 95.0],
          'line_intent': ['request', 'request'], 'contested_exams': [], 'page_clean': True, 'pii_masked': {}}
 booking.after_tool(tool('extract_exam_text'), {}, context, {'content': [{'type': 'text', 'text': json.dumps(reply)}]})
 for code, name, score in (('FICT-001', 'Hemograma completo', 1.0), ('FICT-002', 'Glicemia de jejum', 0.8)):
@@ -35,7 +36,7 @@ for code, name, score in (('FICT-001', 'Hemograma completo', 1.0), ('FICT-002', 
     booking.after_tool(tool('search_exams'), {'query': name}, context, found)
 args = {'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo'}, {'code': 'FICT-002', 'name': 'Glicemia de jejum'}]}
 print(agent.root_agent.name, [step.name for step in agent.root_agent.sub_agents])
-reply = booking.before_tool(tool('create_appointment'), args, context)
+reply = asyncio.run(booking.before_tool(tool('create_appointment'), args, context))
 print(reply, [exam['code'] for exam in args['exams']],
       [(item['code'], item['reason']) for item in context.state['low_confidence']])
 print(runtime.__file__)
@@ -46,12 +47,13 @@ print(sorted(name for name in ('transpiler', 'cli', 'api', 'mcp_servers', 'guard
 
 
 def bundle(tmp_path, spec_file):
-    """What the agent needs: agent.py, the runtime library and catalogo.py (for words()). No catalog
-    file, transpiler, CLI, API, MCP servers or guardrails."""
+    """What the agent needs: agent.py, the runtime library, catalogo.py (for words()) and leitura.py (the OCR's
+    reply). No catalog file, transpiler, CLI, API, MCP servers or guardrails."""
     folder = tmp_path / 'bundle'
     transpile(spec_file, folder / 'agent.py')
     shutil.copytree(ROOT / 'runtime', folder / 'runtime', ignore=shutil.ignore_patterns('__pycache__'))
     shutil.copy(ROOT / 'catalogo.py', folder)
+    shutil.copy(ROOT / 'leitura.py', folder)
     return folder
 
 
@@ -89,7 +91,7 @@ def test_an_api_call_that_is_not_the_checked_booking_is_refused(booking_tool):
     # refused before any request, with no booking role too: a missing role never means "unchecked".
     callbacks, context = BookingCallbacks(booking_tool=booking_tool), SimpleNamespace(state={})
     for name in ('delete_appointment', 'create_appointment' if booking_tool is None else 'get_appointment'):
-        reply = callbacks.before_tool(SimpleNamespace(name=name, endpoint=object()), {}, context)
+        reply = asyncio.run(callbacks.before_tool(SimpleNamespace(name=name, endpoint=object()), {}, context))
         assert reply == {'blocked': f'operação de API sem papel conferido pelo runtime ({name}); nada foi enviado'}
 
 
@@ -97,10 +99,10 @@ def test_any_tool_outside_the_roles_is_refused_and_the_booking_takes_only_exams_
     callbacks, context = BookingCallbacks(ocr_tool='extract_exam_text', search_tool='search_exams',
                                           booking_tool='create_appointment'), SimpleNamespace(state={})
     # An MCP tool without a role (a free file name would escape the run's file token): refused.
-    reply = callbacks.before_tool(SimpleNamespace(name='read_any_file'), {'filename': '/etc/passwd'}, context)
+    reply = asyncio.run(callbacks.before_tool(SimpleNamespace(name='read_any_file'), {'filename': '/etc/passwd'}, context))
     assert reply == {'blocked': 'ferramenta sem papel conferido pelo runtime (read_any_file); nada foi enviado'}
     # The booking call with a field the runtime does not check (free text from the model): refused.
-    reply = callbacks.before_tool(SimpleNamespace(name='create_appointment'), {'exams': [], 'notas': 'x'}, context)
+    reply = asyncio.run(callbacks.before_tool(SimpleNamespace(name='create_appointment'), {'exams': [], 'notas': 'x'}, context))
     assert reply == {'blocked': 'campo(s) fora do agendamento conferido: notas'}
 
 

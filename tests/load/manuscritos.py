@@ -44,7 +44,7 @@ def gabarito(origem):
     return json.loads((Path(origem) / 'gabarito.json').read_text(encoding='utf-8'))['imagens']
 
 
-def decidir(agente, reply, buscas):
+async def decidir(agente, reply, buscas):
     """(agendados sozinho, perguntados, baixa confiança, {código: confiança}) pelos callbacks do agente."""
     contexto = Contexto()
     agente.CALLBACKS.after_tool(Ferramenta('extract_exam_text'), {}, contexto, {'structuredContent': reply})
@@ -55,7 +55,7 @@ def decidir(agente, reply, buscas):
     if not candidates:
         return set(), set(), set(), {}
     args = {'exams': [{'code': code, 'name': c['name']} for code, c in candidates.items()]}
-    bloqueado = agente.CALLBACKS.before_tool(Ferramenta('create_appointment'), args, contexto)
+    bloqueado = await agente.CALLBACKS.before_tool(Ferramenta('create_appointment'), args, contexto)
     agendados = set() if bloqueado else {exam['code'] for exam in args['exams']}
     fora = contexto.state.get('low_confidence', [])
     perguntados = {item['code'] for item in fora if item['reason'] == 'needs_confirmation'}
@@ -75,7 +75,7 @@ async def avaliar(ocr, rag, agente, filename, item):
         query = consulta(line)
         if len(plain(query).replace(' ', '')) >= 2:
             buscas.append((query, await chamar(rag, 'search_exams', {'query': query, 'top_k': 1})))
-    agendados, perguntados, baixa, confianca = decidir(agente, reply, buscas)
+    agendados, perguntados, baixa, confianca = await decidir(agente, reply, buscas)
     expected = {exam['code'] for exam in item['exames']}
     linha = {hits[0]['code']: query for query, hits in buscas if hits}
     return {'erro': None, 'lidos': agendados & expected, 'perguntados': perguntados & expected,

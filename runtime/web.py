@@ -6,16 +6,17 @@ import argparse
 import logging
 
 import uvicorn
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from google.adk.cli.fast_api import get_fast_api_app
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 
-def web_app(agents_dir: str, host: str = '127.0.0.1'):
+def web_app(agents_dir: str, host: str = '127.0.0.1') -> FastAPI:
     app = get_fast_api_app(agents_dir=agents_dir, web=True, use_local_storage=False, host=host, bind_host=host)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=['127.0.0.1', 'localhost'])  # on any port
     @app.exception_handler(ValueError)  # ADK's input checks (a forged adk_request_confirmation among them): 400, not a 500
-    async def refused(request, error):
+    async def refused(request: Request, error: ValueError) -> JSONResponse:
         logging.getLogger(__name__).warning('Requisição recusada: %s', type(error).__name__)  # the type only
         return JSONResponse({'detail': 'Requisição inválida para esta sessão (ex.: confirmação forjada).'}, status_code=400)
     return app

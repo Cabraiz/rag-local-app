@@ -5,11 +5,17 @@ import asyncio
 import os
 import threading
 import weakref
+from collections.abc import AsyncGenerator, Iterable
+from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
+from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.models import FallbackModel, Gemini
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
 from google.adk.tools import mcp_tool
+from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.base_toolset import BaseToolset
 from google.adk.tools.openapi_tool.openapi_spec_parser.openapi_toolset import OpenAPIToolset
 from google.genai import errors, types
@@ -29,7 +35,7 @@ UNTRUSTED_DATA = (
 DEFAULT_ALLOWED_HOSTS = 'ocr:8001,rag:8002,api:8000'
 
 
-def check_host(url):
+def check_host(url: str) -> None:
     """Raise ValueError unless the URL's host, or host:port, is in ALLOWED_HOSTS. Names are compared,
     not addresses: `cli run` checks and pins what each name resolves to (transpiler/live.py)."""
     hosts = [host.strip().lower() for host in os.environ.get('ALLOWED_HOSTS', '').split(',') if host.strip()]
@@ -44,7 +50,7 @@ def check_host(url):
                          'gere o agent.py de novo ou inclua o host em ALLOWED_HOSTS')
 
 
-async def check_address(url):
+async def check_address(url: str) -> None:
     """Before a toolset's first connection: the URL's name resolves to no local or metadata address,
     and from here on every connection uses the addresses checked (runtime/rede.py). `cli run` checked
     and pinned them already; under `adk run` / `adk web` a toolset may connect before any order starts
@@ -54,12 +60,12 @@ async def check_address(url):
         raise ConnectionRefusedError('; '.join(problems))
 
 
-def guarded(instruction):
+def guarded(instruction: str) -> str:
     """The spec's instruction after the fixed rule that tool output is data, never orders."""
     return UNTRUSTED_DATA + instruction
 
 
-def retries(*codes):
+def retries(*codes: int) -> types.HttpRetryOptions:
     """Up to 5 attempts on these HTTP codes, with exponential backoff (2, 4, 8 and 16 s, plus jitter)."""
     return types.HttpRetryOptions(attempts=5, initial_delay=2, max_delay=30, http_status_codes=list(codes))
 
@@ -74,7 +80,8 @@ class Primary(Gemini):
     `adk web`)."""
     reserve: str = ''
 
-    async def generate_content_async(self, llm_request, stream=False):
+    async def generate_content_async(self, llm_request: LlmRequest,
+                                     stream: bool = False) -> AsyncGenerator[LlmResponse, None]:
         answered = False
         try:
             async for response in super().generate_content_async(llm_request, stream):
@@ -86,7 +93,7 @@ class Primary(Gemini):
             raise
 
 
-def gemini(model, fallback=None):
+def gemini(model: str, fallback: str | None = None) -> Gemini | FallbackModel:
     """The spec's model (the GEMINI_MODEL variable, `docker compose run -e GEMINI_MODEL=...`, can
     replace it, checked by `cli run`). Temporary Gemini failures (429/500/503) are retried with
     exponential backoff, up to 5 attempts.
@@ -110,12 +117,13 @@ class McpToolset(mcp_tool.McpToolset):
     address is checked before it connects (check_address). The MCP SDK follows a redirect only within
     the same origin, so the stream stays on that host."""
 
-    def __init__(self, *, connection_params, **kwargs):
+    def __init__(self, *, connection_params: Any, **kwargs: Any):
         check_host(connection_params.url)
         super().__init__(connection_params=connection_params, **kwargs)
+        self.url: str = connection_params.url
 
-    async def get_tools(self, readonly_context=None):
-        await check_address(self._connection_params.url)  # every connection of the toolset starts here
+    async def get_tools(self, readonly_context: ReadonlyContext | None = None) -> list[BaseTool]:
+        await check_address(self.url)  # every connection of the toolset starts here
         return await super().get_tools(readonly_context)
 
 
@@ -126,7 +134,7 @@ class LiveOpenAPIToolset(BaseToolset):
     ALLOWED_HOSTS when agent.py is imported, and their addresses before the first request; httpx
     follows no redirect."""
 
-    def __init__(self, *, openapi_url: str, base_url: str, tool_filter) -> None:
+    def __init__(self, *, openapi_url: str, base_url: str, tool_filter: Iterable[str]) -> None:
         check_host(openapi_url)
         check_host(base_url)
         super().__init__()
@@ -137,20 +145,20 @@ class LiveOpenAPIToolset(BaseToolset):
         self.loading: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()  # event loop -> its lock
         self.guard = threading.Lock()
 
-    def lock(self):
+    def lock(self) -> asyncio.Lock:
         with self.guard:
             return self.loading.setdefault(asyncio.get_running_loop(), asyncio.Lock())
 
-    async def get_tools(self, readonly_context=None):
+    async def get_tools(self, readonly_context: ReadonlyContext | None = None) -> list[BaseTool]:
         for url in (self.openapi_url, self.base_url):  # the contract, and where the calls go
             await check_address(url)
         if self.toolset is None:
             async with self.lock():
                 if self.toolset is None:  # another call may have built it while this one waited
                     self.toolset = await self.load()
-        return await self.toolset.get_tools(readonly_context)
+        return [*await self.toolset.get_tools(readonly_context)]
 
-    async def load(self):
+    async def load(self) -> OpenAPIToolset:
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.get(self.openapi_url)
             response.raise_for_status()
@@ -158,6 +166,6 @@ class LiveOpenAPIToolset(BaseToolset):
         spec['servers'] = [{'url': self.base_url}]
         return OpenAPIToolset(spec_dict=spec, tool_filter=self.operations)
 
-    async def close(self):
+    async def close(self) -> None:
         if self.toolset is not None:
             await self.toolset.close()

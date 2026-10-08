@@ -1,10 +1,14 @@
-"""What a run did, written in code from the session state, never from the model's own words: what
+"""What a run did, written in code from the order's record, never from the model's own words: what
 the OCR masked, the exams left out and why, and the appointment as the API returned it. `cli run`
 prints these lines; under `adk run` or `adk web` the pipeline's last message is this report
 (BookingCallbacks.report)."""
 import re
+from collections.abc import Mapping
+from typing import Any
 
 from google.genai import errors
+
+from .pedido import Item, OrderRecord
 
 # Why an exam is asked although it is written clearly: what its line says (runtime/confianca.py, 'why').
 WHY = {'uncertain': '; o pedido tem outras palavras além do exame', 'table': '; o pedido está em tabela ou colunas',
@@ -32,28 +36,29 @@ REFUSED = {
 UNDECIDED = ('omitted', 'not_searched')  # exams of the order the agent made no decision on
 
 
-def confidence(value):
+def confidence(value: float) -> str:
     return f'{value:.2f}'.replace('.', ',')
 
 
-def printable(text):
+def printable(text: object) -> str:
     """OCR text, shown to a person: no terminal codes."""
     return ''.join(char for char in str(text) if char.isprintable())
 
 
-def left_out_line(item, why=WHY):
+def left_out_line(item: Mapping[str, Any], why: Mapping[str, str] = WHY) -> str:
     """One exam left out, with the same number and words as the [s/N] question (the confidence the policy
     decided on), or with what the order says of it."""
     seen = f"'{printable(item['read'])}' → {item['name']} {item['code']}"
-    if item.get('reason') in REFUSED:
-        return REFUSED[item['reason']].format(seen=seen, used_by=item.get('used_by'))
+    reason, said = item.get('reason') or '', why.get(item.get('why') or '')
+    if reason in REFUSED:
+        return REFUSED[reason].format(seen=seen, used_by=item.get('used_by'))
     guess = f"{seen} (confiança {confidence(item['confidence'])})"
-    if why.get(item.get('why')):  # asked, not booked, for what its line says
-        guess += f'{why[item["why"]]}, confirme'
-    return LEFT_OUT.get(item.get('reason'), LEFT_OUT['score']).format(guess=guess)
+    if said:  # asked, not booked, for what its line says
+        guess += f'{said}, confirme'
+    return LEFT_OUT.get(reason, LEFT_OUT['score']).format(guess=guess)
 
 
-def unrecognized(values):
+def unrecognized(values: Mapping[str, Any]) -> list[int]:
     """Numbers of the list items the OCR read but could not tell as exams: the CLI's record has them, the
     session's record has the OCR's line_intent."""
     if 'unrecognized' in values:
@@ -61,9 +66,9 @@ def unrecognized(values):
     return [index + 1 for index, kind in enumerate(values.get('ocr_intent') or []) if kind == 'unrecognized']
 
 
-def reading_lines(values):
+def reading_lines(values: Mapping[str, Any]) -> list[str]:
     """What the OCR masked or removed, the exams the person confirmed and the ones left out. `values`:
-    the session state, or the CLI's record of the run (the same keys)."""
+    the record's copy in the session state (OrderRecord.view), or the CLI's record of the run (the same keys)."""
     masked = ', '.join(f'{kind} x{count}' for kind, count in (values.get('pii_masked') or {}).items())
     lines = [f'PII reconhecida e mascarada pelo OCR: {masked or "nenhuma"}']
     if values.get('text_removed'):  # not PII by the rules, but it may hold a name they did not recognize
@@ -82,47 +87,47 @@ def reading_lines(values):
     return lines
 
 
-def api_refusal(error):
+def api_refusal(error: object) -> str:
     # ADK's RestApiTool reports a non-2xx reply as
     # {"error": "Tool ... execution failed ... Status Code: <n>, <response body>"}.
     refused = re.search(r'Status Code: (\d+), (.*)', str(error), re.S)
     return f'HTTP {refused[1]}: {refused[2].strip()}' if refused else str(error)
 
 
-def api_error_in(error):
+def api_error_in(error: BaseException | None) -> errors.APIError | None:
     """The Gemini API error inside an agent failure, if any (ADK may wrap it)."""
     while error is not None and not isinstance(error, errors.APIError):
         error = error.__cause__ or error.__context__
     return error
 
 
-def model_failure(code, message):
+def model_failure(code: int, message: object) -> str:
     """A model call Gemini refused, also with the reserve model (runtime/adk.py): one line."""
     if code in (429, 500, 503):
         return f'Gemini indisponível no momento (HTTP {code}); tente novamente'
     return f'o Gemini recusou a chamada (HTTP {code}: {str(message)[:500]})'
 
 
-def not_booked(state):
+def not_booked(order: OrderRecord) -> str:
     """Why a run that should book booked nothing, from what the callbacks kept."""
-    if state.get('model_error'):
-        return state['model_error']
-    if state.get('file_refused'):
+    if order.model_error:
+        return order.model_error
+    if order.file_refused:
         return 'o agente pediu um arquivo diferente do informado'
-    if state.get('ocr_error'):
-        return f'OCR recusou a imagem: {state["ocr_error"]}'
-    if 'ocr_lines' not in state:
+    if order.ocr_error:
+        return f'OCR recusou a imagem: {order.ocr_error}'
+    if order.ocr_lines is None:
         return 'o pedido não foi lido (o agente não chamou o OCR, ou o OCR não respondeu)'
-    if state.get('blocked'):
-        return f'agendamento bloqueado antes de chamar a API: {state["blocked"]}'
-    if state.get('api_error'):
-        return f'a API recusou o agendamento ({api_refusal(state["api_error"])})'
-    if not state.get('candidates'):
+    if order.blocked:
+        return f'agendamento bloqueado antes de chamar a API: {order.blocked}'
+    if order.api_error:
+        return f'a API recusou o agendamento ({api_refusal(order.api_error)})'
+    if not order.candidates:
         return 'Nenhum exame encontrado no pedido'
     return 'o agente terminou sem um agendamento confirmado pela API'
 
 
-def appointment_lines(appointment, left_out):
+def appointment_lines(appointment: dict[str, Any], left_out: list[Item]) -> list[str] | None:
     """The exams the API stored and the appointment line, or None if the reply is not one."""
     try:
         exams = [f'- {exam["name"]} ({exam["code"]})' for exam in appointment['exams']]
@@ -136,9 +141,9 @@ def appointment_lines(appointment, left_out):
     return [*exams, line]
 
 
-def listing_lines(state):
-    listing = state.get('listing') or []
-    lines = [f'ignorado: {code} não veio de nenhuma busca no catálogo' for code in state.get('invented') or []]
+def listing_lines(order: OrderRecord) -> list[str]:
+    listing = order.listing or []
+    lines = [f'ignorado: {code} não veio de nenhuma busca no catálogo' for code in order.invented or []]
     lines += [f'- {item["name"]} ({item["code"]}), confiança {confidence(item["confidence"])}'
               + (' (confira)' if item['check'] else '') for item in listing]
     lines.append(f'{len(listing)} exame(s) listado(s); nada foi agendado' if listing
@@ -146,15 +151,15 @@ def listing_lines(state):
     return lines
 
 
-def report(state, books):
+def report(order: OrderRecord, books: bool) -> str:
     """The run's final message. `books`: the spec has a booking role (else it lists exams)."""
-    values = dict(state) | {'low_confidence': [*(state.get('low_confidence') or []), *(state.get('unreported') or [])]}
-    lines = reading_lines(values)
+    left_out = [*(order.low_confidence or []), *(order.unreported or [])]
+    lines = reading_lines(order.view() | {'low_confidence': left_out})
     if not books:
-        return '\n'.join(lines + (listing_lines(state) if 'ocr_lines' in state else
-                                  [f'{not_booked(state)}; nada foi listado']))
-    appointment = state.get('booked_appointment')
-    booked = appointment_lines(appointment, values['low_confidence']) if isinstance(appointment, dict) else None
-    if booked is None and isinstance(appointment, dict):
+        return '\n'.join(lines + (listing_lines(order) if order.ocr_lines is not None else
+                                  [f'{not_booked(order)}; nada foi listado']))
+    appointment = order.booked_appointment
+    booked = appointment_lines(appointment, left_out) if appointment is not None else None
+    if booked is None and appointment is not None:
         booked = ['a API respondeu sem o formato esperado (id, status e exams com code e name); confira o agendamento']
-    return '\n'.join(lines + (booked or [f'{not_booked(state)}; nada foi agendado']))
+    return '\n'.join(lines + (booked or [f'{not_booked(order)}; nada foi agendado']))

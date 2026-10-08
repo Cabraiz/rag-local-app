@@ -47,7 +47,7 @@ def read(agent, lines, confidence=None, intent=None, **more):
     """The OCR's reply through the after_tool_callback (lines read clearly, 95, and requests, unless
     told otherwise, plus any other field of the reply); returns a fresh context."""
     context = FakeContext()
-    reply = {'lines': lines, 'pii_masked': {}, 'page_clean': True, **more}  # a clean page, unless told otherwise
+    reply = {'version': 1, 'lines': lines, 'pii_masked': {}, 'page_clean': True, **more}  # a clean page, unless told otherwise
     if intent is not ABSENT:
         reply['line_intent'] = ['request'] * len(lines) if intent is None else intent
     if confidence is not ABSENT:
@@ -145,22 +145,32 @@ def test_a_short_code_needs_a_clearer_reading(agent, monkeypatch, query, code, n
         assert [(item['code'], item['confidence']) for item in asked] == [(code, min(reading / 100, 0.89))]
 
 
-# A fixed id for ABSENT: repr() of an object() carries its address, which differs in each
-# pytest-xdist worker, and the workers must collect the same test ids.
-@pytest.mark.parametrize('confidence', [ABSENT, [], [95, 95, 95], ['alta', 95], [True, 95], 'x'],
-                         ids=lambda value: 'ABSENT' if value is ABSENT else repr(value))
-def test_without_a_usable_ocr_reading_nothing_is_booked_without_a_yes(agent, monkeypatch, confidence):
-    # Fail closed: a missing line_confidence, or one that does not match the lines, never turns the
-    # OCR floor off; every exam goes to the question (0.89 at most), as if the reading were weak.
+def test_without_an_ocr_reading_nothing_is_booked_without_a_yes(agent, monkeypatch):
+    # Fail closed: a reply without line_confidence never turns the OCR floor off; every exam goes to
+    # the question (0.89 at most), as if the reading were weak.
     asked = []
     answering(monkeypatch, agent, lambda items: asked.extend(items) or None)
-    context = read(agent, ['- TSH', '- Creatinina'], confidence)
+    context = read(agent, ['- TSH', '- Creatinina'], ABSENT)
     search(agent, context, 'TSH', ('FICT-024', 'TSH', 1.0))
     search(agent, context, 'Creatinina', ('FICT-005', 'Creatinina', 1.0))
     reply, _ = book(agent, context, 'FICT-024', 'FICT-005')
     assert reply == {'blocked': 'você não confirmou a lista de exames'}  # nobody answered
     assert context.state['ocr_confidence'] is None
     assert sorted((item['code'], item['confidence']) for item in asked) == [('FICT-005', 0.89), ('FICT-024', 0.89)]
+
+
+@pytest.mark.parametrize('confidence', [[], [95, 95, 95], ['alta', 95], [True, 95], 'x'], ids=repr)
+def test_a_reply_outside_the_ocr_contract_is_not_read(agent, monkeypatch, confidence):
+    # Fail closed: a line_confidence that does not follow the lines, or is not numbers, puts the reply outside
+    # the OCR's contract (leitura.OcrReading): nothing of it is kept, so nothing is booked, or even asked.
+    asked = []
+    answering(monkeypatch, agent, lambda items: asked.extend(items) or None)
+    context = read(agent, ['- TSH', '- Creatinina'], confidence)
+    search(agent, context, 'TSH', ('FICT-024', 'TSH', 1.0))
+    search(agent, context, 'Creatinina', ('FICT-005', 'Creatinina', 1.0))
+    reply, _ = book(agent, context, 'FICT-024', 'FICT-005')
+    assert reply == {'blocked': 'nenhum exame com confiança suficiente para agendar'} and asked == []
+    assert 'ocr_lines' not in context.state
 
 
 def middle_band(agent):
@@ -316,7 +326,7 @@ def test_line_confidence_must_follow_the_lines_after_split_orders_are_joined(age
     lines = ocr.mask_lines(raw)['lines']
     assert len(lines) == 3
     assert read(agent, lines, [95, 61, 93]).state['ocr_confidence'] == [95, 61, 93]
-    assert read(agent, lines, [95, 88, 61, 93]).state['ocr_confidence'] is None  # one per raw line: fails closed
+    assert 'ocr_lines' not in read(agent, lines, [95, 88, 61, 93]).state  # one per raw line: not read
 
 
 class FakeRunner:
@@ -430,7 +440,7 @@ def test_end_to_end_without_gemini_with_the_real_ocr_reading(agent, monkeypatch,
     # the exam name of each line the model reads, as it searches it (no "Exame:" label, no list marker)
     searches = [(query, rag.search(query, 3)) for query in map(robustez.consulta, manuscritos.lidas_pelo_modelo(reply))
                 if len(rag.normalize(query).replace(' ', '')) >= 2]
-    booked_alone, asked, _, _ = manuscritos.decidir(agent, reply, searches)
+    booked_alone, asked, _, _ = asyncio.run(manuscritos.decidir(agent, reply, searches))
     assert booked_alone <= expected  # never an exam outside the order without the person's yes
     if sample in printed:
         assert booked_alone == expected and not asked  # a clean printed order is booked whole, without questions
@@ -491,9 +501,10 @@ def test_a_list_answered_no_books_nothing_and_the_cli_says_so(agent, monkeypatch
 
 def test_the_ocr_gets_the_real_file_and_the_model_only_the_token(agent):
     context = FakeContext()
-    context.state.update(image_token='pedido-1.png', image_file='pedido-joao-silva.png')
+    order = agent.CALLBACKS.orders.of(context)  # the run's record, never the session state
+    order.image_token, order.image_file = 'pedido-1.png', 'pedido-joao-silva.png'
     args = {'filename': 'pedido-1.png'}
-    assert agent.CALLBACKS.before_tool(FakeTool('extract_exam_text'), args, context) is None
+    assert asyncio.run(agent.CALLBACKS.before_tool(FakeTool('extract_exam_text'), args, context)) is None
     assert args == {'filename': 'pedido-joao-silva.png'}
     # an OCR error that quotes the real name goes back to the model with the token instead
     refusal = {'isError': True, 'content': [{'type': 'text', 'text': 'Arquivo "pedido-joao-silva.png" não encontrado.'}]}
@@ -509,9 +520,10 @@ def test_the_ocr_gets_the_real_file_and_the_model_only_the_token(agent):
 ])
 def test_any_other_file_name_is_refused_before_the_ocr(agent, state, asked):
     context = FakeContext()
-    context.state.update(state)
+    for name, value in state.items():
+        setattr(agent.CALLBACKS.orders.of(context), name, value)
     args = {'filename': asked}
-    reply = agent.CALLBACKS.before_tool(FakeTool('extract_exam_text'), args, context)
+    reply = asyncio.run(agent.CALLBACKS.before_tool(FakeTool('extract_exam_text'), args, context))
     assert reply == {'blocked': 'arquivo que não é o desta execução; use o nome informado na mensagem'}
     assert args == {'filename': asked} and context.state['file_refused']
 

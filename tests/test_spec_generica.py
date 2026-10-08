@@ -436,7 +436,7 @@ CALLS: dict[str, list] = {'extract_exam_text': [], 'search_exams': [], 'create_a
 def extract_exam_text(filename: str) -> dict:
     """Reads the order (stand-in for the OCR server)."""
     CALLS['extract_exam_text'].append(filename)
-    return {'structuredContent': {'lines': ORDER, 'line_confidence': [96.0] * len(ORDER),
+    return {'structuredContent': {'version': 1, 'lines': ORDER, 'line_confidence': [96.0] * len(ORDER),
                                   'line_intent': ['request'] * len(ORDER), 'contested_exams': [], 'page_clean': True, 'pii_masked': {}}}
 
 

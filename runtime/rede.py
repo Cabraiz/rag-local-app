@@ -14,6 +14,8 @@ import contextlib
 import ipaddress
 import socket
 import threading
+from collections.abc import Callable, Iterable, Iterator
+from typing import Any
 from urllib.parse import urlsplit
 
 # Besides loopback, link-local (169.254.169.254, fe80::), 0.0.0.0 and multicast: unique local IPv6
@@ -25,11 +27,11 @@ REFUSED = ('um endereço local ou de metadados de nuvem (ex.: 127.0.0.1, 169.254
 
 PINS: dict[str, list[str]] | None = None  # name -> addresses checked, while names are pinned
 SCOPE: str | None = None  # 'run' inside pinned_names() (cli run), 'process' after check_urls (adk run/web)
-PROCESS: dict = {}  # the process-wide pin: its resolver, the one it replaced, its names
+PROCESS: dict[str, Any] = {}  # the process-wide pin: its resolver, the one it replaced, its names
 LOCK = threading.RLock()  # adk web runs orders, and toolsets, on several threads and loops at once
 
 
-def unsafe(address):
+def unsafe(address: str) -> bool:
     """A local or cloud metadata address, also written as IPv4 inside IPv6."""
     ip = ipaddress.ip_address(address.split('%')[0])
     ip = getattr(ip, 'ipv4_mapped', None) or ip
@@ -37,7 +39,7 @@ def unsafe(address):
             or any(ip in network for network in LOCAL_NETWORKS if network.version == ip.version))
 
 
-def is_address(host):
+def is_address(host: str) -> bool:
     try:
         ipaddress.ip_address(host)
         return True
@@ -45,7 +47,7 @@ def is_address(host):
         return False
 
 
-def resolve(url, lookup=None):
+def resolve(url: str, lookup: Callable[..., Any] | None = None) -> tuple[str, list[str]] | None:
     """(host, sorted addresses) of the URL's name, or None for a host written as its address (an IP, or
     localhost), which is not resolved. A name that does not resolve has no address."""
     parts = urlsplit(url)
@@ -60,9 +62,9 @@ def resolve(url, lookup=None):
     return host, sorted({str(info[4][0]) for info in infos})
 
 
-def pinning(pins, real):
+def pinning(pins: dict[str, list[str]], real: Callable[..., Any]) -> Callable[..., Any]:
     """socket.getaddrinfo that answers a pinned name with its addresses (with the port each lookup asks)."""
-    def getaddrinfo(host, port, *args, **kwargs):
+    def getaddrinfo(host: str | bytes | None, port: Any, *args: Any, **kwargs: Any) -> Any:
         name = host.decode() if isinstance(host, bytes) else host
         addresses = pins.get((name or '').lower())
         if addresses is None:
@@ -74,12 +76,13 @@ def pinning(pins, real):
 
 
 @contextlib.contextmanager
-def pinned_names():
+def pinned_names() -> Iterator[dict[str, list[str]]]:
     """While inside (a `cli run`), a name that the run's check resolved keeps those addresses for every
     client of the process. A DNS answer that changes during the run (rebinding) is never used."""
     global PINS, SCOPE
     with LOCK:
-        real, pins, before = socket.getaddrinfo, {}, (PINS, SCOPE)
+        real, before = socket.getaddrinfo, (PINS, SCOPE)
+        pins: dict[str, list[str]] = {}
         socket.getaddrinfo, PINS, SCOPE = pinning(pins, real), pins, 'run'
     try:
         yield pins
@@ -88,13 +91,13 @@ def pinned_names():
             socket.getaddrinfo, (PINS, SCOPE) = real, before
 
 
-def host_of(url):
+def host_of(url: str) -> str | None:
     """The URL's host as it is resolved, or None for a host written as its address (an IP, or localhost)."""
     host = (urlsplit(url).hostname or '').lower()
     return None if host == 'localhost' or is_address(host) else host
 
 
-def check_urls(urls):
+def check_urls(urls: Iterable[str]) -> list[str]:
     """Problems of the agent's own URLs, checked outside `cli run` (which checked and pinned its spec's
     names before the run) when an order starts and before any toolset connects (runtime/adk.py). The
     first check pins every name for the process: the addresses checked are the ones every connection
@@ -114,7 +117,7 @@ def check_urls(urls):
             host = host_of(url)
             if host is None or pins.get(host):
                 continue
-            _, addresses = resolve(url, PROCESS['real'])
+            _, addresses = resolve(url, PROCESS['real']) or (host, [])  # a name: always resolved
             refused = [address for address in addresses if unsafe(address)]
             if refused:
                 problems.append(f'{url}: "{host}" resolve para {", ".join(refused)}, {REFUSED}')
@@ -122,7 +125,7 @@ def check_urls(urls):
         return problems
 
 
-def unpin_process():
+def unpin_process() -> None:
     """Undo check_urls' process-wide pin (tests: each one starts without it). Its resolver is put back
     only if nothing replaced it since; otherwise it is left in place with no pins, so it only passes
     each lookup on to the resolver it wrapped."""
