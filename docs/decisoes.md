@@ -33,7 +33,7 @@ e o que o modelo propõe só vale depois da conferência em código.
 confiável, tem dados privados e pode mandar dados para fora. Aqui:
 
 - do pedido, o modelo recebe só as linhas de exame, mascaradas no OCR. Cabeçalho, nome, documento,
-  observação, ordem escrita e linha com nome mascarado chegam como `[linha de texto livre omitida]`;
+  observação, ordem escrita e linha que começa por um nome mascarado chegam como `[linha de texto livre omitida]` (um item da lista com o exame antes do nome vai mascarado, e a página fica para conferir);
 - numa linha de exame, depois do nome, um número ou uma palavra com maiúscula que não é do catálogo sai
   pela forma. Ainda podem chegar restos que a máscara não reconhece (um sobrenome em minúsculas, um
   número que também está num nome do catálogo, como "125") e o que é escrito com palavras do catálogo:

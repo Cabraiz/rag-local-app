@@ -242,7 +242,7 @@ Consequências:
   `[NOME]`, `[CPF]`, `[RG]`, `[TELEFONE]`, `[EMAIL]`, `[DATA]`, `[CRM]`, `[ENDERECO]`, `[SUS]`,
   `[PRONTUARIO]`, `[CID]`, `[CLINICO]`, `[CONVENIO]`, `[IDADE]` e `[TEXTO_REMOVIDO]`;
 - o modelo recebe só as linhas de exame (`exam_lines`); as outras chegam como
-  `[linha de texto livre omitida]`, e uma linha com `[NOME]` não vai ao modelo;
+  `[linha de texto livre omitida]`; um item da lista com o exame antes do nome vai mascarado (`- Hemograma completo [NOME]`) e a página fica para conferir, e uma linha que começa pelo nome não vai ao modelo;
 - a API e o SQLite não dependem da máscara: a API só aceita código e nome de cada exame (um campo a mais
   dá `422`) e grava o nome do catálogo;
 - a proteção não depende do prompt nem do modelo;
