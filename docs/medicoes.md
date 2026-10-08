@@ -43,7 +43,9 @@ Os 26 exames que faltam são erros de leitura do OCR numa letra ou sigla solta n
 "Troponina I" lido "Troponina 1" (Troponina I 7, Proteína C 7, Urina tipo I 5, Peptídeo C 4, CK MB 2,
 LDH 1); a máscara não apagou nenhum. O pedido que não foi agendado tem um exame só, que o OCR não
 leu: sem código, não há `POST`. 0 sessões MCP quebraram ou ficaram abertas. A latência e a vazão
-foram medidas no código final, com no máximo 3 sessões no OCR. Na CI,
+foram medidas no código final, com no máximo 3 sessões no OCR e sem os limites de CPU e memória do
+compose. Com os limites (OCR com 2 CPUs e 1,5 GB, no máximo 3 leituras ao mesmo tempo), 100 pedidos com 8 em paralelo
+deram OCR p50 / p95 de 2,18 s / 2,64 s e 3,6 pedidos/s, com 0 vazamentos e os 100 agendados. Na CI,
 `tests/test_carga.py` roda 20 pedidos com o OCR em processo e falha se um valor vazar.
 
 ## Fotos de celular de pedidos impressos
