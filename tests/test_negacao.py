@@ -249,9 +249,9 @@ def test_the_reviews_order_leaves_the_ocr_with_its_negations_and_no_name():
                               '[TEXTO_REMOVIDO] ja realizado [TEXTO_REMOVIDO]: PSA total - nao repetir', '[TEXTO_REMOVIDO]']
     assert reply['line_intent'] == ['request', 'request', 'negated', 'negated', 'uncertain']  # read as written
     assert reply['contested_exams'] == [{'code': 'FICT-018', 'name': 'Ferritina', 'reason': 'negated'},
-                                        {'code': 'FICT-048', 'name': 'PSA total', 'reason': 'negated'},
-                                        {'code': 'FICT-023', 'name': 'Vitamina D', 'reason': 'instruction'}]
+                                        {'code': 'FICT-048', 'name': 'PSA total', 'reason': 'negated'}]
     assert reply['instructions_removed'] == 1  # the note to the "automated reader" is an order to add an exam
+    assert not reply['page_clean']  # so nothing on the page books alone
     assert 'NOME' not in reply['pii_masked']  # "NAO realizar" and "considere tambem" are no names
 
 

@@ -15,6 +15,7 @@ import os
 import re
 from collections.abc import Callable
 from pathlib import Path, PureWindowsPath
+from statistics import median
 from typing import Annotated, Any
 
 import pytesseract
@@ -42,6 +43,8 @@ MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_FILENAME_LENGTH = 100
 MAX_PIXELS = 25_000_000  # checked from the header, before decoding
 OCR_TIMEOUT_SECONDS = 30
+# reading_marks: a gap of GAP letter heights ends a block; letters under SMALL of the page's, or LIGHT tones lighter.
+GAP, SMALL, LIGHT = 1.5, 0.6, 100
 
 
 def resolve_sample(filename: str) -> Path:
@@ -97,37 +100,43 @@ def checked_image(path: Path, then: Callable[[Image.Image], Any]) -> Any:
 
 
 def mask_lines(lines: list[str], joined: list[str] | None = None) -> dict:
-    """Neutralize instructions to the model, read what each line asks for, then mask PII (line by
-    line, plus a CPF split in two lines).
-
-    line_intent holds one kind per returned line (guardrails/intent.py), read from the whole page as
-    written, before the guard and the mask. A list item whose text the safety net removed whole, or
-    whose exam name it removed leaving only a modifier ("[TEXTO_REMOVIDO] total"), is 'unrecognized'
-    (unrecognized_request). contested_exams: intent.contested(), also of each order to the model removed
-    here (codes and names only). pii_masked counts personal data by type. Kept apart, as they are not PII:
-    instructions_removed, the lines where an order to the model was replaced, and text_removed, the pieces
-    that did not look like an exam ([TEXTO_REMOVIDO]). `joined` is join_split_orders(lines)[0] if known.
+    """Neutralize instructions to the model, read what each line asks for, then mask PII (line by line, plus a
+    CPF split in two lines). line_intent, contested_exams, cancel_unlinked and page_clean: guardrails/intent.py, on
+    the page as written, before the guard and the mask; a list item the safety net removed whole, or left only a
+    modifier of ("[TEXTO_REMOVIDO] total"), is 'unrecognized'; an order to the model removed leaves the page not
+    clean. pii_masked counts personal data by type; apart, as not PII: instructions_removed (lines where an order
+    to the model was replaced) and text_removed ([TEXTO_REMOVIDO] pieces). `joined`: join_split_orders(lines)[0].
     """
     if joined is None:
         joined = join_split_orders(lines)[0]
+    breaks, odd = reading_marks(lines) if len(joined) == len(lines) else (frozenset(), [False] * len(joined))
     lines, removed = neutralize_joined(joined)  # prompt injection: the text goes to the LLM
     masked, counts = mask_page(lines)
-    kinds, contest = intent.read_page(joined)
+    kinds, contest, unlinked = intent.read_page(joined, breaks)
     kinds = ['unrecognized' if kind in ('request', 'uncertain', 'table') and unrecognized_request(line, safe) else kind
              for kind, line, safe in zip(kinds, lines, masked, strict=True)]
-    contest = [why or ('instruction' if MARKER in line else None) for why, line in zip(contest, lines, strict=True)]
+    readings = [getattr(line, 'confianca', 100.0) for line in joined]
     text_removed = counts.pop('TEXTO_REMOVIDO', 0)
     return {'lines': masked, 'line_intent': kinds, 'pii_masked': counts, 'instructions_removed': removed,
-            'text_removed': text_removed, 'contested_exams': intent.contested(joined, contest)}
+            'text_removed': text_removed, 'contested_exams': intent.contested(joined, contest), 'cancel_unlinked':
+            unlinked, 'page_clean': not removed and not unlinked and intent.clean_page(joined, masked, kinds, odd, readings)}
+
+
+def reading_marks(lines: list[str]) -> tuple[frozenset[int], list[bool]]:
+    """(lines with a gap above them: Tesseract's blocks of text, lines in letters far smaller or lighter than the
+    page's) from where Tesseract put each line (preprocessamento.Linha.caixa); nothing for lines without it."""
+    boxes = [box for line in lines if (box := getattr(line, 'caixa', None))]
+    if not boxes or len(boxes) < len(lines):
+        return frozenset(), [False] * len(lines)
+    height, ink = median(box[2] for box in boxes), median(box[3] for box in boxes)
+    return (frozenset(i for i in range(1, len(boxes)) if boxes[i][0] - boxes[i - 1][1] > GAP * height),
+            [box[2] < SMALL * height or box[3] > ink + LIGHT for box in boxes])
 
 
 def unrecognized_request(line: str, masked: str) -> bool:
-    """Whether a list item of the order ("4) Ressonancia magnetica de cranio") left the OCR as nothing
-    but [TEXTO_REMOVIDO]: a request the catalog does not know, which the CLI must not drop in silence.
-    Only the line's number is reported, never its text. An order to the model already removed
-    (instructions_removed), a name or other personal data masked on the line, or a few letters of
-    junk are not one. Nor is it silent when only the exam's name went and its modifier stayed
-    ("[TEXTO_REMOVIDO] total", "- [TEXTO_REMOVIDO] livre"): that is a request too."""
+    """Whether a list item ("4) Ressonancia magnetica de cranio") left the OCR as nothing but [TEXTO_REMOVIDO], or
+    as a modifier ("[TEXTO_REMOVIDO] total"): a request the catalog does not know, reported by its line's number
+    only. An order to the model already removed, personal data masked on the line, or a few letters of junk are not."""
     left = words(LIST_MARKER.sub('', masked).replace('[TEXTO_REMOVIDO]', ' '))
     if MARKER not in line and '[TEXTO_REMOVIDO]' in masked and not re.search(r'\[[A-Z_]+\]', line) and left \
             and all(word in EXAM_MODIFIERS for word in left.split()) and not exams_on(left):
@@ -146,7 +155,7 @@ server = MCPServer('ocr-exams', instructions='Extrai o texto de um pedido médic
 @server.tool()
 async def extract_exam_text(filename: Annotated[str, or_default('')]) -> dict:
     """Read /data/samples/<filename> with OCR; returns {lines, line_confidence, line_intent, contested_exams,
-    pii_masked, instructions_removed, text_removed}.
+    cancel_unlinked, page_clean, pii_masked, instructions_removed, text_removed}.
 
     PII already masked; line_confidence holds one 0-100 value per returned line, and line_intent one
     kind (request, negated, history, uncertain, prep, unrecognized, table), in the same order.
