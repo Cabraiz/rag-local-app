@@ -140,6 +140,44 @@ def test_without_a_terminal_and_without_yes_nothing_is_booked_and_the_cli_says_h
         'ou com --yes; nada foi agendado')
 
 
+
+def test_without_a_terminal_and_without_yes_the_cli_stops_before_any_service_or_model_call(tmp_path, monkeypatch,
+                                                                                           capsys, no_terminal):
+    # An independent run-through: `run -T` without --yes read the order and ran Gemini for 2 minutes, then refused.
+    def must_not_run(*args, **kwargs):
+        raise AssertionError('called a service or the model with nobody to confirm the list')
+
+    transpile(ROOT / 'specs' / 'agent.json', tmp_path / 'agent.py')
+    monkeypatch.setenv('GOOGLE_API_KEY', 'not-used')
+    for name in ('check_services', 'load_root_agent', 'run_agent'):
+        monkeypatch.setattr(cli, name, must_not_run)
+    argv = ['run', '--image', 'pedido.png', '--agent', str(tmp_path / 'agent.py'), '--spec', str(ROOT / 'specs' / 'agent.json')]
+    assert cli.main(argv) == 2
+    assert capsys.readouterr() == ('', f'Erro: {cli.NO_TERMINAL_AT_START}\n')
+    assert cli.NO_TERMINAL_AT_START.startswith(cli.NO_TERMINAL + '; nada foi lido nem agendado')
+
+
+def test_the_e2e_command_with_yes_books_without_a_terminal(tmp_path, monkeypatch, capsys, no_terminal):
+    # tests/test_e2e.py's command line, with the scripted model and the stand-ins instead of Gemini and the services.
+    def create_appointment(exams: list[dict]) -> dict:
+        """Books the exams, named from the catalog (stand-in for POST /appointments)."""
+        CALLS['create_appointment'].append([exam['code'] for exam in exams])
+        names = {hit['code']: hit['name'] for hit in HITS.values()}
+        return {'id': 'a1', 'status': 'scheduled', 'exams': [exam | {'name': names[exam['code']]} for exam in exams]}
+
+    app = scripted_agent('agent.json', tmp_path, someone_answers=True)
+    app.root_agent.sub_agents[2].tools = [FunctionTool(create_appointment)]
+    monkeypatch.setenv('GOOGLE_API_KEY', 'not-used')
+    monkeypatch.setattr(cli, 'check_services', lambda spec: None)
+    monkeypatch.setattr(cli, 'load_root_agent', lambda path, name: app)
+    argv = ['run', '--image', 'pedido.png', '--agent', str(tmp_path / 'agent.py'), '--spec', str(ROOT / 'specs' / 'agent.json')]
+    assert cli.main([*argv, '--yes']) == 0
+    out = capsys.readouterr().out
+    assert '[extract] chamando extract_exam_text' in out and '[search] chamando search_exams' in out
+    assert re.findall(r'\| (FICT-\d{3}) +\|', out) == ['FICT-005'] and 'id a1, status scheduled' in out
+    assert CALLS['create_appointment'] == [['FICT-005']]  # IgA (0,80) needs a yes: left out with --yes
+
+
 def test_with_yes_nothing_is_asked_and_only_the_clean_exams_are_booked(tmp_path, monkeypatch):
     def must_not_ask(question):
         raise AssertionError('asked with --yes')

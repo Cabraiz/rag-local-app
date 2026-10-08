@@ -32,6 +32,8 @@ from transpiler.spec import MODEL
 DEFAULT_SPEC = 'specs/agent.json'
 DEFAULT_AGENT = 'generated/agent.py'
 NO_TERMINAL = 'sem terminal para confirmar a lista de exames: rode num terminal ou com --yes'
+NO_TERMINAL_AT_START = (f'{NO_TERMINAL}; nada foi lido nem agendado (no docker compose, terminal é `run` sem -T; '
+                        'com --yes, só as regras decidem e os exames que pediriam confirmação ficam de fora)')
 SET_ANSWER = 'set_model_response'  # ADK's tool for an output_schema (runtime/plugin.py, ListedExams): writes nothing
 
 
@@ -345,13 +347,23 @@ def check_agent(args, spec):
     args.checked_agent.write_text(text, encoding='utf-8')  # what the run imports: these bytes, not a 2nd read
 
 
+def check_someone_answers(args, spec):
+    """Stop before any service or model call when the list could not be confirmed: a spec that books, no
+    --yes and nobody to ask (confirmacao.can_ask: docker compose run -T, a pipe, CI). The run's own refusal
+    (answers_to) stays the last barrier; `adk run` and `adk web` always ask."""
+    if not args.yes and tool_for(spec, 'book') and not confirmacao.can_ask():
+        raise RunError(NO_TERMINAL_AT_START)
+
+
 def load_checked_spec(args):
-    """The spec, once agent.py is what it generates, its services answer and the OCR accepts the image."""
+    """The spec, once someone can confirm the list, agent.py is what it generates, its services answer and
+    the OCR accepts the image."""
     spec = load_spec(args.spec)
     if not (tool_for(spec, 'read') and tool_for(spec, 'search')):
         raise RunError(f'{args.spec}: `cli run` lê um pedido em imagem e busca os exames no catálogo, e esta spec '
                        'não tem o BookingPlugin com read e search; ela pode ser transpilada e rodada com `adk run` '
                        'ou `adk web`, não pela CLI')
+    check_someone_answers(args, spec)
     check_agent(args, spec)
     check_image(spec, args.image, check_services(spec))
     return spec

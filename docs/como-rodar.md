@@ -102,7 +102,7 @@ Tempo: OCR 2,0 s · busca 4,4 s · agendamento 1,6 s · total 13 s (modelo gemin
 **Confirmação final da lista.** Nada é agendado sem ela.
 
 - Só `s` ou `sim` agenda. Outra resposta, inclusive Enter: `Erro: agendamento bloqueado antes de chamar a API: você não confirmou a lista de exames; nada foi agendado`.
-- Sem terminal (`docker compose run -T`, um pipe, `CI=1`) e sem `--yes`: a lista é mostrada e nada é agendado (`…: sem terminal para confirmar a lista de exames: rode num terminal ou com --yes; nada foi agendado`).
+- Sem terminal (`docker compose run -T`, um pipe, `CI=1`) e sem `--yes`, o `run` para antes de ler o pedido e de chamar o modelo: `Erro: sem terminal para confirmar a lista de exames: rode num terminal ou com --yes; nada foi lido nem agendado (…)`.
 - **`--yes`** pula a pergunta, para automação, por conta e risco de quem opera: só as regras decidem, e os exames que viriam com aviso ficam de fora (`não agendado sem confirmação`). Valem por inteiro os [limites conhecidos](../README.md#limites-conhecidos).
 - O pedido inteiro é conferido antes da pergunta: os avisos vêm acima da lista; os exames que não serão agendados, em `Não agendados:`, com o motivo.
 
