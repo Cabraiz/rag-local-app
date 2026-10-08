@@ -357,7 +357,7 @@ Estas proteções ficam no `runtime/`, fora da spec, e por isso nenhuma spec con
 
 Nada é agendado sem a pessoa confirmar a lista. A pergunta usa a confirmação de ferramenta do ADK 2.10, e não um `input()` dentro do callback:
 
-1. O `before_tool` do agendamento monta a lista ([`runtime/confirmacao.py`](../runtime/confirmacao.py)): cada exame com código, o aviso de um da faixa do meio e os não agendados. Chama `tool_context.request_confirmation(hint=<lista>)` e devolve sem chamar a API.
+1. O `before_tool` do agendamento monta a lista ([`runtime/confirmacao.py`](../runtime/confirmacao.py)): no topo, uma vez, o que a página tem além da lista; cada exame com código, o aviso de um da faixa do meio e os não agendados, inclusive os que a conferência do pedido inteiro acha e o agente não buscou (a busca roda numa thread com o seu próprio laço de eventos, enquanto o da execução espera, até 30 s). Chama `tool_context.request_confirmation(hint=<lista>)` e devolve sem chamar a API.
 2. A execução pausa. O app é retomável (`ResumabilityConfig`).
 3. A CLI recebe do runner a chamada `adk_request_confirmation` e pergunta `Agendar estes N exames? [s/N]` (só `s` ou `sim` é sim). O console do `adk run` mostra a mesma lista (`yes` confirma) e a página do `adk web`, a lista com a caixa "Confirmed".
 4. Na CLI, a pergunta roda em `asyncio.to_thread`, fora do laço de eventos: as sessões MCP seguem vivas enquanto a pessoa lê.
