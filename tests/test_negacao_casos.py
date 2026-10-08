@@ -177,6 +177,11 @@ CASES = [
     ('W05', ['- Hemograma completo', '- Ferritina rotina cancelada'], [HEMO], [], [FER]),
     ('V14', ['- Hemograma completo', '- Ferritina-naorealizar'], [HEMO], [], [FER]),
 ]
+# Above, what each line's rule decides. The page allowlist comes on top: on a page with anything but the list,
+# its labels and fields (all of these but CLEAN), what a line would book alone is asked.
+CLEAN = {'F22', 'J11', 'J13', 'J14', 'N4', 'P04', 'P05', 'P14'}
+CASES = [(cid, lines, booked if cid in CLEAN else [], asked if cid in CLEAN else booked + asked, reported)
+         for cid, lines, booked, asked, reported in CASES]
 TABLES = CASES[-7:]
 
 
@@ -194,7 +199,10 @@ def search(agent, context, query):
 def decide(agent, reply, queries):
     """{code: 'booked' or the reason it was left out}, after the booking call and the check of the order."""
     rag = pytest.importorskip('mcp_servers.rag')
-    context = read(agent, reply['lines'], None, reply['line_intent'], contested_exams=reply['contested_exams'])
+    # The OCR's own reading of each line when it has one (Tesseract's, on a drawn page), else 95.
+    context = read(agent, reply['lines'], reply.get('line_confidence'), reply['line_intent'],
+                   contested_exams=reply['contested_exams'], page_clean=reply['page_clean'],
+                   cancel_unlinked=reply['cancel_unlinked'])
     for query in queries:
         search(agent, context, query)
     candidates = context.state.get('candidates', {})
@@ -377,3 +385,148 @@ def test_the_counts_are_the_markers_that_stay():
     reply = ocr.mask_lines(['Av Paulista 1000 sala 12', 'Paciente: [NOME] CPF: [CPF]'])
     assert reply['lines'] == ['[TEXTO_REMOVIDO]', 'Paciente: [NOME] CPF: [CPF]']
     assert reply['pii_masked'] == {} and reply['text_removed'] == 1  # markers written in the order count for nothing
+
+
+# --- The page allowlist: three security reviews' pages, each with both models ------------------------------
+# An exam books alone only on a page with nothing but the list, its labels and fields (guardrails/intent.py,
+# clean_page). Each page cancels, postpones, makes conditional or does not request an exam in a way no word list
+# foresees: that exam is never booked alone (asked or reported), and no exam of the page ends in silence.
+T3L, TRIG = 'FICT-026', 'FICT-009'
+NAMES |= {T3L: 'T3 livre', TRIG: 'Triglicerideos'}
+H = ['1) Hemograma completo', '2) Ferritina']
+REVIEW = [  # (id, lines between HEAD and FOOT, never booked alone, never silent, a cancellation tied to no exam)
+    ('S01', ['- Hemograma completo', '- Ferritina', '- TSH', 'Obs.: Ferritina somente se a hemoglobina vier abaixo de 12.'],
+     [FER], [HEMO, TSH], False),
+    ('S02', ['1. Hemograma completo', '2. Vitamina D', '3. Creatinina', 'Obs.: adiar a Vitamina D para a próxima consulta.'],
+     [VITD], [HEMO, CRE], False),
+    ('S03', ['1. Hemograma completo', '2. PSA total', '3. Glicemia de jejum',
+             'Obs.: desconsiderar o 2º exame (pedido em duplicidade).'], [PSA], [HEMO, GLI], True),
+    ('S04', ['- Hemograma completo', '- Glicemia de jejum', 'Trazer na consulta os laudos de:', '- TSH', '- T4 livre'],
+     [TSH, T4L], [HEMO, GLI], False),
+    ('S05', ['Colher agora:', '- Hemograma completo', '- Creatinina', 'Para o retorno em 6 meses:', '- Colesterol total',
+             '- Triglicerídeos'], [COL, TRIG], [HEMO, CRE], False),
+    ('S11', ['- Hemograma completo', '- Ferritina', '- Vitamina B12', 'Folha 1/2', 'Folha 2/2 - continuação',
+             'Observações da folha anterior:', 'A Ferritina fica para depois do tratamento com ferro.'], [FER], [HEMO, B12], False),
+    ('S12', ['- Hemograma completo', '- TSH', '- Ferritina', 'Note: hold TSH until the next visit.',
+             'Remarque : ne pas faire la Ferritina.'], [TSH, FER], [HEMO], False),
+    ('S13', ['- Hemograma completo', '- Ferritina', '- TSH', 'Obs: suspnder Ferritina', 'Obs: TSH pac. fez em set/26'],
+     [FER, TSH], [HEMO], False),
+    ('S14', ['- Hemograma completo', '- TSH', 'Somente se o TSH vier alterado, acrescentar:', '- T4 livre', '- T3 livre'],
+     [T4L, T3L], [HEMO, TSH], False),
+    ('S16', ['- Hemograma completo', '- Glicemia de jejum', 'Obs.: aproveitar a coleta para PSA total.', 'Kit check-up anual:',
+             '- Ferritina', '- Vitamina D'], [PSA, FER, VITD], [HEMO, GLI], False),
+    ('S17', ['Já realizados, não repetir:', '- TSH', '- Ferritina', '', '- Hemograma completo', '- Creatinina'],
+     [TSH, FER], [HEMO, CRE], False),
+    ('S21', ['- Hemograma completo', '- Dosar TSH; não dosar T4 livre'], [T4L], [HEMO, TSH], False),
+    ('S22', ['1) Hemograma completo', '2) Creatinina', '3) Colesterol total', '4) Ureia',
+             'Excluir o nº 3 - paciente fez na semana passada.'], [COL], [HEMO, CRE, URE], True),
+    ('S23', ['Tests requested:', '- Hemograma completo', '- Ferritina', '- TSH', 'Ferritin: skip, done last month at another lab.'],
+     [FER], [HEMO, TSH], False),
+    ('J20', [*H, 'Obs: o segundo exame foi pedido por engano; favor nao realizar.'], [FER], [HEMO], True),
+    ('J21', ['1) Hemograma completo', '2) TSH - reagendar para o proximo mes'], [TSH], [HEMO], False),
+    ('J22', [*H, '(favor não realizar)', '3) Glicemia de jejum'], [FER], [HEMO, GLI], True),
+    ('J23', ['1) Hemograma completo', '2) Ferritina*', '* favor nao realizar'], [FER], [HEMO], False),
+    ('J24', [*H, '(não realizar nesta coleta)'], [FER], [HEMO], True),
+    ('J25', [*H, '(cancelar em outra data)'], [FER], [HEMO], True),
+    ('J26', [*H, '(favor: já realizado)'], [FER], [HEMO], True),
+    ('J27', [*H, 'Obs: favor não realizar o exame acima'], [FER], [HEMO], True),
+    ('J28', [*H, '(por favor no realizar)'], [FER], [HEMO], True),
+    ('J29', [*H, '(susp.)'], [FER], [HEMO], True),
+    ('J30', [*H, '(canc.)'], [FER], [HEMO], True),
+    ('J31', [*H, '(N/R)'], [FER], [HEMO], True),
+    ('J32', [*H, 'Obs: cancelar, por gentileza.'], [FER], [HEMO], True),
+    ('J33', [*H, 'Obs: favor nao realizar o item 2'], [FER], [HEMO], True),
+    ('J34', [*H, '(non eseguire)'], [FER], [HEMO], False),
+    ('J35', [*H, '(pfv nao realizar)'], [FER], [HEMO], True),
+    ('J36', ['1) Hemograma completo 517|916|257|38', '2) Glicose de jejum Bia', '4) Ferritina Albina Ferro',
+             '5) Creatinina 12345678 h'], [HEMO, GLI, CRE], [], False),  # names and numbers: the PII review's page
+]
+
+
+@pytest.mark.parametrize('model', ['careful', 'lazy'])
+@pytest.mark.parametrize('cid, lines, never, must, unlinked', REVIEW, ids=[case[0] for case in REVIEW])
+def test_a_page_with_anything_but_the_list_books_nothing_alone(agent, cid, lines, never, must, unlinked, model):
+    from tests.load.manuscritos import consulta
+    reply = ocr_reply(lines)
+    assert not reply['page_clean'] and reply['cancel_unlinked'] == unlinked, reply
+    queries = [query for query in map(consulta, reply['lines']) if len(query) >= 2]
+    found = decide(agent, reply, [NAMES[code] for code in [*never, *must]] * (model == 'careful') + queries)
+    assert 'booked' not in found.values(), found  # nothing on the page books alone
+    assert all(code in found for code in [*never, *must]), found  # nothing silent
+    assert not [code for code in must if found.get(code) in REPORTED], found  # what the page asks for is never refused
+
+
+def test_the_same_list_without_the_note_books_alone_and_says_so_of_an_unlinked_cancellation(agent):
+    from runtime.relatorio import reading_lines
+    reply = ocr_reply(H)
+    assert reply['page_clean'] and not reply['cancel_unlinked']
+    found = decide(agent, reply, ['Hemograma completo', 'Ferritina'])
+    assert {code for code, state in found.items() if state == 'booked'} == {HEMO, FER}, found
+    reply = ocr_reply([*H, '(favor não realizar)'])
+    context = read(agent, reply['lines'], None, reply['line_intent'], contested_exams=reply['contested_exams'],
+                   page_clean=reply['page_clean'], cancel_unlinked=reply['cancel_unlinked'])
+    assert 'Aviso: o pedido tem um cancelamento que não foi ligado a um exame; confira' in reading_lines(context.state)
+
+
+def test_a_cancel_line_names_an_exam_only_by_its_exact_catalog_name():
+    from guardrails.intent import judge, plain
+    for line in ('(favor não realizar)', '(favor: já realizado)', '(susp.)', '(canc.)', '(N/R)'):
+        assert judge(plain(line))[1] == 'note', line  # a note about another line, not one with an exam of its own
+    assert judge(plain('Ferritina (suspensa)'))[1] == ''
+
+
+def drawn_page(rows):
+    """A page drawn as the reviews drew theirs: rows of (text, size, tone), None for a blank row."""
+    from PIL import Image, ImageDraw, ImageFont
+    image = Image.new('L', (1240, 120 + 56 * len(rows)), 255)
+    draw = ImageDraw.Draw(image)
+    for row, cell in enumerate(rows):
+        if cell:
+            draw.text((80, 50 + 56 * row), cell[0], fill=cell[2], font=ImageFont.load_default(size=cell[1]))
+    return image
+
+
+TOP = [('LABORATORIO FICTICIO EXEMPLO - Pedido de Exames', 34, 0), ('Paciente: Marta Ficticia Exemplar', 32, 0),
+       ('Exames solicitados:', 32, 0)]
+BOTTOM = [('Dra. Celina Inventada - CRM-SP 123456', 32, 0), ('Data: 07/10/2026', 32, 0)]
+DRAWN = {  # (rows, booked alone, never booked alone, reported)
+    'limpa': (TOP + [('- Hemograma completo', 32, 0), ('- Glicemia de jejum', 32, 0)] + BOTTOM, [HEMO, GLI], [], []),
+    'apagada': (TOP + [('- Hemograma completo', 32, 0), ('- Glicemia de jejum', 32, 0)] + BOTTOM +
+                [('Ferritina', 18, 0), ('PSA total', 32, 140)], [], [FER, PSA], []),  # far smaller, far lighter
+    'vao': ([('Ja realizados, nao repetir os seguintes:', 32, 0), ('- TSH', 32, 0), ('- Ferritina', 32, 0), None, None,
+             ('- Hemograma completo', 32, 0), ('- Creatinina', 32, 0)] + BOTTOM, [], [TSH, FER], [TSH, FER]),
+    'favor': (TOP + [('1) Hemograma completo', 32, 0), ('2) Ferritina', 32, 0), ('(favor nao realizar)', 32, 0),
+                     ('3) Glicemia de jejum', 32, 0)], [], [FER], []),
+}
+
+
+@pytest.mark.skipif(shutil.which('tesseract') is None, reason='Tesseract runs inside the Docker image')
+@pytest.mark.parametrize('name', DRAWN)
+def test_drawn_pages_read_by_tesseract_with_its_own_confidences(agent, tmp_path, monkeypatch, name):
+    # Faint grey letters in the footer, a block that a gap ends, a cancellation below its exam: Tesseract's boxes.
+    from tests.load.manuscritos import consulta
+    ocr = pytest.importorskip('mcp_servers.ocr')
+    rows, booked, never, reported = DRAWN[name]
+    drawn_page(rows).save(tmp_path / f'{name}.png')
+    monkeypatch.setattr(ocr, 'SAMPLES_DIR', tmp_path)
+    reply = asyncio.run(ocr.extract_exam_text(f'{name}.png'))
+    queries = [query for query in map(consulta, reply['lines']) if len(query) >= 2]
+    for found in (decide(agent, reply, [NAMES[code] for code in [*booked, *never]] + queries), decide(agent, reply, queries)):
+        assert {code for code, state in found.items() if state == 'booked'} == set(booked), (reply['lines'], found)
+        assert all(found.get(code) in REPORTED for code in reported), (reply['lines'], found)
+    assert reply['page_clean'] == bool(booked)
+
+
+@pytest.mark.skipif(shutil.which('tesseract') is None, reason='Tesseract runs inside the Docker image')
+def test_the_sample_order_still_books_its_3_exams_alone_with_nothing_asked(agent, monkeypatch):
+    # Its header lines, removed whole by the safety net above the list, are a letterhead, not a note.
+    from pathlib import Path
+
+    from tests.load.manuscritos import consulta
+    ocr = pytest.importorskip('mcp_servers.ocr')
+    monkeypatch.setattr(ocr, 'SAMPLES_DIR', Path(__file__).resolve().parents[1] / 'samples')
+    reply = asyncio.run(ocr.extract_exam_text('pedido.png'))
+    assert reply['page_clean']
+    found = decide(agent, reply, [query for query in map(consulta, reply['lines']) if len(query) >= 2])
+    assert {code for code, state in found.items() if state == 'booked'} == {HEMO, GLI, CRE}, found
+    assert 'needs_confirmation' not in str(found.values()), found
