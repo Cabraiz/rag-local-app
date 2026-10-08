@@ -202,7 +202,7 @@ def test_without_one_readable_image_nothing_reaches_a_model(adk_run, typed, told
 
 
 def test_an_exam_the_order_says_not_to_do_is_not_booked_under_adk_run(adk_run, monkeypatch):
-    # The order of a blind review: the model proposes Ferritina too. Tesseract's reading is replaced by
+    # The order of An independent review: the model proposes Ferritina too. Tesseract's reading is replaced by
     # these lines; the rest is the real OCR server (injection guard, line_intent, PII mask), the real
     # search and the real API, under `adk run`.
     from mcp_servers import ocr

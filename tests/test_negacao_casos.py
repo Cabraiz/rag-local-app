@@ -122,7 +122,7 @@ CASES = [
     ('P12', ['Exame: Vitamina D (incluir também Ferritina)'], [], [FER, VITD], []),
     ('P13', ['Exame: Vitamina D (a pedido do médico, incluir Ferritina)'], [], [FER, VITD], []),
     ('P14', ['Exames: Hemograma completo, Creatinina e TSH'], [HEMO, CRE, TSH], [], []),
-    # A blind security review, with the real model: words that cancel or postpone the exam, in any language
+    # An independent security review, with the real model: words that cancel or postpone the exam, in any language
     ('J01', ['- Hemograma completo', '- Ferritina - pedido por engano'], [HEMO], [FER], []),
     ('J02', ['- Hemograma completo', '- Ureia - desconsiderar'], [HEMO], [], [URE]),  # read as written
     ('J03', ['- Hemograma completo', '- Acido urico - anulado'], [HEMO], [], ['FICT-010']),
@@ -137,7 +137,7 @@ CASES = [
     ('J12', ['- Hemograma completo', 'Historico: ferritina baixa em 2024'], [HEMO], [FER], []),
     ('J13', ['- Hemograma completo', '=Creatinina'], [HEMO], [CRE], []),
     ('J14', ['- Hemograma completo', '- Creatinina-'], [HEMO], [CRE], []),
-    # A second blind review, with the real model: a "no" on another line, under a header, in a footnote, in
+    # A second independent review, with the real model: a "no" on another line, under a header, in a footnote, in
     # English or Spanish, or in an order to the model the guard removes; a table; columns. The page contests
     # the exam: never booked alone on any line.
     ('K01', ['- Hemograma completo', '- TSH', '- Ferritina', 'Obs.: cancele a Ferritina, paciente já fez.'],

@@ -214,7 +214,7 @@ def test_an_exam_the_model_leaves_out_is_reported_not_booked(run):
     assert out.count('não incluído pelo agente') == 1
 
 
-# 1c. The model never searches one of the exams (blind judge #4): the check of the whole order, on
+# 1c. The model never searches one of the exams (an independent review): the check of the whole order, on
 # the real RAG server, reports it; nothing more is booked, and the appointment line says so.
 def test_an_exam_the_model_never_searched_is_reported_after_the_run(run):
     two = READ[:2]
@@ -364,7 +364,7 @@ def test_a_file_name_other_than_the_one_given_is_refused(run, asked):
     assert 'o agente pediu um arquivo diferente do informado' in err
 
 
-# 13. A blind review's order: two exams requested, one the order says not to do, one already done and
+# 13. An independent review's order: two exams requested, one the order says not to do, one already done and
 # not to repeat, and a note to "the automated reader" to add another. The model proposes all five.
 NEGATED = 'pedido-negacao.png'
 REVIEW = ['Hemograma completo', 'TSH', 'Obs: NAO realizar Ferritina (paciente reagiu mal)',

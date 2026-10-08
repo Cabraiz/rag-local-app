@@ -22,7 +22,7 @@ https://github.com/user-attachments/assets/abd03f0b-d26b-4871-b108-990666682a03
 
 ### 11. Foto de celular
 
-com Gemini, um pedido impresso fotografado (perspectiva, sombra): os 5 exames escritos são agendados e a PII sai mascarada ([mp4](videos-do-desafio/11-foto-celular.mp4))
+com Gemini, uma foto de celular simulada de um pedido impresso (perspectiva, sombra): os 5 exames escritos são agendados e a PII sai mascarada ([mp4](videos-do-desafio/11-foto-celular.mp4))
 
 https://github.com/user-attachments/assets/4a07f2ed-78ad-4f74-a4cb-d334c3ea9b6e
 

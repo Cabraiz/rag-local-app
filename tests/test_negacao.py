@@ -1,6 +1,6 @@
 """An exam the order says not to do, or says was already done, is never booked.
 
-A blind review booked Ferritina from "Obs: NAO realizar Ferritina": the PII safety net turned "NAO
+An independent review booked Ferritina from "Obs: NAO realizar Ferritina": the PII safety net turned "NAO
 realizar" into [NOME], so neither the model nor the booking rule saw the negation. The OCR now reads
 what each line asks for before the mask (guardrails/intent.py) and sends it as `line_intent`; the
 agent's callbacks refuse a code whose only anchor is a negated or history line, ask about one on a

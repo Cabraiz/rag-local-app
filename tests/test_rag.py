@@ -89,7 +89,7 @@ def test_no_abbreviation_names_two_exams():
 # A line with several exams is split before the search: searched whole, "Colesterol total e
 # Triglicerideos" scored 0.65 and Triglicerideos was not even in the top 3.
 @pytest.mark.parametrize('line, codes', [
-    ('Colesterol total e Triglicerideos', ['FICT-006', 'FICT-009']),            # the line a blind judge saw
+    ('Colesterol total e Triglicerideos', ['FICT-006', 'FICT-009']),            # the line an independent review saw
     ('COLESTEROL TOTAL E TGO', ['FICT-006', 'FICT-055']),                       # "E" in an upper-case line
     ('TSH, T4 livre / Ferritina', ['FICT-024', 'FICT-025', 'FICT-018']),        # clean print, 3 separators
     ('Calcitonina + Anti HBc total', ['FICT-044', 'FICT-105']),

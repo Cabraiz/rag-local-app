@@ -47,7 +47,7 @@ foram medidas no código final, com no máximo 3 sessões no OCR. Na CI,
 
 ## Fotos de celular de pedidos impressos
 
-`samples/fotos-celular/` tem 30 fotos de celular de pedidos **impressos** fictícios (os 3 layouts da
+`samples/fotos-celular/` tem 30 fotos de celular **simuladas** (geradas por código, não tiradas com câmera) de pedidos **impressos** fictícios (os 3 layouts da
 carga): papel curvo, perspectiva, luz desigual, sombra da mão, desfoque, ruído e JPEG, em 3 níveis
 (leve, média, forte). Cada exame passa pelo OCR, pelo RAG e pela regra real do agente, sem ninguém para
 responder `[s/N]`. Geradas por `tests/load/fotos.py` (semente fixa) e medidas com
@@ -462,7 +462,7 @@ e TSH: realizar apenas TSH" (os 2) e "Função tireoidiana (TSH, T4 livre)": a p
 
 ## Lista branca: só agenda sozinha a linha que é só exame
 
-Um revisor cego mostrou, com o Gemini real, que a lista de palavras de negação não fecha: "Ferritina -
+Uma revisão independente mostrou, com o Gemini real, que a lista de palavras de negação não fecha: "Ferritina -
 pedido por engano", "Vitamina B12 (laudo anexo)" e "Ureia - desconsiderar" eram agendados, e "anulado",
 "(em 6 meses)", "na próxima consulta", "(resultado em mãos)", "somente se hemoglobina baixa", "?", "do not
 perform" e "no realizar" ficavam `request`. A máscara ainda tirava as palavras que cancelavam. A regra se

@@ -550,8 +550,8 @@ def best_of(query):
 
 
 @pytest.mark.parametrize('line, reading', [('2. TSHe T4 livre', 0.86), ('2. TSH e T4 livre', 1.0)])
-def test_the_judges_case_reports_the_exam_the_model_left_out(agent, line, reading):
-    # Blind judge #1: "2. TSH e T4 livre" read as "TSHe T4 livre"; the model searched "TSH" and "T4 livre"
+def test_the_reviewed_case_reports_the_exam_the_model_left_out(agent, line, reading):
+    # An independent review: "2. TSH e T4 livre" read as "TSHe T4 livre"; the model searched "TSH" and "T4 livre"
     # (the real search) and proposed only T4 livre. TSH is reported, at its match there ("tsh" glued to
     # "e" is 0,86), and never booked; booking is unchanged.
     context = read(agent, ['Solicito:', line])

@@ -332,7 +332,7 @@ def test_cli_run_refuses_other_extensions_before_any_service_or_gemini_call(read
 
 @pytest.mark.parametrize('image', ['', '   '])
 def test_cli_run_says_an_empty_image_name_is_empty(ready_run, monkeypatch, capsys, image):
-    # A blind review: `--image ""` answered 'quis dizer ".png"?'.
+    # An independent review: `--image ""` answered 'quis dizer ".png"?'.
     monkeypatch.setattr(cli, 'run_agent', lambda *args: pytest.fail('ran for an empty image name'))
     assert cli.main(['run', '--image', image, *ready_run[3:]]) == 2
     assert capsys.readouterr().err == ('Erro: --image: o nome do arquivo está vazio; informe um arquivo de samples/, '
@@ -773,7 +773,7 @@ def test_a_spec_cannot_loosen_the_booking_policy(field, value, expected):
     assert expected + STRICTER_ONLY in problems(spec_with(loosen))
 
 
-def test_the_loosest_spec_the_judge_tried_is_refused_field_by_field():
+def test_the_loosest_spec_a_reviewer_tried_is_refused_field_by_field():
     def loosest(spec):
         spec['booking'].update(min_confidence=0.8, ask_from=0.1, ocr_floor={'line': 0, 'short_code': 0, 'short_synonym': 0})
     assert sorted(problems(spec_with(loosest))) == sorted(

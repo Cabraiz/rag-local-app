@@ -1,7 +1,7 @@
 """The whole order is checked in code after the run (runtime/reconcilia.py): an exam written in the
 order ends in a reported state even when the model never searched it.
 
-Blind judge #4: on "2. Colesterol total e Triglicerideos" the model searched the whole line,
+An independent review: on "2. Colesterol total e Triglicerideos" the model searched the whole line,
 Colesterol total came out at 0,68 and Triglicerídeos was never searched; the CLI confirmed the
 appointment without a word about it. The lines below are the OCR's real reply for that image
 (PII already masked), and the search is the real catalog search, in process."""
@@ -17,7 +17,7 @@ from tests.test_confianca import agent, best_of, book, read, real_search  # noqa
 from tests.test_transpiler import FakeTool, fake_run, ready_run  # noqa: F401  (ready_run is a fixture)
 from transpiler import load_spec
 
-JUDGE = ['[TEXTO_REMOVIDO] - LABORATORIO ([TEXTO_REMOVIDO])', '[ENDERECO]', 'Paciente: [NOME]',
+REVIEWED = ['[TEXTO_REMOVIDO] - LABORATORIO ([TEXTO_REMOVIDO])', '[ENDERECO]', 'Paciente: [NOME]',
          'RG: [RG] Nascimento: [DATA]', 'Celular: [TELEFONE]', 'E-mail: [EMAIL]', '[TEXTO_REMOVIDO]:',
          '1. Hemoglobina glicada', '2. Colesterol total e Triglicerideos', '3. TGO', 'A. Ferritina',
          'Medica: [NOME] [CRM]', '[TEXTO_REMOVIDO], [DATA]']
@@ -37,31 +37,31 @@ def check(agent, context, booked):
             for item in unreported(context.state, catalog_search, agent.CALLBACKS.policy, settled)]
 
 
-def test_only_the_exam_lines_of_the_judges_order_are_checked_and_the_search_cuts_them():
+def test_only_the_exam_lines_of_the_reviewed_order_are_checked_and_the_search_cuts_them():
     # "LABORATORIO" is no word of an exam: a separator, not searched.
-    lines = order_lines(JUDGE)
+    lines = order_lines(REVIEWED)
     assert [line[:2] for line in lines] == [(7, 'Hemoglobina glicada'), (8, 'Colesterol total e Triglicerideos'),
                                             (9, 'TGO'), (10, 'Ferritina')]
     rag = pytest.importorskip('mcp_servers.rag')
     assert rag.split_exams(lines[1][1]) == ['Colesterol total', 'Triglicerideos']  # the pieces checked are the search's
 
 
-def test_the_judges_case_reports_the_exam_the_model_never_searched(agent):
-    context = read(agent, JUDGE, READINGS)
+def test_the_reviewed_case_reports_the_exam_the_model_never_searched(agent):
+    context = read(agent, REVIEWED, READINGS)
     queries = ['Hemoglobina glicada', 'Colesterol total e Triglicerideos', 'TGO', 'Ferritina']
     for query in queries:
         real_search(agent, context, query)
     reply, args = book(agent, context, *map(best_of, queries))
     booked = [exam['code'] for exam in args['exams']]
-    assert booked == ['FICT-003', 'FICT-018']  # as in the judge's run: booking is unchanged
+    assert booked == ['FICT-003', 'FICT-018']  # as in the reviewed run: booking is unchanged
     assert [(item['code'], item['reason']) for item in context.state['low_confidence']] == [
         ('FICT-055', 'needs_confirmation'), ('FICT-006', 'score')]  # TGO asked, Colesterol total low (0,6x)
     assert check(agent, context, booked) == [
         ('FICT-009', 'Triglicerideos', 'not_searched', 1.0, '2. Colesterol total e Triglicerideos')]
 
 
-def test_the_judges_order_searched_piece_by_piece_raises_nothing(agent):
-    context = read(agent, JUDGE, READINGS)
+def test_the_reviewed_order_searched_piece_by_piece_raises_nothing(agent):
+    context = read(agent, REVIEWED, READINGS)
     queries = ['Hemoglobina glicada', 'Colesterol total', 'Triglicerideos', 'TGO', 'Ferritina']
     for query in queries:
         real_search(agent, context, query)
@@ -212,7 +212,7 @@ def test_an_exam_glued_to_the_connective_is_booked_or_asked_by_its_confidence(ag
 
 @pytest.mark.parametrize('line, glued, other, confidence', GLUED)
 def test_an_exam_glued_to_the_connective_the_model_left_out_is_reported(agent, line, glued, other, confidence):
-    # The judge's run: the whole line searched, only the other exam proposed.
+    # The reviewed run: the whole line searched, only the other exam proposed.
     context = read(agent, ['Solicito:', line])
     tool_search(agent, context, order_lines([line])[0][1])
     booked, left_out, late = outcome(agent, context, other)
