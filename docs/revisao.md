@@ -118,8 +118,8 @@ O README e `docs/como-rodar.md` passaram a cobrir cada um.
   `transpile` fica com a lista da spec.
 - **Limite de requisições por processo:** com várias réplicas da API, cada uma conta o seu; atrás de
   um proxy, ou da porta publicada do Docker, os clientes do host tendem a parecer um só.
-- **Nomes em português e inglês:** o código mistura os dois (ex.: `mcp_servers/preprocessamento.py`,
-  `tests/load/carga.py`).
+- **Nomes em português e inglês:** os nomes de módulo são em português (`confianca`, `reconcilia`) e os
+  identificadores em inglês, mas alguns arquivos de teste ainda misturam os dois (ex.: `tests/load/carga.py`).
 - **Sessão MCP morta:** o ADK não reabre uma sessão MCP que morreu. O keep-alive de 75 s tira o gatilho
   conhecido, não a causa.
 - **Exame acrescentado como item da lista:** escrito como item próprio, igual aos outros, só a pessoa que confere

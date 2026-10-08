@@ -173,7 +173,7 @@ Cada linha passa por quatro etapas, nesta ordem:
    então a etapa 3 o troca por `[TEXTO_REMOVIDO]`: ele não aparece na resposta do OCR.
 2. `guardrails/intent.py` lê o que cada linha pede, na página inteira e antes da máscara (sobre o texto
    como foi lido, que a máscara esconderia), e devolve um tipo por linha em `line_intent`. A regra é uma
-   lista branca:
+   lista branca (cada regra, o exemplo que a motivou e o que ela muda: [regras.md](regras.md)):
    - `request`: depois do marcador de lista ("1)", "2.", "-", "•", "[x]", "(x)", "☑"), de um rótulo da lista
      ("Exames:", "Solicito:", "Pedido de exames:", "Repetir", "Dosar", ou o rótulo que o OCR deformou,
      "Solreito:") e das marcas que juntam exames (",", ";", "/", "+", " e ", parênteses), a linha só tem
