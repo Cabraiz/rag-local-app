@@ -15,7 +15,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import JSONResponse
 
 from catalogo import CATALOG, CLASSES, CONNECTIVES, LIST_MARKER, MIN_SCORE, QUALIFIERS, normalize, similarity
-from mcp_servers.arguments import or_default
+from mcp_servers.arguments import or_default, quiet_logs
 
 MAX_TOP_K = 10
 MAX_QUERY_LENGTH = 200
@@ -253,5 +253,6 @@ KEEP_ALIVE_SECONDS = 75
 
 if __name__ == '__main__':
     import uvicorn
+    quiet_logs('search_exams')
     uvicorn.run(server.sse_app(transport_security=SECURITY, host='0.0.0.0'), host='0.0.0.0', port=8002,
                 timeout_keep_alive=KEEP_ALIVE_SECONDS, log_level=server.settings.log_level.lower())

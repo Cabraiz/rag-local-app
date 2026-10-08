@@ -28,7 +28,7 @@ from catalogo import EXAM_MODIFIERS, LIST_MARKER, words
 from guardrails import intent
 from guardrails.injection import MARKER, join_split_orders, neutralize_joined
 from guardrails.pii import exams_on, mask_page
-from mcp_servers.arguments import or_default
+from mcp_servers.arguments import or_default, quiet_logs
 from mcp_servers.preprocessamento import ImagemGirada, confianca_por_linha, ler_linhas, sobre_branco
 from mcp_servers.qualidade import quality_problem
 
@@ -92,7 +92,7 @@ def checked_image(path: Path, then: Callable[[Image.Image], Any]) -> Any:
         raise ToolError('O arquivo não é uma imagem válida (use PNG ou JPEG).') from None
     except RuntimeError:  # pytesseract: engine failure or timeout
         raise ToolError('O OCR falhou ou demorou demais para esta imagem.') from None
-    except OSError:  # e.g. a truncated PNG: Pillow fails while decoding the pixels
+    except (OSError, ValueError, SyntaxError, EOFError):  # a truncated or hostile file, while Pillow decodes it
         raise ToolError('Imagem corrompida ou incompleta.') from None
 
 
@@ -190,5 +190,6 @@ KEEP_ALIVE_SECONDS = 75
 
 if __name__ == '__main__':
     import uvicorn
+    quiet_logs('extract_exam_text', 'check_image')
     uvicorn.run(server.sse_app(transport_security=SECURITY, host='0.0.0.0'), host='0.0.0.0', port=8001,
                 timeout_keep_alive=KEEP_ALIVE_SECONDS, log_level=server.settings.log_level.lower())
