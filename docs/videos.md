@@ -1,6 +1,6 @@
 # Gravações
 
-Um vídeo por parte do sistema, gravado com `API_PORT=18905` (o padrão é 8765). A lista com miniaturas e duração está em [`docs/gravacoes/`](gravacoes/README.md).
+Um vídeo por parte do sistema, gravado com `API_PORT=18905` (o padrão é 8765). Os vídeos são anteriores à confirmação final da lista: o fluxo é o mesmo, mais a pergunta `Agendar estes N exames? [s/N]` antes do agendamento. A lista com miniaturas e duração está em [`docs/gravacoes/`](gravacoes/README.md).
 
 ### 10. Pedido manuscrito
 

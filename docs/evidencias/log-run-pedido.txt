@@ -1,5 +1,6 @@
 $ docker compose run --rm -T agent python -m cli run --image pedido.png
 # versão publicada · 2026-10-08 01:21 UTC · gemini-3.5-flash
+# gravado antes da confirmação final da lista; hoje, sem terminal (-T), este comando precisa de --yes
 [extract] chamando extract_exam_text
 [search] chamando search_exams
 [search] chamando search_exams

@@ -6,7 +6,8 @@ cortado, e cada comando e cada resultado aparecem em velocidade normal. Um naveg
 (Playwright) usa a aplicação de verdade: um terminal web para a CLI e o Swagger com cliques
 reais. Não há slides nem narração, e nada é escrito sobre os vídeos de cada parte; só o 00 tem uma barra
 de etapas no topo e notas curtas com os resultados que o próprio gravador conferiu na saída. O último frame de cada vídeo, usado como
-miniatura, mostra a prova; no 00 e no 10, a miniatura é o pedido manuscrito, o 1º frame.
+miniatura, mostra a prova; no 00 e no 10, a miniatura é o pedido manuscrito, o 1º frame. As gravações são anteriores à
+confirmação final da lista: o fluxo é o mesmo, mais a pergunta `Agendar estes N exames? [s/N]` antes do agendamento.
 
 | Parte do sistema | Vídeo (clique na miniatura) | Duração | O que prova |
 |---|---|---|---|

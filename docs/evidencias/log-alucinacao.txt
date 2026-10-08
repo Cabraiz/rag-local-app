@@ -1,4 +1,6 @@
 # Teste de alucinação · versão publicada · 2026-10-06 21:28 UTC · gemini-3.5-flash
+# Gravado antes da confirmação final da lista: hoje cada execução mostra a lista e pergunta "Agendar estes N
+# exames? [s/N]"; a pergunta por exame do caso (e) virou um aviso nessa lista.
 # Cada caso é uma execução real do `python -m cli run --image <imagem>`, observada sem mudar nada:
 # o trace registra cada chamada de ferramenta do modelo (nome e argumentos) e cada resposta.
 

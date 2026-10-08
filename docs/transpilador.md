@@ -9,8 +9,8 @@ ordem e os papéis das ferramentas. Quatro specs de exemplo transpilam, importam
 
 | Spec | Pipeline | O que faz |
 |---|---|---|
-| [`agent.json`](../specs/agent.json) | `extract` → `search` → `schedule` | lê, busca e agenda; pergunta `[s/N]` na faixa do meio |
-| [`agent-sem-confirmacao.json`](../specs/agent-sem-confirmacao.json) | o mesmo | `ask_from: null`: abaixo de 0,90 só avisa, nunca pergunta |
+| [`agent.json`](../specs/agent.json) | `extract` → `search` → `schedule` | lê, busca e agenda depois da confirmação da lista; a faixa do meio vai com aviso |
+| [`agent-sem-confirmacao.json`](../specs/agent-sem-confirmacao.json) | o mesmo | `ask_from: null`: abaixo de 0,90 só avisa, sem a faixa com aviso na lista |
 | [`listar-exames.json`](../specs/listar-exames.json) | `ler` → `listar` | só OCR e RAG, sem API: lista os exames com código e confiança, sem agendar |
 | [`agendar-variante.json`](../specs/agendar-variante.json) | `ler_e_buscar` → `revisar` → `agendar` | outros nomes de servidor e de agente; um agente lê e busca, um agente sem ferramentas revisa a lista, outro agenda |
 
@@ -48,7 +48,7 @@ exata do `transpile` para `specs/agent.json`, e um teste falha se ela ficar desa
   | [`callbacks.py`](../runtime/callbacks.py) | os callbacks do ADK: abrir o pedido (`start_order`), `before_model`, `after_tool`, `before_tool`, `before_agent`, o relatório final (`report`) e a falha do modelo (`model_failed`) |
   | [`pedido.py`](../runtime/pedido.py) | o registro de cada pedido, fora do estado da sessão, com um limite de pedidos guardados |
   | [`entrada.py`](../runtime/entrada.py) | o que da mensagem da pessoa chega ao modelo: o apelido da imagem, só texto e chamadas de ferramenta |
-  | [`confirmacao.py`](../runtime/confirmacao.py) | a pergunta `[s/N]` e o que cada resposta confirma |
+  | [`confirmacao.py`](../runtime/confirmacao.py) | a lista, a pergunta `[s/N]` e a pausa da chamada |
   | [`adk.py`](../runtime/adk.py) | o modelo, a regra fixa sobre dados não confiáveis e o `OpenAPIToolset` lido do contrato vivo |
   | [`rede.py`](../runtime/rede.py) | nenhum nome de servidor num endereço local ou de metadados, e os endereços conferidos fixos |
   | [`servidores.py`](../runtime/servidores.py) | as chamadas do próprio runtime aos servidores MCP: `check_image` e a busca do pedido inteiro |
@@ -94,7 +94,7 @@ exata do `transpile` para `specs/agent.json`, e um teste falha se ela ficar desa
 | `servers.<nome>.openapi_url` + `operations` | API descrita por OpenAPI: `http://host:porta/openapi.json` e os `operationId` que os agentes podem chamar | `LiveOpenAPIToolset` → `OpenAPIToolset` montado desse contrato, só com essas operações |
 | `roles` | opcional; `read`, `search` e `book`, cada um `servidor.ferramenta` ou `null` (abaixo) | as ferramentas dos callbacks (`BookingCallbacks(ocr_tool=..., search_tool=..., booking_tool=...)`) |
 | `booking.min_confidence` | de 0,9 a 1 (padrão e mínimo 0,90) | a partir daqui o exame é agendado sozinho |
-| `booking.ask_from` | de 0,7 até menos que `min_confidence`, ou `null` (padrão e mínimo 0,70) | a partir daqui a pessoa responde `[s/N]`; `null` desliga a pergunta (o que fica abaixo de `min_confidence` só é avisado) |
+| `booking.ask_from` | de 0,7 até menos que `min_confidence`, ou `null` (padrão e mínimo 0,70) | a partir daqui o exame entra na lista com aviso; `null`: o que fica abaixo de `min_confidence` só é avisado |
 | `booking.ocr_floor` | `line` ≤ `short_code` ≤ `short_synonym`, até 100, cada um no mínimo o padrão (75/85/95) | a leitura do OCR que a linha precisa para agendar sozinha |
 | `booking.top_k` | de 1 a 10 (padrão 3) | quantos resultados cada busca no catálogo devolve, por exame da linha, qualquer que seja o `top_k` pedido pelo modelo; só o melhor de cada exame da busca pode agendar sozinho (os vizinhos ficam em, no máximo, 0,89) |
 | `agents[]` | de 1 a 10, rodados nessa ordem | um `LlmAgent` cada, dentro do `SequentialAgent` |
@@ -192,7 +192,7 @@ mudança no código, não na spec.
 
 Uma 2ª spec de exemplo, [`specs/agent-sem-confirmacao.json`](../specs/agent-sem-confirmacao.json),
 usa `"ask_from": null` e outra instrução de agendamento: o que fica abaixo de 0,90 só é avisado,
-nunca perguntado. Ela transpila e roda no runner real do ADK, com um modelo roteirizado no lugar do Gemini
+nunca vai para a lista (a confirmação final continua). Ela transpila e roda no runner real do ADK, com um modelo roteirizado no lugar do Gemini
 ([`test_confirmacao_nativa.py`](../tests/test_confirmacao_nativa.py)).
 
 ## Validação e mensagens de erro
@@ -342,33 +342,32 @@ Estas proteções ficam no `runtime/`, fora da spec, e por isso nenhuma spec con
     - bloqueia se algum código não veio de nenhuma busca no catálogo;
     - dá a cada exame um trecho próprio do pedido, em qualquer linha. "Creatinina, Clearance de creatinina" são 2, na mesma linha ou em linhas separadas. Valem 1: nomes sobrepostos ("Hemoglobina" em "Hemoglobina glicada" escrito uma vez), uma linha só parecida, e cópias da mesma linha;
     - decide em 3 faixas:
-      - **≥ `min_confidence`** (0,90, calibrado em 631 consultas; ver [`test_calibration.py`](../tests/test_calibration.py)): agenda;
-      - **de `ask_from` a `min_confidence`** (0,70 a 0,90): pergunta `Incluir? [s/N]` (abaixo);
+      - **≥ `min_confidence`** (0,90, calibrado em 631 consultas; ver [`test_calibration.py`](../tests/test_calibration.py)): entra na lista;
+      - **de `ask_from` a `min_confidence`** (0,70 a 0,90): entra na lista com aviso (com `--yes`, fica de fora);
       - **abaixo:** sai como `baixa confiança: ... confira o pedido`.
 
-    Bloqueia se nenhum exame sobra.
+    Bloqueia se nenhum exame sobra; senão, pede a confirmação final da lista (abaixo).
 - **`before_agent`** (`fill_missing`): um pedido sem exame deixa o agente seguinte com entrada
   vazia em vez de quebrar; a CLI responde `Nenhum exame encontrado no pedido`.
 - **`report`** (depois do pipeline): confere o pedido inteiro na busca do catálogo e escreve a
   mensagem final com o que as ferramentas devolveram; `Agendamento confirmado pela API` só sai da
   resposta da API, nunca do texto do modelo. A CLI usa o mesmo resultado.
 
-### A pergunta `[s/N]`: confirmação nativa do ADK
+### A confirmação da lista: confirmação nativa do ADK
 
-A pergunta usa a confirmação de ferramenta do ADK 2.10, e não um `input()` dentro do callback:
+Nada é agendado sem a pessoa confirmar a lista. A pergunta usa a confirmação de ferramenta do ADK 2.10, e não um `input()` dentro do callback:
 
-1. O `before_tool` do agendamento chama `tool_context.request_confirmation(...)` com os exames da faixa do meio e devolve sem chamar a API.
-2. A execução pausa. O app da CLI é retomável (`ResumabilityConfig`).
-3. A CLI recebe do runner a chamada `adk_request_confirmation` e pergunta uma linha por exame: `Li "<linha>" → <exame> <código> (confiança 0,82). Incluir? [s/N]`.
-4. A pergunta roda em `asyncio.to_thread`, fora do laço de eventos: as sessões MCP seguem vivas enquanto a pessoa lê.
-5. A CLI retoma a mesma invocação com as respostas. O ADK executa de novo só aquela chamada (`tool_context.tool_confirmation`), sem refazer o OCR nem a busca, e só o confirmado vai para o `POST`.
+1. O `before_tool` do agendamento monta a lista ([`runtime/confirmacao.py`](../runtime/confirmacao.py)): cada exame com código, o aviso de um da faixa do meio e os não agendados. Chama `tool_context.request_confirmation(hint=<lista>)` e devolve sem chamar a API.
+2. A execução pausa. O app é retomável (`ResumabilityConfig`).
+3. A CLI recebe do runner a chamada `adk_request_confirmation` e pergunta `Agendar estes N exames? [s/N]` (só `s` ou `sim` é sim). O console do `adk run` mostra a mesma lista (`yes` confirma) e a página do `adk web`, a lista com a caixa "Confirmed".
+4. Na CLI, a pergunta roda em `asyncio.to_thread`, fora do laço de eventos: as sessões MCP seguem vivas enquanto a pessoa lê.
+5. O cliente retoma a mesma invocação com `{"confirmed": true}` ou `false`. O ADK executa de novo só aquela chamada (`tool_context.tool_confirmation`), sem refazer o OCR nem a busca, e a lista vai para o `POST` só se a resposta for sim e a lista for a mesma que aquela chamada mostrou.
 
 O resto:
 
-- **Sem ninguém para responder** (sem TTY, com `--yes` ou em CI): o callback nem pede confirmação, e a faixa do meio fica de fora. O `--yes` chega ao agente pelo registro do pedido que a CLI abre (`orders.start`), não por variável de ambiente.
-- **No `adk run` e no `adk web`:** o console e a página do ADK respondem a pergunta uma vez (`{"confirmed": true}` ou `false`), sem as respostas por exame; a resposta vale para os exames que aquela chamada perguntou, listados na dica da pergunta, e só para eles (cada chamada guarda a sua pergunta).
-- **Respostas guardadas** (no registro do pedido, não no estado da sessão): uma chamada repetida pelo modelo não pergunta de novo, nem depois de uma troca para o `fallback_model`.
-- **Um agendamento por execução:** cada execução manda uma `Idempotency-Key` própria (nunca a do modelo), e depois do 1º agendamento uma nova chamada recebe esse mesmo agendamento, sem chegar à API. Vale também para duas chamadas no mesmo turno, em que só uma pergunta: um "sim" que chega depois do agendamento não gera outro `POST`, e o exame sai no relatório como `não agendado (você confirmou, mas o agendamento desta execução já tinha sido criado)`.
+- **`--yes`** (só na CLI): o callback nem pede confirmação, e a faixa do meio fica de fora. Chega ao agente pelo registro do pedido que a CLI abre (`orders.start`), não por variável de ambiente. Sem TTY e sem `--yes`, a CLI mostra a lista e responde não.
+- **Confirmação forjada:** só vale a resposta à pausa que o runtime registrou para aquela chamada, no registro do pedido, não no estado da sessão. Uma resposta a outra chamada, ou uma lista escrita no estado, não agenda nada.
+- **Um "não" vale para a execução:** uma chamada repetida pelo modelo não pergunta de novo e não agenda, nem depois de uma troca para o `fallback_model`.
+- **Um agendamento por execução:** cada execução manda uma `Idempotency-Key` própria (nunca a do modelo), e depois que uma chamada vai para a API, outra recebe esse mesmo agendamento, sem chegar à API. Vale também para duas chamadas no mesmo turno, cada uma com a sua lista: um "sim" que chega depois não gera outro `POST`, e o exame sai no relatório como `não agendado (você confirmou, mas o agendamento desta execução já tinha sido criado)`.
 - **Enquanto espera a resposta**, a resposta de pausa não é resumida para o modelo (`skip_summarization`).
-- **Limite:** o ADK aceita um pedido de confirmação por chamada. Um exame que só entra na faixa do meio depois que um "não" libera o trecho dele fica de fora, e a CLI diz `não perguntado nesta execução (só ficou em dúvida depois de um 'não'): … confira o pedido`.
 - **API experimental:** a confirmação de ferramenta e o `ResumabilityConfig` são marcados como experimentais no ADK 2.10 (aparecem entre os avisos). O ADK está fixo em 2.10 no `requirements.txt`.

@@ -67,7 +67,17 @@ Um `run` leva de segundos a alguns minutos, conforme a fila do Gemini: quase tod
 
 **Modelo reserva, um caminho normal.** A spec traz um `fallback_model` (`gemini-3.5-flash-lite`). Se o principal responde sobrecarregado (`503`) ou sem cota (`429`), a mesma requisição vai na hora ao `fallback_model` da spec (`gemini-3.5-flash-lite`, pelo `FallbackModel` do ADK que o `agent.py` declara), sem esperar novas tentativas do principal: aparece `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite` e a execução segue; a linha `Tempo:` diz qual modelo respondeu por último. Não agenda em dobro nem pergunta de novo: o que se repete é a chamada ao modelo, e nenhuma ferramenta rodou na chamada que falhou. O reserva tem as suas 5 tentativas. É o mesmo `app` que o `adk run` roda: a CLI não muda nada no `agent.py` que importa.
 
-`pedido.png` está em `samples/`. A saída abaixo é a desse log, sem as linhas `[extract] chamando ...`. O id muda a cada execução, e `NOME x2` são o paciente e o médico.
+`pedido.png` está em `samples/`. Antes do agendamento, a CLI mostra a lista e faz uma pergunta, que por padrão é não:
+
+```text
+Exames para agendar:
+- Hemograma completo (FICT-001)
+- Glicemia de jejum (FICT-002)
+- Creatinina (FICT-005)
+Agendar estes 3 exames? [s/N] s
+```
+
+Com `s`, a saída segue como a desse log, sem as linhas `[extract] chamando ...`. O log foi gravado antes da confirmação final da lista, com `-T` (sem terminal): hoje esse comando precisa de `--yes`. O id muda a cada execução, e `NOME x2` são o paciente e o médico.
 
 ```text
 PII mascarada pelo OCR: NOME x2, CPF x1, EMAIL x1, TELEFONE x1
@@ -83,20 +93,25 @@ Agendamento confirmado pela API: id eb9a8d89…, status scheduled
 Tempo: OCR 2,0 s · busca 4,4 s · agendamento 1,6 s · total 13 s (modelo gemini-3.5-flash)
 ```
 
+- **Confirmação final da lista:** nada é agendado sem ela.
+  - A lista traz cada exame com o código. Um exame que as regras não agendariam sozinhas vem com o aviso: `- IgA (FICT-079): lido "- GA", confiança 0,80; o pedido tem texto além da lista de exames; confira`. Os que não serão agendados vêm em `Não agendados:`, com o motivo (negado, já realizado, baixa confiança…).
+  - Só `s` ou `sim` agenda. Qualquer outra resposta, inclusive Enter, não agenda nada: `Erro: agendamento bloqueado antes de chamar a API: você não confirmou a lista de exames; nada foi agendado`.
+  - Sem terminal (`docker compose run -T`, um pipe, `CI=1`) e sem `--yes`, a lista é mostrada e nada é agendado: `…: sem terminal para confirmar a lista de exames: rode num terminal ou com --yes; nada foi agendado`.
+  - **`--yes`** pula a pergunta, para automação. É escolha e risco de quem opera: só as regras decidem, e os exames que iriam para a lista com aviso ficam de fora (`não agendado sem confirmação`). Os [limites da lista branca da página](../README.md#limites-conhecidos) valem por inteiro.
 - **Linhas antes da tabela:**
   - `PII mascarada pelo OCR` conta só dados pessoais, cada um pela regra que o reconheceu: `NOME` só quando uma regra de nome o viu (um rótulo como `Paciente:`, palavras com maiúscula ao lado de um exame, um prenome comum). Palavras comuns que a rede de segurança tira ("NAO realizar", "autoriza incluir") não contam como nome;
   - `Trechos removidos pelo OCR (não pareciam exame): N` conta o resto do que a rede de segurança tirou do texto. Não é PII pelas regras, mas pode conter um nome que elas não reconheceram (um sobrenome sem prenome comum): por isso `NOME xN` é um piso, não o total de nomes;
   - se o OCR removeu instruções escondidas, aparece também `Instruções neutralizadas no OCR: N`;
   - um item da lista de exames que o OCR leu, mas que não parece nenhum exame do catálogo ("4) Ressonância magnética de crânio"), aparece como `lido mas não reconhecido no catálogo: linha N; confira o pedido`. Só o número da linha: o texto dela não sai do OCR.
 - **O que o pedido diz de cada exame:** antes de mascarar, o OCR lê cada linha como foi escrita. Só agenda sozinha uma linha que é só exame (com marcador de lista, rótulo como "Exames:" e qualificadores do exame, como "completo", "de jejum" ou "8h"); qualquer outra palavra vira pergunta:
-  - "Ferritina - pedido por engano", "Vitamina B12 (laudo anexo)", "Colesterol total ?", "Hemograma completo sem plaquetas": `Li "..." → Ferritina FICT-018 (confiança 0,89); o pedido tem outras palavras além do exame. Incluir? [s/N]`. Com `--yes`: `não agendado sem confirmação: ...; o pedido tem outras palavras além do exame, confirme`;
+  - "Ferritina - pedido por engano", "Vitamina B12 (laudo anexo)", "Colesterol total ?", "Hemograma completo sem plaquetas": vão para a lista com aviso, `- Ferritina (FICT-018): lido "...", confiança 0,89; o pedido tem outras palavras além do exame; confira`. Com `--yes`: `não agendado sem confirmação: ...; o pedido tem outras palavras além do exame, confirme`;
   - numa linha que diz claramente para não fazê-lo ("NÃO realizar Ferritina", "PSA total - não repetir", "anulado") ou que ele já foi feito ("já realizado em 2025", "Resultado de Ferritina: 45"), o exame não é agendado e aparece como `não agendado: '...' → Ferritina FICT-018; o pedido diz para não realizar` (ou `que já foi realizado`). Vale também para uma caixa ou célula de tabela que diz não ("[-] TSH", "TSH | -", "não" ou célula vazia); "sim", "x" ou "✓" numa tabela é perguntado;
   - embaixo de "Não realizar:" ou "Não realizar os seguintes:", ou com "retirar o item 2", os itens são perguntados;
   - numa linha de preparo ("Preparo: jejum de 8 horas para Glicemia de jejum"), o exame não é agendado por ela e é avisado com esse motivo.
   A pergunta mostra a linha já mascarada: confira o pedido em papel. Detalhes e limites em [medicoes.md](medicoes.md#limites-conhecidos).
 - **Faixas de confiança:**
-  - de 0,70 a 0,90, o exame é perguntado no terminal: `Li "<linha lida>" → <exame> <código> (confiança 0,82). Incluir? [s/N]`. Só entra o que você confirmar;
-  - com `--yes` (ou sem terminal interativo, como em CI), esses exames ficam de fora e aparecem como `não agendado sem confirmação`;
+  - de 0,70 a 0,90, o exame entra na lista com aviso: `- <exame> (<código>): lido "<linha lida>", confiança 0,82; confira`;
+  - com `--yes`, esses exames ficam de fora e aparecem como `não agendado sem confirmação`;
   - abaixo de 0,70, o exame não é agendado e aparece como `baixa confiança: '<linha lida>' → <exame> <código> (confiança 0,xx); confira o pedido`.
 - **Um exame por ocorrência no pedido:**
   - cada nome do catálogo ocupa uma ocorrência própria na linha: "Exames: Hemograma completo, Creatinina e TSH" agenda 3, e "Creatinina, Clearance de creatinina" agenda 2;
@@ -176,7 +191,7 @@ A saída mostra, por categoria, os casos ok, os recusados com mensagem clara e o
 
 ## 4. Rodar com `adk run` ou `adk web`
 
-O agente gerado também roda com as ferramentas do próprio ADK, sem a CLI do projeto. O `transpile` grava `generated/agent.py` e `generated/__init__.py`, então `generated/` é uma pasta de agente do ADK: o `agent.py` expõe `root_agent` e um `app` retomável (a pergunta de confiança média pausa e retoma a mesma chamada de agendamento).
+O agente gerado também roda com as ferramentas do próprio ADK, sem a CLI do projeto. O `transpile` grava `generated/agent.py` e `generated/__init__.py`, então `generated/` é uma pasta de agente do ADK: o `agent.py` expõe `root_agent` e um `app` retomável (a confirmação da lista pausa e retoma a mesma chamada de agendamento).
 
 ```bash
 docker compose run --rm agent python -m cli transpile specs/agent.json   # gera de novo depois de atualizar o projeto
@@ -193,7 +208,7 @@ No `adk web`, abra <http://127.0.0.1:8000>, escolha o agente `generated` e mande
   - o nome vira o apelido `pedido-1.png`; o modelo recebe `Arquivo do pedido: pedido-1.png` no lugar do que você digitou e nunca vê o nome real, nem uma parte da mensagem que não seja texto (`before_model`);
   - os nomes `ocr`, `rag` e `api` precisam estar em `ALLOWED_HOSTS` e não podem resolver para um endereço local ou de metadados de nuvem. A mesma conferência roda antes da 1ª conexão de cada toolset, então nada conecta antes dela (nem o grafo da interface do `adk web`). Os endereços conferidos ficam fixos enquanto o processo do `adk` durar e são os que toda conexão usa ([`runtime/rede.py`](../runtime/rede.py)); um nome que não resolveu ou foi recusado é conferido de novo na vez seguinte. Se um serviço mudar de endereço (um `docker compose up` que recria o container), reinicie o `adk run` ou o `adk web`;
   - o OCR confere a imagem (`check_image`): um arquivo inexistente ou recusado para aí, com o motivo e o apelido no lugar do nome.
-- **Pergunta de confiança média:** o console do `adk run` mostra `[HITL confirm] Confirme os exames lidos com confiança média: '<linha>' → <exame> <código> (confiança 0,80)…`. `yes` inclui os exames listados nela, e só eles; qualquer outra resposta deixa todos de fora. A CLI pergunta exame a exame; o ADK, uma vez por chamada. Se o modelo mandar duas chamadas de agendamento no mesmo turno e uma agendar antes da sua resposta à outra, o exame confirmado não vai num 2º `POST`: a mensagem final diz `não agendado (você confirmou, mas o agendamento desta execução já tinha sido criado)…`. Sem terminal (`docker compose run -T`) ou com `CI=1`, nada é perguntado e esses exames ficam de fora, como no `--yes`.
+- **Confirmação final da lista:** a mesma da CLI, pela confirmação nativa do ADK. O console do `adk run` mostra `[HITL confirm] Exames para agendar: …` com a lista e `Agendar estes N exames?`; `yes` agenda a lista, qualquer outra resposta não agenda nada. No `adk web`, a página mostra a mesma lista, uma caixa "Confirmed" e "Submit": marcada, agenda; desmarcada, não. Não há `--yes` aqui: sempre se pergunta. Se o modelo mandar duas chamadas de agendamento no mesmo turno, cada uma mostra a sua lista; um "sim" que chega depois do agendamento não vai num 2º `POST`: a mensagem final diz `não agendado (você confirmou, mas o agendamento desta execução já tinha sido criado)…`.
 - **A última mensagem** (`[clinic_scheduler]: …`) é escrita em código, com o que as ferramentas devolveram: a PII mascarada, os exames deixados de fora e o motivo, a conferência do pedido inteiro e `Agendamento confirmado pela API: id …` só com a resposta da própria API. O texto do modelo (`[schedule]: …`) não conta.
 - **Um pedido por sessão:** outra mensagem na mesma sessão é recusada (`Esta sessão já tratou um pedido…`). Se a API já agendou (também quando o modelo falhou depois do `POST`), a resposta traz o agendamento e `não repita este pedido`. Para outro pedido, `exit` e `adk run` de novo; no `adk web`, New Session. A `Idempotency-Key`, as respostas e o agendamento são da sessão.
 - **O estado da sessão não é confiável:** o `adk web` deixa o cliente escrever o estado (ao criar a sessão e em cada mensagem), e o `adk run` aceita `--state`. Por isso o que a política usa (a imagem, as linhas lidas, os códigos de cada busca, as respostas, a `Idempotency-Key` e a resposta da API) fica num registro do próprio runtime, por sessão, que o estado só recebe como cópia. Uma resposta "sim" ou um agendamento escritos no estado não mudam nada. Num `adk web` longo, o runtime guarda os registros dos 256 pedidos terminados mais recentes e descarta um registro sem uso por 6 horas; uma sessão cujo registro saiu continua dizendo que já tratou um pedido (até 4.096 sessões), e a `Idempotency-Key` sai da própria sessão: um pedido reenviado nela recebe da API o mesmo agendamento, nunca um segundo.
@@ -225,7 +240,7 @@ Todas as que o código lê. As do `.env` chegam só ao serviço que as usa; as o
 | `EXAMS_PATH` | `data/exams.json` | `api`, `rag`, `ocr` (`catalogo.py`) | Catálogo de exames. |
 | `SAMPLES_DIR` | `/data/samples` | `ocr` | Pasta das imagens que o OCR aceita (`samples/`, só leitura; a carga monta outra). |
 | `OMP_THREAD_LIMIT` | `1`, definida pelo `ocr` | Tesseract | Uma thread por leitura: com 8 leituras em paralelo, o Tesseract não disputa os núcleos. |
-| `CI` | vazia | agente gerado | Não vazia (como no GitHub Actions): nenhuma pergunta `[s/N]`, e o exame que precisava de um "sim" fica de fora, como no `run --yes` (que diz isso ao agente pelo registro do pedido, não por variável). |
+| `CI` | vazia | `cli run` | Não vazia (como no GitHub Actions): nenhuma pergunta, como sem terminal; sem `--yes`, nada é agendado. O `--yes` chega ao agente pelo registro do pedido, não por variável. |
 
 ## Backup e restauração
 
@@ -286,7 +301,7 @@ Erros saem como uma linha `Erro: ...`, com código 2. Por exemplo: serviço fora
 - **Modelo principal indisponível** (`429`/`503`): a mesma requisição vai na hora ao `fallback_model` da spec (`gemini-3.5-flash-lite`), sem novas tentativas do principal, com o aviso `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite`. É um caminho normal, não um erro.
 - **Se o reserva também falhar,** a saída é `Erro: Gemini indisponível no momento (HTTP 503); tente novamente`.
 - **Pedido sem exame:** `Erro: Nenhum exame encontrado no pedido; nada foi agendado`.
-- **Bloqueio antes da API:** `Erro: agendamento bloqueado antes de chamar a API: …; nada foi agendado`. Acontece quando um código não veio de uma busca no catálogo, ou quando nenhum exame atinge a confiança de 0,90 nem foi confirmado por você.
+- **Bloqueio antes da API:** `Erro: agendamento bloqueado antes de chamar a API: …; nada foi agendado`. Acontece quando um código não veio de uma busca no catálogo, quando nenhum exame entra na lista ou quando você não confirma a lista (`você não confirmou a lista de exames`).
 - **OCR sem texto e sem motivo** (serviço fora do ar no meio da execução): `Erro: o OCR não devolveu o texto do pedido (serviço indisponível?); nada foi agendado`.
 - **Modelo descontinuado:** a saída é `Erro: o Gemini recusou a chamada (HTTP 404: ...)`. Troque-o com `-e GEMINI_MODEL=<modelo>`.
 
@@ -317,7 +332,7 @@ docker compose run --rm tests pytest -q -n auto
   - o agente gerado rodando com `adk run` e com o servidor do `adk web`, sem a CLI, até o agendamento na API real ([`test_adk_run.py`](../tests/test_adk_run.py));
   - o limiar de 0,90 sobre as 631 consultas de calibração ([`test_calibration.py`](../tests/test_calibration.py));
   - uma fração da carga (20 pedidos), dos manuscritos (10 de 120) e da robustez (1 caso por categoria): [`test_carga.py`](../tests/test_carga.py), [`test_manuscritos.py`](../tests/test_manuscritos.py), [`test_robustez.py`](../tests/test_robustez.py).
-- **Resultado atual:** 569 funções de teste e 19.178 casos (`pytest --collect-only`), quase todos de corpus parametrizado (linhas legítimas, PII gerada, ataques e termos do catálogo); 19.177 passam e 1 é pulado (o ponta a ponta, sem chave). Com `-n auto` (um processo por núcleo), a suíte leva cerca de 3,5 min numa máquina de 12 núcleos, com `--cov` (medido: 200 s e 205 s); em série, de 6 a 11 min.
+- **Resultado atual:** 572 funções de teste e 19.184 casos (`pytest --collect-only`), quase todos de corpus parametrizado (linhas legítimas, PII gerada, ataques e termos do catálogo); 19.183 passam e 1 é pulado (o ponta a ponta, sem chave). Com `-n auto` (um processo por núcleo), a suíte leva cerca de 3,5 min numa máquina de 12 núcleos, com `--cov` (medido: 200 s e 205 s); em série, de 6 a 11 min.
 - **Qualidade na CI:** antes dos testes, a CI roda `ruff` (pyflakes, pycodestyle, ordem dos imports, bugbear) e `mypy` nos módulos do projeto, e os testes rodam com cobertura (relatório, sem limite que quebre o build): 98% das linhas de `api`, `catalogo`, `cli`, `guardrails`, `mcp_servers`, `runtime` e `transpiler`. O `agent.py` gerado não entra na conta. O `mypy` é uma checagem leve: sem `--strict`, com `ignore_missing_imports` (bibliotecas sem tipos não são conferidas) e com o padrão do mypy de não olhar por dentro as funções sem anotação, que são muitas. Config e exceções em [`pyproject.toml`](../pyproject.toml). Antes do build, o `pip-audit` confere `requirements.txt` e `requirements-dev.txt`, com tudo o que eles puxam: falha numa vulnerabilidade conhecida que já tem versão corrigida e só avisa quando ainda não há correção; o Dependabot abre toda semana os PRs de atualização (pip e GitHub Actions). Para rodar local:
 
   ```bash
