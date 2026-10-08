@@ -1,6 +1,7 @@
 # One Dockerfile, one lean stage per role. requirements.txt is the single source of
 # versions: each stage installs only what it needs, pinned with `-c requirements.txt`.
-FROM python:3.12-slim AS base
+# The base image is pinned by digest (the multi-platform index of python:3.12-slim): a moved tag changes nothing.
+FROM python:3.12-slim@sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f AS base
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app
 WORKDIR /app
 COPY requirements.txt .
