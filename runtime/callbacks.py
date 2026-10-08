@@ -196,7 +196,7 @@ class BookingCallbacks:
     def after_tool(self, tool, args, tool_context, tool_response):
         """Keep the OCR's lines, counts and readings, the candidates of each search and the API's reply."""
         order, result = self.orders.of(tool_context), mcp_payload(tool_response)
-        reply = None  # the tool's reply goes to the model unchanged, but for an OCR error naming the file
+        reply = None  # the model reads the reply unchanged, but the OCR's (exam lines only) and its error (no file)
         if tool.name == self.ocr_tool and isinstance(tool_response, dict) and tool_response.get('isError'):
             # The OCR refused the image (not found, wrong type, corrupt, too large): keep its reason.
             texts = [item.get('text', '') for item in tool_response.get('content', []) if isinstance(item, dict)]
@@ -204,7 +204,8 @@ class BookingCallbacks:
             order['ocr_error'] = ' '.join(text for text in texts if text).removeprefix(prefix)[:300]
             reply = entrada.without_file_name(tool_response, order)
         elif tool.name == self.ocr_tool and isinstance(result, dict):
-            remember_ocr(order, result)
+            view = remember_ocr(order, result)
+            reply = tool_response | {'content': [{'type': 'text', 'text': json.dumps(view)}], 'structuredContent': view}
         elif tool.name == self.search_tool and result is not None:
             remember_search(order, args.get('query', ''), result if isinstance(result, list) else [result], self.policy)
         elif tool.name == self.booking_tool and isinstance(tool_response, dict) and not NOT_SENT & tool_response.keys():

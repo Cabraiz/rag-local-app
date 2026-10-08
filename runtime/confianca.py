@@ -46,6 +46,7 @@ INTENTS = {'request', 'negated', 'history', 'uncertain', 'prep', 'unrecognized',
 BLOCKING = {'negated', 'history'}
 NOT_ANCHORS = BLOCKING | {'prep'}
 CONTESTS = BLOCKING | {'instruction'}  # why the page contests an exam: "- Ferritina", "Obs: cancele a Ferritina"
+FREE_TEXT = '[linha de texto livre omitida]'  # the model's copy of a line not in the OCR's exam_lines (all, without)
 
 
 def intent_of(state, line):
@@ -120,7 +121,7 @@ def line_support(query, lines):
 
 
 def remember_ocr(state, reply):
-    """Keep what the OCR read: lines (plain and as read, PII already masked), counts and readings."""
+    """Keep what the OCR read (lines plain and as read, PII masked; counts, readings); return the model's copy."""
     state['pii_masked'] = reply.get('pii_masked', {})
     state['instructions_removed'] = reply.get('instructions_removed', 0)
     state['ocr_lines'] = [words(line) for line in reply.get('lines', [])]
@@ -140,6 +141,8 @@ def remember_ocr(state, reply):
     state['ocr_contested'] = {item['code']: item['reason'] for item in contested} if valid else None  # None: all asked
     state['page_clean'], state['cancel_unlinked'] = reply.get('page_clean') is True, reply.get('cancel_unlinked') is True
     state['text_removed'] = reply.get('text_removed', 0)
+    shown = reply.get('exam_lines') if isinstance(reply.get('exam_lines'), list) else []
+    return {'lines': [line if index in shown else FREE_TEXT for index, line in enumerate(state['ocr_read'])]}
 
 
 def remember_search(state, query, hits, policy):

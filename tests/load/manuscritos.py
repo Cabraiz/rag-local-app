@@ -35,6 +35,11 @@ def consulta(line):
     return re.sub(MARKER, '', line, count=1).strip()[:200]
 
 
+def lidas_pelo_modelo(reply):
+    """As linhas que o modelo recebe e busca: as de exame (exam_lines do OCR); as outras chegam omitidas."""
+    return [line for at, line in enumerate(reply['lines']) if at in reply.get('exam_lines', [])]
+
+
 def gabarito(origem):
     return json.loads((Path(origem) / 'gabarito.json').read_text(encoding='utf-8'))['imagens']
 
@@ -66,7 +71,7 @@ async def avaliar(ocr, rag, agente, filename, item):
         return {'erro': str(error), 'lidos': set(), 'perguntados': set(), 'baixa': set(), 'errados': {},
                 'vazamentos': []}
     buscas = []
-    for line in reply['lines']:
+    for line in lidas_pelo_modelo(reply):
         query = consulta(line)
         if len(plain(query).replace(' ', '')) >= 2:
             buscas.append((query, await chamar(rag, 'search_exams', {'query': query, 'top_k': 1})))

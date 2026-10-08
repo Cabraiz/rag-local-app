@@ -19,7 +19,7 @@ def samples_dir(monkeypatch):
 
 
 @pytest.mark.parametrize('filename, message', [
-    ('', 'Informe o nome'),
+    ('', 'filename deve ser'),
     ('a' * 300 + '.png', 'longo demais'),
     ('/etc/passwd', 'sem pastas'),
     ('C:\\pedido.png', 'sem pastas'),
@@ -130,7 +130,8 @@ def test_every_line_is_masked_and_counted(monkeypatch):
     result = ocr.mask_lines(['CPF: 1', 'Hemograma completo', 'CPF: 2'])
     assert result == {'lines': ['[CPF]', 'Hemograma completo', '[CPF]'], 'pii_masked': {'CPF': 2},
                       'line_intent': ['request', 'request', 'request'], 'contested_exams': [],
-                      'instructions_removed': 0, 'text_removed': 0, 'cancel_unlinked': False, 'page_clean': True}
+                      'instructions_removed': 0, 'text_removed': 0, 'cancel_unlinked': False, 'page_clean': True,
+                      'exam_lines': [1]}
 
 
 needs_tesseract = pytest.mark.skipif(shutil.which('tesseract') is None, reason='Tesseract runs inside the Docker image')

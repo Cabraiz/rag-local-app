@@ -15,6 +15,7 @@ docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga ru
 | O que foi testado | Casos | Resultado | Como repetir |
 |---|---|---|---|
 | Dados sensíveis sob carga: OCR → RAG → API → SQLite | 500 pedidos, 6.000 campos sensíveis | **0 vazamentos** no texto do OCR; **0 valores em claro** nos bytes do SQLite e do WAL; 499 de 500 pedidos agendados, e o `GET` devolve os exames enviados nos 499 | `tests.load.carga --n 500 --concorrencia 8` |
+| Só as linhas de exame chegam ao modelo | 120 manuscritas, 30 fotos de celular, 200 pedidos da carga e `pedido.png` (5.028 linhas lidas) | 4.026 linhas de texto livre trocadas por `[linha de texto livre omitida]`; **0 PII** nas linhas que o modelo recebe; os mesmos exames agendados sem perguntar e perguntados que antes, **0 errados** ([detalhe](#texto-livre-fora-do-modelo)) | `pytest tests/test_texto_livre.py` |
 | A máscara não apaga exame | 1.445 linhas legítimas distintas (as 1.429 distintas de `tests/attacks/legit.txt` e 16 de `legit-pages.txt`); os 240 nomes e sinônimos do catálogo em MAIÚSCULAS, Title Case, com ". com jejum" e com 6 modificadores | 0 exames apagados | `pytest tests/test_pii.py` |
 | Formatos fora do gerador, em 2 conjuntos independentes de imagens: nome sem rótulo, com `'` ou `-`, em minúsculas ao lado do exame, CPF em 2 linhas, data por extenso | 79 + 79 imagens; 84 + 83 valores pessoais lidos pelo OCR | **0 de 84** e **0 de 83** não mascarados; 0 exames apagados pela máscara (na medição final do 2º conjunto, 1 exame não veio porque o OCR leu "Vitamina B1l2", não pela máscara) | cada caso virou teste em `tests/test_pii.py` (as imagens têm PII fictícia legível e ficam fora do repositório) |
 | Limiar de 0,90 para agendar | 631 consultas versionadas | 0 de 10 erros passam; 522 de 621 acertos ficam (84,1%). Só há 10 erros conhecidos no conjunto: é uma checagem de piso, não uma taxa de erro | `pytest tests/test_calibration.py` |
@@ -98,6 +99,42 @@ e 1 de controle, em 16 testes e 21 casos (alguns cenários rodam com 2 ou 3 vari
 - **Banco sem PII, por construção:** a API só aceita código e nome de cada exame e grava o nome do catálogo, então nenhum dado pessoal chega ao SQLite. A carga confere isso nos bytes do banco.
 - **Imagens da carga:** ficam num volume em memória (tmpfs) só da carga, que o OCR vê como `/data/samples`, somente leitura. Assim a regra do OCR (só um nome de arquivo dentro de `/data/samples`) não muda e nada gerado vai para o disco ou para o git. Na CI, [`test_carga.py`](../tests/test_carga.py) roda 20 pedidos com o OCR em processo e falha se um valor vazar.
 - **O que a carga achou e corrigiu:** 13 formas de vazamento causadas por erros de leitura do OCR, cada uma com teste de regressão em [`test_pii.py`](../tests/test_pii.py). Entre elas: e-mail sem rótulo com o "@" lido como "g", "Q" ou "€" e partido em pedaços, CPF e RG lidos com vírgula, CPF colado ao rótulo (`CPF1 14.…`), `CID-10;`, `CRM-R]`, `Dra,` e nome seguido de `|`. A carga também mostrou que 8 leituras em paralelo levavam 88 s em vez de 2 s, porque o Tesseract usava todos os núcleos em cada chamada; agora cada chamada usa uma thread.
+
+## Texto livre fora do modelo
+
+O OCR marca, em `exam_lines`, as linhas que a busca do catálogo resolve, mesmo lidas com erro: um nome inteiro do
+catálogo ou, tirados a estrutura ("Solicito:", "Obs:") e os valores mascarados, uma palavra a um erro de leitura de
+uma palavra de exame (que não seja só um qualificador) ou um texto que a busca acha (piso de 0,60). Linhas que negam,
+dão como feito ou preparam o exame também ficam de fora. O modelo recebe só `{"lines": [...]}`: essas linhas, já
+mascaradas, e `[linha de texto livre omitida]` no lugar de cada outra, na mesma ordem. Sem `exam_lines`, nenhuma
+linha vai. A regra de agendamento, as perguntas e o relatório continuam lendo todas as linhas mascaradas.
+
+Medido sem o Gemini, com o OCR, a busca e a regra de agendamento reais (já com a lista branca por página): o modelo
+simulado busca cada linha que recebe (o melhor resultado) e propõe tudo; ninguém responde `[s/N]`. "Antes": ele
+recebe todas as linhas mascaradas.
+
+
+| Conjunto | Linhas lidas · omitidas | Agendados sem perguntar (antes → depois) | Perguntados | Baixa confiança | Errados | PII nas linhas do modelo |
+|---|---|---|---|---|---|---|
+| 120 manuscritas (497 exames) | 1.413 · 1.128 | 28 → 28 | 116 → 116 | 94 → 92 | 0 → 0 | 0 → 0 |
+| 30 fotos de celular (97) | 456 · 360 | 85 → 85 | 4 → 4 | 5 → 5 | 0 → 0 | 0 → 0 |
+| 200 pedidos da carga (618) | 3.149 · 2.531 | 602 → 602 | 12 → 12 | 4 → 4 | 0 → 0 | 0 → 0 |
+| `pedido.png` (3) | 10 · 7 | 3 → 3 | 0 → 0 | 0 → 0 | 0 → 0 | 0 → 0 |
+
+- **As 2 de baixa confiança que saíram** (Creatinina em `medico-036` e `medico-038`) vinham do carimbo "Clínica
+  Médica", que a busca aproximava de "Creatinina sérica" (0,65), e não da linha do exame, que o OCR não leu. É
+  estrutura, e não vai mais ao modelo.
+- **Uma versão anterior** exigia uma palavra de exame que não fosse qualificador: "Colesterol total" e "Urina tipo I"
+  só têm palavras que também qualificam exames e sumiam (13 agendados a menos nas manuscritas, 5 nas fotos). A regra
+  atual usa a mesma busca do catálogo, e cada imagem decide igual nos dois lados, fora os 2 casos acima.
+- **Na mesma linha de exame**, a máscara agora pega um número de documento com qualquer separador
+  (`898*0010*0123*4567`, `9_8765_4321`), um número longo antes de uma unidade de tempo (`12345678 h`) e um nome depois
+  do nome inteiro do exame, mesmo feito de palavras de exame (`Ferritina Albina Ferro`, `TSH Zé`, `Ferritina Bia`),
+  pela forma, sem lista nova ([`test_pii.py`](../tests/test_pii.py)). Ainda passam uma palavra só a um erro de leitura
+  de um exame (`Ferritina Albina`: "Albina" fica a um erro de Albumina) e um nome antes do exame (`Bia Ferro`).
+- **O que ainda vai ao provedor:** as linhas de exame, mascaradas. O "depois" se repete com
+  `tests.load.manuscritos`, que agora busca só as linhas que o modelo recebe; a comparação com o "antes" foi feita
+  com um script fora do repositório.
 
 ## Pedidos manuscritos simulados
 

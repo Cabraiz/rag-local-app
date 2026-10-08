@@ -433,13 +433,13 @@ def test_end_to_end_without_gemini_with_the_real_ocr_reading(agent, monkeypatch,
     printed = {'pedido.png': {'FICT-001', 'FICT-002', 'FICT-005'}, 'pedido-variacao.png': {'FICT-001', 'FICT-002', 'FICT-005'}}
     expected = printed.get(sample) or {exam['code'] for exam in ITENS[LOOSE[sample]]['exames']}
     agent.CALLBACKS.can_ask = lambda: False
-    # the exam name of each line, as the model searches it (no "Exame:" label, no list marker)
-    searches = [(query, rag.search(query, 3)) for query in map(robustez.consulta, reply['lines'])
+    # the exam name of each line the model reads, as it searches it (no "Exame:" label, no list marker)
+    searches = [(query, rag.search(query, 3)) for query in map(robustez.consulta, manuscritos.lidas_pelo_modelo(reply))
                 if len(rag.normalize(query).replace(' ', '')) >= 2]
     booked_alone, asked, _, _ = manuscritos.decidir(agent, reply, searches)
     assert booked_alone <= expected  # never an exam outside the order without the person's yes
     if sample in printed:
-        assert booked_alone == expected  # a clean printed order is booked whole, without questions
+        assert booked_alone == expected and not asked  # a clean printed order is booked whole, without questions
 
 
 @pytest.mark.parametrize('model', ['gpt-4o', 'gemini-3.5-flash; rm -rf /', '../gemini', 'Gemini-3.5-flash',

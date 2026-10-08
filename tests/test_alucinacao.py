@@ -398,4 +398,6 @@ def test_exams_the_order_says_not_to_do_are_never_booked(run, services, monkeypa
     assert 'Instruções neutralizadas no OCR: 1' in out and '→ Vitamina D FICT-023' in out  # reported, not booked
     assert 'PII mascarada pelo OCR: nenhuma' in out and 'ATENÇÃO' not in out
     seen = ''.join(SEEN)
-    assert 'NAO realizar Ferritina' in seen and 'reagiu' not in seen and 'leitor' not in seen  # what reached the model
+    # What reached the model: its exam lines only; the notes it never read still decide (above).
+    assert 'Hemograma completo' in seen and '[linha de texto livre omitida]' in seen
+    assert not any(word in seen for word in ('NAO realizar', 'reagiu', 'leitor', 'nao repetir'))

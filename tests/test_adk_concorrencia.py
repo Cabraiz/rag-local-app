@@ -101,8 +101,7 @@ class Reader(HONEST):
             out = [(tool, {'filename': adk.file_named_in(llm_request)})]
         elif tool == 'extract_exam_text':
             reply = mcp_payload(answered[0]) or {}
-            out = '\n'.join(line for line, kind in zip(reply.get('lines', []), reply.get('line_intent', []), strict=False)
-                            if kind == 'request' and '[' not in line) or 'nenhum'
+            out = '\n'.join(line for line in reply.get('lines', []) if '[' not in line) or 'nenhum'  # its exam lines
         elif tool == 'search_exams' and not answered:
             names = [line.strip() for line in instruction_list(llm_request).splitlines() if line.strip()]
             out = [(tool, {'query': name}) for name in names[:8]]

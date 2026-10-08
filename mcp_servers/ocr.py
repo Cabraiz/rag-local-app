@@ -25,10 +25,11 @@ from mcp.server.transport_security import TransportSecuritySettings
 from PIL import Image, UnidentifiedImageError
 from starlette.responses import JSONResponse
 
-from catalogo import EXAM_MODIFIERS, LIST_MARKER, words
+from catalogo import EXAM_MODIFIERS, LIST_MARKER, MIN_SCORE, QUALIFIERS, words
 from guardrails import intent
 from guardrails.injection import MARKER, join_split_orders, neutralize_joined
-from guardrails.pii import exams_on, mask_page
+from guardrails.pii import exam_like, exams_on, mask_page, rag_score
+from guardrails.pii_rules import STRUCTURE
 from mcp_servers.arguments import or_default, quiet_logs
 from mcp_servers.preprocessamento import ImagemGirada, confianca_por_linha, ler_linhas, sobre_branco
 from mcp_servers.qualidade import quality_problem
@@ -38,7 +39,6 @@ from mcp_servers.qualidade import quality_problem
 os.environ.setdefault('OMP_THREAD_LIMIT', '1')
 SAMPLES_DIR = Path(os.environ.get('SAMPLES_DIR', '/data/samples'))
 FORMATS = {'.png': 'PNG', '.jpg': 'JPEG', '.jpeg': 'JPEG'}  # allowed extension -> Pillow format
-ALLOWED_SUFFIXES = set(FORMATS)
 MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_FILENAME_LENGTH = 100
 MAX_PIXELS = 25_000_000  # checked from the header, before decoding
@@ -50,13 +50,13 @@ GAP, SMALL, LIGHT = 1.5, 0.6, 100
 def resolve_sample(filename: str) -> Path:
     """Map a bare file name to /data/samples, or raise ToolError with a clear message."""
     if not isinstance(filename, str) or not filename.strip():
-        raise ToolError('Informe o nome do arquivo, por exemplo "pedido.png".')
+        raise ToolError('filename deve ser o nome de um arquivo, ex.: pedido.png.')  # empty, or not text (None, 123)
     if len(filename) > MAX_FILENAME_LENGTH:
         raise ToolError(f'Nome de arquivo longo demais (máximo {MAX_FILENAME_LENGTH} caracteres).')
     if Path(filename).name != filename or PureWindowsPath(filename).name != filename:
         raise ToolError('Informe só o nome do arquivo, sem pastas nem caminho.')
     path = SAMPLES_DIR / filename
-    if path.suffix.lower() not in ALLOWED_SUFFIXES:
+    if path.suffix.lower() not in FORMATS:
         raise ToolError('Extensão inválida; use .png, .jpg ou .jpeg.')
     # resolve(): a symlink inside samples/ could point elsewhere
     if not path.is_file() or path.resolve().parent != SAMPLES_DIR.resolve():
@@ -106,6 +106,7 @@ def mask_lines(lines: list[str], joined: list[str] | None = None) -> dict:
     modifier of ("[TEXTO_REMOVIDO] total"), is 'unrecognized'; an order to the model removed leaves the page not
     clean. pii_masked counts personal data by type; apart, as not PII: instructions_removed (lines where an order
     to the model was replaced) and text_removed ([TEXTO_REMOVIDO] pieces). `joined`: join_split_orders(lines)[0].
+    exam_lines: the only lines the model reads (runtime/confianca.py): names_an_exam, not negated, history or prep.
     """
     if joined is None:
         joined = join_split_orders(lines)[0]
@@ -116,10 +117,11 @@ def mask_lines(lines: list[str], joined: list[str] | None = None) -> dict:
     kinds = ['unrecognized' if kind in ('request', 'uncertain', 'table') and unrecognized_request(line, safe) else kind
              for kind, line, safe in zip(kinds, lines, masked, strict=True)]
     readings = [getattr(line, 'confianca', 100.0) for line in joined]
-    text_removed = counts.pop('TEXTO_REMOVIDO', 0)
-    return {'lines': masked, 'line_intent': kinds, 'pii_masked': counts, 'instructions_removed': removed,
-            'text_removed': text_removed, 'contested_exams': intent.contested(joined, contest), 'cancel_unlinked':
-            unlinked, 'page_clean': not removed and not unlinked and intent.clean_page(joined, masked, kinds, odd, readings)}
+    return {'text_removed': counts.pop('TEXTO_REMOVIDO', 0), 'lines': masked, 'line_intent': kinds, 'pii_masked': counts,
+            'instructions_removed': removed, 'contested_exams': intent.contested(joined, contest), 'cancel_unlinked':
+            unlinked, 'page_clean': not removed and not unlinked and intent.clean_page(joined, masked, kinds, odd, readings),
+            'exam_lines': [at for at, (kind, line) in enumerate(zip(kinds, masked, strict=True))
+                           if kind not in ('negated', 'history', 'prep') and names_an_exam(line)]}
 
 
 def reading_marks(lines: list[str]) -> tuple[frozenset[int], list[bool]]:
@@ -131,6 +133,15 @@ def reading_marks(lines: list[str]) -> tuple[frozenset[int], list[bool]]:
     height, ink = median(box[2] for box in boxes), median(box[3] for box in boxes)
     return (frozenset(i for i in range(1, len(boxes)) if boxes[i][0] - boxes[i - 1][1] > GAP * height),
             [box[2] < SMALL * height or box[3] > ink + LIGHT for box in boxes])
+
+
+def names_an_exam(line: str) -> bool:
+    """Whether a masked line resolves to the catalog, even misread: a whole exam name or, structure ("Obs:") and masked
+    values aside, a word one OCR error from an exam word (not a qualifier) or text the search finds (MIN_SCORE)."""
+    text = LIST_MARKER.sub(' ', re.sub(r'\[[A-Z_]+\]', ' ', line))
+    rest = [word for word in words(text).split() if word not in STRUCTURE]
+    return bool(exams_on(text)) or rag_score(' '.join(rest)) >= MIN_SCORE or any(
+        word not in QUALIFIERS and exam_like(word) for word in rest)
 
 
 def unrecognized_request(line: str, masked: str) -> bool:
@@ -145,8 +156,7 @@ def unrecognized_request(line: str, masked: str) -> bool:
     letters = re.findall(r'[^\W\d_]', re.sub(r'\[[A-Z_]+\]', ' ', line[item.end():])) if item else []
     if not item or MARKER in line or len(letters) < 6:
         return False
-    rest = LIST_MARKER.sub('', masked, count=1)
-    return bool(re.fullmatch(r'(?:\[TEXTO_REMOVIDO\]|[^\w\[\]])+', rest))
+    return bool(re.fullmatch(r'(?:\[TEXTO_REMOVIDO\]|[^\w\[\]])+', LIST_MARKER.sub('', masked, count=1)))
 
 
 server = MCPServer('ocr-exams', instructions='Extrai o texto de um pedido médico fictício, com PII mascarada.')
@@ -155,13 +165,11 @@ server = MCPServer('ocr-exams', instructions='Extrai o texto de um pedido médic
 @server.tool()
 async def extract_exam_text(filename: Annotated[str, or_default('')]) -> dict:
     """Read /data/samples/<filename> with OCR; returns {lines, line_confidence, line_intent, contested_exams,
-    cancel_unlinked, page_clean, pii_masked, instructions_removed, text_removed}.
+    cancel_unlinked, page_clean, exam_lines, pii_masked, instructions_removed, text_removed}.
 
     PII already masked; line_confidence holds one 0-100 value per returned line, and line_intent one
     kind (request, negated, history, uncertain, prep, unrecognized, table), in the same order.
     """
-    if not filename.strip():  # empty or not text (None, 123, a list)
-        raise ToolError('filename deve ser o nome de um arquivo, ex.: pedido.png.')
     path = resolve_sample(filename)
     lines = await asyncio.to_thread(read_lines, path)
     joined, sources = join_split_orders(lines)  # once: the guard and the confidence share it
@@ -175,8 +183,6 @@ async def check_image(filename: Annotated[str, or_default('')]) -> dict:
 
     For `cli run`, before the first model turn; no agent has it.
     """
-    if not filename.strip():
-        raise ToolError('filename deve ser o nome de um arquivo, ex.: pedido.png.')
     path = resolve_sample(filename)
     width, height = await asyncio.to_thread(checked_image, path, lambda image: image.size)
     return {'format': FORMATS[path.suffix.lower()], 'width': width, 'height': height}
@@ -187,14 +193,10 @@ async def health(request):
     return JSONResponse({'status': 'ok', 'tesseract': str(pytesseract.get_tesseract_version())})
 
 
-SECURITY = TransportSecuritySettings(
-    enable_dns_rebinding_protection=True,
-    allowed_hosts=['ocr:8001', 'localhost:*', '127.0.0.1:*'],
-    allowed_origins=[],
-)
+SECURITY = TransportSecuritySettings(enable_dns_rebinding_protection=True, allowed_origins=[],
+                                     allowed_hosts=['ocr:8001', 'localhost:*', '127.0.0.1:*'])
 
-# uvicorn closes idle connections after 5 s, the same 5 s after which the MCP client's pool
-# drops them: a POST sent at that moment was lost and its call never returned (python-sdk #906).
+# uvicorn and the MCP client's pool both drop idle connections after 5 s: a POST sent then never returned (python-sdk #906).
 KEEP_ALIVE_SECONDS = 75
 
 if __name__ == '__main__':
