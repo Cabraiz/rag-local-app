@@ -115,15 +115,15 @@ def test_a_name_written_once_inside_a_longer_one_is_still_one_exam(agent):
 @pytest.mark.parametrize('reading, band', [(95, 'booked'), (75, 'booked'), (74, 'ask'), (70, 'ask'), (69, 'left out')])
 def test_a_line_the_ocr_barely_read_never_books_alone(agent, monkeypatch, reading, band):
     asked = []
-    answering(monkeypatch, agent, lambda items: asked.extend(items) or {})
+    answering(monkeypatch, agent, lambda items: asked.extend(items) or True)
     context = read(agent, ['Vitamina D', 'Creatinina'], [reading, 96])
     search(agent, context, 'Vitamina D', ('FICT-023', 'Vitamina D', 1.0))
     search(agent, context, 'Creatinina', ('FICT-005', 'Creatinina', 1.0))
     reply, args = book(agent, context, 'FICT-023', 'FICT-005')
-    assert reply is None and ('FICT-023' in booked(args)) is (band == 'booked')
+    assert reply is None and ('FICT-023' in booked(args)) is (band != 'left out')  # 'ask': on the list, with a warning
     assert [item['code'] for item in asked] == (['FICT-023'] if band == 'ask' else [])
-    if band != 'booked':
-        assert context.state['low_confidence'][0]['confidence'] == reading / 100
+    if band != 'booked':  # at the OCR's reading, on the list or left out
+        assert (asked or context.state['low_confidence'])[0]['confidence'] == reading / 100
 
 
 @pytest.mark.parametrize('query, code, name, reading, booked_alone', [
@@ -135,11 +135,11 @@ def test_a_line_the_ocr_barely_read_never_books_alone(agent, monkeypatch, readin
 ])
 def test_a_short_code_needs_a_clearer_reading(agent, monkeypatch, query, code, name, reading, booked_alone):
     asked = []
-    answering(monkeypatch, agent, lambda items: asked.extend(items) or {})
+    answering(monkeypatch, agent, lambda items: asked.extend(items) or True)
     context = read(agent, [f'- {query}'], [reading])
     search(agent, context, query, (code, name, 1.0))
     reply, _ = book(agent, context, code)
-    assert (reply is None) is booked_alone
+    assert reply is None and (asked == []) is booked_alone  # not booked alone: on the list with a warning
     if not booked_alone:  # below its floor: asked at the reading, never booked alone even when >= 0.90
         assert [(item['code'], item['confidence']) for item in asked] == [(code, min(reading / 100, 0.89))]
 
@@ -157,7 +157,7 @@ def test_without_a_usable_ocr_reading_nothing_is_booked_without_a_yes(agent, mon
     search(agent, context, 'TSH', ('FICT-024', 'TSH', 1.0))
     search(agent, context, 'Creatinina', ('FICT-005', 'Creatinina', 1.0))
     reply, _ = book(agent, context, 'FICT-024', 'FICT-005')
-    assert reply == {'blocked': 'nenhum exame com confiança suficiente para agendar'}
+    assert reply == {'blocked': 'você não confirmou a lista de exames'}  # nobody answered
     assert context.state['ocr_confidence'] is None
     assert sorted((item['code'], item['confidence']) for item in asked) == [('FICT-005', 0.89), ('FICT-024', 0.89)]
 
@@ -170,19 +170,22 @@ def middle_band(agent):
     return context
 
 
-@pytest.mark.parametrize('answer, expected, reason', [
-    ({'FICT-079': True}, ['FICT-005', 'FICT-079'], None),
-    ({'FICT-079': False}, ['FICT-005'], 'declined'),
-    (None, ['FICT-005'], 'needs_confirmation'),  # nobody to ask
-])
-def test_the_middle_band_is_booked_only_with_a_yes(agent, monkeypatch, answer, expected, reason):
+@pytest.mark.parametrize('answer, expected', [(True, ['FICT-005', 'FICT-079']), (False, None), (None, None)])
+def test_the_list_is_booked_only_with_a_yes(agent, monkeypatch, answer, expected):
     answering(monkeypatch, agent, lambda items: answer)
     context = middle_band(agent)
     reply, args = book(agent, context, 'FICT-079', 'FICT-005')
-    assert reply is None and booked(args) == expected
-    assert [item['code'] for item in context.state['confirmed']] == (['FICT-079'] if reason is None else [])
-    assert [(item['code'], item['reason']) for item in context.state['low_confidence']] == \
-        ([] if reason is None else [('FICT-079', reason)])
+    assert (reply, booked(args) if reply is None else None) == (
+        (None, expected) if answer else ({'blocked': 'você não confirmou a lista de exames'}, None))
+    assert [item['code'] for item in context.state.get('confirmed', [])] == (['FICT-079'] if answer else [])
+
+
+def test_with_yes_the_middle_band_is_left_out(agent):
+    context = middle_band(agent)  # nobody asked: the rules alone, as `cli run --yes`
+    reply, args = book(agent, context, 'FICT-079', 'FICT-005')
+    assert reply is None and booked(args) == ['FICT-005']
+    assert [(item['code'], item['reason']) for item in context.state['low_confidence']] == [
+        ('FICT-079', 'needs_confirmation')]
 
 
 def test_a_code_no_search_returned_is_blocked_and_never_asked(agent, monkeypatch):
@@ -195,14 +198,16 @@ def test_a_code_no_search_returned_is_blocked_and_never_asked(agent, monkeypatch
     assert reply == {'blocked': 'código(s) que nenhuma busca no catálogo devolveu: FICT-042'}
 
 
-def test_the_question_is_one_line_per_exam_with_what_was_read(agent, monkeypatch):
+def test_the_question_shows_the_list_with_what_was_read(agent, monkeypatch):
     questions = []
+    monkeypatch.setattr(agent.CALLBACKS, 'can_ask', lambda: True)
     monkeypatch.delenv('CI', raising=False)
     monkeypatch.setattr(confirmacao.sys.stdin, 'isatty', lambda: True, raising=False)
     monkeypatch.setattr(confirmacao.sys.stdout, 'isatty', lambda: True, raising=False)
     monkeypatch.setattr('builtins.input', lambda question: questions.append(question) or 'S')
     reply, args = book(agent, middle_band(agent), 'FICT-079', 'FICT-005')
-    assert questions == ['Li "- GA" → IgA FICT-079 (confiança 0,80). Incluir? [s/N] ']
+    assert questions == ['Exames para agendar:\n- Creatinina (FICT-005)\n- IgA (FICT-079): lido "- GA", confiança 0,80; '
+                         'confira\nAgendar estes 2 exames? [s/N] ']
     assert reply is None and booked(args) == ['FICT-005', 'FICT-079']
 
 
@@ -219,7 +224,7 @@ def test_nobody_is_asked_in_ci_or_without_a_terminal(agent, monkeypatch, env):
         monkeypatch.setattr(confirmacao.sys.stdout, 'isatty', lambda: True, raising=False)
     else:
         monkeypatch.setattr(confirmacao.sys.stdin, 'isatty', lambda: False, raising=False)
-    assert confirmacao.ask_person([{'code': 'FICT-079', 'name': 'IgA', 'confidence': 0.8, 'read': '- GA'}]) is None
+    assert confirmacao.ask_person('Agendar este exame?') is None
 
 
 def test_cli_yes_turns_the_questions_off_and_says_what_was_left_out(ready_run, monkeypatch, capsys):
@@ -292,26 +297,14 @@ def test_the_key_is_removed_before_the_message_is_cut(ready_run, monkeypatch, ca
     assert KEY[:8] not in out + err and '[GOOGLE_API_KEY]'[:12] in err
 
 
-def test_an_answer_is_given_once_even_if_the_model_repeats_the_call(agent, monkeypatch):
+def test_a_no_is_given_once_even_if_the_model_repeats_the_call(agent, monkeypatch):
     asked = []
-    answering(monkeypatch, agent, lambda items: asked.append([i['code'] for i in items]) or {
-        item['code']: False for item in items})
+    answering(monkeypatch, agent, lambda items: asked.append([i['code'] for i in items]) or False)
     context = middle_band(agent)
     for _ in range(2):  # the model calls create_appointment again after the first reply
-        reply, args = book(agent, context, 'FICT-079', 'FICT-005')
-        assert reply is None and booked(args) == ['FICT-005']
-    assert asked == [['FICT-079']] and context.state['answers'] == {'FICT-079': False}
-
-
-def test_a_no_frees_the_text_for_another_exam(agent, monkeypatch):
-    # The longer name claims the line first; once the person declines it, the shorter one may use it.
-    answering(monkeypatch, agent, lambda items: {item['code']: False for item in items})
-    context = read(agent, ['Hemoglobina glicada'])
-    search(agent, context, 'Hemoglobina glicada', ('FICT-003', 'Hemoglobina glicada', 0.85))
-    search(agent, context, 'Hemoglobina', ('FICT-030', 'Hemoglobina', 1.0))
-    reply, args = book(agent, context, 'FICT-003', 'FICT-030')
-    assert reply is None and booked(args) == ['FICT-030']
-    assert [(item['code'], item['reason']) for item in context.state['low_confidence']] == [('FICT-003', 'declined')]
+        reply, _ = book(agent, context, 'FICT-079', 'FICT-005')
+        assert reply == {'blocked': 'você não confirmou a lista de exames'}
+    assert asked == [['FICT-079']]  # asked once: the no ends the run's booking
 
 
 def test_line_confidence_must_follow_the_lines_after_split_orders_are_joined(agent):
@@ -474,47 +467,25 @@ def test_the_second_example_spec_leaves_the_middle_band_out_without_asking(tmp_p
     root_agent = transpile(ROOT / 'specs' / 'agent-sem-confirmacao.json', tmp_path / 'agent.py')
     agent = SimpleNamespace(CALLBACKS=root_agent.sub_agents[2].before_tool_callback.__self__)
     asked = []
-    answering(monkeypatch, agent, lambda items: asked.extend(items) or {})
+    answering(monkeypatch, agent, lambda items: asked.extend(items) or True)
     context = middle_band(agent)
     reply, args = book(agent, context, 'FICT-079', 'FICT-005')
-    assert reply is None and booked(args) == ['FICT-005'] and asked == []
+    assert reply is None and booked(args) == ['FICT-005'] and asked == []  # only the list is confirmed
     assert [(item['code'], item['reason']) for item in context.state['low_confidence']] == [('FICT-079', 'score')]
 
 
-def test_an_exam_that_only_needs_the_question_after_a_no_says_so(agent, monkeypatch, ready_run, capsys):
-    # ADK takes one question per call: "Hemoglobina glicada" (0.85) is declined, which frees its text for
-    # "Hemoglobina" (0.80), now in the band too, but the call already had its question.
-    answering(monkeypatch, agent, lambda items: {item['code']: False for item in items})
-    context = read(agent, ['Hemoglobina glicada'])
-    search(agent, context, 'Hemoglobina glicada', ('FICT-003', 'Hemoglobina glicada', 0.85))
-    search(agent, context, 'Hemoglobina', ('FICT-030', 'Hemoglobina', 0.80))
-    reply, _ = book(agent, context, 'FICT-003', 'FICT-030')
-    assert reply == {'blocked': 'nenhum exame com confiança suficiente para agendar'}
-    low = context.state['low_confidence']
-    assert [(item['code'], item['reason']) for item in low] == [('FICT-003', 'declined'), ('FICT-030', 'second_round')]
-    monkeypatch.setattr(cli, 'run_agent', fake_run({'candidates': {'FICT-003': {}}, 'low_confidence': low,
-                                                    'blocked': reply['blocked']}))
-    assert cli.main(ready_run) == 2
-    assert "não perguntado nesta execução (só ficou em dúvida depois de um 'não'): 'Hemoglobina glicada' → " \
-           "Hemoglobina FICT-030 (confiança 0,80); confira o pedido" in capsys.readouterr().out
-
-
-def test_a_declined_exam_is_reported_with_the_confidence_it_was_asked_at(agent, monkeypatch, ready_run, capsys):
-    # Ferritina read with 72 (below the floor of 75): asked at 0,72; after a "no" the CLI shows the same 0,72,
-    # not the search's 1,00.
+def test_a_list_answered_no_books_nothing_and_the_cli_says_so(agent, monkeypatch, ready_run, capsys):
+    # Ferritina read with 72 (below the floor of 75): on the list at 0,72, not the search's 1,00.
     asked = []
-    answering(monkeypatch, agent, lambda items: asked.extend(items) or {item['code']: False for item in items})
+    answering(monkeypatch, agent, lambda items: asked.extend(items) or False)
     context = read(agent, ['Exame: Ferritina'], [72])
     search(agent, context, 'Ferritina', ('FICT-018', 'Ferritina', 1.0))
     reply, _ = book(agent, context, 'FICT-018')
     assert [(item['code'], item['confidence']) for item in asked] == [('FICT-018', 0.72)]
-    low = context.state['low_confidence']
-    assert [(item['code'], item['confidence'], item['reason']) for item in low] == [('FICT-018', 0.72, 'declined')]
-    monkeypatch.setattr(cli, 'run_agent', fake_run({'candidates': {'FICT-018': {}}, 'low_confidence': low,
-                                                    'blocked': reply['blocked']}))
+    monkeypatch.setattr(cli, 'run_agent', fake_run({'candidates': {'FICT-018': {}}, 'blocked': reply['blocked']}))
     assert cli.main(ready_run) == 2
-    assert "não incluído (você respondeu não): 'Exame: Ferritina' → Ferritina FICT-018 (confiança 0,72)" \
-        in capsys.readouterr().out
+    assert capsys.readouterr().err == ('Erro: agendamento bloqueado antes de chamar a API: você não confirmou a lista de '
+                                       'exames; nada foi agendado\n')
 
 
 def test_the_ocr_gets_the_real_file_and_the_model_only_the_token(agent):
@@ -634,15 +605,14 @@ def test_honest_runs_raise_no_false_alarm(agent):
     assert alarms == []
 
 
-def test_a_declined_exam_and_a_name_inside_it_raise_no_alarm(agent, monkeypatch):
-    # The person declined "Hemoglobina glicada"; "Hemoglobina", searched inside it, was not left out by the model.
-    answering(monkeypatch, agent, lambda items: {item['code']: False for item in items})
+def test_a_declined_list_and_a_name_inside_it_raise_no_alarm(agent, monkeypatch):
+    # The person declined the list with "Hemoglobina glicada"; "Hemoglobina", searched inside it, was not left out.
+    answering(monkeypatch, agent, lambda items: False)
     context = read(agent, ['Hemoglobina glicada'], [80.0])
     real_search(agent, context, 'Hemoglobina glicada')
     real_search(agent, context, 'Hemoglobina')
-    context.state['answers'] = {best_of('Hemoglobina glicada'): False}
     book(agent, context, best_of('Hemoglobina glicada'))
-    assert [item['reason'] for item in context.state['low_confidence']] == ['declined']
+    assert context.state['low_confidence'] == [] and context.state['blocked'] == 'você não confirmou a lista de exames'
 
 
 def test_a_name_inside_a_booked_exam_or_a_neighbour_is_not_reported(agent):

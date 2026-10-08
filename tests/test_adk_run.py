@@ -28,11 +28,9 @@ from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import Runner
-from google.adk.tools.tool_confirmation import ToolConfirmation
 from google.genai import types
 
-from runtime import BookingCallbacks, confirmacao, rede
-from runtime.confirmacao import answers_given
+from runtime import BookingCallbacks, rede
 from runtime.entrada import image_names
 from tests.test_alucinacao import IMAGE, NAMED, PORTS, ROOT, appointment, services, stored_ids  # noqa: F401
 from transpiler import transpile
@@ -155,8 +153,10 @@ def all_three():
 
 @pytest.mark.parametrize('typed', [NAMED, f'Por favor, agende o pedido "{NAMED}".'])
 def test_adk_run_books_the_order_from_only_its_file_name(adk_run, typed):
-    out, new, checked = adk_run(typed)
+    out, new, checked = adk_run(typed, 'yes')
     assert new == all_three(), out  # read by the real OCR, searched in the real RAG, stored by the real API
+    assert ('[HITL confirm] Exames para agendar:\n- Hemograma completo (FICT-001)\n- Glicemia de jejum (FICT-002)\n'
+            '- Creatinina (FICT-005)\nAgendar estes 3 exames?') in out  # ADK's console shows the list first
     stored_id = re.search(r'Agendamento confirmado pela API: id (\S+), status scheduled', out)
     assert stored_id and appointment(stored_id[1].rstrip(',')) == all_three()[0], out
     assert 'PII mascarada pelo OCR: NOME x2, CPF x1, EMAIL x1, TELEFONE x1' in out
@@ -170,22 +170,23 @@ def test_adk_run_books_the_order_from_only_its_file_name(adk_run, typed):
 
 
 @pytest.mark.parametrize('answer, stored, line', [
-    ('yes', ['FICT-001', 'FICT-002', 'FICT-067'], "incluído com a sua confirmação: 'Exame: Creatinina' → Creatinoquinase FICT-067"),
-    ('no', ['FICT-001', 'FICT-002'], "não incluído (você respondeu não): 'Exame: Creatinina' → Creatinoquinase FICT-067"),
+    ('yes', [['FICT-001', 'FICT-002', 'FICT-067']],
+     "incluído com a sua confirmação: 'Exame: Creatinina' → Creatinoquinase FICT-067"),
+    ('no', [], 'agendamento bloqueado antes de chamar a API: você não confirmou a lista de exames; nada foi agendado'),
 ])
 def test_the_question_is_answered_in_adk_runs_console_and_resumes_the_same_call(adk_run, monkeypatch, answer, stored,
                                                                                  line):
     # A weaker candidate of the Creatinina search (Creatinoquinase, in the question band) proposed with
-    # the two exams read clearly: ADK's console shows the question, the answer applies to it, one POST.
-    monkeypatch.setattr(confirmacao, 'can_ask', lambda: True)  # the console is a terminal
+    # the two exams read clearly: ADK's console shows the whole list, the answer applies to it, one POST or none.
     monkeypatch.setitem(BOOK, 'exams', [{'code': 'FICT-001', 'name': 'Hemograma completo'},
                                         {'code': 'FICT-002', 'name': 'Glicemia de jejum'},
                                         {'code': 'FICT-067', 'name': 'Creatinoquinase'}])
     out, new, _ = adk_run(IMAGE, answer)
-    assert '[HITL confirm] Confirme os exames lidos com confiança média: ' in out
-    assert "'Exame: Creatinina' → Creatinoquinase FICT-067 (confiança 0," in out
-    assert [[code for code, _ in exams] for exams in new] == [stored], out
-    assert line in out and 'Agendamento confirmado pela API' in out
+    assert ('[HITL confirm] Exames para agendar:\n- Hemograma completo (FICT-001)\n- Glicemia de jejum (FICT-002)\n'
+            '- Creatinoquinase (FICT-067): lido "Exame: Creatinina", confiança 0,') in out
+    assert 'Agendar estes 3 exames?' in out
+    assert [[code for code, _ in exams] for exams in new] == stored, out
+    assert line in out.split('[clinic_scheduler]: ', 1)[1]
 
 
 @pytest.mark.parametrize('typed, told', [
@@ -212,16 +213,19 @@ def test_an_exam_the_order_says_not_to_do_is_not_booked_under_adk_run(adk_run, m
     monkeypatch.setattr(sys.modules[__name__], 'READ', ['Hemograma completo', 'TSH', 'Ferritina'])
     monkeypatch.setitem(BOOK, 'exams', [{'code': 'FICT-001', 'name': 'Hemograma completo'},
                                         {'code': 'FICT-024', 'name': 'TSH'}, {'code': 'FICT-018', 'name': 'Ferritina'}])
-    out, new, _ = adk_run(IMAGE)
-    assert new == [], out  # a note besides the list: nothing books alone (nobody answers [s/N] here)
-    report = out.split('[clinic_scheduler]: ', 1)[1]  # the message written in code, not the model's
+    out, new, _ = adk_run(IMAGE, 'no')
+    assert new == [], out  # answered no: nothing booked
+    question, report = out.split('[clinic_scheduler]: ', 1)  # the report is written in code, not by the model
+    assert ('- TSH (FICT-024): lido "TSH", confiança 0,89; o pedido tem texto além da lista de exames; confira\n'
+            "Não agendados:\n- não agendado: 'Obs: NAO realizar Ferritina' → Ferritina FICT-018; o pedido diz para "
+            'não realizar\nAgendar estes 2 exames?') in question
     assert "não agendado: 'Obs: NAO realizar Ferritina' → Ferritina FICT-018; o pedido diz para não realizar" in report
-    assert "'TSH' → TSH FICT-024 (confiança 0,89); o pedido tem texto além da lista de exames, confirme" in report
+    assert 'você não confirmou a lista de exames; nada foi agendado' in report
     assert 'Agendamento confirmado pela API' not in report and 'ATENÇÃO' not in report
 
 
 def test_one_order_per_session(adk_run):
-    out, new, _ = adk_run(IMAGE, IMAGE)
+    out, new, _ = adk_run(IMAGE, 'yes', IMAGE)
     assert new == all_three(), out  # one appointment; the 2nd message is told it exists, not to repeat it
     stored_id = re.search(r'Agendamento confirmado pela API: id (\S+), status scheduled', out)[1]
     assert f'Esta sessão já tratou um pedido, e o agendamento {stored_id} já foi criado: não repita' in out
@@ -237,18 +241,6 @@ def test_one_order_per_session(adk_run):
 ])
 def test_the_image_name_is_taken_whole_from_the_message(text, names):
     assert image_names(text) == names
-
-
-@pytest.mark.parametrize('confirmation, answers', [
-    (None, {}),
-    (ToolConfirmation(confirmed=True), {'FICT-079': True, 'FICT-005': True}),  # adk run's console, adk web
-    (ToolConfirmation(confirmed=False), {'FICT-079': False, 'FICT-005': False}),
-    (ToolConfirmation(confirmed=True, payload={'respostas': {'FICT-079': True}}), {'FICT-079': True}),  # cli run
-    (ToolConfirmation(confirmed=True, payload={'respostas': {}}), {}),  # cli run with nobody to answer
-    (ToolConfirmation(confirmed=True, payload={'respostas': {'FICT-999': True}}), {}),  # not asked by this call
-])
-def test_one_answer_from_adk_tooling_applies_to_every_exam_the_call_asked(confirmation, answers):
-    assert answers_given({}, confirmation, ['FICT-079', 'FICT-005']) == answers
 
 
 def resolver(answers):
@@ -315,14 +307,14 @@ def test_adk_run_with_the_real_address_rule_books_over_the_addresses_it_checked(
         return local('127.0.0.1' if name in COMPOSE_DNS.values() else host, port, *args, **kwargs)
     monkeypatch.setattr(socket, 'getaddrinfo', compose_dns)
     monkeypatch.setattr(rede, 'check_urls', CHECK_URLS)
-    out, new, _ = adk_run(NAMED)
+    out, new, _ = adk_run(NAMED, 'yes')
     assert new == all_three(), out
     assert rede.PINS == {name: [address] for name, address in COMPOSE_DNS.items()}
 
 
 def test_adk_web_books_the_order_from_only_its_file_name(agent_folder, services, monkeypatch):  # noqa: F811
-    # The server `adk web` starts (without its static UI): a new session, then one message to /run,
-    # as the web page sends it. The report is the last event.
+    # The server `adk web` starts (without its static UI): a new session, one message to /run and the
+    # answer to ADK's confirmation event, as the web page sends them. The report is the last event.
     folder, _ = agent_folder
     monkeypatch.setattr(adk_api_server, 'Runner', ScriptedRunner)
     before = stored_ids(services)
@@ -332,6 +324,16 @@ def test_adk_web_books_the_order_from_only_its_file_name(agent_folder, services,
         session = client.post('/apps/generated/users/pessoa/sessions', json={}).json()
         events = client.post('/run', json={'appName': 'generated', 'userId': 'pessoa', 'sessionId': session['id'],
                                            'newMessage': {'role': 'user', 'parts': [{'text': NAMED}]}}).json()
+        assert [appointment(id_) for id_ in stored_ids(services) if id_ not in before] == []  # paused at the list
+        [(paused, question)] = [(event, part['functionCall']) for event in events
+                                for part in (event.get('content') or {}).get('parts', [])
+                                if (part.get('functionCall') or {}).get('name') == 'adk_request_confirmation']
+        assert question['args']['toolConfirmation']['hint'].endswith('Agendar estes 3 exames?')  # what the page shows
+        confirmed = {'functionResponse': {'id': question['id'], 'name': 'adk_request_confirmation',
+                                          'response': {'confirmed': True}}}  # the "Confirmed" box and Submit
+        events = client.post('/run', json={'appName': 'generated', 'userId': 'pessoa', 'sessionId': session['id'],
+                                           'invocationId': paused['invocationId'],
+                                           'newMessage': {'role': 'user', 'parts': [confirmed]}}).json()
     assert [appointment(id_) for id_ in stored_ids(services) if id_ not in before] == all_three()
     last = events[-1]
     assert last['author'] == 'clinic_scheduler'

@@ -21,10 +21,18 @@ from google.genai import types
 
 import runtime.pedido as pedido
 import tests.test_adk_run as adk
-from runtime import confirmacao
 from runtime.callbacks import mcp_payload
 from tests.test_adk_run import agent_folder  # noqa: F401  (fixtures)
-from tests.test_adk_seguranca import MEDIUM, SURE, last_text, new_session, web, web_app  # noqa: F401
+from tests.test_adk_seguranca import (  # noqa: F401
+    MEDIUM,
+    SURE,
+    answer,
+    confirmation_request,
+    last_text,
+    new_session,
+    web,
+    web_app,
+)
 from tests.test_alucinacao import IMAGE, NAMED, appointment, services, stored_ids  # noqa: F401
 
 pytestmark = [
@@ -39,13 +47,20 @@ OTHER = 'pedido-foto-celular.jpg'  # a clean page too: it books alone
 MID = threading.Event()  # set when a run is mid-way (its search step started)
 
 
-def run(client, session, parts, **extra):
+def run(client, session, parts, confirmed=True, **extra):
+    """(status, events) of a message; the question about the list is answered `confirmed` (None: left
+    unanswered), as the web page does."""
     response = client.post('/run', json={'appName': 'generated', 'userId': 'pessoa', 'sessionId': session,
                                          'newMessage': {'role': 'user', 'parts': parts}, **extra})
     try:
-        return response.status_code, response.json()
+        status, events = response.status_code, response.json()
     except ValueError:
         return response.status_code, []
+    event, call = confirmation_request(events) if isinstance(events, list) else (None, None)
+    if call and confirmed is not None:
+        status, resumed = run(client, session, answer(call, confirmed), None, invocationId=event['invocationId'])
+        events += resumed if isinstance(resumed, list) else []
+    return status, events
 
 
 def calls(events, name=None):
@@ -124,20 +139,6 @@ def codes(stored):
     return sorted(code for code, _ in stored)
 
 
-def confirmation_request(events):
-    for event in events:
-        for part in (event.get('content') or {}).get('parts', []):
-            call = part.get('functionCall') or {}
-            if call.get('name') == 'adk_request_confirmation':
-                return event, call
-    return None, None
-
-
-def answer(call, confirmed=True, payload=None):
-    response = {'confirmed': confirmed} | ({'payload': payload} if payload is not None else {})
-    return [{'functionResponse': {'id': call['id'], 'name': 'adk_request_confirmation', 'response': response}}]
-
-
 # --- (1) two requests at once in the SAME session -----------------------------------------------------
 
 def test_the_same_message_twice_at_once_books_once_and_runs_each_tool_once(web, services, monkeypatch):  # noqa: F811
@@ -213,22 +214,21 @@ def test_two_sessions_at_once_each_book_their_own_order_with_their_own_key(web, 
 
 
 def test_a_yes_in_one_session_is_never_the_other_sessions_yes(web, services, monkeypatch):  # noqa: F811
-    monkeypatch.setattr(confirmacao, 'can_ask', lambda: True)
     monkeypatch.setitem(adk.BOOK, 'exams', SURE + MEDIUM)
     before = stored_ids(services)
     with TestClient(web_app(web), raise_server_exceptions=False) as client:
         a, b = new_session(client), new_session(client)
-        (_, ea), (_, eb) = together(lambda: run(client, a, [{'text': NAMED}]), lambda: run(client, b, [{'text': NAMED}]))
+        (_, ea), (_, eb) = together(lambda: run(client, a, [{'text': NAMED}], None),
+                                    lambda: run(client, b, [{'text': NAMED}], None))
         (eva, ca), (evb, cb) = confirmation_request(ea), confirmation_request(eb)
         assert ca and cb
-        (_, ra), (_, rb) = together(
-            lambda: run(client, a, answer(ca, True), invocationId=eva['invocationId']),
-            lambda: run(client, b, answer(cb, False), invocationId=evb['invocationId']))
+        together(lambda: run(client, a, answer(ca, True), invocationId=eva['invocationId']),
+                 lambda: run(client, b, answer(cb, False), invocationId=evb['invocationId']))
         state = {s: client.get(f'/apps/generated/users/pessoa/sessions/{s}').json()['state'] for s in (a, b)}
-    new = sorted(codes(appointment(i)) for i in stored_ids(services) if i not in before)
-    assert new == [['FICT-001', 'FICT-002'], ['FICT-001', 'FICT-002', 'FICT-067']]
+    new = [codes(appointment(i)) for i in stored_ids(services) if i not in before]
+    assert new == [['FICT-001', 'FICT-002', 'FICT-067']]  # a's yes books a's list; b's no books nothing
     assert codes((e['code'], 0) for e in state[a]['booked_appointment']['exams']) == ['FICT-001', 'FICT-002', 'FICT-067']
-    assert codes((e['code'], 0) for e in state[b]['booked_appointment']['exams']) == ['FICT-001', 'FICT-002']
+    assert 'booked_appointment' not in state[b] and state[b]['blocked'] == 'você não confirmou a lista de exames'
 
 
 # --- (3) restarts ------------------------------------------------------------------------------------

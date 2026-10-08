@@ -1,9 +1,10 @@
-"""The [s/N] question through ADK's native tool confirmation, end to end, without Gemini.
+"""The final confirmation of the list through ADK's native tool confirmation, end to end, without Gemini.
 
 The agent transpiled from each example spec runs in ADK's real runner, through the CLI's
 run_agent, with a scripted model and the three tools replaced by local functions that answer
-like the OCR, the catalog search and the API. The booking call asks for confirmation, the run
-pauses, the CLI asks [s/N] off the event loop and resumes the same call with the answers.
+like the OCR, the catalog search and the API. The booking call asks for confirmation with the
+whole list, the run pauses, the CLI asks "Agendar estes N exames? [s/N]" off the event loop and
+resumes the same call with the answer.
 """
 import asyncio
 import re
@@ -84,64 +85,88 @@ def fresh_calls():
         calls.clear()
 
 
-def run(root_agent, spec_file):
-    found = cli.new_found()
+def run(root_agent, spec_file, **found):
+    """cli run's run_agent; questions=True: someone confirms the list, False: --yes (the rules alone)."""
+    found = cli.new_found() | found
     asyncio.run(cli.run_agent(app_of(root_agent), 'pedido.png', load_spec(ROOT / 'specs' / spec_file), found))
     return found
 
 
-@pytest.mark.parametrize('answer, posted, reason', [
-    ('s', ['FICT-005', 'FICT-079'], None),
-    ('n', ['FICT-005'], 'declined'),
-])
-def test_the_run_pauses_asks_and_resumes_the_same_booking_call(tmp_path, monkeypatch, answer, posted, reason):
-    asked = []
+def person(answer, asked):
+    """confirmacao.ask_person after the final question: True for "s", None with no terminal."""
+    def answers(question):
+        asked.append(question)
+        return answer
+    return answers
 
-    def person(items):  # what confirmacao.ask_person returns after the [s/N] answers
-        asked.extend(item['code'] for item in items)
-        return {item['code']: answer == 's' for item in items}
 
-    monkeypatch.setattr(confirmacao, 'ask_person', person)
-    found = run(scripted_agent('agent.json', tmp_path, someone_answers=True), 'agent.json')
-    assert asked == ['FICT-079']
-    assert CALLS['create_appointment'] == [posted]  # one POST, after the answer
+LIST = ('Exames para agendar:\n- Creatinina (FICT-005)\n- IgA (FICT-079): lido "- GA", confiança 0,80; confira\n'
+        'Agendar estes 2 exames?')
+
+
+@pytest.mark.parametrize('answer', [True, False])
+def test_the_run_pauses_shows_the_whole_list_and_only_a_yes_books_it(tmp_path, monkeypatch, answer):
+    asked: list = []
+    monkeypatch.setattr(confirmacao, 'ask_person', person(answer, asked))
+    found = run(scripted_agent('agent.json', tmp_path, someone_answers=True), 'agent.json', questions=True)
+    assert asked == [LIST]  # one question, with every exam, its code and its warning
+    assert CALLS['create_appointment'] == ([['FICT-005', 'FICT-079']] if answer else [])  # one POST, or none
     # the pause did not run the earlier steps again: one OCR read, one search per exam, with the spec's top_k
     assert CALLS['extract_exam_text'] == ['pedido.png'] and CALLS['search_exams'] == [('IgA', 3), ('Creatinina', 3)]
-    assert found['appointment']['id'] == 'a1'
-    assert [(item['code'], item['reason']) for item in found['low_confidence']] == ([('FICT-079', reason)] if reason else [])
-    assert [item['code'] for item in found['confirmed']] == (['FICT-079'] if answer == 's' else [])
+    assert (found['appointment'] or {}).get('id') == ('a1' if answer else None)
+    assert [item['code'] for item in found['confirmed']] == (['FICT-079'] if answer else [])
+    assert found['blocked'] == (None if answer else 'você não confirmou a lista de exames')
 
 
-def test_without_a_terminal_nothing_is_asked_and_the_middle_band_is_left_out(tmp_path, monkeypatch):
-    def must_not_ask(items):
-        raise AssertionError('asked without a terminal')
+@pytest.mark.parametrize('typed, books', [('s', True), ('sim', True), ('S ', True), ('n', False), ('', False),
+                                          ('yes', False), ('agendar', False)])
+def test_only_s_or_sim_confirms_the_list_and_the_default_is_no(monkeypatch, capsys, typed, books):
+    monkeypatch.setattr(confirmacao, 'can_ask', lambda: True)
+    monkeypatch.setattr('builtins.input', lambda prompt: print(prompt, end='') or typed)
+    assert confirmacao.ask_person(LIST) is books
+    assert capsys.readouterr().out == LIST + ' [s/N] '
+
+
+def test_without_a_terminal_and_without_yes_nothing_is_booked_and_the_cli_says_how(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(confirmacao, 'can_ask', lambda: False)  # docker compose run -T, a pipe, CI
+    found = run(scripted_agent('agent.json', tmp_path, someone_answers=True), 'agent.json', questions=True)
+    assert CALLS['create_appointment'] == [] and found['appointment'] is None and found['no_terminal']
+    assert LIST in capsys.readouterr().out  # the list is still shown
+    assert cli.booking_problem(found, load_spec(ROOT / 'specs' / 'agent.json')) == (
+        'agendamento bloqueado antes de chamar a API: sem terminal para confirmar a lista de exames: rode num terminal '
+        'ou com --yes; nada foi agendado')
+
+
+def test_with_yes_nothing_is_asked_and_only_the_clean_exams_are_booked(tmp_path, monkeypatch):
+    def must_not_ask(question):
+        raise AssertionError('asked with --yes')
 
     monkeypatch.setattr(confirmacao, 'ask_person', must_not_ask)
-    found = run(scripted_agent('agent.json', tmp_path, someone_answers=False), 'agent.json')
+    found = run(scripted_agent('agent.json', tmp_path, someone_answers=True), 'agent.json', questions=False)
     assert CALLS['create_appointment'] == [['FICT-005']]
     assert [(item['code'], item['reason']) for item in found['low_confidence']] == [('FICT-079', 'needs_confirmation')]
 
 
-def test_the_second_example_spec_runs_without_the_question(tmp_path, monkeypatch):
-    def must_not_ask(items):
-        raise AssertionError('the spec has no question band')
-
-    monkeypatch.setattr(confirmacao, 'ask_person', must_not_ask)
+def test_the_second_example_spec_asks_only_for_the_list(tmp_path, monkeypatch):
+    asked: list = []
+    monkeypatch.setattr(confirmacao, 'ask_person', person(True, asked))
     spec = 'agent-sem-confirmacao.json'
-    found = run(scripted_agent(spec, tmp_path, someone_answers=True), spec)
+    found = run(scripted_agent(spec, tmp_path, someone_answers=True), spec, questions=True)
+    assert asked == ["Exames para agendar:\n- Creatinina (FICT-005)\nNão agendados:\n- baixa confiança: '- GA' → IgA "
+                     'FICT-079 (confiança 0,80); confira o pedido\nAgendar este exame?']
     assert CALLS['create_appointment'] == [['FICT-005']] and found['appointment']['id'] == 'a1'
     assert [(item['code'], item['reason']) for item in found['low_confidence']] == [('FICT-079', 'score')]
 
 
-def test_two_booking_calls_in_one_turn_post_once_even_if_only_one_asks(tmp_path, monkeypatch):
-    # The model sends two create_appointment calls at once: one needs the question (IgA at 0.80), the
-    # other does not. The one that does not ask books; the one resumed after the answer gets that same
-    # appointment back, so the API sees one POST.
-    monkeypatch.setattr(confirmacao, 'ask_person', lambda items: {item['code']: True for item in items})
+def test_two_booking_calls_in_one_turn_post_once(tmp_path, monkeypatch):
+    # The model sends two create_appointment calls at once: each shows its own list. The first yes books;
+    # the call resumed after it gets that same appointment back, so the API sees one POST.
+    asked: list = []
+    monkeypatch.setattr(confirmacao, 'ask_person', person(True, asked))
     bookings = [[{'code': 'FICT-079', 'name': 'IgA'}, {'code': 'FICT-005', 'name': 'Creatinina'}],
                 [{'code': 'FICT-005', 'name': 'Creatinina'}]]
     found = run(scripted_agent('agent.json', tmp_path, someone_answers=True, bookings=bookings), 'agent.json')
-    assert CALLS['create_appointment'] == [['FICT-005']]
+    assert len(asked) == 2 and CALLS['create_appointment'] == [['FICT-005', 'FICT-079']]
     assert found['appointment']['id'] == 'a1'
 
 
@@ -158,12 +183,17 @@ def test_the_reserve_answers_per_request_and_nothing_is_asked_or_booked_twice(tm
     # The booking step's main model is overloaded: each of its requests goes to the reserve (ADK's
     # FallbackModel, as the generated file builds it), also the one after the [s/N] answer. The run goes
     # on: the question is asked once and the API gets one POST, whatever model proposes the booking.
-    asked = []
-    monkeypatch.setattr(confirmacao, 'ask_person', lambda items: asked.extend(item['code'] for item in items)
-                        or {item['code']: True for item in items})
+    asked: list = []
+    monkeypatch.setattr(confirmacao, 'ask_person', person(True, asked))
     root_agent = scripted_agent('agent.json', tmp_path, someone_answers=True)
     schedule = root_agent.sub_agents[2]
     schedule.model = FallbackModel(models=[Overloaded(), schedule.model], retriable_status_codes=frozenset({429, 503}))
     found = run(root_agent, 'agent.json')
-    assert asked == ['FICT-079'] and CALLS['create_appointment'] == [['FICT-005', 'FICT-079']]
+    assert asked == [LIST] and CALLS['create_appointment'] == [['FICT-005', 'FICT-079']]
     assert found['appointment']['id'] == 'a1' and not found.get('model_error')
+
+
+def test_the_guides_sample_question_is_the_one_the_cli_asks():
+    sure = [{'code': 'FICT-001', 'name': 'Hemograma completo'}, {'code': 'FICT-002', 'name': 'Glicemia de jejum'},
+            {'code': 'FICT-005', 'name': 'Creatinina'}]  # pedido.png, read clearly
+    assert confirmacao.review(sure, [], []) + ' [s/N] s' in (ROOT / 'docs' / 'como-rodar.md').read_text('utf-8')

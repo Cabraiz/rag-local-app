@@ -32,6 +32,7 @@ DEFAULT_SPEC = 'specs/agent.json'
 DEFAULT_AGENT = 'generated/agent.py'
 IMAGE_SUFFIXES = {'.png', '.jpg', '.jpeg'}
 CONFIRMATION = 'adk_request_confirmation'  # ADK's call that asks the client to confirm a tool call
+NO_TERMINAL = 'sem terminal para confirmar a lista de exames: rode num terminal ou com --yes'
 
 
 def redact(text):
@@ -141,17 +142,21 @@ def new_found():
             'listing': [], 'invented': []}
 
 
-async def answers_to(requests, started):
-    """The user message that resumes the paused calls: the [s/N] answers to each confirmation
-    request, asked off the event loop (the MCP sessions keep running while the person reads)."""
+async def answers_to(requests, started, found):
+    """The user message that resumes the paused calls: the answer to the final question of each, asked
+    off the event loop (the MCP sessions keep running while the person reads). With no terminal, the
+    list is shown and not confirmed."""
     parts = []
     for request in requests:
-        items = ((request.args or {}).get('toolConfirmation') or {}).get('payload', {}).get('perguntas', [])
-        answers = await asyncio.to_thread(confirmacao.ask_person, items) or {}  # no terminal: nothing answered
+        question = ((request.args or {}).get('toolConfirmation') or {}).get('hint') or ''
+        yes = await asyncio.to_thread(confirmacao.ask_person, question)
+        if yes is None:
+            print(question)
+            found['no_terminal'] = True
         original = ((request.args or {}).get('originalFunctionCall') or {}).get('id')
         started[original] = time.time()  # the call runs again from here: the wait is not the tool's time
         parts.append(types.Part(function_response=types.FunctionResponse(
-            name=CONFIRMATION, id=request.id, response={'confirmed': True, 'payload': {'respostas': answers}})))
+            name=CONFIRMATION, id=request.id, response={'confirmed': bool(yes)})))
     return types.Content(role='user', parts=parts)
 
 
@@ -190,7 +195,7 @@ async def run_agent(app, image, spec, found):
                         note_reply(found, spec, part.function_response)
                 for name, span in spans.items():
                     found['tool_seconds'][name] = found['tool_seconds'].get(name, 0) + span
-            message = await answers_to(requests, started) if requests else None
+            message = await answers_to(requests, started, found) if requests else None
         # The agent's callbacks left a copy of the order's record in the session state.
         state = (await runner.session_service.get_session(app_name=app.name, user_id='cli', session_id=session.id)).state
         for key in ('pii_masked', 'text_removed', 'instructions_removed', 'candidates', 'low_confidence', 'confirmed',
@@ -361,7 +366,8 @@ def booking_problem(found, spec):
     if not found['candidates'] and not found['api_error']:  # nothing searched, or the call was blocked
         return 'Nenhum exame encontrado no pedido; nada foi agendado'
     if found['blocked']:
-        return f'agendamento bloqueado antes de chamar a API: {found["blocked"]}; nada foi agendado'
+        reason = NO_TERMINAL if found.get('no_terminal') else found['blocked']
+        return f'agendamento bloqueado antes de chamar a API: {reason}; nada foi agendado'
     if not found['api_error']:
         return 'o agente terminou sem um agendamento confirmado pela API'
     return f'a API recusou o agendamento ({found["api_error"]})'
@@ -385,8 +391,9 @@ def cmd_run(args):
 
 def checked_run(args):
     spec = load_checked_spec(args)
-    # --yes, or no terminal: exams that need a yes are left out, never assumed (the order's record says so)
-    start, found = time.monotonic(), new_found() | {'questions': not args.yes and confirmacao.can_ask()}
+    # The person confirms the list; --yes: the rules alone (the order's record says so), and the exams
+    # that need a yes are left out, never assumed. With no terminal and no --yes, nothing is booked.
+    start, found = time.monotonic(), new_found() | {'questions': not args.yes}
     try:
         try:
             asyncio.run(run_agent(load_root_agent(args.checked_agent, name='app'), args.image, spec, found))
@@ -465,8 +472,8 @@ def main(argv=None):
     run_cmd.add_argument('--agent', default=DEFAULT_AGENT)
     run_cmd.add_argument('--spec', default=DEFAULT_SPEC, help='spec usada no transpile (URLs dos serviços)')
     run_cmd.add_argument('--yes', action='store_true',
-                         help='não pergunta nada: agenda só o que tem confiança alta; os exames que pediriam '
-                              'confirmação ficam de fora')
+                         help='agenda sem a confirmação final da lista, por sua conta: só as regras decidem, e só o '
+                              'que elas agendariam sozinhas; os exames que pediriam confirmação ficam de fora')
     try:
         args = parser.parse_args(argv)
         show_logs(args.verbose)

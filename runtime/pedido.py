@@ -67,8 +67,8 @@ class Orders:
             return order.setdefault('order_invocation', invocation)
 
     def start(self, session, image_file, ask=None):
-        """cli run: the order of a session the CLI created, with the image it checked; ask=False: nobody
-        will answer the question (--yes, no terminal), so the middle band is left out."""
+        """cli run: the order of a session the CLI created, with the image it checked; ask=False: --yes, the
+        rules alone, so the list is not confirmed and the middle band is left out."""
         record = {'image_file': image_file, 'image_token': image_token(image_file)}
         if ask is not None:
             record['ask'] = ask

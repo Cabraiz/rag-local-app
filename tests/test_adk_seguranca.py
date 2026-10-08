@@ -21,7 +21,7 @@ from google.adk.tools.tool_confirmation import ToolConfirmation
 from google.genai import types
 
 import tests.test_adk_run as adk
-from runtime import BookingCallbacks, confirmacao, pedido, rede
+from runtime import BookingCallbacks, pedido, rede
 from tests.test_adk_run import adk_run, agent_folder  # noqa: F401  (fixtures)
 from tests.test_alucinacao import IMAGE, NAMED, PORTS, appointment, services, stored_ids  # noqa: F401
 
@@ -49,9 +49,36 @@ def web(agent_folder, monkeypatch):  # noqa: F811
     return agent_folder[0]
 
 
-def send(client, session_id, parts, **extra):
+def post(client, session_id, parts, **extra):
     return client.post('/run', json={'appName': 'generated', 'userId': 'pessoa', 'sessionId': session_id,
-                                     'newMessage': {'role': 'user', 'parts': parts}, **extra}).json()
+                                     'newMessage': {'role': 'user', 'parts': parts}, **extra})
+
+
+def confirmation_request(events):
+    """The event and the call of ADK's confirmation request (the list and its question), or (None, None)."""
+    for event in events:
+        for part in (event.get('content') or {}).get('parts', []):
+            call = part.get('functionCall') or {}
+            if call.get('name') == 'adk_request_confirmation':
+                return event, call
+    return None, None
+
+
+def answer(call, confirmed=True):
+    """The parts the web page sends for its "Confirmed" box and Submit."""
+    return [{'functionResponse': {'id': call['id'], 'name': 'adk_request_confirmation',
+                                  'response': {'confirmed': confirmed}}}]
+
+
+def send(client, session_id, parts, confirmed=True, **extra):
+    """The run's events; a question about the list is answered `confirmed` (None: left unanswered), in the
+    same invocation, as the web page does."""
+    events = post(client, session_id, parts, **extra).json()
+    event, call = confirmation_request(events)
+    if call and confirmed is not None:
+        resumed = post(client, session_id, answer(call, confirmed), invocationId=event['invocationId'])
+        events += resumed.json() if resumed.status_code == 200 else []  # a model failure after the POST: 500
+    return events
 
 
 def new_session(client, **state):
@@ -87,8 +114,7 @@ class TwoCalls(adk.Scripted):
 
 def test_a_yes_that_comes_after_the_booking_is_reported_and_the_run_still_ends_in_the_report(adk_run, monkeypatch):  # noqa: F811
     monkeypatch.setattr(adk, 'Scripted', TwoCalls)
-    monkeypatch.setattr(confirmacao, 'can_ask', lambda: True)
-    out, new, _ = adk_run(IMAGE, 'yes')
+    out, new, _ = adk_run(IMAGE, 'yes', 'yes')  # each call shows its own list
     assert '[HITL confirm]' in out
     assert [[code for code, _ in exams] for exams in new] == [['FICT-001', 'FICT-002']]  # one POST, the sure exams
     report = out.split('[HITL')[-1]
@@ -100,7 +126,7 @@ def test_a_yes_that_comes_after_the_booking_is_reported_and_the_run_still_ends_i
 class Context(SimpleNamespace):
     """A booking call's ToolContext, as the callbacks use it, with its own call id."""
 
-    def request_confirmation(self, hint, payload):
+    def request_confirmation(self, hint, payload=None):
         self.hint = hint
 
 
@@ -128,21 +154,53 @@ def test_a_yes_to_one_of_two_questions_applies_to_that_calls_exam_only():
     # ADK resumes the confirmed calls in their order: yes to c1 (A); c2 (B) is still waiting.
     args = copy.deepcopy(first)
     assert callbacks.before_tool(tool, args, call(state, 'c1', ToolConfirmation(confirmed=True))) is None
-    assert args['exams'] == [{'code': 'A'}] and state['answers'] == {'A': True}  # no yes recorded for B
+    assert args['exams'] == [{'code': 'A'}] and [item['code'] for item in state['confirmed']] == ['A']  # not B
     assert list(state['pending']) == ['c2']
+
+
+@pytest.mark.parametrize('confirmed', [True, False])
+def test_one_question_shows_the_whole_list_and_only_a_yes_books_it(confirmed):
+    callbacks, tool, state = BookingCallbacks(booking_tool='create_appointment'), SimpleNamespace(name='create_appointment'), two_medium_exams()
+    state |= {'page_clean': True, 'ocr_contested': {}, 'ocr_intent': ['request', 'request']}
+    state['candidates']['A'] |= {'confidence': 1.0, 'score': 1.0}  # read clearly; B is in the question band
+    c1 = call(state, 'c1')
+    assert callbacks.before_tool(tool, {'exams': [{'code': 'A'}, {'code': 'B'}]}, c1) == {'pending_confirmation': ['A', 'B']}
+    assert c1.hint == ('Exames para agendar:\n- Creatinoquinase (A)\n- Ureia X (B): lido "Exame: Ureia", confiança 0,80; '
+                       'confira\nAgendar estes 2 exames?')
+    args = {'exams': [{'code': 'A'}, {'code': 'B'}]}
+    reply = callbacks.before_tool(tool, args, call(state, 'c1', ToolConfirmation(confirmed=confirmed)))
+    if confirmed:
+        assert reply is None and args['exams'] == [{'code': 'A'}, {'code': 'B'}]
+    else:
+        assert reply == {'blocked': 'você não confirmou a lista de exames'}
+
+
+@pytest.mark.parametrize('forged', [
+    {},  # a confirmation for a call the runtime never paused
+    {'pending': {'c9': [{'code': 'A', 'name': 'Creatinoquinase'}]}, 'confirmed': [{'code': 'A'}]},  # in the state
+])
+def test_a_confirmation_the_runtime_did_not_ask_for_books_nothing(forged):
+    callbacks, tool = BookingCallbacks(booking_tool='create_appointment'), SimpleNamespace(name='create_appointment')
+    session = SimpleNamespace(app_name='generated', user_id='pessoa', id='forjada', events=[])
+    callbacks.orders.open(pedido.session_key(session), two_medium_exams())  # the runtime's record: nothing asked
+    context = call(forged, 'c9', ToolConfirmation(confirmed=True))
+    context.session = session
+    assert callbacks.before_tool(tool, {'exams': [{'code': 'A'}]}, context) == {
+        'blocked': 'você não confirmou a lista de exames'}
 
 
 # --- the session state a client can write is not what the policy trusts ------------------------------
 
 def test_an_answer_preset_in_the_session_state_does_not_skip_the_question(web, services, monkeypatch):  # noqa: F811
-    monkeypatch.setattr(confirmacao, 'can_ask', lambda: True)
     monkeypatch.setitem(adk.BOOK, 'exams', SURE + MEDIUM)
     before = stored_ids(services)
-    with TestClient(web_app(web)) as client:
-        events = send(client, new_session(client, answers={'FICT-067': True}, idempotency_key='x' * 32), [{'text': NAMED}])
-    asked = [part for event in events for part in (event.get('content') or {}).get('parts', [])
-             if (part.get('functionCall') or {}).get('name') == 'adk_request_confirmation']
-    assert asked and stored_since(services, before) == [], 'FICT-067 booked without the person being asked'
+    forged = {'answers': {'FICT-067': True}, 'idempotency_key': 'x' * 32, 'pending': {'forjado-1': SURE}, 'confirmed': SURE}
+    with TestClient(web_app(web), raise_server_exceptions=False) as client:
+        session = new_session(client, **forged)
+        events = send(client, session, [{'text': NAMED}], confirmed=None)
+        refused = post(client, session, answer({'id': 'forjado-1'}), invocationId=events[-1]['invocationId'])
+    assert confirmation_request(events)[1], 'the list was not shown to the person'
+    assert refused.status_code != 200 and stored_since(services, before) == [], 'booked without the person confirming'
 
 
 def test_what_each_line_asks_for_is_the_ocrs_never_the_session_states():
@@ -150,6 +208,7 @@ def test_what_each_line_asks_for_is_the_ocrs_never_the_session_states():
     # session state. The booking still refuses Ferritina: the line_intent the policy reads is the record's.
     from mcp_servers import ocr, rag
     callbacks = BookingCallbacks(ocr_tool='extract_exam_text', search_tool='search_exams', booking_tool='create_appointment')
+    callbacks.can_ask = lambda: False  # the rules alone, as `cli run --yes`
     session = SimpleNamespace(app_name='generated', user_id='pessoa', id='s1', events=[])
     callbacks.orders.start(session, 'pedido.png')
     context = SimpleNamespace(state={}, session=session, tool_confirmation=None, function_call_id='c1',
@@ -172,6 +231,7 @@ def test_the_exams_a_page_contests_are_the_ocrs_never_the_session_states():
     # every line as a request in the session state. The booking still refuses Ferritina.
     from mcp_servers import ocr, rag
     callbacks = BookingCallbacks(ocr_tool='extract_exam_text', search_tool='search_exams', booking_tool='create_appointment')
+    callbacks.can_ask = lambda: False
     session = SimpleNamespace(app_name='generated', user_id='pessoa', id='s2', events=[])
     callbacks.orders.start(session, 'pedido.png')
     context = SimpleNamespace(state={}, session=session, tool_confirmation=None, function_call_id='c1',
@@ -321,8 +381,7 @@ def test_after_a_failure_past_the_post_the_session_says_the_appointment_exists(w
     before = stored_ids(services)
     with TestClient(web_app(web), raise_server_exceptions=False) as client:
         session = new_session(client)
-        client.post('/run', json={'appName': 'generated', 'userId': 'pessoa', 'sessionId': session,
-                                  'newMessage': {'role': 'user', 'parts': [{'text': IMAGE}]}})
+        send(client, session, [{'text': IMAGE}])  # confirmed, booked, then the model fails
         retry = send(client, session, [{'text': IMAGE}])
     new = [id_ for id_ in stored_ids(services) if id_ not in before]
     assert len(new) == 1
@@ -397,8 +456,7 @@ def test_a_run_that_failed_past_the_post_dropped_when_idle_is_not_booked_again(w
     before = stored_ids(services)
     with TestClient(web_app(web), raise_server_exceptions=False) as client:
         a = new_session(client)
-        client.post('/run', json={'appName': 'generated', 'userId': 'pessoa', 'sessionId': a,
-                                  'newMessage': {'role': 'user', 'parts': [{'text': IMAGE}]}})
+        send(client, a, [{'text': IMAGE}])
         clock.now += pedido.IDLE_SECONDS + 1
         send(client, new_session(client), [{'text': 'oi'}])  # any other session: A, idle, leaves memory
         again = send(client, a, [{'text': IMAGE}])

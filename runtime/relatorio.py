@@ -6,11 +6,11 @@ import re
 
 from google.genai import errors
 
-from .confirmacao import WHY
-
+# Why an exam is asked although it is written clearly: what its line says (runtime/confianca.py, 'why').
+WHY = {'uncertain': '; o pedido tem outras palavras além do exame', 'table': '; o pedido está em tabela ou colunas',
+       'instruction': '; o pedido tem uma instrução sobre este exame', 'page': '; o pedido tem texto além da lista de exames'}
 # How each exam left out is shown, by its reason; {guess} is "'<line read>' → <exam> <code> (confiança 0,xx)".
 LEFT_OUT = {
-    'second_round': "não perguntado nesta execução (só ficou em dúvida depois de um 'não'): {guess}; confira o pedido",
     'needs_confirmation': 'não agendado sem confirmação: {guess}; rode num terminal, sem --yes, para responder',
     'declined': 'não incluído (você respondeu não): {guess}',
     # a yes to a call that resumed after another call of the same turn had already booked the run's appointment

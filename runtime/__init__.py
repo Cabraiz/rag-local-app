@@ -2,7 +2,7 @@
 
 Its building blocks (adk) and the booking policy, as callbacks (callbacks), confidence rules
 (confianca), the order's record (pedido), what of the person's message reaches the model (entrada),
-the [s/N] question (confirmacao), the addresses the agent may reach (rede), its own calls to the MCP
+the final confirmation of the list (confirmacao), the addresses the agent may reach (rede), its own calls to the MCP
 servers (servidores) and the run's report (relatorio). A generated file only
 declares the agent; the rules live here, the same for every spec, tested on their own
 (tests/test_confianca.py, tests/test_runtime.py). Besides Google ADK (and the MCP SDK it brings) it

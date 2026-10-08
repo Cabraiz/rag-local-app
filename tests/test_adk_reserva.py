@@ -93,7 +93,7 @@ def test_an_unavailable_main_model_hands_the_same_request_to_the_reserve_and_the
         agent_folder, services, gemini_api, monkeypatch, status):  # noqa: F811
     monkeypatch.setattr(gemini_api, 'status', status)
     before = stored_ids(services)
-    done = run(agent_folder, monkeypatch, adk.Scripted, IMAGE)
+    done = run(agent_folder, monkeypatch, adk.Scripted, IMAGE, 'yes')
     assert done.exception is None, done.output
     assert [appointment(id_) for id_ in stored_ids(services) if id_ not in before] == adk.all_three(), done.output
     assert f'Aviso: modelo principal indisponível; usando {RESERVE}' in done.output

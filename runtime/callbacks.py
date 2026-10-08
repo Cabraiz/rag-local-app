@@ -1,8 +1,8 @@
 """The agent's ADK callbacks, set up with the spec's tools, servers and booking policy: open the order
 (start_order), keep what each tool returned (after_tool), let only confident codes, each on a line that
-asks for it, reach the booking API (before_tool), and close with a report written from what the tools
-returned (report). The model only proposes; these checks run in code, on the order's record
-(runtime/pedido.py), never on the session state.
+asks for it, reach the booking API once the person confirms the list (before_tool), and close with a
+report written from what the tools returned (report). The model only proposes; these checks run in
+code, on the order's record (runtime/pedido.py), never on the session state.
 """
 import asyncio
 import json
@@ -27,6 +27,7 @@ NO_ATTACHMENTS = ('Envie só o nome do arquivo do pedido, como texto, sem anexar
 RAN_BEFORE = ('Esta sessão já tratou um pedido, antes de o agente ser reiniciado: confira os agendamentos e não '
               'repita este pedido. Para outro pedido, abra uma nova sessão. Nada foi lido nem agendado.')
 NO_KEY = 'GOOGLE_API_KEY não definida: preencha GOOGLE_API_KEY= no .env e rode de novo. Nada foi agendado.'
+NOT_CONFIRMED = 'você não confirmou a lista de exames'
 ONE_ORDER = ('Esta sessão já tratou um pedido. Para outro pedido, abra uma nova sessão (no `adk run`, saia com '
              'exit e rode de novo; no `adk web`, New Session). Nada foi lido nem agendado.')
 
@@ -87,7 +88,9 @@ class BookingCallbacks:
         for url in (ocr_url, search_url, *servers):
             if url:
                 check_host(url)
-        self.can_ask = confirmacao.can_ask  # tests replace it
+        # Someone answers the final confirmation (`adk run`'s console, `adk web`'s page; `cli run` says so in
+        # the order's record). False: the rules alone, as `cli run --yes` (tests replace it).
+        self.can_ask = lambda: True
         self.orders = Orders()
 
     @staticmethod
@@ -214,6 +217,7 @@ class BookingCallbacks:
             order['booked_appointment'] = tool_response
         elif tool.name == self.booking_tool and isinstance(tool_response, dict) and 'error' in tool_response:
             order['api_error'] = str(tool_response['error'])[:1000]  # the API's refusal, for the report
+            order.pop('posted', None)  # nothing was booked: another call of the run may try
         self.orders.publish(tool_context, order)
         return reply
 
@@ -236,29 +240,31 @@ class BookingCallbacks:
         return reply
 
     @staticmethod
-    def settle(order, asked_here, answers):
-        """A call that resumed after the run's appointment was created: its exams are reported (a yes that
-        came too late to be booked, or a no), never sent in a second POST."""
-        reported = {item['code'] for item in order.get('low_confidence', [])}
+    def settle(order, shown, yes):
+        """A call that resumed after the run's appointment was sent: the exams of its list that were not sent
+        are reported (a yes that came too late to be booked, or a no), never sent in a second POST."""
+        reported = {item['code'] for item in order.get('low_confidence', [])} | set(order.get('posted', []))
         order['low_confidence'] = order.get('low_confidence', []) + [
-            item | {'reason': 'after_booking' if answers.get(item['code']) else 'declined'}
-            for item in asked_here if item['code'] not in reported]
+            item | {'reason': 'after_booking' if yes else 'declined'} for item in shown if item['code'] not in reported]
 
     def only_confident_codes(self, args, tool_context, order):
-        """Book (>= min_confidence), ask the person (>= ask_from) or leave out each exam, on its
-        own piece of the order. A dict reply skips the call: nothing is written. The question is ADK's
-        tool confirmation: the call pauses, the client answers, and the same call resumes with the
-        answers (tool_context.tool_confirmation; runtime/confirmacao.py).
+        """Book (>= min_confidence), ask about (>= ask_from) or leave out each exam, on its own piece of
+        the order; then the person confirms the whole list, or nothing is booked. The question is ADK's
+        tool confirmation: the call pauses, the client answers, and the same call resumes with the answer
+        (tool_context.tool_confirmation; runtime/confirmacao.py). Nobody to ask (`cli run --yes`): the
+        rules alone, and the exams they would ask about are left out. A dict reply skips the call.
         """
         candidates, exams = order.get('candidates', {}), {}
         confirmation = getattr(tool_context, 'tool_confirmation', None)
         pending = dict(order.get('pending', {}))
-        asked_here = pending.pop(confirmacao.call_of(tool_context), []) if confirmation is not None else []
+        shown = pending.pop(confirmacao.call_of(tool_context), None) if confirmation is not None else None
         order['pending'] = pending  # this call's question, if it asked one, is answered now
-        order['answers'] = answers = confirmacao.answers_given(order, confirmation, [item['code'] for item in asked_here])
-        if isinstance(order.get('booked_appointment'), dict):  # one appointment per run: a 2nd call
-            self.settle(order, asked_here, answers)            # never reaches the API
-            return order['booked_appointment']
+        yes = shown is not None and confirmation.confirmed is True  # a yes only to a list this call showed
+        if isinstance(order.get('booked_appointment'), dict) or (shown and order.get('posted')):  # one appointment
+            self.settle(order, shown or [], yes)  # per run: a 2nd call, also one resumed beside the 1st, never posts
+            return order.get('booked_appointment') or {'blocked': 'o agendamento desta execução já foi enviado'}
+        if order.get('refused'):  # a no ends the run's booking: a repeated call is not asked again
+            return blocked(order, NOT_CONFIRMED)
         extra = sorted(set(args) - BOOKING_ARGUMENTS)
         if extra:  # only the exams, checked below, and our key reach the API: no free text from the model
             return blocked(order, 'campo(s) fora do agendamento conferido: ' + ', '.join(extra))
@@ -272,23 +278,23 @@ class BookingCallbacks:
         if invented:
             return blocked(order, 'código(s) que nenhuma busca no catálogo devolveu: ' + ', '.join(invented))
         accounted: list = []  # the pieces of text the proposed exams were sorted out on
-        booked, to_ask, left_out = sort_out(exams, candidates, answers, order, self.policy, accounted)  # a "no" frees its text
-        asks = order['ask'] if 'ask' in order else self.can_ask()  # cli run --yes: nobody will answer
-        if to_ask and confirmation is None and asks and hasattr(tool_context, 'request_confirmation'):
-            return confirmacao.pause_for_answer(tool_context, order, to_ask)
-        # Not asked: nobody to answer, no answer, or (ADK takes one question per call) an exam that only
-        # fell in the band after a "no" freed its text.
-        asked = [item['code'] for item in (asked_here if confirmation is not None else to_ask)]
-        left_out += [item | {'reason': 'needs_confirmation' if item['code'] in asked else 'second_round'}
-                     for item in to_ask]
+        booked, to_ask, left_out = sort_out(exams, candidates, {}, order, self.policy, accounted)
+        asks = order['ask'] if 'ask' in order else self.can_ask()  # False: cli run --yes, the rules alone
+        left_out += [] if asks else [item | {'reason': 'needs_confirmation'} for item in to_ask]
         left_out += omitted(exams, accounted, order, self.policy)  # found by a search, but left out by the model
         order['accounted'] = [list(entry) for entry in accounted]  # for the check of the whole order
-        booked, left_out = by_confidence(booked, exams), by_confidence(left_out, exams)
-        order['low_confidence'] = left_out
-        order['confirmed'] = [item for item in booked if answers.get(item['code'])]
-        if not booked:
+        booked, to_ask = by_confidence(booked, exams), by_confidence(to_ask, exams) if asks else []
+        order['low_confidence'] = left_out = by_confidence(left_out, exams)
+        listed = booked + to_ask
+        if not listed:
             return blocked(order, 'nenhum exame com confiança suficiente para agendar')
-        args['exams'] = [{'code': item['code']} for item in booked]  # the API names each exam from its catalog
+        if asks and confirmation is None and hasattr(tool_context, 'request_confirmation'):
+            return confirmacao.pause_for_answer(tool_context, order, listed, confirmacao.review(booked, to_ask, left_out))
+        if asks and not (yes and [item['code'] for item in shown or []] == [item['code'] for item in listed]):
+            order['refused'] = True  # a no, or no answer to this very list: nothing is booked
+            return blocked(order, NOT_CONFIRMED)
+        order['confirmed'], order['posted'] = to_ask, [item['code'] for item in listed]
+        args['exams'] = [{'code': item['code']} for item in listed]  # the API names each exam from its catalog
         return None
 
     def review_list(self, key):

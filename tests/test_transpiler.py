@@ -563,11 +563,12 @@ class FakeContext:
         self.actions = SimpleNamespace(skip_summarization=False)
 
     def request_confirmation(self, *, hint=None, payload=None):
-        self.requested.append(payload)
+        self.requested.append(hint)
 
 
 def answering(monkeypatch, agent, answer):
-    """Someone at the terminal answers the [s/N] questions with answer(items) -> {code: yes?} or None."""
+    """Someone at the terminal answers the final question with answer(items) -> True (yes), False or None
+    (nobody); `items`: the exams of the list the rules would not book alone."""
     monkeypatch.setattr(agent.CALLBACKS, 'can_ask', lambda: True)
     monkeypatch.setattr(agent.CALLBACKS, 'answer', answer, raising=False)
 
@@ -578,6 +579,7 @@ def generated_module(tmp_path):
     module_spec = importlib.util.spec_from_file_location('agent_under_test', tmp_path / 'agent.py')
     module = importlib.util.module_from_spec(module_spec)
     module_spec.loader.exec_module(module)
+    module.CALLBACKS.can_ask = lambda: False  # the rules alone, as `cli run --yes`; answering() turns the question on
     return module
 
 
@@ -596,17 +598,20 @@ def search(agent, context, query, *hits):
 
 def book(agent, context, *codes):
     """Run the before_tool_callback of create_appointment as the runner and the CLI do: a call that
-    asks for confirmation pauses, gets the answers (the CLI's question, or `answer` set by a test)
-    and runs again with them. Returns (reply, args as sent)."""
+    asks for confirmation pauses, gets the answer (the CLI's question, or `answer` set by a test)
+    and runs again with it. Returns (reply, args as sent)."""
     def call():
         args = {'exams': [{'code': code, 'name': code} for code in codes]}
         return agent.CALLBACKS.before_tool(FakeTool('create_appointment'), args, context), args
 
     reply, args = call()
     if context.requested:
-        items = context.requested.pop()['perguntas']
-        answers = getattr(agent.CALLBACKS, 'answer', confirmacao.ask_person)(items) or {}
-        context.tool_confirmation = SimpleNamespace(payload={'respostas': answers})
+        question, policy = context.requested.pop(), agent.CALLBACKS.policy
+        listed = context.state['pending'][confirmacao.call_of(context)]
+        answer = getattr(agent.CALLBACKS, 'answer', None)
+        yes = answer([item for item in listed if item['confidence'] < policy.min_confidence]) if answer else (
+            confirmacao.ask_person(question))
+        context.tool_confirmation = SimpleNamespace(confirmed=bool(yes))
         reply, args = call()
         context.tool_confirmation = None
     return reply, args
