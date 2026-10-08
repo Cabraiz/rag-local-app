@@ -1,23 +1,27 @@
-"""The `adk run` and `adk web` command lines of docs/como-rodar.md, run as written by the real `adk` script.
+"""The `adk run` and `python -m runtime.web` (adk web) command lines of docs/como-rodar.md, run as written.
 
 The other ADK tests call ADK's click entry point or its FastAPI app with arguments of their own, so a
 documented flag the installed ADK refuses (ADK 2.10 refuses --no_use_local_storage together with
---session_service_uri) would pass them. Here each documented line, from `adk` on, runs in its own
-process on the folder `cli transpile` writes, offline, with no model call: it must start, serve (or
-open its prompt), keep nothing in generated/.adk, and stop.
+--session_service_uri) would pass them. Here each documented line, from `adk` or `python` on, runs in its
+own process on the folder `cli transpile` writes, offline, with no model call: it must start, serve (or
+open its prompt), keep nothing in generated/.adk, and stop. The web server also refuses a Host that is not
+127.0.0.1 or localhost, as a page whose name a DNS rebinding points at 127.0.0.1 sends.
 """
+import http.client
 import os
 import re
 import shlex
 import shutil
 import socket
 import subprocess
+import sys
 import time
-import urllib.request
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
+from runtime.web import web_app
 from transpiler import transpile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,9 +32,9 @@ pytestmark = [pytest.mark.skipif(ADK is None, reason='the adk script is installe
 
 
 def documented(command):
-    """The arguments after `adk <command>` in the guide's `docker compose run ... agent adk <command>` line."""
-    [line] = re.findall(rf'^docker compose run --rm (?:-p \S+ )?agent adk {command} ([^#\n]+)', GUIDE.read_text('utf-8'),
-                        re.M)
+    """The arguments after `<command>` in the guide's `docker compose run ... agent <command>` line."""
+    [line] = re.findall(rf'^docker compose run --rm (?:-p \S+ )?agent {re.escape(command)} ([^#\n]+)',
+                        GUIDE.read_text('utf-8'), re.M)
     return shlex.split(line)
 
 
@@ -47,47 +51,76 @@ def environment():
 
 
 def test_the_documented_lines_are_the_ones_this_test_runs():
-    assert documented('run') == ['--in_memory', 'generated']
-    assert documented('web') == ['--host', '0.0.0.0', '--port', '8000', '--no-reload', '--no_use_local_storage',
-                                 'generated']
+    assert documented('adk run') == ['--in_memory', 'generated']
+    assert documented('python -m runtime.web') == ['--host', '0.0.0.0', 'generated']
 
 
 def test_the_documented_adk_run_starts_and_exits(workdir):
-    done = subprocess.run([ADK, 'run', *documented('run')], cwd=workdir, env=environment(), input='exit\n',
+    done = subprocess.run([ADK, 'run', *documented('adk run')], cwd=workdir, env=environment(), input='exit\n',
                           capture_output=True, text=True, timeout=120)
     assert done.returncode == 0, done.stdout + done.stderr
     assert 'Running agent clinic_scheduler, type exit to exit.' in done.stdout
     assert not (workdir / 'generated' / '.adk').exists()
 
 
-def test_the_documented_adk_web_serves_the_agent_in_memory(workdir):
+def test_the_documented_web_server_serves_the_agent_in_memory_to_localhost_only(workdir):
     with socket.socket() as probe:  # the documented 8000 may be taken on this machine: only the port changes
         probe.bind(('127.0.0.1', 0))
         port = probe.getsockname()[1]
-    arguments = documented('web')
-    arguments[arguments.index('--port') + 1] = str(port)
-    server = subprocess.Popen([ADK, 'web', *arguments], cwd=workdir, env=environment(), stdout=subprocess.PIPE,
+    server = subprocess.Popen([sys.executable, '-m', 'runtime.web', *documented('python -m runtime.web'), '--port',
+                               str(port)], cwd=workdir, env=environment(), stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, text=True)
-    url = f'http://127.0.0.1:{port}'
+
+    def request(path, host, method='GET', body=None):
+        connection = http.client.HTTPConnection('127.0.0.1', port, timeout=30)
+        try:
+            connection.request(method, path, body=body, headers={'Host': host, 'Content-Type': 'application/json'})
+            response = connection.getresponse()
+            return response.status, response.read()
+        finally:
+            connection.close()
+
     try:
         deadline = time.monotonic() + 90
         while True:
             assert server.poll() is None, server.communicate()[0]  # it exited: a refused flag, for one
             try:
-                apps = urllib.request.urlopen(f'{url}/list-apps', timeout=2).read()
+                apps = request('/list-apps', f'localhost:{port}')
                 break
             except OSError:
-                assert time.monotonic() < deadline, 'adk web did not answer'
+                assert time.monotonic() < deadline, 'runtime.web did not answer'
                 time.sleep(0.5)
-        assert apps == b'["generated"]'
-        create = urllib.request.Request(f'{url}/apps/generated/users/u/sessions', data=b'{}', method='POST',
-                                        headers={'content-type': 'application/json'})
-        assert urllib.request.urlopen(create, timeout=30).status == 200
+        assert apps == (200, b'["generated"]')
+        assert request('/apps/generated/users/u/sessions', f'127.0.0.1:{port}', 'POST', b'{}')[0] == 200
+        assert request('/list-apps', f'evil.example:{port}') == (400, b'Invalid host header')  # a rebound page's Host
+        assert request('/apps/generated/users/u/sessions', 'evil.example', 'POST', b'{}')[0] == 400
         assert not (workdir / 'generated' / '.adk').exists()  # the session lives in memory only
     finally:
         server.terminate()
         output = server.communicate(timeout=30)[0]
-    assert 'using in-memory session service' in output and 'Traceback' not in output, output
+    assert 'Traceback' not in output, output
+
+
+@pytest.fixture
+def web(workdir):
+    """The launcher's app as Docker binds it (0.0.0.0), where ADK's own loopback-only Host check is off."""
+    with TestClient(web_app(str(workdir / 'generated'), '0.0.0.0')) as client:
+        yield client
+
+
+@pytest.mark.parametrize('host', ['localhost:8000', '127.0.0.1:8090', 'localhost', '127.0.0.1'])
+def test_localhost_reaches_the_web_app_on_any_port(web, host):
+    assert web.get('/list-apps', headers={'host': host}).json() == ['generated']
+    assert web.get('/', headers={'host': host}, follow_redirects=False).status_code in (302, 307)  # to the web UI
+
+
+@pytest.mark.parametrize('host', ['evil.example', 'evil.example:8000', '127.0.0.1.evil.example',
+                                  'localhost.evil.example', 'agent', ''])
+def test_any_other_host_gets_400(web, host):
+    for path in ('/list-apps', '/', '/dev-ui/'):
+        refused = web.get(path, headers={'host': host}, follow_redirects=False)
+        assert (refused.status_code, refused.text) == (400, 'Invalid host header')
+    assert web.post('/apps/generated/users/u/sessions', json={}, headers={'host': host}).status_code == 400
 
 
 def test_the_old_line_is_refused_by_this_adk(workdir):
