@@ -556,6 +556,17 @@ WHOLE = {
     'solicito-os-seguintes': (['Paciente: Pessoa Sentinela', 'Solicito os seguintes exames:', '- Hemograma completo',
                                '- TSH'], True),
     'solicito-na-linha': (['Paciente: Pessoa Sentinela', 'Solicito os seguintes exames: Acido urico', 'Creatinina'], True),
+    # Above the list, a line removed whole is a letterhead only if it looks like one (the clinic's name above is).
+    'nota-topo-en': (['Lab note: thyroid panel drawn on 02/10, not needed again'] + SIGNED, False),
+    'nota-topo-pt': (['Tireoide veio normal semana retrasada'] + SIGNED, False),
+    'nota-topo-de': (['Nur Blutbild, Rest später'] + SIGNED, False),
+    'timbre-campos': (['PEDIDO MÉDICO DE EXAMES', 'Carteirinha: 4099 0406 8708 6108', 'CID 110'] + SIGNED, True),
+    # A catalog word in parentheses or next to a result on another exam's line is a note about it, not an exam.
+    'anotacao': (SIGNED[:4] + ['- Glicemia de jejum (HIV +)'] + SIGNED[4:], False),
+    'anotacao-resultado': (SIGNED[:4] + ['- Glicemia de jejum sifilis negativo'] + SIGNED[4:], False),
+    'sigla-sensivel-colada': (SIGNED[:4] + ['- Glicemia de jejum HIV'] + SIGNED[4:], False),
+    'sigla-sensivel-na-lista': (SIGNED[:4] + ['- Glicemia de jejum, HIV'] + SIGNED[4:], True),
+    'outro-nome-entre-parenteses': (SIGNED[:4] + ['- TGP (ALT)', '- Hemoglobina glicada (HbA1c)'] + SIGNED[4:], True),
 }
 
 
@@ -568,6 +579,12 @@ def test_the_page_books_alone_only_when_it_is_the_list(agent, name):
     assert reply['page_clean'] is clean, (reply['lines'], reply['line_intent'])
     found = decide(agent, reply, [query for query in map(consulta, reply['lines']) if len(query) >= 2])
     assert ('booked' in found.values()) is clean, found
+
+
+def test_the_ocr_names_the_lines_that_keep_the_page_off_the_list():
+    ocr = pytest.importorskip('mcp_servers.ocr')
+    assert ocr.mask_lines(WHOLE['nota-topo-en'][0])['off_list'] == [0]
+    assert ocr.mask_lines(WHOLE['anotacao'][0])['off_list'] == [4] and ocr.mask_lines(SIGNED)['off_list'] == []
 
 
 def test_a_form_says_why_its_exams_are_asked(agent):

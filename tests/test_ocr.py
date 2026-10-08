@@ -131,7 +131,7 @@ def test_every_line_is_masked_and_counted(monkeypatch):
     assert result == {'lines': ['[CPF]', 'Hemograma completo', '[CPF]'], 'pii_masked': {'CPF': 2},
                       'line_intent': ['request', 'request', 'request'], 'contested_exams': [],
                       'instructions_removed': 0, 'text_removed': 0, 'cancel_unlinked': False, 'page_clean': True,
-                      'exam_lines': [1], 'exam_terms': [[], [['hemograma', 'Hemograma completo'],
+                      'off_list': [], 'exam_lines': [1], 'exam_terms': [[], [['hemograma', 'Hemograma completo'],
                                                               ['hemograma completo', 'Hemograma completo']], []]}
 
 
@@ -194,7 +194,7 @@ def test_the_order_without_exams_masks_what_the_evidence_log_shows_and_has_no_ex
     log = (SAMPLES.parent / 'docs' / 'evidencias' / 'log-alucinacao.txt').read_text(encoding='utf-8')
     case = log.split('== (b) pedido-sem-exame.png', 1)[1].split('\n== ', 1)[0]
     masked = ', '.join(f'{kind} x{count}' for kind, count in result['pii_masked'].items())
-    assert f'PII mascarada pelo OCR: {masked}' in case
+    assert f'PII reconhecida e mascarada pelo OCR: {masked}' in case
     assert result['lines'][-3:] == ['Exames solicitados:', 'Dr. [NOME] - [CRM]', 'Data: [DATA]']
 
 # Images that reach the OCR in an unusual shape (bugs 1 to 3 of the 5d0ccc1 bug hunt).

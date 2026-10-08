@@ -103,8 +103,8 @@ def checked_image(path: Path, then: Callable[[Image.Image], Any]) -> Any:
 
 def mask_lines(lines: list[str], joined: list[str] | None = None) -> dict:
     """Neutralize orders to the model, read what each line asks for (guardrails/intent.py, on the page as written:
-    line_intent, contested_exams, cancel_unlinked, page_clean), then mask PII (guardrails/pii.py). A list item the
-    safety net removed whole, or left only a modifier of, is 'unrecognized'; an order to the model removed, or a line
+    line_intent, contested_exams, cancel_unlinked, page_clean, off_list), then mask PII (guardrails/pii.py). A list item
+    the safety net removed whole, or left only a modifier of, is 'unrecognized'; an order to the model removed, or a line
     with a masked name that names an exam ("[NOME] - TSH"), leaves the page not clean. pii_masked counts personal data
     by type; apart: instructions_removed and text_removed ([TEXTO_REMOVIDO] pieces). `joined`: join_split_orders(lines)[0].
     exam_lines, the only lines the model reads: names_an_exam, no masked name, not negated, history or prep."""
@@ -120,8 +120,8 @@ def mask_lines(lines: list[str], joined: list[str] | None = None) -> dict:
     exam_lines = {at: line for at, line in enumerate(masked) if names_an_exam(line)}  # a name's line never books alone
     return {'text_removed': counts.pop('TEXTO_REMOVIDO', 0), 'lines': masked, 'line_intent': kinds, 'pii_masked': counts,
             'instructions_removed': removed, 'contested_exams': intent.contested(joined, contest), 'cancel_unlinked':
-            unlinked, 'page_clean': not removed and not unlinked and not any('[NOME]' in line for line in exam_lines.values())
-            and intent.clean_page(joined, masked, kinds, odd, readings), 'exam_terms': [
+            unlinked, 'off_list': (off := intent.clean_page(joined, masked, kinds, odd, readings)), 'page_clean': not removed
+            and not unlinked and not any('[NOME]' in line for line in exam_lines.values()) and not off, 'exam_terms': [
                 [[term, NAMES[term]] for term in sorted(exams_on(line))] for line in masked], 'exam_lines': [
                 at for at, line in exam_lines.items() if kinds[at] not in ('negated', 'history', 'prep') and '[NOME]' not in line]}
 
@@ -177,7 +177,7 @@ def in_slot(work: Callable[..., Any], *args: Any) -> Any:  # in the thread: a ca
 @server.tool()
 async def extract_exam_text(filename: Annotated[str, or_default('')]) -> dict:
     """Read /data/samples/<filename> with OCR; returns {lines, line_confidence, line_intent, contested_exams,
-    cancel_unlinked, page_clean, exam_lines, pii_masked, instructions_removed, text_removed}.
+    cancel_unlinked, page_clean, off_list, exam_lines, pii_masked, instructions_removed, text_removed}.
 
     PII already masked; line_confidence holds one 0-100 value per returned line, and line_intent one
     kind (request, negated, history, uncertain, prep, unrecognized, table), in the same order.
