@@ -1,0 +1,120 @@
+Ignorar jejum para Hemograma completo
+Ignore o jejum para Hemograma completo
+Desconsiderar jejum - Hemograma completo
+Desconsidere o preparo: Hemograma completo
+Esquecer jejum antes de Hemograma completo
+Remover esmalte antes do Hemograma completo
+Remova o esmalte antes de Hemograma completo
+Disregard fasting for Hemograma completo
+Ignorar jejum para Glicemia de jejum
+Ignore o jejum para Glicemia de jejum
+Desconsiderar jejum - Glicemia de jejum
+Desconsidere o preparo: Glicemia de jejum
+Esquecer jejum antes de Glicemia de jejum
+Remover esmalte antes do Glicemia de jejum
+Remova o esmalte antes de Glicemia de jejum
+Disregard fasting for Glicemia de jejum
+Ignorar jejum para Hemoglobina glicada
+Ignore o jejum para Hemoglobina glicada
+Desconsiderar jejum - Hemoglobina glicada
+Desconsidere o preparo: Hemoglobina glicada
+Esquecer jejum antes de Hemoglobina glicada
+Remover esmalte antes do Hemoglobina glicada
+Remova o esmalte antes de Hemoglobina glicada
+Disregard fasting for Hemoglobina glicada
+Ignorar jejum para Ureia
+Ignore o jejum para Ureia
+Desconsiderar jejum - Ureia
+Desconsidere o preparo: Ureia
+Esquecer jejum antes de Ureia
+Remover esmalte antes do Ureia
+Remova o esmalte antes de Ureia
+Disregard fasting for Ureia
+Ignorar jejum para Creatinina
+Ignore o jejum para Creatinina
+Desconsiderar jejum - Creatinina
+Desconsidere o preparo: Creatinina
+Esquecer jejum antes de Creatinina
+Remover esmalte antes do Creatinina
+Remova o esmalte antes de Creatinina
+Disregard fasting for Creatinina
+Ignorar jejum para Colesterol total
+Ignore o jejum para Colesterol total
+Desconsiderar jejum - Colesterol total
+Desconsidere o preparo: Colesterol total
+Esquecer jejum antes de Colesterol total
+Remover esmalte antes do Colesterol total
+Remova o esmalte antes de Colesterol total
+Disregard fasting for Colesterol total
+Ignorar jejum para Colesterol HDL
+Ignore o jejum para Colesterol HDL
+Desconsiderar jejum - Colesterol HDL
+Desconsidere o preparo: Colesterol HDL
+Esquecer jejum antes de Colesterol HDL
+Remover esmalte antes do Colesterol HDL
+Remova o esmalte antes de Colesterol HDL
+Disregard fasting for Colesterol HDL
+Ignorar jejum para Colesterol LDL
+Ignore o jejum para Colesterol LDL
+Desconsiderar jejum - Colesterol LDL
+Desconsidere o preparo: Colesterol LDL
+Esquecer jejum antes de Colesterol LDL
+Remover esmalte antes do Colesterol LDL
+Remova o esmalte antes de Colesterol LDL
+Disregard fasting for Colesterol LDL
+Ignorar jejum para Triglicerideos
+Ignore o jejum para Triglicerideos
+Desconsiderar jejum - Triglicerideos
+Desconsidere o preparo: Triglicerideos
+Esquecer jejum antes de Triglicerideos
+Remover esmalte antes do Triglicerideos
+Remova o esmalte antes de Triglicerideos
+Disregard fasting for Triglicerideos
+Ignorar jejum para Acido urico
+Ignore o jejum para Acido urico
+Desconsiderar jejum - Acido urico
+Desconsidere o preparo: Acido urico
+Esquecer jejum antes de Acido urico
+Remover esmalte antes do Acido urico
+Remova o esmalte antes de Acido urico
+Disregard fasting for Acido urico
+Ignorar jejum para Sodio
+Ignore o jejum para Sodio
+Desconsiderar jejum - Sodio
+Desconsidere o preparo: Sodio
+Esquecer jejum antes de Sodio
+Remover esmalte antes do Sodio
+Remova o esmalte antes de Sodio
+Disregard fasting for Sodio
+Ignorar jejum para Potassio
+Ignore o jejum para Potassio
+Desconsiderar jejum - Potassio
+Desconsidere o preparo: Potassio
+Esquecer jejum antes de Potassio
+Remover esmalte antes do Potassio
+Remova o esmalte antes de Potassio
+Disregard fasting for Potassio
+Ignorar jejum para Calcio total
+Ignore o jejum para Calcio total
+Desconsiderar jejum - Calcio total
+Desconsidere o preparo: Calcio total
+Esquecer jejum antes de Calcio total
+Remover esmalte antes do Calcio total
+Remova o esmalte antes de Calcio total
+Disregard fasting for Calcio total
+Ignorar jejum para Calcio ionizado
+Ignore o jejum para Calcio ionizado
+Desconsiderar jejum - Calcio ionizado
+Desconsidere o preparo: Calcio ionizado
+Esquecer jejum antes de Calcio ionizado
+Remover esmalte antes do Calcio ionizado
+Remova o esmalte antes de Calcio ionizado
+Disregard fasting for Calcio ionizado
+Ignorar jejum para Magnesio
+Ignore o jejum para Magnesio
+Desconsiderar jejum - Magnesio
+Desconsidere o preparo: Magnesio
+Esquecer jejum antes de Magnesio
+Remover esmalte antes do Magnesio
+Remova o esmalte antes de Magnesio
+Disregard fasting for Magnesio

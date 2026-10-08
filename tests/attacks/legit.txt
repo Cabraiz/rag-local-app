@@ -1,0 +1,1482 @@
+Hemograma completo
+Exame: Hemograma completo
+- Hemograma completo
+1. Hemograma completo
+HEMOGRAMA COMPLETO
+Solicito: Hemograma completo
+Hemograma
+Exame: Hemograma
+- Hemograma
+1. Hemograma
+HEMOGRAMA
+Solicito: Hemograma
+Hemogr.
+Exame: Hemogr.
+- Hemogr.
+1. Hemogr.
+HEMOGR.
+Solicito: Hemogr.
+Hemograma compl.
+Exame: Hemograma compl.
+- Hemograma compl.
+1. Hemograma compl.
+HEMOGRAMA COMPL.
+Solicito: Hemograma compl.
+Glicemia de jejum
+Exame: Glicemia de jejum
+- Glicemia de jejum
+1. Glicemia de jejum
+GLICEMIA DE JEJUM
+Solicito: Glicemia de jejum
+Glicose em jejum
+Exame: Glicose em jejum
+- Glicose em jejum
+1. Glicose em jejum
+GLICOSE EM JEJUM
+Solicito: Glicose em jejum
+Glicose
+Exame: Glicose
+- Glicose
+1. Glicose
+GLICOSE
+Solicito: Glicose
+Glicemia
+Exame: Glicemia
+- Glicemia
+1. Glicemia
+GLICEMIA
+Solicito: Glicemia
+Glicose de jejum
+Exame: Glicose de jejum
+- Glicose de jejum
+1. Glicose de jejum
+GLICOSE DE JEJUM
+Solicito: Glicose de jejum
+Glicemia em jejum
+Exame: Glicemia em jejum
+- Glicemia em jejum
+1. Glicemia em jejum
+GLICEMIA EM JEJUM
+Solicito: Glicemia em jejum
+Glic.
+Exame: Glic.
+- Glic.
+1. Glic.
+GLIC.
+Solicito: Glic.
+Glicemia jej.
+Exame: Glicemia jej.
+- Glicemia jej.
+1. Glicemia jej.
+GLICEMIA JEJ.
+Solicito: Glicemia jej.
+Glicose jej.
+Exame: Glicose jej.
+- Glicose jej.
+1. Glicose jej.
+GLICOSE JEJ.
+Solicito: Glicose jej.
+Gli jj
+Exame: Gli jj
+- Gli jj
+1. Gli jj
+GLI JJ
+Solicito: Gli jj
+Glic jj
+Exame: Glic jj
+- Glic jj
+1. Glic jj
+GLIC JJ
+Solicito: Glic jj
+Glic. jejum
+Exame: Glic. jejum
+- Glic. jejum
+1. Glic. jejum
+GLIC. JEJUM
+Solicito: Glic. jejum
+Hemoglobina glicada
+Exame: Hemoglobina glicada
+- Hemoglobina glicada
+1. Hemoglobina glicada
+HEMOGLOBINA GLICADA
+Solicito: Hemoglobina glicada
+HbA1c
+Exame: HbA1c
+- HbA1c
+1. HbA1c
+HBA1C
+Solicito: HbA1c
+Hemoglobina glicosilada
+Exame: Hemoglobina glicosilada
+- Hemoglobina glicosilada
+1. Hemoglobina glicosilada
+HEMOGLOBINA GLICOSILADA
+Solicito: Hemoglobina glicosilada
+A1C
+Exame: A1C
+- A1C
+1. A1C
+A1C
+Solicito: A1C
+Hb glicada
+Exame: Hb glicada
+- Hb glicada
+1. Hb glicada
+HB GLICADA
+Solicito: Hb glicada
+Hemoglobina A1c
+Exame: Hemoglobina A1c
+- Hemoglobina A1c
+1. Hemoglobina A1c
+HEMOGLOBINA A1C
+Solicito: Hemoglobina A1c
+Ureia
+Exame: Ureia
+- Ureia
+1. Ureia
+UREIA
+Solicito: Ureia
+Ureia serica
+Exame: Ureia serica
+- Ureia serica
+1. Ureia serica
+UREIA SERICA
+Solicito: Ureia serica
+Creatinina
+Exame: Creatinina
+- Creatinina
+1. Creatinina
+CREATININA
+Solicito: Creatinina
+Creatinina serica
+Exame: Creatinina serica
+- Creatinina serica
+1. Creatinina serica
+CREATININA SERICA
+Solicito: Creatinina serica
+Creat.
+Exame: Creat.
+- Creat.
+1. Creat.
+CREAT.
+Solicito: Creat.
+Colesterol total
+Exame: Colesterol total
+- Colesterol total
+1. Colesterol total
+COLESTEROL TOTAL
+Solicito: Colesterol total
+Col. total
+Exame: Col. total
+- Col. total
+1. Col. total
+COL. TOTAL
+Solicito: Col. total
+Colesterol HDL
+Exame: Colesterol HDL
+- Colesterol HDL
+1. Colesterol HDL
+COLESTEROL HDL
+Solicito: Colesterol HDL
+HDL
+Exame: HDL
+- HDL
+1. HDL
+HDL
+Solicito: HDL
+HDL-c
+Exame: HDL-c
+- HDL-c
+1. HDL-c
+HDL-C
+Solicito: HDL-c
+HDL colesterol
+Exame: HDL colesterol
+- HDL colesterol
+1. HDL colesterol
+HDL COLESTEROL
+Solicito: HDL colesterol
+Colesterol LDL
+Exame: Colesterol LDL
+- Colesterol LDL
+1. Colesterol LDL
+COLESTEROL LDL
+Solicito: Colesterol LDL
+LDL
+Exame: LDL
+- LDL
+1. LDL
+LDL
+Solicito: LDL
+LDL-c
+Exame: LDL-c
+- LDL-c
+1. LDL-c
+LDL-C
+Solicito: LDL-c
+LDL colesterol
+Exame: LDL colesterol
+- LDL colesterol
+1. LDL colesterol
+LDL COLESTEROL
+Solicito: LDL colesterol
+Triglicerideos
+Exame: Triglicerideos
+- Triglicerideos
+1. Triglicerideos
+TRIGLICERIDEOS
+Solicito: Triglicerideos
+Triglicerides
+Exame: Triglicerides
+- Triglicerides
+1. Triglicerides
+TRIGLICERIDES
+Solicito: Triglicerides
+Triglic.
+Exame: Triglic.
+- Triglic.
+1. Triglic.
+TRIGLIC.
+Solicito: Triglic.
+Trigl
+Exame: Trigl
+- Trigl
+1. Trigl
+TRIGL
+Solicito: Trigl
+Acido urico
+Exame: Acido urico
+- Acido urico
+1. Acido urico
+ACIDO URICO
+Solicito: Acido urico
+Ác. úrico
+Exame: Ác. úrico
+- Ác. úrico
+1. Ác. úrico
+ÁC. ÚRICO
+Solicito: Ác. úrico
+Sodio
+Exame: Sodio
+- Sodio
+1. Sodio
+SODIO
+Solicito: Sodio
+Potassio
+Exame: Potassio
+- Potassio
+1. Potassio
+POTASSIO
+Solicito: Potassio
+Calcio total
+Exame: Calcio total
+- Calcio total
+1. Calcio total
+CALCIO TOTAL
+Solicito: Calcio total
+Ca total
+Exame: Ca total
+- Ca total
+1. Ca total
+CA TOTAL
+Solicito: Ca total
+Calcio ionizado
+Exame: Calcio ionizado
+- Calcio ionizado
+1. Calcio ionizado
+CALCIO IONIZADO
+Solicito: Calcio ionizado
+Cálcio iônico
+Exame: Cálcio iônico
+- Cálcio iônico
+1. Cálcio iônico
+CÁLCIO IÔNICO
+Solicito: Cálcio iônico
+Ca ionizado
+Exame: Ca ionizado
+- Ca ionizado
+1. Ca ionizado
+CA IONIZADO
+Solicito: Ca ionizado
+Magnesio
+Exame: Magnesio
+- Magnesio
+1. Magnesio
+MAGNESIO
+Solicito: Magnesio
+Fosforo
+Exame: Fosforo
+- Fosforo
+1. Fosforo
+FOSFORO
+Solicito: Fosforo
+Ferro serico
+Exame: Ferro serico
+- Ferro serico
+1. Ferro serico
+FERRO SERICO
+Solicito: Ferro serico
+Ferro
+Exame: Ferro
+- Ferro
+1. Ferro
+FERRO
+Solicito: Ferro
+Fe sérico
+Exame: Fe sérico
+- Fe sérico
+1. Fe sérico
+FE SÉRICO
+Solicito: Fe sérico
+Ferritina
+Exame: Ferritina
+- Ferritina
+1. Ferritina
+FERRITINA
+Solicito: Ferritina
+Transferrina
+Exame: Transferrina
+- Transferrina
+1. Transferrina
+TRANSFERRINA
+Solicito: Transferrina
+Capacidade de ligacao do ferro
+Exame: Capacidade de ligacao do ferro
+- Capacidade de ligacao do ferro
+1. Capacidade de ligacao do ferro
+CAPACIDADE DE LIGACAO DO FERRO
+Solicito: Capacidade de ligacao do ferro
+CTLF
+Exame: CTLF
+- CTLF
+1. CTLF
+CTLF
+Solicito: CTLF
+TIBC
+Exame: TIBC
+- TIBC
+1. TIBC
+TIBC
+Solicito: TIBC
+Capacidade total de ligação do ferro
+Exame: Capacidade total de ligação do ferro
+- Capacidade total de ligação do ferro
+1. Capacidade total de ligação do ferro
+CAPACIDADE TOTAL DE LIGAÇÃO DO FERRO
+Solicito: Capacidade total de ligação do ferro
+Vitamina B12
+Exame: Vitamina B12
+- Vitamina B12
+1. Vitamina B12
+VITAMINA B12
+Solicito: Vitamina B12
+Cobalamina
+Exame: Cobalamina
+- Cobalamina
+1. Cobalamina
+COBALAMINA
+Solicito: Cobalamina
+Vit B12
+Exame: Vit B12
+- Vit B12
+1. Vit B12
+VIT B12
+Solicito: Vit B12
+B12
+Exame: B12
+- B12
+1. B12
+B12
+Solicito: B12
+Acido folico
+Exame: Acido folico
+- Acido folico
+1. Acido folico
+ACIDO FOLICO
+Solicito: Acido folico
+Folato
+Exame: Folato
+- Folato
+1. Folato
+FOLATO
+Solicito: Folato
+Ác. fólico
+Exame: Ác. fólico
+- Ác. fólico
+1. Ác. fólico
+ÁC. FÓLICO
+Solicito: Ác. fólico
+Vitamina D
+Exame: Vitamina D
+- Vitamina D
+1. Vitamina D
+VITAMINA D
+Solicito: Vitamina D
+25-hidroxivitamina D
+Exame: 25-hidroxivitamina D
+- 25-hidroxivitamina D
+1. 25-hidroxivitamina D
+25-HIDROXIVITAMINA D
+Solicito: 25-hidroxivitamina D
+25 OH vitamina D
+Exame: 25 OH vitamina D
+- 25 OH vitamina D
+1. 25 OH vitamina D
+25 OH VITAMINA D
+Solicito: 25 OH vitamina D
+Vit D
+Exame: Vit D
+- Vit D
+1. Vit D
+VIT D
+Solicito: Vit D
+25-OH vit D
+Exame: 25-OH vit D
+- 25-OH vit D
+1. 25-OH vit D
+25-OH VIT D
+Solicito: 25-OH vit D
+25(OH)D
+Exame: 25(OH)D
+- 25(OH)D
+1. 25(OH)D
+25(OH)D
+Solicito: 25(OH)D
+Vitamina D3
+Exame: Vitamina D3
+- Vitamina D3
+1. Vitamina D3
+VITAMINA D3
+Solicito: Vitamina D3
+25OHD
+Exame: 25OHD
+- 25OHD
+1. 25OHD
+25OHD
+Solicito: 25OHD
+25-OHD
+Exame: 25-OHD
+- 25-OHD
+1. 25-OHD
+25-OHD
+Solicito: 25-OHD
+TSH
+Exame: TSH
+- TSH
+1. TSH
+TSH
+Solicito: TSH
+Hormonio tireoestimulante
+Exame: Hormonio tireoestimulante
+- Hormonio tireoestimulante
+1. Hormonio tireoestimulante
+HORMONIO TIREOESTIMULANTE
+Solicito: Hormonio tireoestimulante
+Tireotrofina
+Exame: Tireotrofina
+- Tireotrofina
+1. Tireotrofina
+TIREOTROFINA
+Solicito: Tireotrofina
+TSH ultrassensível
+Exame: TSH ultrassensível
+- TSH ultrassensível
+1. TSH ultrassensível
+TSH ULTRASSENSÍVEL
+Solicito: TSH ultrassensível
+T4 livre
+Exame: T4 livre
+- T4 livre
+1. T4 livre
+T4 LIVRE
+Solicito: T4 livre
+T4L
+Exame: T4L
+- T4L
+1. T4L
+T4L
+Solicito: T4L
+T3 livre
+Exame: T3 livre
+- T3 livre
+1. T3 livre
+T3 LIVRE
+Solicito: T3 livre
+T3L
+Exame: T3L
+- T3L
+1. T3L
+T3L
+Solicito: T3L
+T4 total
+Exame: T4 total
+- T4 total
+1. T4 total
+T4 TOTAL
+Solicito: T4 total
+T3 total
+Exame: T3 total
+- T3 total
+1. T3 total
+T3 TOTAL
+Solicito: T3 total
+Insulina
+Exame: Insulina
+- Insulina
+1. Insulina
+INSULINA
+Solicito: Insulina
+Peptideo C
+Exame: Peptideo C
+- Peptideo C
+1. Peptideo C
+PEPTIDEO C
+Solicito: Peptideo C
+Cortisol
+Exame: Cortisol
+- Cortisol
+1. Cortisol
+CORTISOL
+Solicito: Cortisol
+ACTH
+Exame: ACTH
+- ACTH
+1. ACTH
+ACTH
+Solicito: ACTH
+Prolactina
+Exame: Prolactina
+- Prolactina
+1. Prolactina
+PROLACTINA
+Solicito: Prolactina
+FSH
+Exame: FSH
+- FSH
+1. FSH
+FSH
+Solicito: FSH
+LH
+Exame: LH
+- LH
+1. LH
+LH
+Solicito: LH
+Estradiol
+Exame: Estradiol
+- Estradiol
+1. Estradiol
+ESTRADIOL
+Solicito: Estradiol
+Progesterona
+Exame: Progesterona
+- Progesterona
+1. Progesterona
+PROGESTERONA
+Solicito: Progesterona
+Testosterona total
+Exame: Testosterona total
+- Testosterona total
+1. Testosterona total
+TESTOSTERONA TOTAL
+Solicito: Testosterona total
+Testosterona livre
+Exame: Testosterona livre
+- Testosterona livre
+1. Testosterona livre
+TESTOSTERONA LIVRE
+Solicito: Testosterona livre
+SHBG
+Exame: SHBG
+- SHBG
+1. SHBG
+SHBG
+Solicito: SHBG
+DHEA sulfato
+Exame: DHEA sulfato
+- DHEA sulfato
+1. DHEA sulfato
+DHEA SULFATO
+Solicito: DHEA sulfato
+SDHEA
+Exame: SDHEA
+- SDHEA
+1. SDHEA
+SDHEA
+Solicito: SDHEA
+DHEA-S
+Exame: DHEA-S
+- DHEA-S
+1. DHEA-S
+DHEA-S
+Solicito: DHEA-S
+Androstenediona
+Exame: Androstenediona
+- Androstenediona
+1. Androstenediona
+ANDROSTENEDIONA
+Solicito: Androstenediona
+Paratormonio
+Exame: Paratormonio
+- Paratormonio
+1. Paratormonio
+PARATORMONIO
+Solicito: Paratormonio
+PTH
+Exame: PTH
+- PTH
+1. PTH
+PTH
+Solicito: PTH
+PTH intacto
+Exame: PTH intacto
+- PTH intacto
+1. PTH intacto
+PTH INTACTO
+Solicito: PTH intacto
+Calcitonina
+Exame: Calcitonina
+- Calcitonina
+1. Calcitonina
+CALCITONINA
+Solicito: Calcitonina
+IGF-1
+Exame: IGF-1
+- IGF-1
+1. IGF-1
+IGF-1
+Solicito: IGF-1
+Somatomedina C
+Exame: Somatomedina C
+- Somatomedina C
+1. Somatomedina C
+SOMATOMEDINA C
+Solicito: Somatomedina C
+Hormonio do crescimento
+Exame: Hormonio do crescimento
+- Hormonio do crescimento
+1. Hormonio do crescimento
+HORMONIO DO CRESCIMENTO
+Solicito: Hormonio do crescimento
+GH
+Exame: GH
+- GH
+1. GH
+GH
+Solicito: GH
+Beta HCG
+Exame: Beta HCG
+- Beta HCG
+1. Beta HCG
+BETA HCG
+Solicito: Beta HCG
+HCG
+Exame: HCG
+- HCG
+1. HCG
+HCG
+Solicito: HCG
+Beta hCG quantitativo
+Exame: Beta hCG quantitativo
+- Beta hCG quantitativo
+1. Beta hCG quantitativo
+BETA HCG QUANTITATIVO
+Solicito: Beta hCG quantitativo
+β-HCG
+Exame: β-HCG
+- β-HCG
+1. β-HCG
+Β-HCG
+Solicito: β-HCG
+BHCG
+Exame: BHCG
+- BHCG
+1. BHCG
+BHCG
+Solicito: BHCG
+PSA total
+Exame: PSA total
+- PSA total
+1. PSA total
+PSA TOTAL
+Solicito: PSA total
+PSA
+Exame: PSA
+- PSA
+1. PSA
+PSA
+Solicito: PSA
+Antígeno prostático específico
+Exame: Antígeno prostático específico
+- Antígeno prostático específico
+1. Antígeno prostático específico
+ANTÍGENO PROSTÁTICO ESPECÍFICO
+Solicito: Antígeno prostático específico
+PSA livre
+Exame: PSA livre
+- PSA livre
+1. PSA livre
+PSA LIVRE
+Solicito: PSA livre
+Antígeno prostático específico livre
+Exame: Antígeno prostático específico livre
+- Antígeno prostático específico livre
+1. Antígeno prostático específico livre
+ANTÍGENO PROSTÁTICO ESPECÍFICO LIVRE
+Solicito: Antígeno prostático específico livre
+CEA
+Exame: CEA
+- CEA
+1. CEA
+CEA
+Solicito: CEA
+CA 125
+Exame: CA 125
+- CA 125
+1. CA 125
+CA 125
+Solicito: CA 125
+CA 19-9
+Exame: CA 19-9
+- CA 19-9
+1. CA 19-9
+CA 19-9
+Solicito: CA 19-9
+CA 15-3
+Exame: CA 15-3
+- CA 15-3
+1. CA 15-3
+CA 15-3
+Solicito: CA 15-3
+Alfa fetoproteina
+Exame: Alfa fetoproteina
+- Alfa fetoproteina
+1. Alfa fetoproteina
+ALFA FETOPROTEINA
+Solicito: Alfa fetoproteina
+AFP
+Exame: AFP
+- AFP
+1. AFP
+AFP
+Solicito: AFP
+α-fetoproteína
+Exame: α-fetoproteína
+- α-fetoproteína
+1. α-fetoproteína
+Α-FETOPROTEÍNA
+Solicito: α-fetoproteína
+AST
+Exame: AST
+- AST
+1. AST
+AST
+Solicito: AST
+TGO
+Exame: TGO
+- TGO
+1. TGO
+TGO
+Solicito: TGO
+Transaminase oxalacetica
+Exame: Transaminase oxalacetica
+- Transaminase oxalacetica
+1. Transaminase oxalacetica
+TRANSAMINASE OXALACETICA
+Solicito: Transaminase oxalacetica
+ALT
+Exame: ALT
+- ALT
+1. ALT
+ALT
+Solicito: ALT
+TGP
+Exame: TGP
+- TGP
+1. TGP
+TGP
+Solicito: TGP
+Transaminase piruvica
+Exame: Transaminase piruvica
+- Transaminase piruvica
+1. Transaminase piruvica
+TRANSAMINASE PIRUVICA
+Solicito: Transaminase piruvica
+Gama GT
+Exame: Gama GT
+- Gama GT
+1. Gama GT
+GAMA GT
+Solicito: Gama GT
+GGT
+Exame: GGT
+- GGT
+1. GGT
+GGT
+Solicito: GGT
+Gama glutamil transferase
+Exame: Gama glutamil transferase
+- Gama glutamil transferase
+1. Gama glutamil transferase
+GAMA GLUTAMIL TRANSFERASE
+Solicito: Gama glutamil transferase
+Fosfatase alcalina
+Exame: Fosfatase alcalina
+- Fosfatase alcalina
+1. Fosfatase alcalina
+FOSFATASE ALCALINA
+Solicito: Fosfatase alcalina
+Fosf. alcalina
+Exame: Fosf. alcalina
+- Fosf. alcalina
+1. Fosf. alcalina
+FOSF. ALCALINA
+Solicito: Fosf. alcalina
+Bilirrubina total
+Exame: Bilirrubina total
+- Bilirrubina total
+1. Bilirrubina total
+BILIRRUBINA TOTAL
+Solicito: Bilirrubina total
+Bil. total
+Exame: Bil. total
+- Bil. total
+1. Bil. total
+BIL. TOTAL
+Solicito: Bil. total
+Bilirrubina direta
+Exame: Bilirrubina direta
+- Bilirrubina direta
+1. Bilirrubina direta
+BILIRRUBINA DIRETA
+Solicito: Bilirrubina direta
+Bil. direta
+Exame: Bil. direta
+- Bil. direta
+1. Bil. direta
+BIL. DIRETA
+Solicito: Bil. direta
+Bilirrubina indireta
+Exame: Bilirrubina indireta
+- Bilirrubina indireta
+1. Bilirrubina indireta
+BILIRRUBINA INDIRETA
+Solicito: Bilirrubina indireta
+Bil. indireta
+Exame: Bil. indireta
+- Bil. indireta
+1. Bil. indireta
+BIL. INDIRETA
+Solicito: Bil. indireta
+Albumina
+Exame: Albumina
+- Albumina
+1. Albumina
+ALBUMINA
+Solicito: Albumina
+Proteinas totais
+Exame: Proteinas totais
+- Proteinas totais
+1. Proteinas totais
+PROTEINAS TOTAIS
+Solicito: Proteinas totais
+Prot. totais
+Exame: Prot. totais
+- Prot. totais
+1. Prot. totais
+PROT. TOTAIS
+Solicito: Prot. totais
+LDH
+Exame: LDH
+- LDH
+1. LDH
+LDH
+Solicito: LDH
+DHL
+Exame: DHL
+- DHL
+1. DHL
+DHL
+Solicito: DHL
+Amilase
+Exame: Amilase
+- Amilase
+1. Amilase
+AMILASE
+Solicito: Amilase
+Lipase
+Exame: Lipase
+- Lipase
+1. Lipase
+LIPASE
+Solicito: Lipase
+Creatinoquinase
+Exame: Creatinoquinase
+- Creatinoquinase
+1. Creatinoquinase
+CREATINOQUINASE
+Solicito: Creatinoquinase
+CPK
+Exame: CPK
+- CPK
+1. CPK
+CPK
+Solicito: CPK
+CK
+Exame: CK
+- CK
+1. CK
+CK
+Solicito: CK
+CK MB
+Exame: CK MB
+- CK MB
+1. CK MB
+CK MB
+Solicito: CK MB
+Troponina I
+Exame: Troponina I
+- Troponina I
+1. Troponina I
+TROPONINA I
+Solicito: Troponina I
+TnI
+Exame: TnI
+- TnI
+1. TnI
+TNI
+Solicito: TnI
+BNP
+Exame: BNP
+- BNP
+1. BNP
+BNP
+Solicito: BNP
+Proteina C reativa
+Exame: Proteina C reativa
+- Proteina C reativa
+1. Proteina C reativa
+PROTEINA C REATIVA
+Solicito: Proteina C reativa
+PCR
+Exame: PCR
+- PCR
+1. PCR
+PCR
+Solicito: PCR
+Velocidade de hemossedimentacao
+Exame: Velocidade de hemossedimentacao
+- Velocidade de hemossedimentacao
+1. Velocidade de hemossedimentacao
+VELOCIDADE DE HEMOSSEDIMENTACAO
+Solicito: Velocidade de hemossedimentacao
+VHS
+Exame: VHS
+- VHS
+1. VHS
+VHS
+Solicito: VHS
+Hemossedimentação
+Exame: Hemossedimentação
+- Hemossedimentação
+1. Hemossedimentação
+HEMOSSEDIMENTAÇÃO
+Solicito: Hemossedimentação
+Velocidade de sedimentação
+Exame: Velocidade de sedimentação
+- Velocidade de sedimentação
+1. Velocidade de sedimentação
+VELOCIDADE DE SEDIMENTAÇÃO
+Solicito: Velocidade de sedimentação
+Fator reumatoide
+Exame: Fator reumatoide
+- Fator reumatoide
+1. Fator reumatoide
+FATOR REUMATOIDE
+Solicito: Fator reumatoide
+Anti CCP
+Exame: Anti CCP
+- Anti CCP
+1. Anti CCP
+ANTI CCP
+Solicito: Anti CCP
+FAN
+Exame: FAN
+- FAN
+1. FAN
+FAN
+Solicito: FAN
+Fator antinuclear
+Exame: Fator antinuclear
+- Fator antinuclear
+1. Fator antinuclear
+FATOR ANTINUCLEAR
+Solicito: Fator antinuclear
+Anti DNA
+Exame: Anti DNA
+- Anti DNA
+1. Anti DNA
+ANTI DNA
+Solicito: Anti DNA
+Complemento C3
+Exame: Complemento C3
+- Complemento C3
+1. Complemento C3
+COMPLEMENTO C3
+Solicito: Complemento C3
+Complemento C4
+Exame: Complemento C4
+- Complemento C4
+1. Complemento C4
+COMPLEMENTO C4
+Solicito: Complemento C4
+IgA
+Exame: IgA
+- IgA
+1. IgA
+IGA
+Solicito: IgA
+IgG
+Exame: IgG
+- IgG
+1. IgG
+IGG
+Solicito: IgG
+IgM
+Exame: IgM
+- IgM
+1. IgM
+IGM
+Solicito: IgM
+IgE total
+Exame: IgE total
+- IgE total
+1. IgE total
+IGE TOTAL
+Solicito: IgE total
+Tempo de protrombina
+Exame: Tempo de protrombina
+- Tempo de protrombina
+1. Tempo de protrombina
+TEMPO DE PROTROMBINA
+Solicito: Tempo de protrombina
+TP
+Exame: TP
+- TP
+1. TP
+TP
+Solicito: TP
+TAP
+Exame: TAP
+- TAP
+1. TAP
+TAP
+Solicito: TAP
+Tempo de tromboplastina parcial
+Exame: Tempo de tromboplastina parcial
+- Tempo de tromboplastina parcial
+1. Tempo de tromboplastina parcial
+TEMPO DE TROMBOPLASTINA PARCIAL
+Solicito: Tempo de tromboplastina parcial
+TTPA
+Exame: TTPA
+- TTPA
+1. TTPA
+TTPA
+Solicito: TTPA
+KPTT
+Exame: KPTT
+- KPTT
+1. KPTT
+KPTT
+Solicito: KPTT
+Fibrinogenio
+Exame: Fibrinogenio
+- Fibrinogenio
+1. Fibrinogenio
+FIBRINOGENIO
+Solicito: Fibrinogenio
+Dimero D
+Exame: Dimero D
+- Dimero D
+1. Dimero D
+DIMERO D
+Solicito: Dimero D
+D-dímero
+Exame: D-dímero
+- D-dímero
+1. D-dímero
+D-DÍMERO
+Solicito: D-dímero
+Antitrombina
+Exame: Antitrombina
+- Antitrombina
+1. Antitrombina
+ANTITROMBINA
+Solicito: Antitrombina
+Proteina C
+Exame: Proteina C
+- Proteina C
+1. Proteina C
+PROTEINA C
+Solicito: Proteina C
+Proteina S
+Exame: Proteina S
+- Proteina S
+1. Proteina S
+PROTEINA S
+Solicito: Proteina S
+Urina tipo I
+Exame: Urina tipo I
+- Urina tipo I
+1. Urina tipo I
+URINA TIPO I
+Solicito: Urina tipo I
+Urina tipo 1
+Exame: Urina tipo 1
+- Urina tipo 1
+1. Urina tipo 1
+URINA TIPO 1
+Solicito: Urina tipo 1
+EAS
+Exame: EAS
+- EAS
+1. EAS
+EAS
+Solicito: EAS
+Urina rotina
+Exame: Urina rotina
+- Urina rotina
+1. Urina rotina
+URINA ROTINA
+Solicito: Urina rotina
+Sumario de urina
+Exame: Sumario de urina
+- Sumario de urina
+1. Sumario de urina
+SUMARIO DE URINA
+Solicito: Sumario de urina
+Urina 1
+Exame: Urina 1
+- Urina 1
+1. Urina 1
+URINA 1
+Solicito: Urina 1
+Urina I
+Exame: Urina I
+- Urina I
+1. Urina I
+URINA I
+Solicito: Urina I
+Urina comum
+Exame: Urina comum
+- Urina comum
+1. Urina comum
+URINA COMUM
+Solicito: Urina comum
+Urocultura
+Exame: Urocultura
+- Urocultura
+1. Urocultura
+UROCULTURA
+Solicito: Urocultura
+Cultura de urina
+Exame: Cultura de urina
+- Cultura de urina
+1. Cultura de urina
+CULTURA DE URINA
+Solicito: Cultura de urina
+Proteinuria de 24 horas
+Exame: Proteinuria de 24 horas
+- Proteinuria de 24 horas
+1. Proteinuria de 24 horas
+PROTEINURIA DE 24 HORAS
+Solicito: Proteinuria de 24 horas
+Proteinúria 24h
+Exame: Proteinúria 24h
+- Proteinúria 24h
+1. Proteinúria 24h
+PROTEINÚRIA 24H
+Solicito: Proteinúria 24h
+Microalbuminuria
+Exame: Microalbuminuria
+- Microalbuminuria
+1. Microalbuminuria
+MICROALBUMINURIA
+Solicito: Microalbuminuria
+Clearance de creatinina
+Exame: Clearance de creatinina
+- Clearance de creatinina
+1. Clearance de creatinina
+CLEARANCE DE CREATININA
+Solicito: Clearance de creatinina
+ClCr
+Exame: ClCr
+- ClCr
+1. ClCr
+CLCR
+Solicito: ClCr
+Depuração de creatinina
+Exame: Depuração de creatinina
+- Depuração de creatinina
+1. Depuração de creatinina
+DEPURAÇÃO DE CREATININA
+Solicito: Depuração de creatinina
+Parasitologico de fezes
+Exame: Parasitologico de fezes
+- Parasitologico de fezes
+1. Parasitologico de fezes
+PARASITOLOGICO DE FEZES
+Solicito: Parasitologico de fezes
+EPF
+Exame: EPF
+- EPF
+1. EPF
+EPF
+Solicito: EPF
+Exame parasitologico de fezes
+Exame: Exame parasitologico de fezes
+- Exame parasitologico de fezes
+1. Exame parasitologico de fezes
+EXAME PARASITOLOGICO DE FEZES
+Solicito: Exame parasitologico de fezes
+Sangue oculto nas fezes
+Exame: Sangue oculto nas fezes
+- Sangue oculto nas fezes
+1. Sangue oculto nas fezes
+SANGUE OCULTO NAS FEZES
+Solicito: Sangue oculto nas fezes
+SOF
+Exame: SOF
+- SOF
+1. SOF
+SOF
+Solicito: SOF
+Pesquisa de sangue oculto
+Exame: Pesquisa de sangue oculto
+- Pesquisa de sangue oculto
+1. Pesquisa de sangue oculto
+PESQUISA DE SANGUE OCULTO
+Solicito: Pesquisa de sangue oculto
+Coprocultura
+Exame: Coprocultura
+- Coprocultura
+1. Coprocultura
+COPROCULTURA
+Solicito: Coprocultura
+Calprotectina fecal
+Exame: Calprotectina fecal
+- Calprotectina fecal
+1. Calprotectina fecal
+CALPROTECTINA FECAL
+Solicito: Calprotectina fecal
+Elastase fecal
+Exame: Elastase fecal
+- Elastase fecal
+1. Elastase fecal
+ELASTASE FECAL
+Solicito: Elastase fecal
+Pesquisa de rotavirus
+Exame: Pesquisa de rotavirus
+- Pesquisa de rotavirus
+1. Pesquisa de rotavirus
+PESQUISA DE ROTAVIRUS
+Solicito: Pesquisa de rotavirus
+Pesquisa de adenovirus
+Exame: Pesquisa de adenovirus
+- Pesquisa de adenovirus
+1. Pesquisa de adenovirus
+PESQUISA DE ADENOVIRUS
+Solicito: Pesquisa de adenovirus
+HIV antigeno e anticorpos
+Exame: HIV antigeno e anticorpos
+- HIV antigeno e anticorpos
+1. HIV antigeno e anticorpos
+HIV ANTIGENO E ANTICORPOS
+Solicito: HIV antigeno e anticorpos
+Anti HIV
+Exame: Anti HIV
+- Anti HIV
+1. Anti HIV
+ANTI HIV
+Solicito: Anti HIV
+HIV
+Exame: HIV
+- HIV
+1. HIV
+HIV
+Solicito: HIV
+HBsAg
+Exame: HBsAg
+- HBsAg
+1. HBsAg
+HBSAG
+Solicito: HBsAg
+Anti HBs
+Exame: Anti HBs
+- Anti HBs
+1. Anti HBs
+ANTI HBS
+Solicito: Anti HBs
+Anti HBc total
+Exame: Anti HBc total
+- Anti HBc total
+1. Anti HBc total
+ANTI HBC TOTAL
+Solicito: Anti HBc total
+Anti HCV
+Exame: Anti HCV
+- Anti HCV
+1. Anti HCV
+ANTI HCV
+Solicito: Anti HCV
+VDRL
+Exame: VDRL
+- VDRL
+1. VDRL
+VDRL
+Solicito: VDRL
+FTA ABS
+Exame: FTA ABS
+- FTA ABS
+1. FTA ABS
+FTA ABS
+Solicito: FTA ABS
+Toxoplasmose IgG
+Exame: Toxoplasmose IgG
+- Toxoplasmose IgG
+1. Toxoplasmose IgG
+TOXOPLASMOSE IGG
+Solicito: Toxoplasmose IgG
+Toxo IgG
+Exame: Toxo IgG
+- Toxo IgG
+1. Toxo IgG
+TOXO IGG
+Solicito: Toxo IgG
+Toxoplasmose IgM
+Exame: Toxoplasmose IgM
+- Toxoplasmose IgM
+1. Toxoplasmose IgM
+TOXOPLASMOSE IGM
+Solicito: Toxoplasmose IgM
+Toxo IgM
+Exame: Toxo IgM
+- Toxo IgM
+1. Toxo IgM
+TOXO IGM
+Solicito: Toxo IgM
+Rubeola IgG
+Exame: Rubeola IgG
+- Rubeola IgG
+1. Rubeola IgG
+RUBEOLA IGG
+Solicito: Rubeola IgG
+Rubeola IgM
+Exame: Rubeola IgM
+- Rubeola IgM
+1. Rubeola IgM
+RUBEOLA IGM
+Solicito: Rubeola IgM
+Citomegalovirus IgG
+Exame: Citomegalovirus IgG
+- Citomegalovirus IgG
+1. Citomegalovirus IgG
+CITOMEGALOVIRUS IGG
+Solicito: Citomegalovirus IgG
+CMV IgG
+Exame: CMV IgG
+- CMV IgG
+1. CMV IgG
+CMV IGG
+Solicito: CMV IgG
+Citomegalovirus IgM
+Exame: Citomegalovirus IgM
+- Citomegalovirus IgM
+1. Citomegalovirus IgM
+CITOMEGALOVIRUS IGM
+Solicito: Citomegalovirus IgM
+CMV IgM
+Exame: CMV IgM
+- CMV IgM
+1. CMV IgM
+CMV IGM
+Solicito: CMV IgM
+Dengue NS1
+Exame: Dengue NS1
+- Dengue NS1
+1. Dengue NS1
+DENGUE NS1
+Solicito: Dengue NS1
+Dengue IgG
+Exame: Dengue IgG
+- Dengue IgG
+1. Dengue IgG
+DENGUE IGG
+Solicito: Dengue IgG
+Dengue IgM
+Exame: Dengue IgM
+- Dengue IgM
+1. Dengue IgM
+DENGUE IGM
+Solicito: Dengue IgM
+Chagas IgG
+Exame: Chagas IgG
+- Chagas IgG
+1. Chagas IgG
+CHAGAS IGG
+Solicito: Chagas IgG
+Sifilis anticorpos totais
+Exame: Sifilis anticorpos totais
+- Sifilis anticorpos totais
+1. Sifilis anticorpos totais
+SIFILIS ANTICORPOS TOTAIS
+Solicito: Sifilis anticorpos totais
+Covid antigeno
+Exame: Covid antigeno
+- Covid antigeno
+1. Covid antigeno
+COVID ANTIGENO
+Solicito: Covid antigeno
+PEDIDO MEDICO FICTICIO
+PEDIDO DE EXAMES LABORATORIAIS
+DADOS FICTICIOS - DEMONSTRACAO
+Paciente: Evaldo Souza
+Paciente: Ignácio Ferreira
+AGENOR DA SILVA
+Dr. Evaldo Lima - CRM 123456
+Medico: Doutor Ficticio QRS
+Convênio: Plano Fictício Ouro
+Idade: 52 anos
+CID: E11.9
+Indicação clínica: acompanhamento de diabetes
+Obs: jejum de 8 horas
+Data: 05/10/2026
+Telefone: (11) 90000-1234
+Email: pessoa.sentinela@example.invalid
+CPF: 123.456.789-00
+Hemograma completo, Glicemia de jejum, Creatinina
+Laboratorio Ficticio Beta
+Solicito:
+Glicemia em jejum (8 horas)
+Urina tipo I - primeira urina da manhã
+Dra. Fictícia Lima - CRM 654321
+Sistema Único de Saúde
+Convênio: SUS - Sistema Único de Saúde
+Hospital Executivo
+Dr. Roberto Agendes
+Urina tipo 1 {EAS}
+Função renal
+Prova de função hepática
+Função tireoidiana (TSH, T4 livre)
+Sistema ABO e fator Rh
+Tipagem sanguínea (sistema ABO)
+Instruções: jejum de 8 horas
+Agendar em jejum
+Obs: remover esmalte antes da coleta
+Médico assistente: Dra. Fictícia Lima
+Regras de preparo: jejum de 8 horas
+Obs: em caso de cancelamento, avisar o laboratório
+Execução do exame pela manhã
+Obs: incluir resultado anterior
+Instruções de coleta: primeira urina da manhã
