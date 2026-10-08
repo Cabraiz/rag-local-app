@@ -103,6 +103,18 @@ def test_a_database_with_appointments_is_only_replaced_on_request(saved, tmp_pat
         assert client.get(f"/appointments/{created[0]['id']}").json() == created[0]
 
 
+def test_a_restore_is_refused_while_the_api_runs_on_the_database(saved, tmp_path, monkeypatch, capsys):
+    # The API keeps a connection open while it runs: the restore would replace the database under it and forget the
+    # Idempotency-Keys written since the copy, so a retried POST would book twice.
+    created, copy = saved
+    with TestClient(api_app()) as client:
+        extra = client.post('/appointments', json=ORDERS[0], headers={'Idempotency-Key': 'depois-da-copia'}).json()
+        assert backup_module().main(['--entrada', 'backup.db', '--substituir']) == 2
+        assert 'está em uso pela API' in capsys.readouterr().err
+        assert client.post('/appointments', json=ORDERS[0], headers={'Idempotency-Key': 'depois-da-copia'}).json() == extra
+    assert backup_module().main(['--entrada', 'backup.db', '--substituir']) == 0  # the API stopped: restored
+
+
 def test_a_backup_never_overwrites_a_file_and_needs_a_database(saved, tmp_path, monkeypatch, capsys):
     _, copy = saved
     before = copy.read_bytes()

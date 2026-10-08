@@ -1,7 +1,7 @@
 """Backup and restore of the API database (SQLite), with the API running for the backup.
 
     python -m api.backup --saida backup.db      # online copy of DB_PATH, into DB_PATH's folder (/state)
-    python -m api.backup --entrada backup.db    # restore it into DB_PATH (API stopped); a name only, never a path
+    python -m api.backup --entrada backup.db    # restore it into DB_PATH (refused with the API up); a name only, never a path
 
 The copy uses SQLite's backup API: consistent while the API writes, recent commits in the write-ahead log
 included, in one file. It holds the exam lists encrypted, never the key (DB_ENCRYPTION_KEY or the api-key
@@ -69,10 +69,14 @@ def restore(source: Path, db_path: Path, cipher: AESGCM, replace: bool = False) 
             rows = backup_db.execute('SELECT id, status, exams, created_at FROM appointments').fetchall()
             for appointment_id, status, exams, created_at in rows:  # CryptoError: wrong key or edited row
                 decrypt(cipher, exams, row_fields(appointment_id, status, created_at))
-            if db_path.exists() and not replace:
-                with closing(connect(db_path)) as current:
+            if db_path.exists():
+                with closing(sqlite3.connect(db_path, timeout=0)) as current:
+                    try:  # the API keeps a connection open while it runs (api/main.py lifespan): no exclusive lock then
+                        current.executescript('PRAGMA locking_mode = EXCLUSIVE; BEGIN EXCLUSIVE; ROLLBACK')
+                    except sqlite3.OperationalError:
+                        raise BackupError(f'{db_path} está em uso pela API: pare-a (docker compose stop api)') from None
                     present = current.execute("SELECT name FROM sqlite_master WHERE name = 'appointments'").fetchone()
-                    if present and current.execute(COUNT).fetchone()[0]:
+                    if not replace and present and current.execute(COUNT).fetchone()[0]:
                         raise BackupError(f'{db_path} já tem agendamentos: para trocá-los pela cópia, '
                                           'pare a API e use --substituir')
             db_path.parent.mkdir(parents=True, exist_ok=True)
