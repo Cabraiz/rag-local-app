@@ -287,7 +287,7 @@ class BookingCallbacks:
         order['confirmed'] = [item for item in booked if answers.get(item['code'])]
         if not booked:
             return blocked(order, 'nenhum exame com confiança suficiente para agendar')
-        args['exams'] = [exams[item['code']] for item in booked]
+        args['exams'] = [{'code': item['code']} for item in booked]  # the API names each exam from its catalog
         return None
 
     def review_list(self, key):

@@ -7,7 +7,6 @@ import logging
 import re
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 
 import httpx
 import pytest
@@ -28,6 +27,7 @@ from transpiler import transpile
 
 BODY = {'exams': [{'code': 'FICT-001', 'name': 'Hemograma'}]}
 OTHER = {'exams': [{'code': 'FICT-002', 'name': 'Glicemia'}]}
+BOTH = {'exams': [{'code': 'FICT-001'}, {'code': 'FICT-002'}]}
 
 
 def rows(table):
@@ -43,11 +43,11 @@ def test_same_key_and_body_returns_the_same_appointment(client):
     assert len(rows('appointments')) == 1
 
 
-def test_same_key_with_another_body_is_409(client):
+def test_same_key_with_an_exam_already_booked_in_another_list_is_409(client):
     assert client.post('/appointments', json=BODY, headers={'Idempotency-Key': 'pedido-42'}).status_code == 201
-    response = client.post('/appointments', json=OTHER, headers={'Idempotency-Key': 'pedido-42'})
+    response = client.post('/appointments', json=BOTH, headers={'Idempotency-Key': 'pedido-42'})
     assert response.status_code == 409
-    assert response.json() == {'detail': 'Esta Idempotency-Key já foi usada com outros exames. '
+    assert response.json() == {'detail': 'Esta Idempotency-Key já agendou um destes exames, com outra lista. '
                                          'Para um novo agendamento, use uma chave nova.'}
     assert len(rows('appointments')) == 1
 
@@ -75,7 +75,7 @@ def test_twenty_simultaneous_posts_with_one_key_create_one_appointment(client, m
 
 def test_the_key_and_the_request_are_stored_only_as_keyed_hashes(client):
     client.post('/appointments', json=BODY, headers={'Idempotency-Key': 'pedido-Maria-123.456.789-00'})
-    [(key_hash, request_hash, _, created_at)] = rows('idempotency_keys')
+    [(key_hash, request_hash, _, created_at)] = rows('idempotency_keys')  # one row per exam
     for stored in (key_hash, request_hash):
         assert re.fullmatch(r'[0-9a-f]{64}', stored)
     plain_key = hashlib.sha256(b'pedido-Maria-123.456.789-00').hexdigest()
@@ -95,12 +95,19 @@ def test_a_reworded_name_or_another_order_with_the_same_codes_is_a_replay(client
     assert len(rows('appointments')) == 1
 
 
-@pytest.mark.parametrize('other_codes', [['FICT-002'], ['FICT-001', 'FICT-002']])
-def test_the_same_key_with_other_codes_is_409_even_with_the_same_names(client, other_codes):
-    assert client.post('/appointments', json=BODY, headers={'Idempotency-Key': 'pedido-8'}).status_code == 201
-    other = {'exams': [{'code': code, 'name': 'Hemograma'} for code in other_codes]}
-    assert client.post('/appointments', json=other, headers={'Idempotency-Key': 'pedido-8'}).status_code == 409
-    assert len(rows('appointments')) == 1
+def test_a_key_books_each_exam_once_whatever_the_list_around_it(client):
+    # A retry of the same order (the same key) never books an exam twice: a list with an exam the key already
+    # booked, in another list, is 409, even with the same names; an exam it never booked is booked once.
+    def post(body):
+        return client.post('/appointments', json=body, headers={'Idempotency-Key': 'pedido-8'})
+
+    first = post(BODY).json()
+    assert post({'exams': [{'code': 'FICT-001', 'name': 'Hemograma'}, {'code': 'FICT-002'}]}).status_code == 409
+    second = post(OTHER)  # FICT-002, never booked with this key
+    assert second.status_code == 201 and [exam['code'] for exam in second.json()['exams']] == ['FICT-002']
+    assert post(BOTH).status_code == 409  # both are booked, each in its own list
+    assert post(BODY).json() == first and post(OTHER).json() == second.json()  # each list replays
+    assert len(rows('appointments')) == 2 and len(rows('idempotency_keys')) == 2
 
 
 def test_a_key_expires_after_the_ttl_and_can_be_used_again(client, monkeypatch):
@@ -108,7 +115,7 @@ def test_a_key_expires_after_the_ttl_and_can_be_used_again(client, monkeypatch):
     monkeypatch.setattr(api_module(), 'now', lambda: clock[0])
     first = client.post('/appointments', json=BODY, headers={'Idempotency-Key': 'pedido-9'}).json()
     clock[0] += 24 * 3600 - 1  # still within the default 24 h: the same appointment
-    assert client.post('/appointments', json=OTHER, headers={'Idempotency-Key': 'pedido-9'}).status_code == 409
+    assert client.post('/appointments', json=BOTH, headers={'Idempotency-Key': 'pedido-9'}).status_code == 409
     assert client.post('/appointments', json=BODY, headers={'Idempotency-Key': 'pedido-9'}).json() == first
     clock[0] += 1  # 24 h later: forgotten, so the key books anew (here other exams)
     renewed = client.post('/appointments', json=OTHER, headers={'Idempotency-Key': 'pedido-9'})
@@ -137,51 +144,20 @@ def test_an_invalid_ttl_stops_the_start(tmp_path, monkeypatch, value):
     assert str(stop.value) == 'API_IDEMPOTENCY_TTL_HOURS inválido: use um número inteiro de horas, a partir de 1.'
 
 
-def legacy_database(tmp_path, monkeypatch, keys):
-    """A database as earlier versions left it: the table `idempotency` with each key in clear and a hash
-    of the whole body, plus a key whose appointment is gone. Returns (the app, {key: its appointment})."""
+def test_the_clear_keys_of_an_earlier_version_are_erased_at_startup(tmp_path, monkeypatch):
     app = configure(tmp_path, monkeypatch)
     with TestClient(app) as client:
-        booked = {key: client.post('/appointments', json=body).json() for key, body in keys.items()}
+        booked = client.post('/appointments', json=BODY).json()
     with contextlib.closing(sqlite3.connect(app.state.db_path)) as connection, connection:
-        connection.execute('DROP TABLE idempotency_keys')
         connection.execute('CREATE TABLE idempotency (key TEXT PRIMARY KEY, body_hash TEXT NOT NULL, '
                            'appointment_id TEXT NOT NULL)')
-        connection.executemany('INSERT INTO idempotency VALUES (?, ?, ?)',
-                               [(key, 'f' * 64, appointment['id']) for key, appointment in booked.items()])
-        connection.execute('INSERT INTO idempotency VALUES (?, ?, ?)', ('sem-agendamento', 'f' * 64, 'x'))
-    return app, booked
-
-
-def test_a_database_with_clear_keys_is_migrated_at_startup(tmp_path, monkeypatch):
-    app, booked = legacy_database(tmp_path, monkeypatch, {'pedido-Maria-antigo': BODY, 'pedido-2': OTHER})
+        connection.execute('INSERT INTO idempotency VALUES (?, ?, ?)', ('pedido-Maria-antigo', 'f' * 64, booked['id']))
     with TestClient(app) as client:
         with contextlib.closing(sqlite3.connect(app.state.db_path)) as connection:
-            tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-        assert 'idempotency' not in tables and len(rows('idempotency_keys')) == 2  # the orphan key is dropped
-        # The migrated keys still replay their appointment, by its codes, and refuse other codes.
-        renamed = {'exams': [{'code': 'FICT-001', 'name': 'outro nome'}]}
-        again = client.post('/appointments', json=renamed, headers={'Idempotency-Key': 'pedido-Maria-antigo'})
-        assert again.status_code == 201 and again.json() == booked['pedido-Maria-antigo']
-        assert client.post('/appointments', json=BODY, headers={'Idempotency-Key': 'pedido-2'}).status_code == 409
-        # They expire counting from the appointment's own creation time.
-        created = int(datetime.fromisoformat(booked['pedido-2']['created_at']).timestamp())
-        assert created in {row[3] for row in rows('idempotency_keys')}
+            assert connection.execute("SELECT 1 FROM sqlite_master WHERE name = 'idempotency'").fetchone() is None
+        assert client.get(f"/appointments/{booked['id']}").json() == booked  # the appointment stays
     files = [path.read_bytes() for path in app.state.db_path.parent.glob('appointments.db*')]
-    assert files and not any(b'pedido-Maria-antigo' in data or b'sem-agendamento' in data for data in files)
-    with TestClient(app):  # a second start finds nothing to migrate
-        assert len(rows('idempotency_keys')) == 2
-
-
-def test_a_migration_with_another_database_key_changes_nothing_and_stops(tmp_path, monkeypatch):
-    app, _ = legacy_database(tmp_path, monkeypatch, {'pedido-3': BODY})
-    from api.crypto import CryptoError, new_key
-    monkeypatch.setenv('DB_ENCRYPTION_KEY', new_key())
-    with pytest.raises(CryptoError), TestClient(app):
-        pass
-    with contextlib.closing(sqlite3.connect(app.state.db_path)) as connection:
-        assert sorted(connection.execute('SELECT key FROM idempotency').fetchall()) == [('pedido-3',), ('sem-agendamento',)]
-        assert connection.execute("SELECT name FROM sqlite_master WHERE name = 'idempotency_keys'").fetchone() is None
+    assert files and not any(b'pedido-Maria-antigo' in data for data in files)  # secure_delete
 
 
 @pytest.mark.parametrize('key', ['', 'com espaço', 'x' * 129, 'acentuação'])
@@ -225,7 +201,7 @@ def test_the_agent_sends_one_key_of_its_own_per_run_never_the_models(tmp_path):
     for _ in range(2):
         args = {'exams': [{'code': 'FICT-001', 'name': 'Hemograma'}], 'idempotency_key': 'pedido-Maria'}
         assert agent.CALLBACKS.before_tool(FakeTool('create_appointment'), args, context) is None
-        assert args['exams'] == [{'code': 'FICT-001', 'name': 'Hemograma'}]
+        assert args['exams'] == [{'code': 'FICT-001'}]  # the API names it from its catalog
         keys.append(args['idempotency_key'])
     assert keys[0] == keys[1] and re.fullmatch(r'[0-9a-f]{32}', keys[0])
     other = FakeContext()  # another run, another key
@@ -234,6 +210,21 @@ def test_the_agent_sends_one_key_of_its_own_per_run_never_the_models(tmp_path):
     args = {'exams': [{'code': 'FICT-001', 'name': 'Hemograma'}]}
     agent.CALLBACKS.before_tool(FakeTool('create_appointment'), args, other)
     assert args['idempotency_key'] != keys[0]
+
+
+def test_the_booking_body_has_only_the_codes_whatever_the_model_adds(client, tmp_path):
+    # Fields the API forbids (extra='forbid'), also nested in an exam, would fail the whole order with a 422:
+    # the runtime sends {code} alone, and the API answers with the catalog's names.
+    agent, context = generated_module(tmp_path), FakeContext()
+    agent.CALLBACKS.after_tool(FakeTool('extract_exam_text'), {}, context, ocr_reply('1. Hemograma completo'))
+    search(agent, context, 'Hemograma', ('FICT-001', 'Hemograma completo', 1.0))
+    proposed = [{'code': 'FICT-001', 'name': 'Maria ' * 40, 'notes': {'paciente': 'Maria'}, 'extra': [1]}]
+    assert client.post('/appointments', json={'exams': proposed}).status_code == 422  # what the model's body would get
+    args = {'exams': proposed}
+    assert agent.CALLBACKS.before_tool(FakeTool('create_appointment'), args, context) is None
+    assert args['exams'] == [{'code': 'FICT-001'}]
+    created = client.post('/appointments', json={'exams': args['exams']}, headers={'Idempotency-Key': args['idempotency_key']})
+    assert created.status_code == 201 and created.json()['exams'] == [{'code': 'FICT-001', 'name': 'Hemograma completo'}]
 
 
 @pytest.mark.parametrize('second_body', ['the same', 'another'])
@@ -267,24 +258,27 @@ def access_log(caplog):
 def test_one_json_line_per_request_without_body_or_key(client, access_log):
     secret = {'exams': [{'code': 'FICT-001', 'name': 'Maria Sentinela 123.456.789-00'}]}
     created = client.post('/appointments', json=secret, headers={'Idempotency-Key': 'chave-secreta',
-                                                                  'X-Request-ID': 'abc-123'})
+                                                                  'X-Request-ID': 'pedido-Maria-123'})
     client.get(f"/appointments/{created.json()['id']}")
     client.get('/nao/existe/Maria')
     client.get('/openapi.json')
     client.post('/appointments', content=b'x' * 20_000, headers={'content-type': 'application/json'})
     lines = access_log()
-    assert created.headers['x-request-id'] == 'abc-123'
+    assert re.fullmatch(r'[0-9a-f]{32}', created.headers['x-request-id'])  # ours, never the client's
     assert [(line['method'], line['route'], line['status']) for line in lines] == [
         ('POST', '/appointments', 201), ('GET', '/appointments/{appointment_id}', 200),
         ('GET', '(sem rota)', 404), ('GET', '/openapi.json', 200), ('POST', '(sem rota)', 413)]
     assert all(set(line) == {'request_id', 'method', 'route', 'status', 'duration_ms'} for line in lines)
-    assert lines[0]['request_id'] == 'abc-123' and len({line['request_id'] for line in lines}) == 5
+    assert lines[0]['request_id'] == created.headers['x-request-id'] and len({line['request_id'] for line in lines}) == 5
     text = json.dumps(lines)
     assert 'Sentinela' not in text and 'chave-secreta' not in text and 'Maria' not in text
 
 
-def test_a_forged_request_id_is_replaced(client, access_log):
-    sent = [client.get('/health', headers={'X-Request-ID': forged}).headers['x-request-id']
-            for forged in ('x", "status": 200', 'a' * 65)]
-    assert [line['request_id'] for line in access_log()] == sent
-    assert all(len(request_id) == 32 for request_id in sent)  # new uuid4().hex values
+def test_a_client_request_id_or_method_never_reaches_the_log(client, access_log):
+    sent = [client.get('/health', headers={'X-Request-ID': given}).headers['x-request-id']
+            for given in ('x", "status": 200', 'a' * 65, 'Maria-Silva', 'abc-123')]
+    refused = client.request('MARIASILVA', '/health')
+    lines = access_log()
+    assert [line['request_id'] for line in lines] == [*sent, refused.headers['x-request-id']]
+    assert all(re.fullmatch(r'[0-9a-f]{32}', request_id) for request_id in sent)  # new uuid4().hex values
+    assert lines[-1]['method'] == '(outro)' and 'Maria' not in json.dumps(lines) and 'abc-123' not in json.dumps(lines)

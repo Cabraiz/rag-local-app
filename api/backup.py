@@ -1,7 +1,7 @@
 """Backup and restore of the API database (SQLite), with the API running for the backup.
 
     python -m api.backup --saida backup.db      # online copy of DB_PATH, into DB_PATH's folder (/state)
-    python -m api.backup --entrada backup.db    # restore it into DB_PATH (API stopped)
+    python -m api.backup --entrada backup.db    # restore it into DB_PATH (API stopped); a name only, never a path
 
 The copy uses SQLite's backup API: consistent while the API writes, recent commits in the write-ahead log
 included, in one file. It holds the exam lists encrypted, never the key (DB_ENCRYPTION_KEY or the api-key
@@ -13,7 +13,7 @@ import os
 import sqlite3
 import sys
 from contextlib import closing
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -25,8 +25,7 @@ class BackupError(Exception):
     """A fixed message for the operator; it never contains the key or the data."""
 
 
-def count_appointments(connection: sqlite3.Connection) -> int:
-    return connection.execute('SELECT COUNT(*) FROM appointments').fetchone()[0]
+COUNT = 'SELECT COUNT(*) FROM appointments'
 
 
 def backup(db_path: Path, target: Path) -> int:
@@ -35,21 +34,16 @@ def backup(db_path: Path, target: Path) -> int:
         raise BackupError(f'banco não encontrado em {db_path}')
     if target.exists():
         raise BackupError(f'{target} já existe: escolha outro nome, a cópia nunca sobrescreve um arquivo')
-    if not target.parent.is_dir():
-        raise BackupError(f'a pasta {target.parent} não existe; use só um nome de arquivo (ex.: backup.db)')
     try:
         with closing(connect(db_path)) as source, closing(sqlite3.connect(target)) as copy:
             source.backup(copy)  # page by page, under SQLite's own locks: a consistent snapshot
             copy.execute('PRAGMA journal_mode = DELETE')  # one file, no -wal beside it
             if copy.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
                 raise BackupError('a cópia não passou no integrity_check do SQLite')
-            appointments = count_appointments(copy)
-    except BackupError:
+            appointments = copy.execute(COUNT).fetchone()[0]
+    except (BackupError, sqlite3.Error, OSError) as error:
         target.unlink(missing_ok=True)  # no half copy left behind
-        raise
-    except (sqlite3.Error, OSError) as error:
-        target.unlink(missing_ok=True)
-        raise BackupError(f'cópia falhou: {error}') from None
+        raise error if isinstance(error, BackupError) else BackupError(f'cópia falhou: {error}') from None
     return appointments
 
 
@@ -78,7 +72,7 @@ def restore(source: Path, db_path: Path, cipher: AESGCM, replace: bool = False) 
             if db_path.exists() and not replace:
                 with closing(connect(db_path)) as current:
                     present = current.execute("SELECT name FROM sqlite_master WHERE name = 'appointments'").fetchone()
-                    if present and count_appointments(current):
+                    if present and current.execute(COUNT).fetchone()[0]:
                         raise BackupError(f'{db_path} já tem agendamentos: para trocá-los pela cópia, '
                                           'pare a API e use --substituir')
             db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -93,14 +87,16 @@ def restore(source: Path, db_path: Path, cipher: AESGCM, replace: bool = False) 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog='python -m api.backup', description='Cópia e restauração do banco (DB_PATH).')
     action = parser.add_mutually_exclusive_group(required=True)
-    # A relative name is in DB_PATH's folder: no absolute path, which Git Bash rewrites (C:/Program Files/Git/...).
-    action.add_argument('--saida', type=Path, help='grava uma cópia consistente do banco neste arquivo novo')
-    action.add_argument('--entrada', type=Path, help='restaura esta cópia no banco (com a API parada)')
+    action.add_argument('--saida', help='grava uma cópia consistente do banco neste arquivo novo')
+    action.add_argument('--entrada', help='restaura esta cópia no banco (com a API parada)')
     parser.add_argument('--substituir', action='store_true',
                         help='com --entrada: troca um banco que já tem agendamentos pela cópia')
     args = parser.parse_args(argv)
+    name = args.entrada if args.saida is None else args.saida  # a bare name, in DB_PATH's folder
+    if name in ('', '.', '..') or Path(name).name != name or PureWindowsPath(name).name != name:
+        parser.error('use só um nome de arquivo, sem pasta nem caminho (ex.: backup.db)')
     db_path = Path(os.environ.get('DB_PATH', DEFAULT_DB_PATH))
-    file = db_path.parent / (args.saida or args.entrada)
+    file = db_path.parent / name
     try:
         if args.saida:
             total = backup(db_path, file)

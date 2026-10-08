@@ -42,12 +42,10 @@ DEFAULT_DB_PATH = '/state/appointments.db'
 DEFAULT_KEY_FILE = '/keys/db.key'  # the key created on the first start when DB_ENCRYPTION_KEY is empty
 DEFAULT_CATALOG = Path(__file__).resolve().parents[1] / 'data' / 'exams.json'
 MAX_BODY_BYTES = 16_384  # 20 exams fit in a few KB
-# Per client IP. The load test (500 orders, a POST and a GET each, from one container) stays
-# well below the default (1200); 0 turns the limit off.
+# Per client IP; the load test (500 orders, a POST and a GET each) stays well below the default (1200); 0: off.
 RATE_LIMIT_VARIABLE = 'API_RATE_LIMIT_PER_MINUTE'
 TTL_VARIABLE = 'API_IDEMPOTENCY_TTL_HOURS'  # default 24; after it a key is forgotten and books anew
-# Host names the API answers, on any port (comma separated): the published loopback port and the
-# compose service. A page whose name a DNS rebinding points at 127.0.0.1 sends its own name: 400.
+# Host names the API answers, on any port (comma separated); a page a DNS rebinding points here sends its own: 400.
 HOSTS_VARIABLE = 'API_ALLOWED_HOSTS'
 DEFAULT_HOSTS = '127.0.0.1,localhost,api'
 now = time.time  # the clock of the Idempotency-Key expiry
@@ -73,12 +71,12 @@ def allowed_hosts() -> frozenset[str]:
     return frozenset(hosts or DEFAULT_HOSTS.split(','))
 
 
-def fingerprints(database_key: bytes, key: str, codes: list[str]) -> tuple[str, ...]:
-    """What idempotency stores: HMACs, under keys derived from the database key, of the Idempotency-Key
-    (a client may put personal data in it) and of the set of codes, all that defines a booking (the
-    stored names are the catalog's; a plain hash of a short code list could be reversed by trying)."""
-    return tuple(hmac.new(hmac.new(database_key, label, hashlib.sha256).digest(), text.encode(), hashlib.sha256)
-                 .hexdigest() for label, text in ((b'idempotency-key', key), (b'idempotency-body', ' '.join(sorted(codes)))))
+def fingerprints(database_key: bytes, key: str, codes: list[str]) -> tuple[list[str], str]:
+    """What idempotency stores, as HMACs under keys derived from the database key (the key may carry personal
+    data; a plain hash of codes is reversed by trying): the key with each code, one row per exam, and the code set."""
+    mac = [hmac.new(database_key, label, hashlib.sha256).digest() for label in (b'idempotency-key', b'idempotency-body')]
+    return ([hmac.new(mac[0], f'{key} {code}'.encode(), hashlib.sha256).hexdigest() for code in codes],
+            hmac.new(mac[1], ' '.join(sorted(codes)).encode(), hashlib.sha256).hexdigest())
 
 
 class RateLimiter:
@@ -111,23 +109,20 @@ def row_fields(appointment_id: str, status: str, created_at: str) -> str:
     return json.dumps([appointment_id, status, created_at])
 
 
-# One writer at a time inside this process; SQLite's busy timeout covers the rest.
-WRITE_LOCK = threading.Lock()
+WRITE_LOCK = threading.Lock()  # one writer at a time inside this process; SQLite's busy timeout covers the rest
 
 
 def connect(db_path: Path) -> sqlite3.Connection:
     """One connection per request; waits up to 10 s for a lock instead of failing."""
     connection = sqlite3.connect(db_path, timeout=10)
     connection.execute('PRAGMA busy_timeout = 10000')
-    # With WAL, NORMAL syncs at checkpoints instead of every commit: a crash of the API
-    # loses nothing; only an OS power loss could undo the most recent commits.
+    # With WAL, NORMAL syncs at checkpoints, not every commit: only an OS power loss could undo the latest commits.
     connection.execute('PRAGMA synchronous = NORMAL')
     return connection
 
 
-def init_db(db_path: Path, database_key: bytes, cipher: AESGCM) -> sqlite3.Connection:
-    """The tables; the clear keys of earlier versions (table `idempotency`) become HMACs with their appointment's
-    codes and time, then are erased. All or nothing: another database key raises CryptoError, and the API stops."""
+def init_db(db_path: Path) -> sqlite3.Connection:
+    """The tables; the clear Idempotency-Keys of earlier versions (table `idempotency`) are erased (secure_delete)."""
     db_path.parent.mkdir(parents=True, exist_ok=True)
     with closing(connect(db_path)) as connection, connection:
         connection.execute('PRAGMA journal_mode = WAL')  # readers never block the writer
@@ -137,15 +132,8 @@ def init_db(db_path: Path, database_key: bytes, cipher: AESGCM) -> sqlite3.Conne
                            '(id TEXT PRIMARY KEY, status TEXT, exams TEXT, created_at TEXT)')
         connection.execute('CREATE TABLE IF NOT EXISTS idempotency_keys (key_hash TEXT PRIMARY KEY, '
                            'request_hash TEXT NOT NULL, appointment_id TEXT NOT NULL, created_at INTEGER NOT NULL)')
-        if connection.execute("SELECT 1 FROM sqlite_master WHERE name = 'idempotency'").fetchone():
-            for key, *row in connection.execute('SELECT key, id, status, created_at, exams FROM idempotency '
-                                                'JOIN appointments ON id = appointment_id').fetchall():
-                codes = [exam['code'] for exam in json.loads(decrypt(cipher, row[3], row_fields(*row[:3])))]
-                connection.execute('INSERT OR IGNORE INTO idempotency_keys VALUES (?, ?, ?, ?)', (
-                    *fingerprints(database_key, key, codes), row[0], int(datetime.fromisoformat(row[2]).timestamp())))
-            connection.execute('DROP TABLE idempotency')
-    # Kept open while the server runs: if each request closed the last connection,
-    # SQLite would checkpoint and delete the WAL on every POST (one disk sync per request).
+        connection.execute('DROP TABLE IF EXISTS idempotency')  # a key now books each exam once (fingerprints)
+    # Kept open while serving: closing the last connection would checkpoint and delete the WAL on every POST.
     return connect(db_path)
 
 
@@ -158,12 +146,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     state.rate_limiter = RateLimiter(per_minute) if per_minute else None
     state.ttl = 3600 * setting(TTL_VARIABLE, 24, 1, 'use um número inteiro de horas, a partir de 1')
     state.allowed_hosts = allowed_hosts()
-    catalog = json.loads(Path(os.environ.get('EXAMS_PATH', DEFAULT_CATALOG)).read_text(encoding='utf-8'))
-    state.catalog = {row['code']: row['name'] for row in catalog}  # the same catalog the RAG server uses
+    catalog = Path(os.environ.get('EXAMS_PATH', DEFAULT_CATALOG))  # the same catalog the RAG server uses
+    state.catalog = {row['code']: row['name'] for row in json.loads(catalog.read_text(encoding='utf-8'))}
     key = resolve_key(os.environ.get(KEY_VARIABLE), Path(os.environ.get('DB_KEY_FILE', DEFAULT_KEY_FILE)))
     state.cipher, state.database_key = load_key(key), key_bytes(key)
     state.db_path = Path(os.environ.get('DB_PATH', DEFAULT_DB_PATH))
-    with closing(init_db(state.db_path, state.database_key, state.cipher)):
+    with closing(init_db(state.db_path)):
         yield
 
 
@@ -268,14 +256,10 @@ class BodyLimit(Middleware):
             if len(body) > MAX_BODY_BYTES:  # stop reading: the rest is never buffered
                 return await too_large(scope, receive, send)
             more = message.get('more_body', False)
-        replayed = False
+        once = iter([{'type': 'http.request', 'body': body, 'more_body': False}])
 
         async def replay():
-            nonlocal replayed
-            if replayed:
-                return await receive()
-            replayed = True
-            return {'type': 'http.request', 'body': body, 'more_body': False}
+            return next(once, None) or await receive()
 
         await self.app(scope, replay, send)
 
@@ -357,19 +341,16 @@ if not ACCESS_LOG.handlers:  # a handler set before the import (a test, a deploy
 ACCESS_LOG.setLevel(logging.INFO)  # always: with a handler set earlier, INFO lines would otherwise vanish
 ACCESS_LOG.propagate = False
 logging.getLogger('uvicorn.access').disabled = True
-REQUEST_ID = re.compile(r'[A-Za-z0-9._-]{1,64}')  # anything else is replaced, so the log cannot be forged
 
 
 class RequestLog(Middleware):
-    """request_id (X-Request-ID or a new one, echoed back), method, route, status, ms. Never the body, the query
-    or the Idempotency-Key; the route is the template (/appointments/{appointment_id}), never an unknown path."""
+    """request_id (a new one, sent back as X-Request-ID), method, route, status, ms. Never the body, the query, the
+    Idempotency-Key, a client's X-Request-ID, an unknown path or method; the route is the template (/appointments/{id})."""
 
     async def __call__(self, scope, receive, send):
         if scope['type'] != 'http':
             return await self.app(scope, receive, send)
-        given = dict(scope['headers']).get(b'x-request-id', b'').decode('latin-1')
-        request_id = given if REQUEST_ID.fullmatch(given) else uuid.uuid4().hex
-        status, start = 500, time.perf_counter()
+        request_id, status, start = uuid.uuid4().hex, 500, time.perf_counter()
 
         async def send_with_id(message):
             nonlocal status
@@ -383,7 +364,8 @@ class RequestLog(Middleware):
         finally:
             # API routes leave their template in scope; /docs and /openapi.json only their endpoint.
             route = getattr(scope.get('route'), 'path', None) or (scope['path'] if 'endpoint' in scope else None)
-            ACCESS_LOG.info(json.dumps({'request_id': request_id, 'method': scope['method'],
+            method = scope['method'] if scope['method'] in ('GET', 'HEAD', 'POST', 'OPTIONS') else '(outro)'
+            ACCESS_LOG.info(json.dumps({'request_id': request_id, 'method': method,
                                         'route': route or '(sem rota)', 'status': status,
                                         'duration_ms': round((time.perf_counter() - start) * 1000, 1)}))
 
@@ -412,8 +394,7 @@ MESSAGES: dict[str, Callable[[dict], str]] = {
     'string_too_short': lambda ctx: f"Deve ter pelo menos {count(ctx['min_length'], 'caractere', 'caracteres')}.",
     'string_too_long': lambda ctx: f"Deve ter no máximo {count(ctx['max_length'], 'caractere', 'caracteres')}.",
     'string_pattern_mismatch': lambda ctx: 'Formato inválido.',
-    'uuid_parsing': lambda ctx: 'Deve ser um UUID, como 3fa85f64-5717-4562-b3fc-2c963f66afa6.',
-    'uuid_type': lambda ctx: 'Deve ser um UUID, como 3fa85f64-5717-4562-b3fc-2c963f66afa6.',
+    **dict.fromkeys(('uuid_parsing', 'uuid_type'), lambda ctx: 'Deve ser um UUID, como 3fa85f64-5717-4562-b3fc-2c963f66afa6.'),
 }
 
 
@@ -450,9 +431,9 @@ def health(request: Request) -> dict:
                       '`name` é opcional, e a API grava e devolve o nome oficial do catálogo. Código fora do formato '
                       '`FICT-000`, repetido ou inexistente no catálogo retorna 422; cada item de `detail` '
                       'aponta o campo (`loc`) e explica o motivo (`msg`). Corpo acima de 16 KB retorna 413. '
-                      'Com `Idempotency-Key`, repetir a requisição com os mesmos códigos devolve o mesmo agendamento.',
+                      'Com `Idempotency-Key`, os mesmos códigos devolvem o mesmo agendamento; nenhum exame se repete.',
           responses={400: HOST_REFUSED,
-                     409: {'model': Message, 'description': '`Idempotency-Key` já usada com outros códigos.'},
+                     409: {'model': Message, 'description': '`Idempotency-Key` já usada com um destes códigos.'},
                      413: {'model': Message, 'description': 'Corpo da requisição grande demais.'},
                      422: {'model': ValidationErrors, 'description': 'Corpo inválido ou código de exame desconhecido.'},
                      429: TOO_MANY_REQUESTS})
@@ -462,7 +443,7 @@ def create_appointment(
         idempotency_key: Annotated[str | None, Header(
             alias='Idempotency-Key', min_length=1, max_length=128, pattern=r'^[\x21-\x7e]+$',
             description='Opcional. Mesma chave e mesmos códigos (em qualquer ordem, com qualquer `name`) devolvem '
-                        'o mesmo agendamento (201) sem criar outro; mesma chave com outros códigos retorna 409. '
+                        'o mesmo agendamento (201); um código já agendado com ela, noutra lista, retorna 409. '
                         'Guardada só como HMAC, por `API_IDEMPOTENCY_TTL_HOURS` (padrão 24 h); depois pode ser '
                         'usada de novo. De 1 a 128 caracteres ASCII visíveis.',
             examples=['3f1c9a2e-retry-1'])] = None) -> Appointment:
@@ -473,8 +454,7 @@ def create_appointment(
                for index, exam in enumerate(request.exams) if exam.code not in state.catalog]
     if unknown:
         raise HTTPException(422, detail=unknown)
-    # The stored name is always the catalog's: free text from the request is never kept.
-    exams = [Exam(code=exam.code, name=state.catalog[exam.code]) for exam in request.exams]
+    exams = [Exam(code=exam.code, name=state.catalog[exam.code]) for exam in request.exams]  # never the request's
     created = int(now())
     appointment = Appointment(id=str(uuid.uuid4()), status='scheduled', exams=exams,
                               created_at=datetime.fromtimestamp(created, timezone.utc).isoformat(timespec='seconds'))
@@ -483,16 +463,16 @@ def create_appointment(
         if idempotency_key:
             connection.execute('BEGIN IMMEDIATE')  # the key check and the insert are one write transaction
             connection.execute('DELETE FROM idempotency_keys WHERE created_at <= ?', (created - state.ttl,))
-            row = (*fingerprints(state.database_key, idempotency_key, [exam.code for exam in request.exams]),
-                   appointment.id, created)
-            seen = connection.execute('SELECT request_hash, appointment_id FROM idempotency_keys WHERE key_hash = ?',
-                                      row[:1]).fetchone()
-            if seen and not hmac.compare_digest(seen[0], row[1]):
-                raise HTTPException(409, detail='Esta Idempotency-Key já foi usada com outros exames. '
-                                                'Para um novo agendamento, use uma chave nova.')
+            hashes, body = fingerprints(state.database_key, idempotency_key, [exam.code for exam in request.exams])
+            seen = connection.execute('SELECT request_hash, appointment_id FROM idempotency_keys WHERE key_hash IN '
+                                      f'({", ".join("?" * len(hashes))})', hashes).fetchall()  # only placeholders
+            if len(seen) == len(hashes) and all(hmac.compare_digest(row[0], body) for row in seen):
+                return load_appointment(connection, seen[0][1], state.cipher)  # the same codes: a replay
             if seen:
-                return load_appointment(connection, seen[1], state.cipher)
-            connection.execute('INSERT INTO idempotency_keys VALUES (?, ?, ?, ?)', row)
+                raise HTTPException(409, detail='Esta Idempotency-Key já agendou um destes exames, com outra lista. '
+                                                'Para um novo agendamento, use uma chave nova.')
+            connection.executemany('INSERT INTO idempotency_keys VALUES (?, ?, ?, ?)',
+                                   [(hashed, body, appointment.id, created) for hashed in hashes])
         connection.execute('INSERT INTO appointments VALUES (?, ?, ?, ?)',
                            (appointment.id, appointment.status,
                             encrypt(state.cipher, json.dumps([exam.model_dump() for exam in exams]),
