@@ -34,6 +34,7 @@ DEFAULT_AGENT = 'generated/agent.py'
 NO_TERMINAL = 'sem terminal para confirmar a lista de exames: rode num terminal ou com --yes'
 NO_TERMINAL_AT_START = (f'{NO_TERMINAL}; nada foi lido nem agendado (no docker compose, terminal é `run` sem -T; '
                         'com --yes, só as regras decidem e os exames que pediriam confirmação ficam de fora)')
+UNDECIDED_WITH_YES = 3  # exit code: booked with --yes, and exams of the order left undecided (checked_run)
 SET_ANSWER = 'set_model_response'  # ADK's tool for an output_schema (runtime/plugin.py, ListedExams): writes nothing
 
 
@@ -290,6 +291,7 @@ def show_listing(found, spec):
 
 
 def print_result(found):
+    """The table and the appointment line; returns how many exams of the order the agent made no decision on."""
     print_reading(found)
     exams = found['appointment']['exams']
     width = max(len('Exame'), *(len(exam['name']) for exam in exams))
@@ -298,11 +300,12 @@ def print_result(found):
     for exam in exams:
         print(f'| {exam["name"]:<{width}} | {exam["code"]:<8} |')
     appointment = found['appointment']
-    # The appointment exists, so the exit code stays 0; the line says when the agent left exams out.
+    # The line says when the agent left exams of the order out (the exit code: checked_run).
     left = sum(item.get('reason') in UNDECIDED for item in found['low_confidence'])
     check = (f'; ATENÇÃO: {left} possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima'
              if left else '')
     print(f'\nAgendamento confirmado pela API: id {appointment["id"]}, status {appointment["status"]}{check}')
+    return left
 
 
 def validate_args(args):
@@ -400,7 +403,7 @@ def booking_problem(found, spec):
 
 def show_appointment(found):
     try:
-        print_result(found)
+        return print_result(found)
     except (KeyError, TypeError):
         raise RunError('a API respondeu sem o formato esperado (id, status e exams com code e name)') from None
 
@@ -432,8 +435,9 @@ def checked_run(args):
         if found['appointment'] is None:
             print_reading(found)
             raise RunError(ocr_problem(found, spec) or booking_problem(found, spec))
-        show_appointment(found)
-        return 0
+        # The appointment exists: 0, as when a person saw the list. With --yes nobody saw the exams of the order the
+        # agent left undecided, and automation must not take the partial booking for a success.
+        return UNDECIDED_WITH_YES if show_appointment(found) and args.yes else 0
     finally:  # also when nothing was scheduled: the time comes before the error line
         print(timing(found, spec, time.monotonic() - start))
 

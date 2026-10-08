@@ -152,17 +152,28 @@ def test_a_poorly_read_line_reports_at_its_reading(agent):
     assert check(agent, context, ['FICT-001']) == [('FICT-005', 'Creatinina', 'not_searched', 0.55, '2. Creatinina')]
 
 
+UNDECIDED = [{'code': 'FICT-009', 'name': 'Triglicerídeos', 'confidence': 1.0, 'line': 8,
+              'read': '2. Colesterol total e Triglicerideos', 'reason': 'not_searched'}]
+ONE_BOOKED = {'id': 'a1', 'status': 'scheduled', 'exams': [{'code': 'FICT-003', 'name': 'Hemoglobina glicada'}]}
+
+
 def test_the_cli_says_the_agent_left_an_exam_out_and_keeps_exit_0(ready_run, monkeypatch, capsys):  # noqa: F811
-    appointment = {'id': 'a1', 'status': 'scheduled', 'exams': [{'code': 'FICT-003', 'name': 'Hemoglobina glicada'}]}
-    low = [{'code': 'FICT-009', 'name': 'Triglicerídeos', 'confidence': 1.0, 'line': 8,
-            'read': '2. Colesterol total e Triglicerideos', 'reason': 'not_searched'}]
-    monkeypatch.setattr(cli, 'run_agent', fake_run({'appointment': appointment, 'low_confidence': low}))
-    assert cli.main(ready_run) == 0  # the appointment exists: a script sees success, the person sees the warning
+    monkeypatch.setattr(cli, 'run_agent', fake_run({'appointment': ONE_BOOKED, 'low_confidence': UNDECIDED}))
+    assert cli.main(ready_run) == 0  # the appointment exists, and the person who confirmed the list sees the warning
     out = capsys.readouterr().out
     assert ("não buscado pelo agente: '2. Colesterol total e Triglicerideos' → Triglicerídeos FICT-009 "
             "(confiança 1,00); confira o pedido") in out
     assert ('Agendamento confirmado pela API: id a1, status scheduled; ATENÇÃO: 1 possível(is) exame(s) do '
             'pedido sem decisão do agente, confira os avisos acima') in out
+
+
+@pytest.mark.parametrize('low, code', [(UNDECIDED, 3), ([{**UNDECIDED[0], 'reason': 'score'}], 0), ([], 0)])
+def test_with_yes_an_exam_left_undecided_exits_3_not_0(ready_run, monkeypatch, capsys, low, code):  # noqa: F811
+    # An independent evaluation: with --yes, a partial booking (an exam of the order the agent never decided on,
+    # seen by nobody) exited 0, and automation took it for a success. Exams the rules left out are reported, not this.
+    monkeypatch.setattr(cli, 'run_agent', fake_run({'appointment': ONE_BOOKED, 'low_confidence': low}))
+    assert cli.main([*ready_run, '--yes']) == code == cli.UNDECIDED_WITH_YES * bool(code)
+    assert 'Agendamento confirmado pela API: id a1, status scheduled' in capsys.readouterr().out
 
 
 def test_without_the_catalog_search_the_report_says_the_order_was_not_checked(agent, monkeypatch):

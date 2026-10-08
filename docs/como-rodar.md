@@ -126,7 +126,7 @@ mascaradas) e, se ele pede o exame, agende-o à parte.
 | `lido mas não reconhecido no catálogo: linha N; confira o pedido` | Item da lista que não parece exame do catálogo; só o número da linha sai do OCR. | Conferir. |
 | `não incluído pelo agente: '<linha lida>' → <exame> <código> (confiança 0,xx); confira o pedido` | A busca achou o exame e o modelo o deixou de fora. | Conferir. |
 | `não buscado pelo agente: ...; confira o pedido` | A conferência do pedido inteiro, feita em código no RAG depois da execução, achou um exame que o modelo nem buscou. | Conferir. |
-| `…, status scheduled; ATENÇÃO: N possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima` | Há `não incluído` ou `não buscado`. O código de saída continua 0: o agendamento existe. | Ler os avisos acima. |
+| `…, status scheduled; ATENÇÃO: N possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima` | Há `não incluído` ou `não buscado`. O agendamento existe: o código de saída é 0 quando a pessoa confirmou a lista e 3 com `--yes`, para a automação notar. | Ler os avisos acima. |
 | `Aviso: o pedido não foi conferido por inteiro` | A conferência do pedido inteiro passou de 30 s (o RAG travou). | Conferir o pedido todo. |
 
 Todos os estados de um exame e a regra de cada um: [arquitetura.md](arquitetura.md#agendamento-conferido-em-código).
