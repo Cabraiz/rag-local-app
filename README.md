@@ -18,7 +18,7 @@ docker compose run --rm agent python -m cli run --image pedido.png       # image
 
 **Sem a CLI, com o próprio ADK:** `docker compose run --rm agent adk run --in_memory generated` e digite `pedido.png`; o `adk web` também funciona ([como](docs/como-rodar.md#4-rodar-com-adk-run-ou-adk-web), [vídeo 12](docs/videos.md#12-adk-sem-a-cli)).
 
-https://github.com/user-attachments/assets/a6e9fd9e-be6f-48ed-ba4e-356cc72f631b
+https://github.com/user-attachments/assets/3fbf2d2d-b6f0-433e-8304-02ed8728bfd4
 
 <sub>Todos os pontos do desafio em um vídeo, gravado numa execução real ([mp4](docs/videos-do-desafio/00-desafio-completo.mp4)).</sub>
 
