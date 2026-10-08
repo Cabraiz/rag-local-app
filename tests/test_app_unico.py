@@ -144,3 +144,19 @@ def test_copying_a_record_keeps_the_file_name_private():
 
 
 pytestmark = pytest.mark.filterwarnings(r'ignore:\[EXPERIMENTAL\]:UserWarning')
+
+
+def test_a_missing_api_key_ends_the_step_with_one_clear_line():
+    """`adk run` without GOOGLE_API_KEY: the step says what to do instead of a raw traceback."""
+    from types import SimpleNamespace
+
+    from runtime import callbacks
+
+    booking = callbacks.BookingCallbacks.__new__(callbacks.BookingCallbacks)
+    published = {}
+    booking.orders = SimpleNamespace(of=lambda context: {}, publish=lambda context, order: published.update(order))
+    error = ValueError('No API key was provided. Please pass a valid API key.')
+    reply = booking.model_failed(None, None, error)
+    assert 'GOOGLE_API_KEY não definida' in reply.content.parts[0].text
+    assert published['model_error'] == callbacks.NO_KEY
+    assert booking.model_failed(None, None, RuntimeError('something else')) is None

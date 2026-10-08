@@ -26,6 +26,7 @@ NO_ATTACHMENTS = ('Envie só o nome do arquivo do pedido, como texto, sem anexar
                   'lida pelo OCR, que mascara os dados pessoais antes do modelo. Nada foi lido nem agendado.')
 RAN_BEFORE = ('Esta sessão já tratou um pedido, antes de o agente ser reiniciado: confira os agendamentos e não '
               'repita este pedido. Para outro pedido, abra uma nova sessão. Nada foi lido nem agendado.')
+NO_KEY = 'GOOGLE_API_KEY não definida: preencha GOOGLE_API_KEY= no .env e rode de novo. Nada foi agendado.'
 ONE_ORDER = ('Esta sessão já tratou um pedido. Para outro pedido, abra uma nova sessão (no `adk run`, saia com '
              'exit e rode de novo; no `adk web`, New Session). Nada foi lido nem agendado.')
 
@@ -160,11 +161,11 @@ class BookingCallbacks:
         which ADK's FallbackModel already tried: runtime/adk.py), the step ends with one line saying so,
         and the next steps make no model call (before_model). The report then says nothing was booked,
         and `cli run` shows the same line. Any other error goes on as it is."""
-        error = relatorio.api_error_in(error)
-        if error is None:
+        api, no_key = relatorio.api_error_in(error), 'API key' in str(error)
+        if api is None and not no_key:
             return None
         order = self.orders.of(callback_context)
-        order['model_error'] = relatorio.model_failure(error.code, error.message)
+        order['model_error'] = NO_KEY if api is None else relatorio.model_failure(api.code, api.message)
         self.orders.publish(callback_context, order)
         return LlmResponse(content=said(order['model_error']))
 
