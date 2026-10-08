@@ -210,6 +210,14 @@ def test_what_the_repository_versions_reaches_the_test_image():
     assert len(tracked) > 100 and [path for path in tracked if not in_the_context(path)] == []
 
 
+def test_every_file_the_dockerfile_copies_reaches_the_build_context():
+    """Without git too: a new top-level module the images COPY must be allowed by .dockerignore, or the build fails."""
+    copied = [source for line in (ROOT / 'Dockerfile').read_text(encoding='utf-8').splitlines()
+              if line.strip().startswith('COPY') and '--from' not in line
+              for source in [word for word in line.split()[1:] if not word.startswith('--')][:-1]]
+    assert 'catalogo.py' in copied and [source for source in copied if source != '.' and not in_the_context(source)] == []
+
+
 def test_every_service_has_a_memory_and_process_cap_and_the_servers_a_cpu_cap():
     """A burst of large images restarts the OCR container at worst (or gets "OCR ocupado"), never fills the host."""
     services = yaml.safe_load((ROOT / 'docker-compose.yml').read_text(encoding='utf-8'))['services']
