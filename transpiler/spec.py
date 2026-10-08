@@ -10,6 +10,8 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
+from runtime.pedido import RECORD_KEYS
+
 IDENTIFIER = r'^[a-z][a-z0-9_]{0,39}$'
 TOOL_REF = r'^[a-z][a-z0-9_]{0,39}\.[a-z][a-z0-9_]{0,39}$'
 SSE_URL = r'^https?://[A-Za-z0-9.-]+(:\d+)?/sse$'
@@ -355,6 +357,8 @@ def check_agents(spec) -> list[str]:
                 problems.append(problem)
         if agent.output_key in available:
             problems.append(f'{where}.output_key: "{agent.output_key}" já é usado por outro agente')
+        elif agent.output_key in RECORD_KEYS:  # the runtime's copy of the order goes to the session state
+            problems.append(f'{where}.output_key: "{agent.output_key}" é reservado: o runtime usa essa chave do estado')
         available.append(agent.output_key)
         problems += tool_problems(spec, where, agent, done)
         done |= set(agent.tools)

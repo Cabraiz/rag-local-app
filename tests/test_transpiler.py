@@ -27,6 +27,7 @@ import runtime
 from runtime import confirmacao
 from runtime.callbacks import mcp_payload
 from runtime.confianca import BookingPolicy, line_support
+from runtime.pedido import RECORD_KEYS
 from transpiler import TranspileError, load_root_agent, parse_spec, render, transpile
 from transpiler.spec import Booking, OcrFloor
 
@@ -106,6 +107,35 @@ def test_generated_code_imports_only_google_adk_and_the_runtime(tmp_path):
 ])
 def test_invalid_specs_name_the_field_and_the_reason(text, expected):
     assert any(problem.startswith(expected) for problem in problems(text)), problems(text)
+
+
+@pytest.mark.parametrize('key', RECORD_KEYS)
+def test_an_output_key_named_after_a_key_of_the_order_record_is_refused(key):
+    """The runtime copies the order's record into the session state: an output_key "ocr_read" read as
+    {ocr_read} by the next agent would hand it every line of the page, not only the exam lines."""
+    def collide(spec):
+        spec['agents'][0]['output_key'] = key
+        spec['agents'][1]['instruction'] += f' Exames: {{{key}}}'
+    assert f'agents.0.output_key: "{key}" é reservado: o runtime usa essa chave do estado' in problems(spec_with(collide))
+
+
+def test_the_reserved_keys_are_every_key_the_runtime_keeps_in_the_order_record():
+    """Every constant key runtime/ reads or writes on the record (named order, state or record there, and the
+    record of an evicted session), so a key added to the runtime cannot be forgotten in RECORD_KEYS."""
+    found = set()
+    for path in (ROOT / 'runtime').glob('*.py'):
+        for node in ast.walk(ast.parse(path.read_text(encoding='utf-8'))):
+            if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name):
+                owner, keys = node.value.id, [node.slice]
+            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+                owner = node.func.value.id
+                keys = node.args[:1] if node.func.attr in ('get', 'setdefault', 'pop') else (
+                    node.args[0].keys if node.func.attr == 'update' and node.args and isinstance(node.args[0], ast.Dict) else [])
+            else:
+                continue
+            if owner in ('order', 'state', 'record', 'gone', 'kept'):
+                found |= {key.value for key in keys if isinstance(key, ast.Constant) and isinstance(key.value, str)}
+    assert 'ocr_read' in found and found == set(RECORD_KEYS)
 
 
 @pytest.mark.parametrize('change, expected', [
