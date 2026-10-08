@@ -11,11 +11,7 @@ Sem LLM: a imagem bruta não sai do processo do OCR (a PII ainda não foi mascar
 
 Medido em 185 pedidos (5 de samples/, 60 da carga, 120 manuscritos): exames achados no
 texto 45% -> 53% (manuscritos 23% -> 34%), latência 1,6x a do PSM 3 sem preparo.
-tessdata_best e por+eng não ajudaram o bastante para valer o custo.
-
-Cada linha devolvida é um `Linha` (um str) com `.confianca` (0 a 100, média do conf do
-Tesseract nas suas palavras), que o agente usa para não agendar sozinho um exame lido com
-pouca confiança.
+tessdata_best e por+eng não ajudaram o bastante para valer o custo. Cada linha devolvida é um `Linha`.
 """
 import re
 from statistics import fmean, median
@@ -41,12 +37,13 @@ COLUNA = 4  # vão entre duas palavras, em alturas de letra, que separa colunas 
 
 
 class Linha(str):
-    """Uma linha lida, com a confiança média do Tesseract nas suas palavras (0 a 100)."""
+    """Uma linha lida, com a confiança média do Tesseract nas suas palavras (0 a 100) e a `caixa`: (topo,
+    base, altura da maior palavra, tinta: a mediana do tom mais escuro de cada palavra, 0 preto a 255)."""
     confianca: float
 
-    def __new__(cls, texto, confianca):
+    def __new__(cls, texto, confianca, caixa=None):
         linha = super().__new__(cls, texto)
-        linha.confianca = round(float(confianca), 1)
+        linha.confianca, linha.caixa = round(float(confianca), 1), caixa
         return linha
 
 
@@ -219,13 +216,20 @@ def ler_linhas(imagem, timeout, preparo=True, lang=LANG, config=CONFIG):
     imagem = preparar(imagem) if preparo else ImageOps.exif_transpose(imagem).convert('L')
     lidas = palavras(imagem, timeout, lang, config)
     if leitura_pobre(lidas) and (graus := rotacao(imagem, timeout)):
-        girada = palavras(imagem.rotate(-graus, expand=True, fillcolor=255), timeout, lang, config)
+        girada = palavras(virada := imagem.rotate(-graus, expand=True, fillcolor=255), timeout, lang, config)
         if confiantes(girada) >= max(POBRE_PALAVRAS, GANHO_GIRADA * confiantes(lidas)):
-            lidas = girada
+            lidas, imagem = girada, virada
         elif confiantes(lidas) < POBRE_PALAVRAS:
             raise ImagemGirada('imagem de lado ou de cabeça para baixo: gire e envie de novo')
     cortes = colunas(linhas := juntar_por_altura(lidas))  # uma tabela ou colunas: cada célula separada por "|"
-    return [Linha(juntar_texto(linha, {j for k, j in cortes if k == i}), confianca(linha)) for i, linha in enumerate(linhas)]
+    return [Linha(juntar_texto(linha, {j for k, j in cortes if k == i}), confianca(linha), caixa(linha, imagem))
+            for i, linha in enumerate(linhas)]
+
+
+def caixa(linha, imagem):
+    """(topo, base, altura, tinta) de uma linha: onde está, o tamanho da letra e o quanto é escura."""
+    tons = [imagem.crop((p[0], p[1], p[0] + p[2], p[1] + p[3])).getextrema()[0] for p in linha]
+    return min(p[1] for p in linha), max(p[1] + p[3] for p in linha), max(p[3] for p in linha), median(tons)
 
 
 def confianca_por_linha(lidas, minimo=0.0, origens=None):
