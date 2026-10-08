@@ -28,8 +28,8 @@ from runtime import confirmacao
 from runtime.callbacks import mcp_payload
 from runtime.confianca import BookingPolicy, line_support
 from runtime.pedido import RECORD_KEYS
+from runtime.plugin import ROLES, BookingConfig, BookingPlugin
 from transpiler import TranspileError, load_root_agent, parse_spec, render, transpile
-from transpiler.spec import Booking, OcrFloor
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC_FILE = ROOT / 'specs' / 'agent.json'
@@ -41,6 +41,17 @@ def spec_with(change):
     data = copy.deepcopy(SPEC)
     change(data)
     return json.dumps(data)
+
+
+def booking(spec):
+    """The kwargs of the example spec's BookingPlugin: its roles and its policy."""
+    return spec['plugins'][0]['kwargs']
+
+
+def transpiled_app(spec_file, output):
+    """The `app` of the file transpiled from spec_file: its root_agent and its plugins, from one import."""
+    transpile(spec_file, output)
+    return load_root_agent(output, name='app')
 
 
 def problems(text):
@@ -66,8 +77,16 @@ def test_example_spec_becomes_a_sequential_adk_pipeline(tmp_path, monkeypatch):
     assert extract.model.model == SPEC['model'] and extract.model.models[1].model == SPEC['fallback_model']
     retries = [(model.retry_options.attempts, sorted(model.retry_options.http_status_codes)) for model in extract.model.models]
     assert retries == [(5, [500]), (5, [429, 500, 503])]
-    assert extract.on_model_error_callback and schedule.on_model_error_callback
-    assert extract.after_tool_callback and search.after_tool_callback and schedule.before_tool_callback
+    # The booking policy is an App plugin, for every agent; no agent has callbacks of its own.
+    app = load_root_agent(tmp_path / 'agent.py', name='app')
+    [plugin] = app.plugins
+    assert isinstance(plugin, BookingPlugin) and (plugin.ocr_tool, plugin.search_tool, plugin.booking_tool) == (
+        'extract_exam_text', 'search_exams', 'create_appointment')
+    assert (plugin.ocr_url, plugin.search_url) == ('http://ocr:8001/sse', 'http://rag:8002/sse')
+    assert plugin.servers == ['http://ocr:8001/sse', 'http://rag:8002/sse', 'http://api:8000/openapi.json']
+    assert not any(getattr(agent, name, None) for agent in [app.root_agent, *app.root_agent.sub_agents]
+                   for name in ('before_agent_callback', 'after_agent_callback', 'before_model_callback',
+                                'on_model_error_callback', 'before_tool_callback', 'after_tool_callback'))
 
 
 def test_gemini_model_from_the_environment_overrides_the_spec(tmp_path, monkeypatch):
@@ -82,7 +101,7 @@ def test_generated_code_imports_only_google_adk_and_the_runtime(tmp_path):
     modules = {node.module if isinstance(node, ast.ImportFrom) else alias.name
                for node in ast.walk(tree) if isinstance(node, (ast.Import, ast.ImportFrom))
                for alias in node.names}
-    assert all(module.startswith(('google.adk.', 'google.genai')) or module == 'runtime' for module in modules), modules
+    assert all(module.startswith(('google.adk.', 'google.genai', 'runtime')) for module in modules), modules
     assert not [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.Lambda))]
 
 
@@ -139,12 +158,13 @@ def test_the_reserved_keys_are_every_key_the_runtime_keeps_in_the_order_record()
 
 
 @pytest.mark.parametrize('change, expected', [
-    (lambda s: s['booking'].update(min_confidence='0.9'),
-     'booking.min_confidence: deve ser um número (veio como texto: escreva sem aspas)'),
-    (lambda s: s['booking'].update(top_k='3'), 'booking.top_k: deve ser um número inteiro (veio como texto'),
-    (lambda s: s['booking'].update(top_k=3.5), 'booking.top_k: deve ser um número inteiro'),
-    (lambda s: s['booking'].update(ask_from=True), 'booking.ask_from: deve ser um número'),
-    (lambda s: s['booking']['ocr_floor'].update(line='75'), 'booking.ocr_floor.line: deve ser um número'),
+    (lambda s: booking(s).update(min_confidence='0.9'),
+     'plugins.0.kwargs.min_confidence: deve ser um número (veio como texto: escreva sem aspas)'),
+    (lambda s: booking(s).update(top_k='3'), 'plugins.0.kwargs.top_k: deve ser um número inteiro (veio como texto'),
+    (lambda s: booking(s).update(top_k=3.5), 'plugins.0.kwargs.top_k: deve ser um número inteiro'),
+    (lambda s: booking(s).update(ask_from=True), 'plugins.0.kwargs.ask_from: deve ser um número'),
+    (lambda s: booking(s).update(ocr_floor_line='75'), 'plugins.0.kwargs.ocr_floor_line: deve ser um número'),
+    (lambda s: s.update(workflow='Sequential'), "workflow: use 'SequentialAgent', 'ParallelAgent' or 'LoopAgent'"),
     (lambda s: s.update(name=5), 'name: deve ser texto'),
     (lambda s: s.update(agents=[1]), 'agents.0: deve ser um objeto JSON'),
 ])
@@ -156,8 +176,8 @@ def test_values_of_another_json_type_are_refused_in_portuguese_not_converted(cha
 
 def test_an_unlisted_validation_error_is_named_not_quoted_in_english():
     from transpiler.spec import describe
-    error = {'loc': ('booking', 'top_k'), 'type': 'some_new_type', 'msg': 'Input should be something'}
-    assert describe(error) == 'booking.top_k: valor inválido (some_new_type)'
+    error = {'loc': ('top_k',), 'type': 'some_new_type', 'msg': 'Input should be something'}
+    assert describe(error, ('plugins', 0, 'kwargs')) == 'plugins.0.kwargs.top_k: valor inválido (some_new_type)'
 
 
 def test_a_spec_saved_with_a_utf8_bom_is_read(tmp_path):
@@ -170,7 +190,7 @@ def test_a_spec_saved_with_a_utf8_bom_is_read(tmp_path):
 
 @pytest.mark.parametrize('constant', ['NaN', 'Infinity', '-Infinity'])
 def test_numbers_json_does_not_have_are_refused(constant):
-    text = spec_with(lambda s: s['booking'].update(min_confidence='PLACEHOLDER')).replace('"PLACEHOLDER"', constant)
+    text = spec_with(lambda s: booking(s).update(min_confidence='PLACEHOLDER')).replace('"PLACEHOLDER"', constant)
     assert problems(text) == [f'JSON inválido: {constant} não é um número JSON']
 
 
@@ -337,9 +357,10 @@ def without_reserve(ready_run):
     return [*ready_run, '--spec', str(spec)]
 
 
-def app_of(root_agent):
+def app_of(root_agent, plugins=()):
     """The generated file's `app` around this root agent (one a test changed), as `cli run` runs it."""
-    return App(name=root_agent.name, root_agent=root_agent, resumability_config=ResumabilityConfig(is_resumable=True))
+    return App(name=root_agent.name, root_agent=root_agent, plugins=list(plugins),
+               resumability_config=ResumabilityConfig(is_resumable=True))
 
 
 def fake_run(result):
@@ -445,7 +466,7 @@ def test_cli_run_runs_the_generated_app_as_adk_run_does(ready_run, monkeypatch, 
     [app] = runs
     model = app.root_agent.sub_agents[0].model
     assert app.name == 'clinic_scheduler' and app.resumability_config.is_resumable
-    assert app.root_agent.sub_agents[0].on_model_error_callback is not None
+    assert isinstance(BookingPlugin.of(app), BookingPlugin)  # its on_model_error_callback ends a failed step
     if fallback:
         assert isinstance(model, FallbackModel)
         assert [retried_codes(each) for each in model.models] == [[500], [429, 500, 503]]
@@ -609,6 +630,7 @@ def generated_module(tmp_path):
     module_spec = importlib.util.spec_from_file_location('agent_under_test', tmp_path / 'agent.py')
     module = importlib.util.module_from_spec(module_spec)
     module_spec.loader.exec_module(module)
+    module.CALLBACKS = BookingPlugin.of(module.app)  # the booking plugin: the callbacks these tests drive
     module.CALLBACKS.can_ask = lambda: False  # the rules alone, as `cli run --yes`; answering() turns the question on
     return module
 
@@ -666,11 +688,15 @@ def test_callbacks_keep_ocr_lines_counts_and_confidence(tmp_path):
 
 def test_order_without_exams_fills_inputs_and_ends_in_one_clear_line(tmp_path, ready_run, monkeypatch, capsys):
     agent, context = generated_module(tmp_path), FakeContext()
+
+    def before(step, context):
+        return asyncio.run(agent.CALLBACKS.before_agent_callback(agent=step, callback_context=context))
     # The extract step wrote no output_key: the next instructions must still render.
-    assert agent.schedule.before_agent_callback(context) is None
+    assert before(agent.schedule, context) is None
     assert context.state == {'exam_names': '', 'exam_codes': ''}
     context = FakeContext()  # search fills only what comes before it; schedule, both earlier keys
-    assert agent.search.before_agent_callback(context) is None and context.state == {'exam_names': ''}
+    assert before(agent.search, context) is None and context.state == {'exam_names': ''}
+    assert before(agent.extract, FakeContext()) is None  # the first step has nothing to fill
     monkeypatch.setattr(cli, 'run_agent', fake_run({'pii_masked': {'NOME': 1}}))
     assert cli.main(ready_run) == 2
     out, err = capsys.readouterr()
@@ -767,6 +793,8 @@ def test_service_urls_outside_the_allowed_hosts_are_rejected(change, expected):
     (lambda s: s['agents'].insert(0, s['agents'].pop(2)),  # booking before the order was read and searched
      'agents.0.tools: api.create_appointment só agenda códigos achados no catálogo: antes dele, agentes '
      'anteriores precisam usar ocr.extract_exam_text e rag.search_exams'),
+    (lambda s: s.update(workflow='ParallelAgent'),
+     'workflow: o BookingPlugin lê, busca e agenda em ordem: use SequentialAgent'),
     (lambda s: s['agents'][1].update(name='extract'), 'agents.1.name: "extract" já é usado'),
     (lambda s: s['agents'][1].update(name='class'), 'agents.1.name: "class" já é usado (ou é reservado)'),
     (lambda s: s['agents'][1].update(instruction='Use {appointment}, que vem depois.'),
@@ -774,16 +802,17 @@ def test_service_urls_outside_the_allowed_hosts_are_rejected(change, expected):
     (lambda s: s['agents'][2].update(output_key='exam_codes'), 'agents.2.output_key: "exam_codes" já é usado'),
     (lambda s: s.update(agents=[]), 'agents: lista vazia'),
     (lambda s: s['agents'][0].update(model='gpt-4o'), 'agents.0.model: formato inválido: esperado gemini-<versão>'),
-    (lambda s: s['booking'].update(ask_from=0.95), 'booking.ask_from: deve ser menor que booking.min_confidence'),
-    (lambda s: s['booking'].update(min_confidence=1.5), 'booking.min_confidence: deve ser no máximo 1'),
-    (lambda s: s['booking'].update(min_confidence=0.5), 'booking.min_confidence: deve ser no mínimo 0,9'),
+    (lambda s: booking(s).update(ask_from=0.95), 'plugins.0.kwargs.ask_from: deve ser menor que min_confidence'),
+    (lambda s: booking(s).update(min_confidence=1.5), 'plugins.0.kwargs.min_confidence: deve ser no máximo 1'),
+    (lambda s: booking(s).update(min_confidence=0.5), 'plugins.0.kwargs.min_confidence: deve ser no mínimo 0,9'),
     (lambda s: s['agents'].append({'name': 'again', 'instruction': 'Agende de novo: {exam_codes}',
                                    'output_key': 'again', 'tools': ['api.create_appointment']}),
      'agents.3.tools: api.create_appointment já está em outro agente: um pedido, um agendamento'),
     (lambda s: s['agents'][1].update(name='print'), 'agents.1.name: "print" já é usado (ou é reservado)'),
-    (lambda s: s['booking'].update(top_k=0), 'booking.top_k: deve ser no mínimo 1'),
-    (lambda s: s['booking']['ocr_floor'].update(short_code=99), 'booking.ocr_floor: use line <= short_code <= short_synonym'),
-    (lambda s: s['booking'].update(extra=1), 'booking.extra: campo não permitido'),
+    (lambda s: booking(s).update(top_k=0), 'plugins.0.kwargs.top_k: deve ser no mínimo 1'),
+    (lambda s: booking(s).update(ocr_floor_short=99),
+     'plugins.0.kwargs.ocr_floor_synonym: use ocr_floor_line <= ocr_floor_short <= ocr_floor_synonym'),
+    (lambda s: booking(s).update(extra=1), 'plugins.0.kwargs.extra: campo não permitido'),
 ])
 def test_agents_tools_and_booking_are_checked_across_fields(change, expected):
     found = problems(spec_with(change))
@@ -794,60 +823,61 @@ STRICTER_ONLY = ', o valor medido: uma spec pode deixar a política mais rígida
 
 
 @pytest.mark.parametrize('field, value, expected', [
-    ('min_confidence', 0.8, 'booking.min_confidence: deve ser no mínimo 0,9'),
-    ('min_confidence', 0.89, 'booking.min_confidence: deve ser no mínimo 0,9'),
-    ('ask_from', 0.5, 'booking.ask_from: deve ser no mínimo 0,7'),
-    ('ask_from', 0.01, 'booking.ask_from: deve ser no mínimo 0,7'),
-    ('line', 0, 'booking.ocr_floor.line: deve ser no mínimo 75'),
-    ('short_code', 84.9, 'booking.ocr_floor.short_code: deve ser no mínimo 85'),
-    ('short_synonym', 0, 'booking.ocr_floor.short_synonym: deve ser no mínimo 95'),
+    ('min_confidence', 0.8, 'plugins.0.kwargs.min_confidence: deve ser no mínimo 0,9'),
+    ('min_confidence', 0.89, 'plugins.0.kwargs.min_confidence: deve ser no mínimo 0,9'),
+    ('ask_from', 0.5, 'plugins.0.kwargs.ask_from: deve ser no mínimo 0,7'),
+    ('ask_from', 0.01, 'plugins.0.kwargs.ask_from: deve ser no mínimo 0,7'),
+    ('ocr_floor_line', 0, 'plugins.0.kwargs.ocr_floor_line: deve ser no mínimo 75'),
+    ('ocr_floor_short', 84.9, 'plugins.0.kwargs.ocr_floor_short: deve ser no mínimo 85'),
+    ('ocr_floor_synonym', 0, 'plugins.0.kwargs.ocr_floor_synonym: deve ser no mínimo 95'),
 ])
 def test_a_spec_cannot_loosen_the_booking_policy(field, value, expected):
-    def loosen(spec):
-        (spec['booking']['ocr_floor'] if field in OcrFloor.model_fields else spec['booking'])[field] = value
-    assert expected + STRICTER_ONLY in problems(spec_with(loosen))
+    assert problems(spec_with(lambda spec: booking(spec).update({field: value}))) == [expected + STRICTER_ONLY]
 
 
 def test_the_loosest_spec_a_reviewer_tried_is_refused_field_by_field():
     def loosest(spec):
-        spec['booking'].update(min_confidence=0.8, ask_from=0.1, ocr_floor={'line': 0, 'short_code': 0, 'short_synonym': 0})
+        booking(spec).update(min_confidence=0.8, ask_from=0.1, ocr_floor_line=0, ocr_floor_short=0, ocr_floor_synonym=0)
     assert sorted(problems(spec_with(loosest))) == sorted(
-        f'{field}: deve ser no mínimo {floor}{STRICTER_ONLY}' for field, floor in [
-            ('booking.min_confidence', '0,9'), ('booking.ask_from', '0,7'), ('booking.ocr_floor.line', '75'),
-            ('booking.ocr_floor.short_code', '85'), ('booking.ocr_floor.short_synonym', '95')])
+        f'plugins.0.kwargs.{field}: deve ser no mínimo {floor}{STRICTER_ONLY}' for field, floor in [
+            ('min_confidence', '0,9'), ('ask_from', '0,7'), ('ocr_floor_line', '75'), ('ocr_floor_short', '85'),
+            ('ocr_floor_synonym', '95')])
 
 
-@pytest.mark.parametrize('booking', [
-    {'min_confidence': 0.95, 'ask_from': 0.8, 'ocr_floor': {'line': 80, 'short_code': 90, 'short_synonym': 99}},
+@pytest.mark.parametrize('policy', [
+    {'min_confidence': 0.95, 'ask_from': 0.8, 'ocr_floor_line': 80, 'ocr_floor_short': 90, 'ocr_floor_synonym': 99},
     {'min_confidence': 1, 'ask_from': None},  # no question: the middle band is left out, never booked
-    {'min_confidence': 0.9, 'ask_from': 0.7, 'ocr_floor': {'line': 75, 'short_code': 85, 'short_synonym': 95}},
+    {'min_confidence': 0.9, 'ask_from': 0.7, 'ocr_floor_line': 75, 'ocr_floor_short': 85, 'ocr_floor_synonym': 95},
 ])
-def test_a_stricter_or_equal_policy_is_accepted(booking):
-    assert parse_spec(spec_with(lambda spec: spec['booking'].update(booking))).booking.min_confidence >= 0.9
+def test_a_stricter_or_equal_policy_is_accepted(policy):
+    spec = parse_spec(spec_with(lambda spec: booking(spec).update(policy)))
+    assert BookingConfig.model_validate(spec.plugins[0].kwargs).min_confidence >= 0.9
+
+
+FLOORS = ('min_confidence', 'ask_from', 'ocr_floor_line', 'ocr_floor_short', 'ocr_floor_synonym')
 
 
 def test_the_floors_are_the_runtime_defaults():
     """The measured defaults are also the floors: the loosest spec allowed is exactly the default policy."""
-    default, booking = BookingPolicy(), Booking()
-    assert (booking.min_confidence, booking.ask_from) == (default.min_confidence, default.ask_from)
-    assert (booking.ocr_floor.line, booking.ocr_floor.short_code, booking.ocr_floor.short_synonym) == (
-        default.ocr_floor_line, default.ocr_floor_short, default.ocr_floor_synonym)
-    floors = {name: field.metadata for name, field in {**Booking.model_fields, **OcrFloor.model_fields}.items()
-              if name in ('min_confidence', 'ask_from', 'line', 'short_code', 'short_synonym')}
-    assert {name: next(item.ge for item in metadata if hasattr(item, 'ge')) for name, metadata in floors.items()} == {
-        'min_confidence': default.min_confidence, 'ask_from': default.ask_from, 'line': default.ocr_floor_line,
-        'short_code': default.ocr_floor_short, 'short_synonym': default.ocr_floor_synonym}
+    default, config = BookingPolicy(), BookingConfig()
+    assert config.model_dump(exclude=set(ROLES)) == {name: getattr(default, name) for name in (*FLOORS, 'top_k')}
+    for name in FLOORS:  # just below the default is refused, the default itself is accepted
+        with pytest.raises(ValueError, match='o valor medido'):
+            BookingConfig.model_validate({name: getattr(default, name) - 0.01})
+        BookingConfig.model_validate({name: getattr(default, name)})
+    with pytest.raises(ValueError, match='o valor medido'):  # a hand-edited agent.py cannot loosen it either
+        BookingPlugin(min_confidence=0.8)
 
 
 def test_the_spec_values_reach_the_generated_agent(tmp_path):
     def change(spec):
-        spec['booking'].update(min_confidence=0.95, ask_from=None, top_k=5)
+        booking(spec).update(min_confidence=0.95, ask_from=None, top_k=5)
         spec['agents'][1]['model'] = 'gemini-3.5-flash-lite'
     path = tmp_path / 'spec.json'
     path.write_text(spec_with(change), encoding='utf-8')
-    root_agent = transpile(path, tmp_path / 'agent.py')
-    search_agent = root_agent.sub_agents[1]
-    policy = search_agent.before_tool_callback.__self__.policy
+    app = transpiled_app(path, tmp_path / 'agent.py')
+    root_agent, search_agent = app.root_agent, app.root_agent.sub_agents[1]
+    policy = BookingPlugin.of(app).policy
     assert (policy.min_confidence, policy.ask_from, policy.top_k) == (0.95, None, 5)
     assert search_agent.model.model == 'gemini-3.5-flash-lite' and root_agent.sub_agents[0].model.model == SPEC['model']
 

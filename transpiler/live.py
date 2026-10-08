@@ -10,9 +10,9 @@ import httpx
 
 from runtime import rede
 
+from .spec import load_plugins
+
 SECONDS = 3  # per server, all at once
-# What the runtime sends to (and reads from) the tool of each role (runtime/callbacks.py).
-ROLE_PARAMETERS = {'read': ('filename',), 'search': ('query', 'top_k')}
 
 
 async def mcp_tools(url):
@@ -56,17 +56,20 @@ def resolve(document, schema):
 def describe_operation(document, method, operation, shared=None):
     """method (POST...), parameters (names as the ADK tool takes them: Idempotency-Key ->
     idempotency_key), needed (the path parameters and the required ones) and body: the JSON body's
-    schema, with the items of `exams` resolved. `shared`: the parameters of the whole path."""
+    schema, each property and the items of a list property resolved. `shared`: the parameters of the
+    whole path."""
     content = ((operation.get('requestBody') or {}).get('content') or {}).get('application/json') or {}
     body = resolve(document, content.get('schema'))
-    exams = resolve(document, (body.get('properties') or {}).get('exams'))
+    properties = {name: resolve(document, schema) for name, schema in (body.get('properties') or {}).items()}
+    properties = {name: schema | ({'items': resolve(document, schema['items'])} if 'items' in schema else {})
+                  for name, schema in properties.items()}
     parameters = [resolve(document, parameter) for parameter in [*(shared or []), *operation.get('parameters', [])]]
     named = [(re.sub(r'[^a-z0-9]+', '_', str(parameter.get('name', '')).lower()), parameter) for parameter in parameters]
     return {'method': method.upper(),
             'parameters': sorted(name for name, _ in named),
             'needed': sorted(name for name, parameter in named
                              if parameter.get('in') == 'path' or parameter.get('required') is True),
-            'body': body | ({'exam_item': resolve(document, exams.get('items'))} if exams else {})}
+            'body': body | {'properties': properties}}
 
 
 async def ask_servers(spec):
@@ -113,9 +116,9 @@ def check_addresses(spec):
 
 
 def check_live(spec, live, required=False):
-    """Every declared tool exists on the server that answered, and each role's tool takes what the
-    runtime sends it. `required` (cli run, after each server answered a GET): a server that did not
-    list its tools is a problem, not the declared list."""
+    """Every declared tool exists on the server that answered, and each plugin's check_live passes (the
+    booking plugin: each role's tool takes what the runtime sends it). `required` (cli run, after each
+    server answered a GET): a server that did not list its tools is a problem, not the declared list."""
     problems = []
     for name in [name for name, tools in live.items() if required and tools is None]:
         server = spec.servers[name]
@@ -127,37 +130,5 @@ def check_live(spec, live, required=False):
             field = 'tools' if server.mcp else 'operations'
             problems.append(f'servers.{name}.{field}: "{missing}" não existe neste servidor '
                             f'(use {", ".join(sorted(tools)) or "nenhuma"})')
-    for role, parameters in ROLE_PARAMETERS.items():
-        reference = spec.role_refs()[role]
-        server, tool = reference.split('.') if reference else (None, None)
-        schema = (live.get(server) or {}).get(tool)
-        missing = [name for name in parameters if schema is not None and name not in schema.get('properties', {})]
-        if missing:
-            problems.append(f'roles.{role}: "{reference}" não recebe {" nem ".join(missing)}, que o runtime envia')
-    return problems + book_problems(spec, live)
-
-
-def book_problems(spec, live):
-    """The booking operation, as the API that answered describes it, takes what the runtime sends and
-    nothing else: our Idempotency-Key and a body of exams, each with a code, and no other field (the
-    runtime checks only the exams). An API that did not answer is checked again by `cli run`."""
-    reference = spec.role_refs()['book']
-    server, tool = reference.split('.') if reference else (None, None)
-    operation = (live.get(server) or {}).get(tool)
-    if not (isinstance(operation, dict) and 'method' in operation):
-        return []
-    problems, body = [], operation.get('body') or {}
-    fields, item = set(body.get('properties') or {}), body.get('exam_item') or {}
-    if 'idempotency_key' not in operation.get('parameters', []):
-        problems.append(f'roles.book: "{reference}" não recebe Idempotency-Key, que o runtime envia para que '
-                        'um POST repetido não agende duas vezes')
-    needed = [name for name in operation.get('needed', []) if name != 'idempotency_key']
-    if needed:  # the runtime sends only the exams and our key: such a call would always be refused
-        problems.append(f'roles.book: "{reference}" pede {", ".join(needed)} (no caminho ou obrigatório), que o '
-                        'runtime não envia: ele manda só exams e a Idempotency-Key')
-    if 'exams' not in fields or 'code' not in (item.get('properties') or {}):
-        problems.append(f'roles.book: "{reference}" não recebe um corpo com exams[].code, que o runtime confere')
-    elif fields != {'exams'} or body.get('additionalProperties') is not False:
-        problems.append(f'roles.book: "{reference}" aceita no corpo outros campos além de exams; o runtime só confere '
-                        'os exames, então a API precisa recusar o resto (additionalProperties: false)')
-    return problems
+    return problems + [problem for plugin, config, where in load_plugins(spec)[0] if hasattr(plugin, 'check_live')
+                       for problem in plugin.check_live(spec, config, live, where)]

@@ -1,7 +1,7 @@
 """The transpiler's runtime library: what a generated agent.py imports.
 
-Its building blocks (adk) and the booking policy, as callbacks (callbacks), confidence rules
-(confianca), the order's record (pedido), what of the person's message reaches the model (entrada),
+Its building blocks (adk) and the booking policy, an App plugin (plugin) made of the callbacks
+(callbacks), confidence rules (confianca), the order's record (pedido), what of the person's message reaches the model (entrada),
 the final confirmation of the list (confirmacao), the addresses the agent may reach (rede), its own calls to the MCP
 servers (servidores) and the run's report (relatorio). A generated file only
 declares the agent; the rules live here, the same for every spec, tested on their own
@@ -25,12 +25,20 @@ import warnings
 warnings.filterwarnings('ignore', message=r'\[EXPERIMENTAL\]', category=UserWarning)
 
 from .adk import LiveOpenAPIToolset, McpToolset, gemini, guarded  # noqa: E402  (after the filter)
-from .callbacks import BookingCallbacks  # noqa: E402
-from .confianca import BookingPolicy  # noqa: E402
 
 API_VERSION = 5
 __all__ = ['API_VERSION', 'BookingCallbacks', 'BookingPolicy', 'LiveOpenAPIToolset', 'McpToolset', 'gemini',
            'guarded', 'require_api']
+
+
+def __getattr__(name: str):
+    """BookingCallbacks and BookingPolicy, imported on first use: an agent without the booking plugin
+    (runtime/plugin.py) never loads the booking policy."""
+    if name not in ('BookingCallbacks', 'BookingPolicy'):
+        raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+    from .callbacks import BookingCallbacks
+    from .confianca import BookingPolicy
+    return {'BookingCallbacks': BookingCallbacks, 'BookingPolicy': BookingPolicy}[name]
 
 
 def require_api(version: int) -> None:

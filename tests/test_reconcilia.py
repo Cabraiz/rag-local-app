@@ -178,7 +178,7 @@ def test_without_the_catalog_search_the_report_says_the_order_was_not_checked(ag
 def test_the_pieces_are_searched_on_the_real_rag_server(servers):  # noqa: F811
     spec = load_spec(cli.DEFAULT_SPEC)
     hits = asyncio.run(servidores.search_lines(servers['rag'], 'search_exams', ['Colesterol total e Triglicerideos'],
-                                               spec.booking.top_k))
+                                               spec.plugins[0].kwargs['top_k']))
     pieces = {hit['piece']: hit['code'] for hit in reversed(hits['Colesterol total e Triglicerideos'])}
     assert pieces == {'Colesterol total': 'FICT-006', 'Triglicerideos': 'FICT-009'}  # best hit of each piece
 

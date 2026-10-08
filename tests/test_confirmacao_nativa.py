@@ -20,8 +20,8 @@ from google.genai import types
 
 import cli
 from runtime import confirmacao
-from tests.test_transpiler import app_of
-from transpiler import load_spec, transpile
+from runtime.plugin import BookingPlugin
+from transpiler import load_root_agent, load_spec, transpile
 
 ROOT = Path(__file__).resolve().parents[1]
 # "- GA": a handwritten IGF-1 that the search takes as IgA (0.80, the question band).
@@ -70,13 +70,15 @@ class Scripted(BaseLlm):
 
 
 def scripted_agent(spec_file, tmp_path, someone_answers, bookings=None):
-    root_agent = transpile(ROOT / 'specs' / spec_file, tmp_path / 'agent.py')
+    """The generated app, each model scripted and each tool replaced by its stand-in."""
+    transpile(ROOT / 'specs' / spec_file, tmp_path / 'agent.py')
+    app = load_root_agent(tmp_path / 'agent.py', name='app')
     stand_ins = {'extract': extract_exam_text, 'search': search_exams, 'schedule': create_appointment}
-    for agent in root_agent.sub_agents:
+    for agent in app.root_agent.sub_agents:
         agent.model, agent.tools = Scripted(**({'bookings': bookings} if bookings else {})), [
             FunctionTool(stand_ins[agent.name])]
-    root_agent.sub_agents[2].before_tool_callback.__self__.can_ask = lambda: someone_answers
-    return root_agent
+    BookingPlugin.of(app).can_ask = lambda: someone_answers
+    return app
 
 
 @pytest.fixture(autouse=True)
@@ -85,10 +87,10 @@ def fresh_calls():
         calls.clear()
 
 
-def run(root_agent, spec_file, **found):
+def run(app, spec_file, **found):
     """cli run's run_agent; questions=True: someone confirms the list, False: --yes (the rules alone)."""
     found = cli.new_found() | found
-    asyncio.run(cli.run_agent(app_of(root_agent), 'pedido.png', load_spec(ROOT / 'specs' / spec_file), found))
+    asyncio.run(cli.run_agent(app, 'pedido.png', load_spec(ROOT / 'specs' / spec_file), found))
     return found
 
 
@@ -185,10 +187,10 @@ def test_the_reserve_answers_per_request_and_nothing_is_asked_or_booked_twice(tm
     # on: the question is asked once and the API gets one POST, whatever model proposes the booking.
     asked: list = []
     monkeypatch.setattr(confirmacao, 'ask_person', person(True, asked))
-    root_agent = scripted_agent('agent.json', tmp_path, someone_answers=True)
-    schedule = root_agent.sub_agents[2]
+    app = scripted_agent('agent.json', tmp_path, someone_answers=True)
+    schedule = app.root_agent.sub_agents[2]
     schedule.model = FallbackModel(models=[Overloaded(), schedule.model], retriable_status_codes=frozenset({429, 503}))
-    found = run(root_agent, 'agent.json')
+    found = run(app, 'agent.json')
     assert asked == [LIST] and CALLS['create_appointment'] == [['FICT-005', 'FICT-079']]
     assert found['appointment']['id'] == 'a1' and not found.get('model_error')
 

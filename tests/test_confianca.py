@@ -15,7 +15,8 @@ from types import SimpleNamespace
 import pytest
 
 import cli
-from runtime import BookingCallbacks, confirmacao
+from runtime import confirmacao
+from runtime.plugin import BookingPlugin
 from tests.test_transpiler import (
     KEY,
     UNAVAILABLE,
@@ -358,8 +359,8 @@ def test_each_step_is_timed_from_the_call_to_its_reply(monkeypatch, capsys):
         (13.3, 'reply', 'search_exams', 'e'), (13.3, 'reply', 'search_exams', 'f'),
         (14.0, 'call', 'create_appointment', 'd'), (14.3, 'reply', 'create_appointment', 'd')])
     spec, found = parse_spec((ROOT / 'specs' / 'agent.json').read_text(encoding='utf-8')), cli.new_found()
-    pipeline = SimpleNamespace(before_agent_callback=BookingCallbacks().start_order)  # the CLI registers the order there
-    asyncio.run(cli.run_agent(SimpleNamespace(name='clinic_scheduler', root_agent=pipeline), 'pedido.png', spec, found))
+    app = SimpleNamespace(name='clinic_scheduler', plugins=[BookingPlugin()])  # the CLI registers the order there
+    asyncio.run(cli.run_agent(app, 'pedido.png', spec, found))
     assert {name: round(value, 2) for name, value in found['tool_seconds'].items()} == {
         'extract_exam_text': 1.2, 'search_exams': 1.1, 'create_appointment': 0.3}
     monkeypatch.delenv('GEMINI_MODEL', raising=False)
@@ -463,9 +464,9 @@ def test_the_second_example_spec_leaves_the_middle_band_out_without_asking(tmp_p
     # specs/agent-sem-confirmacao.json: booking.ask_from is null, so 0.80 is only reported, never asked.
     from types import SimpleNamespace
 
-    from transpiler import transpile
-    root_agent = transpile(ROOT / 'specs' / 'agent-sem-confirmacao.json', tmp_path / 'agent.py')
-    agent = SimpleNamespace(CALLBACKS=root_agent.sub_agents[2].before_tool_callback.__self__)
+    from transpiler import load_root_agent, transpile
+    transpile(ROOT / 'specs' / 'agent-sem-confirmacao.json', tmp_path / 'agent.py')
+    agent = SimpleNamespace(CALLBACKS=BookingPlugin.of(load_root_agent(tmp_path / 'agent.py', name='app')))
     asked = []
     answering(monkeypatch, agent, lambda items: asked.extend(items) or True)
     context = middle_band(agent)

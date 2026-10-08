@@ -1,5 +1,6 @@
 """AgentSpec -> generated/agent.py (Google ADK), then compile and import it."""
 import importlib.util
+import inspect
 import os
 import py_compile
 import re
@@ -11,7 +12,7 @@ from string import Template
 from runtime import API_VERSION
 
 from .live import check_live, live_tools
-from .spec import TranspileError, parse_spec
+from .spec import TranspileError, load_plugins, parse_spec
 
 TEMPLATE = Template((Path(__file__).parent / 'agent_template.py.tmpl').read_text(encoding='utf-8'))
 WIDTH = 120  # the generated file keeps the repository's line length (pyproject.toml)
@@ -19,23 +20,34 @@ WIDTH = 120  # the generated file keeps the repository's line length (pyproject.
 # <folder>` import it and run its `app`. runtime first: it silences ADK's [EXPERIMENTAL] notices.
 PACKAGE = ('"""ADK agent folder: `adk run` and `adk web` load agent.py and run its `app`."""\n'
            'import runtime  # noqa: F401\n\nfrom . import agent  # noqa: F401\n')
+ABOUT = ('Declared here, from the spec, with Google ADK classes: the model, each LlmAgent (its tools, its instruction, '
+         'its output_key), {root}, and the App that `adk run` and `adk web` load (resumable: a tool call that asks for '
+         "a confirmation pauses and resumes). Imported from `runtime`, the transpiler's runtime library (interface "
+         '{version}, tested on its own, the same for every spec):')
+RUNTIME_DOC = {  # the docstring line of each name imported from runtime
+    'LiveOpenAPIToolset': "- LiveOpenAPIToolset: ADK's OpenAPIToolset, built from an API's live /openapi.json on first use,\n"
+                          '  on a host that ALLOWED_HOSTS allows;',
+    'McpToolset': "- McpToolset: ADK's McpToolset, on a host that ALLOWED_HOSTS allows (checked on import);",
+    'gemini': '- gemini, guarded: the model with retries (and the reserve model), and the fixed rule put before each '
+              'instruction;',
+    'require_api': '- require_api: stops this file on a runtime with another interface.',
+}
 
 
-def call(function, arguments, indent):
-    """function(name=value, ...) on one line, or one argument per line when that is wider than WIDTH."""
-    one = f'{function}({", ".join(f"{name}={value}" for name, value in arguments)})'
-    if indent + len(one) + 1 <= WIDTH:  # + the comma after it
-        return one
+def fill(text):
+    """The text in lines of at most 100 columns, never breaking inside `backticks`."""
+    return textwrap.fill(re.sub(r'`[^`]*`', lambda code: code[0].replace(' ', '\xa0'), text), 100).replace('\xa0', ' ')
+
+
+def call(function, arguments, indent=0):
+    """function(name=value, ...), one argument per line: the layout of every call of the file."""
     inner = ' ' * (indent + 4)
     return f'{function}(\n' + ''.join(f'{inner}{name}={value},\n' for name, value in arguments) + ' ' * indent + ')'
 
 
-def assigned(name, function, arguments):
-    """`name = function(...)`, on one line when the whole line fits in WIDTH."""
-    one = call(function, arguments, len(f'{name} = ') - 1)  # -1: no comma follows an assignment
-    if '\n' not in one:
-        return f'{name} = {one}'
-    return f'{name} = {function}(\n' + ''.join(f'    {key}={value},\n' for key, value in arguments) + ')'
+def listing(items, indent):
+    """[item, ...], one item per line."""
+    return '[\n' + ''.join(f'{" " * (indent + 4)}{item},\n' for item in items) + ' ' * indent + ']'
 
 
 def literal(text, indent):
@@ -64,104 +76,63 @@ def toolset(spec, server, names):
                                ('tool_filter', repr(names))], 8)
 
 
-def render_agent(spec, index, agent) -> str:
+def render_agent(spec, agent):
     servers: dict[str, list[str]] = {}  # server -> its tools this agent uses, in the spec's order
     for reference in dict.fromkeys(agent.tools):  # a tool written twice is filtered once
         server, name = reference.split('.')
         servers.setdefault(server, []).append(name)
-    earlier = [other.output_key for other in spec.agents[:index]]
-    # A pipeline that searches but does not book ends in a list of exams: the last agent's answer,
-    # checked by the same policy a booking would be (runtime/callbacks.py).
-    calls_an_api = any(not spec.servers[reference.split('.')[0]].mcp for other in spec.agents for reference in other.tools)
-    lists = index == len(spec.agents) - 1 and spec.tool_for('search') and not spec.tool_for('book') and not calls_an_api
-    model = model_call(spec, agent.model) if agent.model else 'MODEL'
-    instruction = f'    instruction=guarded({agent.instruction!r}),'
-    lines = [f'{agent.name} = LlmAgent(', f'    name={agent.name!r},', f'    model={model},']
-    lines += [instruction] if len(instruction) <= WIDTH else ['    instruction=guarded(', *literal(agent.instruction, 8),
-                                                               '    ),']
-    toolsets = [toolset(spec, server, names) for server, names in servers.items()]
-    single = f'    tools=[{toolsets[0]}],' if len(toolsets) == 1 else ''
-    if single and len(single) <= WIDTH and '\n' not in single:
-        lines.append(single)
-    elif toolsets:
-        lines += ['    tools=[', *(f'        {item},' for item in toolsets), '    ],']
-    if earlier:
-        lines.append(f'    before_agent_callback=CALLBACKS.fill_missing({", ".join(map(repr, earlier))}),')
-    if lists:
-        lines.append(f'    after_agent_callback=CALLBACKS.review_list({agent.output_key!r}),')
-    lines.append('    before_model_callback=CALLBACKS.before_model,')  # the model sees the image's token, never its name
-    lines.append('    on_model_error_callback=CALLBACKS.model_failed,')  # one clear line, not a traceback
-    if toolsets:  # an agent without tools makes no tool call to check
-        lines += ['    before_tool_callback=CALLBACKS.before_tool,', '    after_tool_callback=CALLBACKS.after_tool,']
-    lines += [f'    output_key={agent.output_key!r},', ')']
-    return '\n' + '\n'.join(lines) + '\n'
+    instruction = 'guarded(\n' + '\n'.join(literal(agent.instruction, 8)) + '\n    )'
+    arguments = [('name', repr(agent.name)), ('model', model_call(spec, agent.model) if agent.model else 'MODEL'),
+                 ('instruction', instruction)]
+    if servers:
+        arguments.append(('tools', listing([toolset(spec, server, names) for server, names in servers.items()], 4)))
+    return f'\n{agent.name} = ' + call('LlmAgent', [*arguments, ('output_key', repr(agent.output_key))]) + '\n'
 
 
-def imports(spec):
+def render_root(spec):
+    """root_agent: the workflow around the agents, or the one agent itself."""
+    if spec.workflow is None:
+        return f'root_agent = {spec.agents[0].name}'
+    loop = [('max_iterations', repr(spec.max_iterations))] if spec.max_iterations else []
+    sub_agents = '[' + ', '.join(agent.name for agent in spec.agents) + ']'
+    return 'root_agent = ' + call(spec.workflow, [('name', repr(spec.name)), ('sub_agents', sub_agents), *loop])
+
+
+def value(data, indent):
+    """A spec value as a Python literal, a dict with one entry per line, like every call of the file."""
+    if not (isinstance(data, dict) and data):
+        return repr(data)
+    return '{\n' + ''.join(f'{" " * (indent + 4)}{key!r}: {item!r},\n' for key, item in data.items()) + ' ' * indent + '}'
+
+
+def render_plugin(spec, plugin, found):
+    """One plugin of the App, with the spec's kwargs; one that takes `servers` also gets the spec's servers
+    (name -> address), so its kwargs can name a tool as server.tool."""
+    kwargs = dict(plugin.kwargs)
+    if 'servers' in inspect.signature(found).parameters:
+        kwargs = {'servers': {name: server.address[1] for name, server in spec.servers.items()}, **kwargs}
+    return call(found.__name__, [(name, value(data, 12)) for name, data in kwargs.items()], 8)
+
+
+def imports(spec, plugins):
     """(import lines, docstring lines): only what this spec's file uses."""
     kinds = {spec.servers[reference.split('.')[0]].mcp for agent in spec.agents for reference in agent.tools}
-    lines = ['from google.adk.agents import LlmAgent, SequentialAgent', 'from google.adk.apps import App, ResumabilityConfig']
+    adk = [f'from google.adk.agents import {", ".join(sorted({"LlmAgent", spec.workflow or "LlmAgent"}))}',
+           'from google.adk.apps import App, ResumabilityConfig']
     if True in kinds:
-        lines.append('from google.adk.tools.mcp_tool.mcp_session_manager import SseConnectionParams')
-    names = ['BookingCallbacks', 'BookingPolicy', *(['LiveOpenAPIToolset'] if False in kinds else []),
-             *(['McpToolset'] if True in kinds else []), 'gemini', 'guarded', 'require_api']
-    lines += ['', f'from runtime import {", ".join(names)}']
-    doc = ["- BookingCallbacks: ADK callbacks that start the order from the session or the user's message, check",
-           '  in code every exam code the model proposes and write the final report;',
-           '- BookingPolicy: the thresholds below, as a typed value;']
-    if False in kinds:
-        doc += ["- LiveOpenAPIToolset: ADK's OpenAPIToolset, built from an API's live /openapi.json on first use,",
-                '  on a host that ALLOWED_HOSTS allows;']
-    if True in kinds:
-        doc.append("- McpToolset: ADK's McpToolset, on a host that ALLOWED_HOSTS allows (checked on import);")
-    doc += ['- gemini, guarded: the model with retries (and the reserve model), and the fixed rule put before each instruction;',
-            '- require_api: stops this file on a runtime with another interface.']
-    return '\n'.join(lines), '\n'.join(doc)
-
-
-def comment(text):
-    """A comment block of the generated file."""
-    return '\n'.join(f'# {line}' for line in textwrap.wrap(text, 96))
-
-
-def policy_comments(spec):
-    """The comments above POLICY and CALLBACKS, true for this spec: it books, it only lists, or neither."""
-    books, searches, reads = spec.tool_for('book'), spec.tool_for('search'), spec.tool_for('read')
-    asks = spec.booking.ask_from is not None
-    floors = ('A line the OCR read (0-100) below its floor is never sure: ocr_floor_line, ocr_floor_short '
-              '(3 letters or fewer), ocr_floor_synonym (an abbreviation of a longer name, such as "TGP"). '
-              'top_k: results per search.')
-    if books:
-        bands = ('An exam at or above min_confidence is booked; '
-                 + ('from ask_from up, only if the person says yes [s/N]; ' if asks else 'nobody is asked; ')
-                 + 'below, it is left out and reported. ' + floors)
-        last = ('The booking tool receives only codes a search returned, each on its own piece of the order, '
-                'by the POLICY above.')
-    elif searches:
-        bands = ('This spec lists exams and books none. An exam at or above min_confidence is listed as sure; '
-                 + ('from ask_from up, it is listed marked to check; ' if asks else '')
-                 + 'below, it is left out and reported. ' + floors)
-        last = ("The last agent's list keeps only codes a search returned, each on its own piece of the order, "
-                'sorted by the POLICY above.')
-    else:
-        bands, last = 'This spec neither books nor lists exams: the thresholds below are not used.', ''
-    steps = ['One set of callbacks for every step; each acts only on its own tool.',
-             "The reading tool gets only this run's file." if reads else '',
-             'Each search keeps its candidates.' if searches else '', last, 'The model only proposes.']
-    return comment(bands), comment(' '.join(step for step in steps if step))
-
-
-def server_urls(spec):
-    """The callbacks' arguments with the servers' URLs: the MCP servers the runtime itself calls (the
-    reader's image check, the catalog search of the whole order) and every server, whose addresses are
-    checked when an order starts."""
-    urls = []
-    for role, argument in (('read', 'ocr_url'), ('search', 'search_url')):
-        reference = spec.role_refs()[role]
-        server = spec.servers[reference.split('.')[0]] if reference else None
-        if server is not None and server.mcp:
-            urls.append((argument, repr(server.url)))
-    return [*urls, ('servers', repr([server.address[1] for server in spec.servers.values()]))]
+        adk.append('from google.adk.tools.mcp_tool.mcp_session_manager import SseConnectionParams')
+    names = [*(['LiveOpenAPIToolset'] if False in kinds else []), *(['McpToolset'] if True in kinds else []),
+             'gemini', 'guarded', 'require_api']
+    ours = [f'from runtime import {", ".join(names)}']
+    for plugin, found in plugins:
+        module = plugin.path.rpartition('.')[0]
+        (adk if module.startswith('google.') else ours).append(f'from {module} import {found.__name__}')
+    doc = [RUNTIME_DOC[name] for name in names if name in RUNTIME_DOC]
+    if plugins:
+        doc.append(fill("The App's plugins (ADK's BasePlugin), each with the kwargs the spec gives it: "
+                        + ', '.join(f'{found.__name__} from {plugin.path.rpartition(".")[0]}' for plugin, found in plugins)
+                        + '.'))
+    return '\n'.join(sorted(adk)) + '\n\n' + '\n'.join(sorted(ours)), '\n'.join(doc)
 
 
 def model_call(spec, model):
@@ -177,36 +148,26 @@ def model_comment(spec):
         text = ('Gemini (GEMINI_MODEL in .env, or `-e GEMINI_MODEL=<model>` for one run, can replace it). A request '
                 f'it refuses with 429 (quota) or 503 (overloaded) goes at once to the reserve model, {spec.fallback_model}, '
                 'which retries 429/500/503 up to 5 times; the main model retries only a 500.')
-    return comment(text)
-
-
-def number(value):
-    """A spec number as a literal: 75 rather than 75.0."""
-    return repr(int(value)) if isinstance(value, float) and value.is_integer() else repr(value)
+    return '\n'.join(f'# {line}' for line in textwrap.wrap(text, 96))
 
 
 def render(spec, spec_file):
     # repr() turns every spec value into a Python literal, so no spec text can
-    # become code; the spec patterns already limit names and URLs.
-    booking = spec.booking
-    policy_comment, callbacks_comment = policy_comments(spec)
-    import_lines, runtime_doc = imports(spec)
-    roles = [(f'{role}_tool', repr(spec.tool_for(key))) for role, key in (('ocr', 'read'), ('search', 'search'),
-                                                                          ('booking', 'book')) if spec.tool_for(key)]
+    # become code; the spec patterns already limit names, URLs and plugin paths.
+    loaded = load_plugins(spec)[0]
+    plugins = [(plugin, found) for plugin, (found, _, _) in zip(spec.plugins, loaded, strict=True)]
+    import_lines, runtime_doc = imports(spec, plugins)
+    app = [('name', repr(spec.name)), ('root_agent', 'root_agent')]
+    if plugins:
+        app.append(('plugins', listing([render_plugin(spec, plugin, found) for plugin, found in plugins], 4)))
     return TEMPLATE.substitute(
         imports=import_lines, runtime_doc=runtime_doc,
-        callbacks='CALLBACKS = ' + call('BookingCallbacks', [*roles, ('policy', 'POLICY'), *server_urls(spec)], 0),
-        policy_comment=policy_comment, callbacks_comment=callbacks_comment,
+        about=fill(ABOUT.format(root=f'the {spec.workflow} that runs them' if spec.workflow else 'which is the root',
+                                version=API_VERSION)),
         spec_file=re.sub(r'[^A-Za-z0-9._-]', '_', Path(spec_file).name),  # docstring text, not a literal
-        model=model_call(spec, spec.model), model_comment=model_comment(spec), name=repr(spec.name),
-        api_version=repr(API_VERSION),
-        min_confidence=number(booking.min_confidence), ask_from=number(booking.ask_from), top_k=number(booking.top_k),
-        ocr_floor_line=number(booking.ocr_floor.line), ocr_floor_short=number(booking.ocr_floor.short_code),
-        ocr_floor_synonym=number(booking.ocr_floor.short_synonym),
-        agents=''.join(render_agent(spec, index, agent) for index, agent in enumerate(spec.agents)),
-        sub_agents=', '.join(agent.name for agent in spec.agents),
-        app=assigned('app', 'App', [('name', repr(spec.name)), ('root_agent', 'root_agent'),
-                                    ('resumability_config', 'ResumabilityConfig(is_resumable=True)')]),
+        model=model_call(spec, spec.model), model_comment=model_comment(spec), api_version=repr(API_VERSION),
+        agents=''.join(render_agent(spec, agent) for agent in spec.agents), root=render_root(spec),
+        app='app = ' + call('App', [*app, ('resumability_config', 'ResumabilityConfig(is_resumable=True)')]),
     )
 
 
@@ -256,7 +217,7 @@ def load_spec(spec_path):  # file -> AgentSpec, read errors as TranspileError
 
 def transpile(spec_path, output_path, checked=None):
     """Read the spec, check its tools on the servers that answer, write the agent, and prove it
-    imports as an ADK pipeline. `checked`, if given, gets the servers that answered."""
+    imports as an ADK agent. `checked`, if given, gets the servers that answered."""
     spec = load_spec(spec_path)
     live = live_tools(spec)
     problems = check_live(spec, live)

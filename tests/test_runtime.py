@@ -15,8 +15,8 @@ from transpiler import transpile
 ROOT = Path(__file__).resolve().parents[1]
 SPEC_FILE = ROOT / 'specs' / 'agent.json'
 # Run in a fresh interpreter (-I: no PYTHONPATH, no user site) with only the bundle's folder on
-# the path: import the agent, then one booking through its callbacks, as the runner calls them, with
-# nobody to answer [s/N]: one exam read clearly is booked, one in the middle band is left out.
+# the path: import the agent, then one booking through its plugin's callbacks, as the runner calls them,
+# with nobody to answer [s/N]: one exam read clearly is booked, one in the middle band is left out.
 CHECK = '''
 import json, sys
 from types import SimpleNamespace
@@ -25,16 +25,17 @@ import agent, catalogo, runtime
 
 tool = lambda name: SimpleNamespace(name=name)
 context = SimpleNamespace(state={}, tool_confirmation=None, actions=SimpleNamespace(skip_summarization=False))
-agent.CALLBACKS.can_ask = lambda: False
+[booking] = agent.app.plugins
+booking.can_ask = lambda: False
 reply = {'lines': ['- Hemograma completo', '- Glicemia de jejum'], 'line_confidence': [95.0, 95.0],
          'line_intent': ['request', 'request'], 'contested_exams': [], 'page_clean': True, 'pii_masked': {}}
-agent.CALLBACKS.after_tool(tool('extract_exam_text'), {}, context, {'content': [{'type': 'text', 'text': json.dumps(reply)}]})
+booking.after_tool(tool('extract_exam_text'), {}, context, {'content': [{'type': 'text', 'text': json.dumps(reply)}]})
 for code, name, score in (('FICT-001', 'Hemograma completo', 1.0), ('FICT-002', 'Glicemia de jejum', 0.8)):
     found = {'structuredContent': {'result': [{'code': code, 'name': name, 'score': score}]}}
-    agent.CALLBACKS.after_tool(tool('search_exams'), {'query': name}, context, found)
+    booking.after_tool(tool('search_exams'), {'query': name}, context, found)
 args = {'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo'}, {'code': 'FICT-002', 'name': 'Glicemia de jejum'}]}
 print(agent.root_agent.name, [step.name for step in agent.root_agent.sub_agents])
-reply = agent.CALLBACKS.before_tool(tool('create_appointment'), args, context)
+reply = booking.before_tool(tool('create_appointment'), args, context)
 print(reply, [exam['code'] for exam in args['exams']],
       [(item['code'], item['reason']) for item in context.state['low_confidence']])
 print(runtime.__file__)
@@ -68,7 +69,8 @@ def test_agent_py_runs_with_the_runtime_library_alone_outside_the_repository(tmp
 
 
 @pytest.mark.parametrize('spec', EXAMPLE_SPECS)
-def test_every_example_spec_imports_with_the_runtime_library_alone(tmp_path, spec):
+def test_every_example_spec_imports_with_the_runtime_library_alone(tmp_path, monkeypatch, spec):
+    monkeypatch.setenv('ALLOWED_HOSTS', 'ocr:8001,rag:8002,api:8000,docs:8010')  # the generic example's server
     check = "import sys; sys.path.insert(0, ''); import agent; print(agent.root_agent.name)"
     done = subprocess.run([sys.executable, '-I', '-c', check], cwd=bundle(tmp_path, ROOT / 'specs' / spec),
                           capture_output=True, text=True, timeout=120)

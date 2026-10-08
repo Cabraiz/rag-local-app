@@ -1,13 +1,16 @@
 """Agent spec: the JSON a user writes, validated before any code is generated."""
 import builtins
+import importlib
 import json
 import keyword
 import os
 import re
 import unicodedata
+from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from google.adk.plugins.base_plugin import BasePlugin
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
 from runtime.pedido import RECORD_KEYS
@@ -17,6 +20,13 @@ TOOL_REF = r'^[a-z][a-z0-9_]{0,39}\.[a-z][a-z0-9_]{0,39}$'
 SSE_URL = r'^https?://[A-Za-z0-9.-]+(:\d+)?/sse$'
 OPENAPI_URL = r'^https?://[A-Za-z0-9.-]+(:\d+)?/openapi\.json$'
 MODEL = r'^gemini-[a-z0-9.-]{1,40}$'
+PLUGIN_PATH = r'^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)*\.[A-Z][A-Za-z0-9]{0,39}$'  # module.Class
+# The packages a spec may load an App plugin from: the project's runtime and ADK's own plugins. A spec
+# never makes the transpiler import any other module; another package is added here, in code.
+PLUGIN_PACKAGES = ('runtime', 'google.adk.plugins')
+# Names of the generated module that a plugin class must not shadow.
+GENERATED_NAMES = {'App', 'LiveOpenAPIToolset', 'LlmAgent', 'LoopAgent', 'McpToolset', 'ParallelAgent',
+                   'ResumabilityConfig', 'SequentialAgent', 'SseConnectionParams'}
 # The hosts a server URL may name, unless ALLOWED_HOSTS (comma separated; "host" for any port,
 # "host:port" for one) says otherwise: by default, exactly the three compose services on their ports.
 # A spec cannot point the agent at another host or port (SSRF: 169.254.169.254, the internal network,
@@ -25,11 +35,7 @@ MODEL = r'^gemini-[a-z0-9.-]{1,40}$'
 DEFAULT_ALLOWED_HOSTS = 'ocr:8001,rag:8002,api:8000'
 ALLOWED_HOST = re.compile(r'[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?')  # "host" or "host:port"
 # Names an agent cannot have: each agent becomes a variable of the generated module.
-RESERVED = {'user', 'gemini', 'guarded', 'root_agent', 'runtime'}
-# The roles of the booking policy (runtime/): which tool reads the order, which searches the
-# catalog (both feed an exam's confidence) and which books. A spec without "roles" (the first
-# spec format) gets these, each only if an agent uses it.
-V1_ROLES = {'read': 'ocr.extract_exam_text', 'search': 'rag.search_exams', 'book': 'api.create_appointment'}
+RESERVED = {'app', 'user', 'gemini', 'guarded', 'root_agent', 'runtime'}
 
 
 class TranspileError(Exception):
@@ -84,25 +90,20 @@ class Server(Strict):
         return (self.tools if self.mcp else self.operations) or []
 
 
-class Roles(Strict):
-    read: str | None = Field(default=None, pattern=TOOL_REF, description='reads the order (OCR): lines and readings')
-    search: str | None = Field(default=None, pattern=TOOL_REF, description='searches the catalog: code, name, score')
-    book: str | None = Field(default=None, pattern=TOOL_REF, description='books the exams (OpenAPI operation)')
+class Plugin(Strict):
+    """An App plugin (ADK's BasePlugin): its class as module.Class and the keyword arguments it gets."""
+    path: str = Field(pattern=PLUGIN_PATH)
+    kwargs: dict[str, JsonValue] = {}
 
-
-class OcrFloor(Strict):
-    line: float = Field(default=75, ge=75, le=100)
-    short_code: float = Field(default=85, ge=85, le=100)
-    short_synonym: float = Field(default=95, ge=95, le=100)
-
-
-class Booking(Strict):
-    """The booking policy (runtime/confianca.py). Each default is the measured value and also the floor: a
-    spec may make the policy stricter, never looser (at 0.80 a misread "- GA" would book as IgA)."""
-    min_confidence: float = Field(default=0.90, ge=0.9, le=1)
-    ask_from: float | None = Field(default=0.70, ge=0.7, le=1)  # null: no question, the middle band is left out
-    ocr_floor: OcrFloor = OcrFloor()
-    top_k: int = Field(default=3, ge=1, le=10)
+    @field_validator('kwargs')
+    @classmethod
+    def argument_names(cls, value):
+        for name in value:  # each name becomes a keyword argument of the generated call
+            if name == 'servers':
+                raise PydanticCustomError('tool_name', '"servers": o transpile passa os servidores da spec ao plugin')
+            if not re.fullmatch(IDENTIFIER, name) or keyword.iskeyword(name):
+                raise PydanticCustomError('tool_name', f'"{name}": use minúsculas, dígitos e _ (começando por letra)')
+        return value
 
 
 class Agent(Strict):
@@ -136,9 +137,12 @@ class AgentSpec(Strict):
     # Answers the same request when `model` is overloaded or out of quota (runtime.adk.gemini).
     fallback_model: str | None = Field(default=None, pattern=MODEL)
     servers: dict[str, Server] = Field(min_length=1, max_length=10)
-    roles: Roles | None = None  # None: the first spec format, with V1_ROLES
-    booking: Booking = Booking()
     agents: list[Agent] = Field(min_length=1, max_length=10)
+    # What runs the agents: in order, at the same time, in order up to max_iterations times, or
+    # nothing (null: the one agent is the root).
+    workflow: Literal['SequentialAgent', 'ParallelAgent', 'LoopAgent'] | None = 'SequentialAgent'
+    max_iterations: int | None = Field(default=None, ge=1, le=10)
+    plugins: list[Plugin] = Field(default=[], max_length=10)
 
     @field_validator('servers')
     @classmethod
@@ -147,20 +151,6 @@ class AgentSpec(Strict):
             if not re.fullmatch(IDENTIFIER, name):
                 raise PydanticCustomError('server_name', f'"{name}": use minúsculas, dígitos e _ (começando por letra)')
         return value
-
-    def declared_roles(self):
-        """role -> server.tool reference, as the spec declares it (V1_ROLES without "roles")."""
-        return self.roles.model_dump() if self.roles is not None else dict(V1_ROLES)
-
-    def role_refs(self):
-        """role -> server.tool reference of the tool that plays it in this pipeline, or None."""
-        used = {tool for agent in self.agents for tool in agent.tools}
-        return {role: ref if ref in used else None for role, ref in self.declared_roles().items()}
-
-    def tool_for(self, role):
-        """The tool name that plays a role ('read', 'search' or 'book'), or None if none does."""
-        reference = self.role_refs()[role]
-        return reference.split('.')[1] if reference else None
 
     def tools_of(self, server):
         """The tools (or operations) declared for a server, as server.tool references."""
@@ -187,28 +177,31 @@ REASONS = {
     'model_attributes_type': 'deve ser um objeto JSON',
     'finite_number': 'deve ser um número finito',
 }
+CUSTOM = ('tool_ref', 'control_character', 'tool_name', 'server_kind', 'server_name', 'spec_rule')
 PATTERN_HINTS = {
     IDENTIFIER: 'use minúsculas, dígitos e _ (começando por letra)',
     SSE_URL: 'esperado http://host:porta/sse',
     OPENAPI_URL: 'esperado http://host:porta/openapi.json',
     MODEL: 'esperado gemini-<versão>',
     TOOL_REF: 'use servidor.ferramenta, ex.: ocr.extract_exam_text',
+    PLUGIN_PATH: 'esperado modulo.Classe, ex.: runtime.plugin.BookingPlugin',
 }
 
 
-def describe(error):
-    field = '.'.join(str(part) for part in error['loc']) or '(raiz)'
+def describe(error, prefix=()):
+    """'field: reason' in Portuguese; `prefix`: where the value is in the spec (a plugin's kwargs)."""
+    field = '.'.join(str(part) for part in (*prefix, *error['loc'])) or '(raiz)'
     if error['type'] == 'string_pattern_mismatch':
-        reason = 'formato inválido: ' + PATTERN_HINTS[error['ctx']['pattern']]
+        reason = 'formato inválido: ' + PATTERN_HINTS.get(error['ctx']['pattern'], error['ctx']['pattern'])
     elif error['type'] in ('greater_than_equal', 'less_than_equal'):
         bounds = {'greater_than_equal': 'no mínimo', 'less_than_equal': 'no máximo'}
         limit = next(iter(error['ctx'].values()))
         reason = f'deve ser {bounds[error["type"]]} {limit:g}'.replace('.', ',')
-        if error['type'] == 'greater_than_equal' and error['loc'][0] == 'booking' and error['loc'][-1] != 'top_k':
-            reason += ', o valor medido: uma spec pode deixar a política mais rígida, nunca mais frouxa'
     elif error['type'] in ('too_short', 'too_long'):
         reason = 'lista vazia' if error['type'] == 'too_short' else 'itens demais (máximo 10)'
-    elif error['type'] in ('tool_ref', 'control_character', 'tool_name', 'server_kind', 'server_name'):
+    elif error['type'] == 'literal_error':
+        reason = f'use {error["ctx"]["expected"]}'
+    elif error['type'] in CUSTOM:  # a rule of ours (or of a plugin's Config), already in Portuguese
         reason = error['msg']
     else:  # pydantic's own message is in English: an unlisted type is named, not quoted
         reason = REASONS.get(error['type'], f'valor inválido ({error["type"]})')
@@ -243,7 +236,7 @@ def allowed_hosts():
 
 def check_servers(spec) -> list[str]:
     """Every server is on an allowed host (and port, if the entry names one); no tool name is
-    exposed by two servers, since the callbacks know a tool by its name."""
+    exposed by two servers, since an agent and its plugins know a tool by its name."""
     hosts, problems = allowed_hosts()
     owners: dict[str, list[str]] = {}  # tool -> the servers that declare it
     if problems:  # a broken allowlist: say so instead of judging the servers against it
@@ -268,41 +261,48 @@ def check_servers(spec) -> list[str]:
     return problems
 
 
-def check_roles(spec):
-    """Each role on a tool an agent uses, of the kind the runtime reads, and booking only with
-    the reading and the search that make an exam's confidence."""
-    if spec.roles is None:  # the first spec format: V1_ROLES, checked by tool_problems as before
-        return []
-    problems, declared = [], spec.declared_roles()
-    used = {tool for agent in spec.agents for tool in agent.tools}
-    for role, reference in declared.items():
-        if reference is None:
-            continue
-        server = spec.servers.get(reference.split('.')[0])
-        if reference not in used:
-            problems.append(f'roles.{role}: "{reference}" não está nas tools de nenhum agente')
-        elif server is not None and server.mcp != (role != 'book'):
-            kind = 'uma operação de uma API OpenAPI' if role == 'book' else 'uma ferramenta de um servidor MCP'
-            problems.append(f'roles.{role}: "{reference}" precisa ser {kind}')
-    references = [reference for reference in declared.values() if reference]
-    if len(set(references)) < len(references):
-        problems.append('roles: cada papel usa uma ferramenta diferente')
-    if declared['book'] and not (declared['read'] and declared['search']):
-        problems.append('roles.book: agendar pede roles.read e roles.search: a confiança de um exame vem da '
-                        'leitura do pedido e da busca no catálogo')
-    elif declared['search'] and not declared['read']:
-        problems.append('roles.search: a busca é medida contra o pedido lido: declare também roles.read')
-    return problems
-
-
-def check_booking(spec):
-    booking, floor = spec.booking, spec.booking.ocr_floor
+def check_workflow(spec):
     problems = []
-    if booking.ask_from is not None and booking.ask_from >= booking.min_confidence:
-        problems.append('booking.ask_from: deve ser menor que booking.min_confidence (ou null, sem pergunta)')
-    if not floor.line <= floor.short_code <= floor.short_synonym:
-        problems.append('booking.ocr_floor: use line <= short_code <= short_synonym (uma sigla pede leitura mais clara)')
+    if spec.workflow is None and len(spec.agents) > 1:
+        problems.append('workflow: null (sem workflow) pede um só agente, que é a raiz')
+    if (spec.workflow == 'LoopAgent') != (spec.max_iterations is not None):
+        problems.append('max_iterations: obrigatório com LoopAgent, e só com ele')
     return problems
+
+
+def load_plugins(spec):
+    """(class, checked kwargs, field) of each plugin of the spec that loads, and the problems of the others.
+    A plugin class may declare `Config` (a pydantic model of its kwargs), checked here with the spec's
+    messages, `check_spec(spec, config, field)` and `check_live(spec, config, live, field)`."""
+    loaded, problems, names = [], [], set()
+    for index, plugin in enumerate(spec.plugins):
+        where, (module, _, name) = f'plugins.{index}', plugin.path.rpartition('.')
+        if not any(module == package or module.startswith(package + '.') for package in PLUGIN_PACKAGES):
+            problems.append(f'{where}.path: "{plugin.path}" fora dos pacotes de plugins ({", ".join(PLUGIN_PACKAGES)})')
+            continue
+        try:
+            found = getattr(importlib.import_module(module), name, None)
+        except ImportError:
+            found = None
+        if not (isinstance(found, type) and issubclass(found, BasePlugin)):
+            problems.append(f'{where}.path: "{plugin.path}" não é uma classe de plugin do ADK (BasePlugin)')
+            continue
+        if name in names | GENERATED_NAMES:  # each plugin class is a name of the generated module
+            problems.append(f'{where}.path: "{name}" já é usado (ou é reservado)')
+        names.add(name)
+        try:
+            config = found.Config.model_validate(plugin.kwargs) if hasattr(found, 'Config') else plugin.kwargs
+        except ValidationError as error:
+            problems += [describe(item, (where, 'kwargs')) for item in error.errors()]
+            continue
+        loaded.append((found, config, f'{where}.kwargs'))
+    return loaded, problems
+
+
+def check_plugins(spec):
+    loaded, problems = load_plugins(spec)
+    return problems + [problem for plugin, config, where in loaded if hasattr(plugin, 'check_spec')
+                       for problem in plugin.check_spec(spec, config, where)]
 
 
 # Copy of ADK 2.10's _TEMPLATE_VAR_PATTERN (google/adk/flows/llm_flows/prompt/_instructions_utils.py),
@@ -340,11 +340,10 @@ def placeholder_problem(field, match, available):
 
 
 def check_agents(spec) -> list[str]:
-    """Across agents: unique names and keys, placeholders of earlier agents only, tools of
-    declared servers, and booking only after the order was read and searched."""
-    problems, names = [], set()
-    available: list[str] = []  # output keys of the earlier agents
-    done: set[str] = set()  # tools of the earlier agents
+    """Across agents: unique names and keys, placeholders of agents that ran before, tools of declared
+    servers, declared there."""
+    problems, names, keys = [], set(), set()
+    available: list[str] = []  # output keys of the agents that ran before this one
     for index, agent in enumerate(spec.agents):
         where = f'agents.{index}'
         if (agent.name in names or agent.name in RESERVED | {spec.name} or keyword.iskeyword(agent.name)
@@ -355,43 +354,26 @@ def check_agents(spec) -> list[str]:
             problem = placeholder_problem(f'{where}.instruction', match, available)
             if problem:
                 problems.append(problem)
-        if agent.output_key in available:
+        if agent.output_key in keys:
             problems.append(f'{where}.output_key: "{agent.output_key}" já é usado por outro agente')
         elif agent.output_key in RECORD_KEYS:  # the runtime's copy of the order goes to the session state
             problems.append(f'{where}.output_key: "{agent.output_key}" é reservado: o runtime usa essa chave do estado')
-        available.append(agent.output_key)
-        problems += tool_problems(spec, where, agent, done)
-        done |= set(agent.tools)
+        keys.add(agent.output_key)
+        if spec.workflow in ('SequentialAgent', 'LoopAgent'):  # in a ParallelAgent no agent runs before another
+            available.append(agent.output_key)
+        problems += tool_problems(spec, where, agent)
     return problems
 
 
-def tool_problems(spec, where, agent, done):
-    """An agent's tools: each of a declared server and declared there, and booking only once, after
-    earlier agents read the order and searched the catalog (`done`: the tools of earlier agents)."""
-    problems, roles = [], spec.declared_roles()
+def tool_problems(spec, where, agent):
+    """An agent's tools: each of a declared server, and declared there."""
+    problems = []
     for tool in agent.tools:
         server = tool.split('.')[0]
         if server not in spec.servers:
             problems.append(f'{where}.tools: "{tool}" usa o servidor "{server}", que não está em servers')
         elif tool not in spec.tools_of(server):
             problems.append(f'{where}.tools: "{tool}" não está declarada em servers.{server}')
-        elif not spec.servers[server].mcp and tool != roles['book']:
-            # Fail closed: the runtime checks the codes only on the book role's call; any other API
-            # operation would go out unchecked (a spec without "roles" names it api.create_appointment).
-            problems.append(f'{where}.tools: "{tool}" é uma operação de API e só a de roles.book chega a um agente, '
-                            'porque só ela passa pela checagem dos códigos antes da chamada; declare-a em roles.book '
-                            'ou tire-a do agente')
-        elif tool not in roles.values():
-            # The runtime lets through only the tools of the roles, each with its own check (the reading
-            # gets this run's file only): a tool without a role would be refused when called.
-            problems.append(f'{where}.tools: "{tool}" não tem papel em roles (read, search ou book); o runtime só deixa '
-                            'passar as ferramentas dos papéis, cada uma conferida: declare o papel ou tire-a do agente')
-    book, needed = roles['book'], [roles[role] for role in ('read', 'search') if roles[role]]
-    if book in agent.tools and book in done:
-        problems.append(f'{where}.tools: {book} já está em outro agente: um pedido, um agendamento')
-    elif book in agent.tools and not set(needed) <= done:
-        problems.append(f'{where}.tools: {book} só agenda códigos achados no catálogo: '
-                        f'antes dele, agentes anteriores precisam usar {" e ".join(needed)}')
     return problems
 
 
@@ -406,7 +388,7 @@ def parse_spec(text):
         spec = AgentSpec.model_validate(data)
     except ValidationError as error:
         raise TranspileError([describe(item) for item in error.errors()]) from None
-    problems = check_servers(spec) + check_roles(spec) + check_booking(spec) + check_agents(spec)
+    problems = check_servers(spec) + check_agents(spec) + check_workflow(spec) + check_plugins(spec)
     if problems:
         raise TranspileError(problems)
     return spec

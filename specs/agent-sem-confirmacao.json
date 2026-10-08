@@ -7,8 +7,6 @@
     "rag": {"url": "http://rag:8002/sse", "tools": ["search_exams"]},
     "api": {"openapi_url": "http://api:8000/openapi.json", "operations": ["create_appointment"]}
   },
-  "roles": {"read": "ocr.extract_exam_text", "search": "rag.search_exams", "book": "api.create_appointment"},
-  "booking": {"min_confidence": 0.9, "ask_from": null, "ocr_floor": {"line": 75, "short_code": 85, "short_synonym": 95}, "top_k": 3},
   "agents": [
     {
       "name": "extract",
@@ -27,6 +25,16 @@
       "instruction": "Agende os exames abaixo chamando a ferramenta que cria um agendamento (POST /appointments) com o corpo {\"exams\": <lista abaixo>}. Os exames sem confiança suficiente ficam de fora e aparecem no aviso da CLI. Depois responda com o id e o status devolvidos pela API.\nExames:\n{exam_codes}",
       "output_key": "appointment",
       "tools": ["api.create_appointment"]
+    }
+  ],
+  "workflow": "SequentialAgent",
+  "plugins": [
+    {
+      "path": "runtime.plugin.BookingPlugin",
+      "kwargs": {
+        "read": "ocr.extract_exam_text", "search": "rag.search_exams", "book": "api.create_appointment",
+        "min_confidence": 0.9, "ask_from": null, "ocr_floor_line": 75, "ocr_floor_short": 85, "ocr_floor_synonym": 95, "top_k": 3
+      }
     }
   ]
 }

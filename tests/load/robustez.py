@@ -303,6 +303,7 @@ def agente_gerado():
         spec = importlib.util.spec_from_file_location('agente_robustez', destino)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
+    module.CALLBACKS = module.app.plugins[0]  # o BookingPlugin: os callbacks que este teste chama
     return module
 
 

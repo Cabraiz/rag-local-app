@@ -7,4 +7,5 @@ over the shipped files read these lists. tests/test_versionados.py checks them a
 SAMPLE_IMAGES = ('ataque-exame-disfarcado.png', 'ataque-injecao.png', 'pedido-manuscrito-dificil.png',
                  'pedido-manuscrito.png', 'pedido-realista.png', 'pedido-sem-exame.png', 'pedido-variacao.png',
                  'pedido.png')
-EXAMPLE_SPECS = ('agendar-variante.json', 'agent-sem-confirmacao.json', 'agent.json', 'listar-exames.json')
+EXAMPLE_SPECS = ('agendar-variante.json', 'agent-sem-confirmacao.json', 'agent.json', 'exemplo-generico.json',
+                 'listar-exames.json')

@@ -19,8 +19,9 @@ import httpx
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
-from runtime import BookingCallbacks, confirmacao, servidores
+from runtime import confirmacao, servidores
 from runtime.entrada import image_token
+from runtime.plugin import BookingPlugin, roles_of
 from runtime.rede import pinned_names
 from runtime.relatorio import api_error_in, api_refusal, model_failure, reading_lines
 from runtime.servidores import CHECK_SECONDS, IMAGE_CHECK
@@ -45,12 +46,18 @@ class RunError(Exception):
     """A problem the user can fix; the message is shown as is."""
 
 
+def tool_for(spec, role):
+    """The tool that plays a role of the spec's BookingPlugin ('read', 'search' or 'book'), or None."""
+    reference = roles_of(spec).get(role)
+    return reference.split('.')[1] if reference else None
+
+
 def cmd_transpile(args):
     checked = []
     root_agent = transpile(args.spec, args.output, checked)
-    steps = ' -> '.join(agent.name for agent in root_agent.sub_agents)
+    steps = ': ' + ' -> '.join(agent.name for agent in root_agent.sub_agents) if root_agent.sub_agents else ''
     print(f'OK: {args.output} gerado e importado; root_agent "{root_agent.name}" '
-          f'({type(root_agent).__name__}: {steps})')
+          f'({type(root_agent).__name__}{steps})')
     if checked:  # a server that did not answer keeps the spec's list; `cli run` asks it again
         print(f'Ferramentas conferidas nos servidores: {", ".join(checked)}')
     return 0
@@ -87,7 +94,7 @@ def check_image(spec, image, live):
     large, not the format its name says, corrupt, a photo it would barely read). The server is asked,
     since the agent's container does not see samples/; one that does not list IMAGE_CHECK (another
     spec's reader) leaves it to the run. The real name goes to the server only: the model gets a token."""
-    name = spec.role_refs()['read'].split('.')[0]
+    name = roles_of(spec)['read'].split('.')[0]
     if IMAGE_CHECK not in ((live or {}).get(name) or {}):
         return
     server = spec.servers[name]
@@ -121,9 +128,9 @@ def note_reply(found, spec, response):
     """A tool's reply during the run. The booking one is recorded. Any other tool that answered, but
     the reading, the search and the [s/N] question, may have written: the runtime refuses tools
     without a role, so this is defense in depth: the CLI never says nothing was written."""
-    if response.name == spec.tool_for('book'):
+    if response.name == tool_for(spec, 'book'):
         record(found, response.response)
-    elif response.name not in (spec.tool_for('read'), spec.tool_for('search'), CONFIRMATION):
+    elif response.name not in (tool_for(spec, 'read'), tool_for(spec, 'search'), CONFIRMATION):
         reply = response.response
         if not (isinstance(reply, dict) and {'blocked', 'pending_confirmation'} & reply.keys()):
             found['api_called'] = True
@@ -170,7 +177,7 @@ async def run_agent(app, image, spec, found):
     # before_tool turns the token back into the name. The image checked here, and whether anyone
     # answers the questions, go to the order's record in the agent's callbacks (runtime/pedido.py).
     session = await runner.session_service.create_session(app_name=app.name, user_id='cli')
-    BookingCallbacks.of(app.root_agent).orders.start(session, image, ask=found.get('questions'))
+    BookingPlugin.of(app).orders.start(session, image, ask=found.get('questions'))
     message = types.Content(role='user', parts=[types.Part(text=f'Arquivo do pedido: {image_token(image)}')])
     started, invocation = {}, None  # call id -> timestamp of the event that asked for it
     try:
@@ -235,8 +242,8 @@ def timing(found, spec, total):
     def seconds(value):
         return f'{value:.1f}'.replace('.', ',') if value < 10 else f'{value:.0f}'
 
-    steps = (('OCR', spec.tool_for('read')), ('busca', spec.tool_for('search')),
-             ('agendamento', spec.tool_for('book')))
+    steps = (('OCR', tool_for(spec, 'read')), ('busca', tool_for(spec, 'search')),
+             ('agendamento', tool_for(spec, 'book')))
     spent = found['tool_seconds']
     parts = [f'{label} {seconds(spent[tool])} s' for label, tool in steps if tool in spent]
     model = found.get('model') or os.environ.get('GEMINI_MODEL') or spec.model  # the one that answered
@@ -269,10 +276,10 @@ def show_listing(found, spec):
     for item, confidence in zip(listing, shown, strict=True):
         print(f'| {item["name"]:<{width}} | {item["code"]:<8} | {confidence:<{column}} |')
     if found['api_called']:  # a tool outside the roles answered: never say that nothing was written
-        print(f'\n{len(listing)} exame(s) listado(s); a spec não declara roles.book, mas uma ferramenta fora dos '
-              'papéis respondeu e pode ter gravado: confira')
+        print(f'\n{len(listing)} exame(s) listado(s); o BookingPlugin da spec não declara book, mas uma '
+              'ferramenta fora dos papéis respondeu e pode ter gravado: confira')
     else:
-        print(f'\n{len(listing)} exame(s) listado(s); nada foi agendado (a spec não declara roles.book)')
+        print(f'\n{len(listing)} exame(s) listado(s); nada foi agendado (o BookingPlugin da spec não declara book)')
 
 
 def print_result(found):
@@ -336,9 +343,10 @@ def check_agent(args, spec):
 def load_checked_spec(args):
     """The spec, once agent.py is what it generates, its services answer and the OCR accepts the image."""
     spec = load_spec(args.spec)
-    if not (spec.tool_for('read') and spec.tool_for('search')):
+    if not (tool_for(spec, 'read') and tool_for(spec, 'search')):
         raise RunError(f'{args.spec}: `cli run` lê um pedido em imagem e busca os exames no catálogo, e esta spec '
-                       'não tem roles.read e roles.search; ela pode ser transpilada, não rodada pela CLI')
+                       'não tem o BookingPlugin com read e search; ela pode ser transpilada e rodada com `adk run` '
+                       'ou `adk web`, não pela CLI')
     check_agent(args, spec)
     check_image(spec, args.image, check_services(spec))
     return spec
@@ -352,7 +360,7 @@ def ocr_problem(found, spec):
         return 'o agente pediu um arquivo diferente do informado; nada foi agendado'
     if found.get('ocr_error'):
         return ocr_refused(found['ocr_error'])
-    if spec.tool_for('read') not in found['tools_called']:  # what the model really called
+    if tool_for(spec, 'read') not in found['tools_called']:  # what the model really called
         return 'o agente não leu a imagem (não chamou o OCR); nada foi agendado'
     return 'o OCR não devolveu o texto do pedido (serviço indisponível?); nada foi agendado'
 
@@ -360,7 +368,7 @@ def ocr_problem(found, spec):
 def booking_problem(found, spec):
     """Why an order that was read booked nothing: no search, no exam, a block or the API's refusal."""
     called = found['tools_called']  # what the model really called, not what it said it did
-    skipped_search = spec.tool_for('book') in called and spec.tool_for('search') not in called
+    skipped_search = tool_for(spec, 'book') in called and tool_for(spec, 'search') not in called
     if not found['candidates'] and skipped_search:
         return 'a busca no catálogo não foi feita (o agente tentou agendar sem buscar os exames); nada foi agendado'
     if not found['candidates'] and not found['api_error']:  # nothing searched, or the call was blocked
@@ -401,7 +409,7 @@ def checked_run(args):
             raise RunError(failure_message(error, found)) from None
         if found.get('model_error'):  # the agent ended the failed step in one line: the CLI says it
             raise RunError(failure_message(None, found))
-        if spec.tool_for('book') is None:
+        if tool_for(spec, 'book') is None:
             show_listing(found, spec)
             return 0
         if found['appointment'] is None:

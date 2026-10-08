@@ -1,0 +1,16 @@
+{
+  "name": "docs_assistant",
+  "model": "gemini-3.5-flash",
+  "servers": {
+    "docs": {"url": "http://docs:8010/sse", "tools": ["search_docs"]}
+  },
+  "agents": [
+    {
+      "name": "answer",
+      "instruction": "Responda a pergunta do usuário com o que a documentação diz. Chame search_docs com as palavras principais da pergunta e use só as páginas que ela devolver; cite o título de cada página usada. Se nenhuma página responder, diga isso em uma frase.",
+      "output_key": "answer",
+      "tools": ["docs.search_docs"]
+    }
+  ],
+  "workflow": null
+}

@@ -231,7 +231,7 @@ def test_no_agent_can_call_check_image(ocr_run, tmp_path):
     data['agents'][0]['tools'].append('ocr.check_image')
     with pytest.raises(TranspileError) as error:
         parse_spec(json.dumps(data))
-    assert any('"ocr.check_image" não tem papel em roles' in problem for problem in error.value.problems)
+    assert any('"ocr.check_image" não tem papel em plugins.0.kwargs' in problem for problem in error.value.problems)
     callbacks = BookingCallbacks(ocr_tool='extract_exam_text', search_tool='search_exams', booking_tool='create_appointment')
     reply = callbacks.before_tool(SimpleNamespace(name='check_image'), {'filename': 'x.png'}, SimpleNamespace(state={}))
     assert reply == {'blocked': 'ferramenta sem papel conferido pelo runtime (check_image); nada foi enviado'}

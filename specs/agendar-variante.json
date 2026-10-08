@@ -7,8 +7,6 @@
     "catalogo": {"url": "http://rag:8002/sse", "tools": ["search_exams"]},
     "clinica": {"openapi_url": "http://api:8000/openapi.json", "operations": ["create_appointment"]}
   },
-  "roles": {"read": "leitor.extract_exam_text", "search": "catalogo.search_exams", "book": "clinica.create_appointment"},
-  "booking": {"min_confidence": 0.9, "ask_from": 0.7, "ocr_floor": {"line": 75, "short_code": 85, "short_synonym": 95}, "top_k": 3},
   "agents": [
     {
       "name": "ler_e_buscar",
@@ -26,6 +24,16 @@
       "instruction": "Agende os exames abaixo chamando a ferramenta que cria um agendamento (POST /appointments) com o corpo {\"exams\": <lista abaixo>}. Depois responda com o id e o status devolvidos pela API.\nExames:\n{para_agendar}",
       "output_key": "agendamento",
       "tools": ["clinica.create_appointment"]
+    }
+  ],
+  "workflow": "SequentialAgent",
+  "plugins": [
+    {
+      "path": "runtime.plugin.BookingPlugin",
+      "kwargs": {
+        "read": "leitor.extract_exam_text", "search": "catalogo.search_exams", "book": "clinica.create_appointment",
+        "min_confidence": 0.9, "ask_from": 0.7, "ocr_floor_line": 75, "ocr_floor_short": 85, "ocr_floor_synonym": 95, "top_k": 3
+      }
     }
   ]
 }
