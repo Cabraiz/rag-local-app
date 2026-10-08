@@ -184,7 +184,7 @@ docker compose run --rm agent adk run --in_memory generated              # no [u
 docker compose run --rm -p 127.0.0.1:8000:8000 agent python -m runtime.web --host 0.0.0.0 generated   # o adk web, com checagem de Host
 ```
 
-O `python -m runtime.web` ([`runtime/web.py`](../runtime/web.py)) sobe o mesmo servidor do `adk web --no_use_local_storage` e só atende o cabeçalho `Host` `127.0.0.1` ou `localhost` (outro nome recebe 400), contra DNS rebinding: uma página cujo nome passa a apontar para 127.0.0.1 manda o próprio nome; o `adk web` só confere o `Host` escutando em 127.0.0.1, e no container ele escuta em 0.0.0.0.
+O `python -m runtime.web` ([`runtime/web.py`](../runtime/web.py)) sobe o mesmo servidor do `adk web --no_use_local_storage` e só atende o cabeçalho `Host` `127.0.0.1` ou `localhost` (outro nome recebe 400), contra DNS rebinding: uma página cujo nome passa a apontar para 127.0.0.1 manda o próprio nome; o `adk web` só confere o `Host` escutando em 127.0.0.1, e no container ele escuta em 0.0.0.0. Uma confirmação forjada que o ADK recusa recebe 400 numa linha (`Confirmação inválida para esta sessão; nada foi agendado.`), sem traceback.
 
 No `adk web`, abra <http://127.0.0.1:8000>, escolha o agente `generated` e mande `pedido.png`. Se a porta 8000 do host estiver ocupada, troque só o primeiro número (ex.: `127.0.0.1:8090:8000`).
 
