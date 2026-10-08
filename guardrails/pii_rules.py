@@ -7,8 +7,6 @@ from pathlib import Path
 
 from catalogo import fold
 
-FIRST_NAMES_FILE = Path(__file__).with_name('prenomes.txt')
-
 # --- 1. One regex per type -------------------------------------------------------------
 # "[ \t]" (space or tab) instead of "\s": a value never continues on the next line.
 SEP = r'[ \t]?[.,/\-]?[ \t]?'  # between two digits of a document: "123.456", "123 456", "123,456" (OCR)
@@ -117,8 +115,7 @@ CPF_REST = re.compile(r'^[ \t]*(?P<part>\d(?:' + SEP + r'\d){0,9})(?!\d)')
 WORD = re.compile(r"[^\W\d_]+(?:['’-][^\W\d_]+)*")  # letters only: "Sant'Anna", "Anne-Louise"
 TAG = re.compile(r'\[[A-Z]+\]')                      # a value already masked
 NEXT_LABEL = re.compile(r'[^\W\d_][\w.]*[ \t]*:')   # "CPF:", "Data:": where a labelled name ends
-# Name labels. "Paciente:" needs the colon (a header like "PEDIDO MEDICO" is not a label);
-# "paciente", "mãe" and "pai" without it, and the titles, do not.
+# Name labels: "Paciente:" needs the colon ("PEDIDO MEDICO" is no label); "paciente", "mãe", "pai" and titles do not.
 LABEL = re.compile(r'''(?ix)
     \b (?: paciente | nome (?:\s+do\s+paciente)? | m[ée]dic[oa] (?:\s+solicitante)? | respons[áa]vel
          | solicitante | assinatura | acompanhante | m[ãa]e | pai ) [ \t]*: (?P<colon>)
@@ -151,8 +148,8 @@ FIELD_NAMES = frozenset(('cpf', 'rg', 'crm', 'cep', 'cid', 'cns', 'sus', 'data',
 NOT_NAMES = frozenset(('pedido', 'exame', 'exames', 'solicitacao', 'requisicao', 'laboratorio', 'clinica',
                        'hospital', 'centro', 'unidade', 'medico', 'medica', 'assinatura', 'diagnostico',
                        'indicacao', 'observacao', 'urgente', 'rotina', 'paciente', 'nome'))
-FIRST_NAMES = frozenset(fold(line.strip()) for line in FIRST_NAMES_FILE.read_text(encoding='utf-8').splitlines()
-                        if line.strip() and not line.startswith('#')) - set(fold(MONTHS).split('|'))
+FIRST_NAMES = frozenset(fold(line.strip()) for line in Path(__file__).with_name('prenomes.txt').read_text(encoding='utf-8')
+                        .splitlines() if line.strip() and not line.startswith('#')) - set(fold(MONTHS).split('|'))
 
 # --- 4. Safety net: only what looks like an exam leaves the OCR ----------------------------
 # A line is split in pieces; a piece that fails is split again where two exams may be joined
@@ -171,17 +168,15 @@ JOINED = re.compile(r'(\s(?:e|E|\+|/)\s)')
 STRUCTURE = NOT_NAMES | FIELD_NAMES | PARTICLES | frozenset((
     'pedidos', 'medicos', 'solicito', 'solicita', 'solicitados', 'solicitado', 'laboratoriais', 'laboratorial',
     'clinico', 'receituario', 'obs', 'observacoes', 'carimbo', 'dr', 'dra', 'sr', 'sra', 'doutor', 'doutora',
-    'responsavel', 'solicitante', 'cartao', 'plano', 'fone', 'mail', 'preparo', 'nota', 'orientacao',
-    'orientacoes'))
+    'responsavel', 'solicitante', 'cartao', 'plano', 'fone', 'mail', 'preparo', 'nota', 'orientacao', 'orientacoes'))
 
 UNITS = frozenset(('mg', 'ml', 'dl', 'ui', 'h', 'hs', 'hrs', 'min', 'x'))
 AMOUNT = re.compile(r'\d+(?:' + '|'.join(UNITS) + r')?')  # "100", "8h", "12hs"
-# A long number on an exam line is neither part of an exam's name nor a lab value: a document, a card or
-# a phone the rules did not recognize ("Glicose 98765432", "TSH 1234 5678 9012"). 5 or more digits, in
-# groups or not, unless a unit follows ("150.000/mm3"); no exam name has more than 3 ("CA 125", "Urina 24h").
+# A long number on an exam line is a document, card or phone ("TSH 898*0010*0123*4567"): 5+ digits, any one mark
+# between two (exam names have 3 at most); a count before its unit keeps up to 7 ("4.500.000 células"), hours none.
 LAB_UNIT = (r'(?:%|/[ \t]*mm[³3]?|mm[³3]|[mµun]?g[ \t]*/[ \t]*d?l|[mµ]?ui[ \t]*/[ \t]*m?l|u[ \t]*/[ \t]*l|mmol|meq|'
-            r'ng|pg|ml|mg|ui|cels?|c[ée]lulas|h|hs|hrs|horas?|dias?)')
-LONG_NUMBER = re.compile(r'(?<![\w.,/-])\d(?:[ \t.\-/]?\d){4,}(?![\w])(?![ \t]*' + LAB_UNIT + r'(?![^\W\d_]))',
-                         re.IGNORECASE)
+            r'ng|pg|ml|mg|ui|cels?|c[ée]lulas)(?![^\W\d_])')
+DIGIT = r'(?:[^\w\n]|_)?\d'  # the next digit of a number: "898*0010", "9_8765", "123/456"
+LONG_NUMBER = re.compile(rf'(?<![\w.,/-])(?!\d(?:{DIGIT}){{4,6}}[ \t]*{LAB_UNIT})\d(?:{DIGIT}){{4,}}(?!\w)', re.I)
 OCR_DIGITS = str.maketrans('0158', 'olsb')  # digits the OCR reads for letters: "25(0H)D", "Lipa5e"
 MARKS_BEFORE, MARKS_AFTER = re.compile(r'[^\w\[\]]*'), re.compile(r'[^\w\[\]]*$')  # marks around a piece

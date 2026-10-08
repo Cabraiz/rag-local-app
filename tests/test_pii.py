@@ -354,3 +354,35 @@ def test_masking_never_removes_an_exam_from_a_legitimate_line(line):
 @pytest.mark.parametrize('line', catalog_terms())
 def test_no_catalog_exam_is_masked(line):
     assert mask_page([line]) == ([line], {})
+
+
+@pytest.mark.parametrize('line, expected', [
+    # Digits of a document, card or phone with any one mark between them: counted after the marks go.
+    ('TSH 898*0010*0123*4567', 'TSH [TEXTO_REMOVIDO]'),
+    ('Glicose 9_8765_4321', 'Glicose [TEXTO_REMOVIDO]'),
+    ('Creatinina 1 2 3 4 5 6 7 8 9', 'Creatinina [TEXTO_REMOVIDO]'),
+    ('Hemograma 123/456/789-00', 'Hemograma [CPF]'),
+    ('CPF: 12_34_56_78_90_1', 'CPF: [TEXTO_REMOVIDO]'),  # short groups are no structure when they add up
+    # A long number before a unit: hours never have 5 digits; a count keeps up to 7.
+    ('Hemograma completo 12345678 h', 'Hemograma completo [TEXTO_REMOVIDO] h'),
+    ('TSH 1234567 horas', 'TSH [TEXTO_REMOVIDO] horas'),
+    ('Glicose 4.500.000 celulas', 'Glicose 4.500.000 [TEXTO_REMOVIDO]'),
+    ('TSH 12345 mg', 'TSH 12345 mg'),
+    ('Urina 24 h', 'Urina 24 h'),
+    # A name after the exam's whole name, even made of exam words ("Albina" is one OCR error from Albumina,
+    # "Ferro" is an exam): 2 or more words that neither qualify the exam nor start another.
+    ('Ferritina Albina Ferro', 'Ferritina [TEXTO_REMOVIDO]'),
+    ('FERRITINA ALBINA FERRO', 'FERRITINA [TEXTO_REMOVIDO]'),
+    ('TSH e T4 livre Joana Prado', 'TSH e T4 livre [NOME]'),
+    ('Creatinina Clara Nunes', 'Creatinina [NOME]'),
+    ('TSH Zé', 'TSH [TEXTO_REMOVIDO]'),  # one capitalized word that is not one OCR error from an exam word
+    ('Ferritina Bia', 'Ferritina [TEXTO_REMOVIDO]'),
+    # ...while qualifiers, a qualifier the OCR misread, an amount and the next exam stay.
+    ('Hemograma completo com plaquetas', 'Hemograma completo com plaquetas'),
+    ('HEMOGRAMA COMPIETO COM PLAQUETAS', 'HEMOGRAMA COMPIETO COM PLAQUETAS'),
+    ('Ferritina e Ferro serico', 'Ferritina e Ferro serico'),
+    ('TSH e T4 livre', 'TSH e T4 livre'),
+    ('Vitamina D 25 OH', 'Vitamina D 25 OH'),
+])
+def test_numbers_and_names_on_an_exam_line_are_masked_by_their_shape(line, expected):
+    assert mask_page([line])[0] == [expected]
