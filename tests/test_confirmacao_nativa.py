@@ -234,6 +234,13 @@ def test_the_reserve_answers_per_request_and_nothing_is_asked_or_booked_twice(tm
     assert found['appointment']['id'] == 'a1' and not found.get('model_error')
 
 
+def test_the_guides_sample_question_is_the_one_the_cli_asks():
+    sure = [{'code': 'FICT-001', 'name': 'Hemograma completo'}, {'code': 'FICT-002', 'name': 'Glicemia de jejum'},
+            {'code': 'FICT-005', 'name': 'Creatinina'}]  # pedido.png, read clearly; its OCR removes 3 pieces
+    question = confirmacao.review(sure, [], [], OrderRecord(text_removed=3, ocr_read=[], off_list=[]))
+    assert question + ' [s/N] s' in (ROOT / 'docs' / 'como-rodar.md').read_text('utf-8')
+
+
 def test_the_page_reason_comes_once_above_the_list_with_its_line_and_what_the_ocr_removed():
     # A typed note above the list: each exam is asked, and the question says why once, pointing to the line.
     order = OrderRecord(ocr_read=['[TEXTO_REMOVIDO]: [TEXTO_REMOVIDO], [TEXTO_REMOVIDO]', 'Paciente: [NOME]', '- TSH',
