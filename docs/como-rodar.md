@@ -81,9 +81,8 @@ Exames para agendar:
 Agendar estes 3 exames? [s/N] s
 ```
 
-Com `s`, a saída segue como a do log abaixo (sem as linhas `[extract] chamando ...`). O log foi gravado com `-T` (sem
-terminal), antes de existir a pergunta; hoje esse comando precisa de `--yes`. O id muda a cada execução, e `NOME x2`
-são o paciente e o médico.
+Com `s`, a saída segue como a do [log](evidencias/log-run-pedido.txt), gravado num terminal com essa mesma pergunta
+respondida `s`. O id muda a cada execução, e `NOME x2` são o paciente e o médico.
 
 ```text
 PII reconhecida e mascarada pelo OCR: NOME x2, CPF x1, EMAIL x1, TELEFONE x1
@@ -95,8 +94,8 @@ Trechos removidos pelo OCR (não pareciam exame): 3
 | Glicemia de jejum  | FICT-002 |
 | Creatinina         | FICT-005 |
 
-Agendamento confirmado pela API: id eb9a8d89…, status scheduled
-Tempo: OCR 2,0 s · busca 4,4 s · agendamento 1,6 s · total 13 s (modelo gemini-3.5-flash)
+Agendamento confirmado pela API: id fe64c8c6…, status scheduled
+Tempo: OCR 2,1 s · busca 2,4 s · agendamento 1,6 s · total 13 s (modelo gemini-3.5-flash)
 ```
 
 **Confirmação final da lista.** Nada é agendado sem ela.
@@ -161,7 +160,7 @@ docker compose run --rm agent python -m cli run --image <arquivo>
 Exemplos em `samples/`:
 
 - **`pedido-realista.png`:** cabeçalho de clínica, CPF, telefone, CID, convênio, data, CRM e 4 exames numa fonte que imita letra de mão. Glicemia e TSH são agendados; Colesterol total e Hemoglobina glicada saem em `baixa confiança` (`(confiança 0,68)`), porque o OCR leu essas linhas com 68 e 60, abaixo do piso de 75. É o esperado: o que não foi lido com segurança vai para conferência humana.
-- **`pedido-sem-exame.png`:** nenhum exame, o caso (b) do [teste de alucinação](evidencias/log-alucinacao.txt): `Erro: Nenhum exame encontrado no pedido; nada foi agendado`. Gerado por `exemplos/gerar_pedido_sem_exame.py`, com semente fixa.
+- **`pedido-sem-exame.png`:** nenhum exame, o caso (b) do [teste de alucinação](evidencias/log-alucinacao.txt): nada é agendado (na execução do teste, `Erro: a busca no catálogo não foi feita (o agente tentou agendar sem buscar os exames); nada foi agendado`). Gerado por `exemplos/gerar_pedido_sem_exame.py`, com semente fixa.
 - **`pedido-variacao.png`:** nome sem rótulo, marcadores, sinônimo `Glicose`, telefone sem rótulo, data e CRM.
 - **`ataque-injecao.png` e `ataque-exame-disfarcado.png`:** instruções escondidas; só os exames legítimos são agendados ([Segurança em detalhe](arquitetura.md#segurança-em-detalhe)).
 - **`pedido-manuscrito.png` e `pedido-manuscrito-dificil.png`:** letra de mão e foto de celular, simuladas. No primeiro, o OCR lê os 5 exames; no segundo ("letra de médico"), quase nada, e nada é agendado sem confirmação.

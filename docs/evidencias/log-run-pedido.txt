@@ -1,12 +1,16 @@
-$ docker compose run --rm -T agent python -m cli run --image pedido.png
-# versão publicada · 2026-10-08 01:21 UTC · gemini-3.5-flash
-# gravado antes da confirmação final da lista; hoje, sem terminal (-T), este comando precisa de --yes
-# a linha da PII foi renomeada depois da gravação: era 'PII mascarada pelo OCR'; os valores são os gravados
+$ docker compose run --rm agent python -m cli run --image pedido.png
+# versão publicada · 2026-10-09 00:20 UTC · gemini-3.5-flash
 [extract] chamando extract_exam_text
 [search] chamando search_exams
 [search] chamando search_exams
 [search] chamando search_exams
 [schedule] chamando create_appointment
+Trechos removidos pelo OCR (não pareciam exame): 3
+Exames para agendar:
+- Hemograma completo (FICT-001)
+- Glicemia de jejum (FICT-002)
+- Creatinina (FICT-005)
+Agendar estes 3 exames? [s/N] s
 
 PII reconhecida e mascarada pelo OCR: NOME x2, CPF x1, EMAIL x1, TELEFONE x1
 Trechos removidos pelo OCR (não pareciam exame): 3
@@ -17,6 +21,6 @@ Trechos removidos pelo OCR (não pareciam exame): 3
 | Glicemia de jejum  | FICT-002 |
 | Creatinina         | FICT-005 |
 
-Agendamento confirmado pela API: id eb9a8d89-e2d1-4a0e-a6de-9ae0c17eaffb, status scheduled
-Tempo: OCR 2,0 s · busca 4,4 s · agendamento 1,6 s · total 13 s (modelo gemini-3.5-flash)
+Agendamento confirmado pela API: id fe64c8c6-07f8-4526-a530-566d39391332, status scheduled
+Tempo: OCR 2,1 s · busca 2,4 s · agendamento 1,6 s · total 13 s (modelo gemini-3.5-flash)
 [exit code: 0]
