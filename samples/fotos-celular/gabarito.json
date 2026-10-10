@@ -1,0 +1,1401 @@
+{
+ "gerado_por": "python -m tests.load.fotos --saida samples/fotos-celular --n 30 --semente 20261007",
+ "imagens": {
+  "foto-01.jpg": {
+   "estilo": "rotulos",
+   "degradacao": "leve",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "desfoque",
+    "ruído",
+    "JPEG 64"
+   ],
+   "jpeg_qualidade": 64,
+   "tamanho": [
+    1156,
+    1579
+   ],
+   "exames": [
+    {
+     "code": "FICT-018",
+     "name": "Ferritina"
+    },
+    {
+     "code": "FICT-048",
+     "name": "PSA total"
+    },
+    {
+     "code": "FICT-063",
+     "name": "Proteinas totais"
+    },
+    {
+     "code": "FICT-054",
+     "name": "Alfa fetoproteina"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Aparecida Assunção Almeida",
+    "nascimento": "14/09/1974",
+    "cpf": "768.882.767-12",
+    "rg": "65.807.469-X",
+    "telefone": "(21) 91778-3572",
+    "email": "aparecida.almeida72@exemplo.invalid",
+    "endereco": "Avenida São João, 2675",
+    "cep": "05350-997",
+    "medico": "Conceição Nascimento",
+    "crm": "CRM-RS 831944",
+    "carteirinha": "5313 2287 9541 7654",
+    "cid": "E03.9"
+   }
+  },
+  "foto-02.jpg": {
+   "estilo": "lado-a-lado",
+   "degradacao": "leve",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "desfoque",
+    "ruído",
+    "JPEG 78"
+   ],
+   "jpeg_qualidade": 78,
+   "tamanho": [
+    970,
+    1325
+   ],
+   "exames": [
+    {
+     "code": "FICT-016",
+     "name": "Fosforo"
+    },
+    {
+     "code": "FICT-020",
+     "name": "Capacidade de ligacao do ferro"
+    },
+    {
+     "code": "FICT-089",
+     "name": "Proteina S"
+    },
+    {
+     "code": "FICT-014",
+     "name": "Calcio ionizado"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Gabriel Cardoso",
+    "nascimento": "20/03/2004",
+    "cpf": "621.786.142-96",
+    "rg": "50.591.002-9",
+    "telefone": "(81) 92403-4027",
+    "email": "gabriel86@exemplo.invalid",
+    "endereco": "Avenida São João, 1636",
+    "cep": "96763-905",
+    "medico": "Conceição Almeida Pereira",
+    "crm": "CRM-PE 358330",
+    "carteirinha": "9425 6840 7703 7743",
+    "cid": "D50.9"
+   }
+  },
+  "foto-03.jpg": {
+   "estilo": "receituario",
+   "degradacao": "leve",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "desfoque",
+    "ruído",
+    "JPEG 75"
+   ],
+   "jpeg_qualidade": 75,
+   "tamanho": [
+    1025,
+    1400
+   ],
+   "exames": [
+    {
+     "code": "FICT-075",
+     "name": "FAN"
+    },
+    {
+     "code": "FICT-021",
+     "name": "Vitamina B12"
+    },
+    {
+     "code": "FICT-116",
+     "name": "Dengue IgG"
+    },
+    {
+     "code": "FICT-046",
+     "name": "Hormonio do crescimento"
+    },
+    {
+     "code": "FICT-094",
+     "name": "Clearance de creatinina"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Lúcia dos Barbosa Barbosa",
+    "nascimento": "02/03/2006",
+    "cpf": "144.626.448-37",
+    "rg": "69.715.172-3",
+    "telefone": "(21) 99856-1736",
+    "email": "lúcia.barbosa15@exemplo.invalid",
+    "endereco": "Alameda dos Ipês, 310",
+    "cep": "75484-703",
+    "medico": "Raimundo dos Gomes Carvalho",
+    "crm": "CRM-RJ 472984",
+    "carteirinha": "6603 4119 2493 7497",
+    "cid": "E11.9"
+   }
+  },
+  "foto-04.jpg": {
+   "estilo": "rotulos",
+   "degradacao": "media",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 56"
+   ],
+   "jpeg_qualidade": 56,
+   "tamanho": [
+    1193,
+    1629
+   ],
+   "exames": [
+    {
+     "code": "FICT-061",
+     "name": "Bilirrubina indireta"
+    },
+    {
+     "code": "FICT-076",
+     "name": "Anti DNA"
+    },
+    {
+     "code": "FICT-020",
+     "name": "Capacidade de ligacao do ferro"
+    },
+    {
+     "code": "FICT-108",
+     "name": "FTA ABS"
+    },
+    {
+     "code": "FICT-077",
+     "name": "Complemento C3"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "João dos Souza Teixeira",
+    "nascimento": "09/01/1983",
+    "cpf": "590.590.871-02",
+    "rg": "12.920.455-2",
+    "telefone": "(51) 97445-2129",
+    "email": "joão.souza70@exemplo.invalid",
+    "endereco": "Alameda dos Ipês, 2800",
+    "cep": "47576-427",
+    "medico": "João dos Assunção Assunção",
+    "crm": "CRM-PE 028503",
+    "carteirinha": "4099 0406 8708 6108",
+    "cid": "E03.9"
+   }
+  },
+  "foto-05.jpg": {
+   "estilo": "lado-a-lado",
+   "degradacao": "media",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 50"
+   ],
+   "jpeg_qualidade": 50,
+   "tamanho": [
+    1289,
+    1761
+   ],
+   "exames": [
+    {
+     "code": "FICT-011",
+     "name": "Sodio"
+    },
+    {
+     "code": "FICT-054",
+     "name": "Alfa fetoproteina"
+    },
+    {
+     "code": "FICT-089",
+     "name": "Proteina S"
+    },
+    {
+     "code": "FICT-018",
+     "name": "Ferritina"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Juliana da Rocha Barbosa",
+    "nascimento": "04/11/1987",
+    "cpf": "128.709.165-21",
+    "rg": "46.451.452-X",
+    "telefone": "(21) 94625-0700",
+    "email": "juliana.rocha98@exemplo.invalid",
+    "endereco": "Alameda dos Ipês, 1223",
+    "cep": "46633-875",
+    "medico": "João Cardoso",
+    "crm": "CRM-PE 938392",
+    "carteirinha": "6096 8042 5178 5223",
+    "cid": "D50.9"
+   }
+  },
+  "foto-06.jpg": {
+   "estilo": "receituario",
+   "degradacao": "media",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 47"
+   ],
+   "jpeg_qualidade": 47,
+   "tamanho": [
+    1459,
+    1993
+   ],
+   "exames": [
+    {
+     "code": "FICT-097",
+     "name": "Coprocultura"
+    },
+    {
+     "code": "FICT-056",
+     "name": "ALT"
+    },
+    {
+     "code": "FICT-087",
+     "name": "Antitrombina"
+    },
+    {
+     "code": "FICT-071",
+     "name": "Proteina C reativa"
+    },
+    {
+     "code": "FICT-023",
+     "name": "Vitamina D"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Luiz Lima",
+    "nascimento": "16/12/1988",
+    "cpf": "843.044.083-68",
+    "rg": "87.706.721-3",
+    "telefone": "(81) 99508-8540",
+    "email": "luiz19@exemplo.invalid",
+    "endereco": "Alameda dos Ipês, 2805",
+    "cep": "44875-332",
+    "medico": "Fernanda de Araújo Carvalho",
+    "crm": "CRM-MG 684056",
+    "carteirinha": "3923 8551 4220 5785",
+    "cid": "E03.9"
+   }
+  },
+  "foto-07.jpg": {
+   "estilo": "rotulos",
+   "degradacao": "forte",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 51"
+   ],
+   "jpeg_qualidade": 51,
+   "tamanho": [
+    1216,
+    1661
+   ],
+   "exames": [
+    {
+     "code": "FICT-087",
+     "name": "Antitrombina"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Fernanda Mendes",
+    "nascimento": "21/07/2001",
+    "cpf": "527.217.609-09",
+    "rg": "83.145.918-6",
+    "telefone": "(51) 93250-1228",
+    "email": "fernanda70@exemplo.invalid",
+    "endereco": "Avenida Getúlio Vargas, 2373",
+    "cep": "39224-816",
+    "medico": "Gabriel Correia Rocha",
+    "crm": "CRM-AM 665474",
+    "carteirinha": "5676 9016 8142 9455",
+    "cid": "E78.5"
+   }
+  },
+  "foto-08.jpg": {
+   "estilo": "lado-a-lado",
+   "degradacao": "forte",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 70"
+   ],
+   "jpeg_qualidade": 70,
+   "tamanho": [
+    935,
+    1277
+   ],
+   "exames": [
+    {
+     "code": "FICT-083",
+     "name": "Tempo de protrombina"
+    },
+    {
+     "code": "FICT-030",
+     "name": "Peptideo C"
+    },
+    {
+     "code": "FICT-074",
+     "name": "Anti CCP"
+    },
+    {
+     "code": "FICT-060",
+     "name": "Bilirrubina direta"
+    },
+    {
+     "code": "FICT-001",
+     "name": "Hemograma completo"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Priscila Correia",
+    "nascimento": "05/03/1970",
+    "cpf": "357.128.364-31",
+    "rg": "34.929.977-2",
+    "telefone": "(81) 98274-3749",
+    "email": "priscila54@exemplo.invalid",
+    "endereco": "Rua Professor Antônio Prado, 1411",
+    "cep": "31777-234",
+    "medico": "Gabriel Freitas",
+    "crm": "CRM-SP 041934",
+    "carteirinha": "5623 2662 8452 5156",
+    "cid": "D50.9"
+   }
+  },
+  "foto-09.jpg": {
+   "estilo": "receituario",
+   "degradacao": "forte",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 38"
+   ],
+   "jpeg_qualidade": 38,
+   "tamanho": [
+    1439,
+    1966
+   ],
+   "exames": [
+    {
+     "code": "FICT-060",
+     "name": "Bilirrubina direta"
+    },
+    {
+     "code": "FICT-027",
+     "name": "T4 total"
+    },
+    {
+     "code": "FICT-037",
+     "name": "Progesterona"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Otávio Freitas Carvalho",
+    "nascimento": "13/04/1973",
+    "cpf": "936.951.942-40",
+    "rg": "35.976.272-8",
+    "telefone": "(41) 95337-3292",
+    "email": "otávio.carvalho19@exemplo.invalid",
+    "endereco": "Avenida Getúlio Vargas, 1515",
+    "cep": "28874-209",
+    "medico": "João de Costa Vieira",
+    "crm": "CRM-PR 124427",
+    "carteirinha": "0409 7103 3175 2842",
+    "cid": "Z00.0"
+   }
+  },
+  "foto-10.jpg": {
+   "estilo": "rotulos",
+   "degradacao": "leve",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "desfoque",
+    "ruído",
+    "JPEG 59"
+   ],
+   "jpeg_qualidade": 59,
+   "tamanho": [
+    1300,
+    1775
+   ],
+   "exames": [
+    {
+     "code": "FICT-093",
+     "name": "Microalbuminuria"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "José Nascimento",
+    "nascimento": "26/01/1968",
+    "cpf": "883.938.726-96",
+    "rg": "35.551.278-0",
+    "telefone": "(51) 94581-5215",
+    "email": "josé60@exemplo.invalid",
+    "endereco": "Rua Professor Antônio Prado, 1898",
+    "cep": "44085-786",
+    "medico": "Rafael Rocha",
+    "crm": "CRM-PE 180552",
+    "carteirinha": "8183 3976 0089 9306",
+    "cid": "K21.0"
+   }
+  },
+  "foto-11.jpg": {
+   "estilo": "lado-a-lado",
+   "degradacao": "leve",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "desfoque",
+    "ruído",
+    "JPEG 66"
+   ],
+   "jpeg_qualidade": 66,
+   "tamanho": [
+    1164,
+    1590
+   ],
+   "exames": [
+    {
+     "code": "FICT-110",
+     "name": "Toxoplasmose IgM"
+    },
+    {
+     "code": "FICT-083",
+     "name": "Tempo de protrombina"
+    },
+    {
+     "code": "FICT-105",
+     "name": "Anti HBc total"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "José dos Vieira Assunção",
+    "nascimento": "20/09/2005",
+    "cpf": "257.094.328-28",
+    "rg": "96.501.747-5",
+    "telefone": "(11) 93246-1438",
+    "email": "josé.vieira92@exemplo.invalid",
+    "endereco": "Rua das Acácias, 2266",
+    "cep": "47352-208",
+    "medico": "Benedito Correia",
+    "crm": "CRM-PR 488872",
+    "carteirinha": "5496 7609 7830 5228",
+    "cid": "E11.9"
+   }
+  },
+  "foto-12.jpg": {
+   "estilo": "receituario",
+   "degradacao": "leve",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "desfoque",
+    "ruído",
+    "JPEG 64"
+   ],
+   "jpeg_qualidade": 64,
+   "tamanho": [
+    1337,
+    1826
+   ],
+   "exames": [
+    {
+     "code": "FICT-021",
+     "name": "Vitamina B12"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Maria Cardoso",
+    "nascimento": "27/01/2014",
+    "cpf": "610.899.170-41",
+    "rg": "19.287.763-7",
+    "telefone": "(11) 92277-5524",
+    "email": "maria47@exemplo.invalid",
+    "endereco": "Rua Professor Antônio Prado, 794",
+    "cep": "95543-266",
+    "medico": "Gabriel Cardoso Correia",
+    "crm": "CRM-MG 594369",
+    "carteirinha": "8306 5765 3894 0327",
+    "cid": "K21.0"
+   }
+  },
+  "foto-13.jpg": {
+   "estilo": "rotulos",
+   "degradacao": "media",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 51"
+   ],
+   "jpeg_qualidade": 51,
+   "tamanho": [
+    1325,
+    1810
+   ],
+   "exames": [
+    {
+     "code": "FICT-001",
+     "name": "Hemograma completo"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Ana Almeida",
+    "nascimento": "22/06/1949",
+    "cpf": "819.735.987-30",
+    "rg": "53.690.693-9",
+    "telefone": "(11) 97953-5326",
+    "email": "ana48@exemplo.invalid",
+    "endereco": "Alameda dos Ipês, 1574",
+    "cep": "99642-507",
+    "medico": "Benedito da Carvalho Teixeira",
+    "crm": "CRM-CE 513154",
+    "carteirinha": "6276 2690 4369 4560",
+    "cid": "I10"
+   }
+  },
+  "foto-14.jpg": {
+   "estilo": "lado-a-lado",
+   "degradacao": "media",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 50"
+   ],
+   "jpeg_qualidade": 50,
+   "tamanho": [
+    1298,
+    1773
+   ],
+   "exames": [
+    {
+     "code": "FICT-081",
+     "name": "IgM"
+    },
+    {
+     "code": "FICT-007",
+     "name": "Colesterol HDL"
+    },
+    {
+     "code": "FICT-113",
+     "name": "Citomegalovirus IgG"
+    },
+    {
+     "code": "FICT-031",
+     "name": "Cortisol"
+    },
+    {
+     "code": "FICT-071",
+     "name": "Proteina C reativa"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Joaquim Costa",
+    "nascimento": "28/01/1979",
+    "cpf": "422.997.656-92",
+    "rg": "84.416.833-7",
+    "telefone": "(85) 98956-5390",
+    "email": "joaquim69@exemplo.invalid",
+    "endereco": "Travessa da Conceição, 2927",
+    "cep": "17235-016",
+    "medico": "Conceição Santos",
+    "crm": "CRM-AM 881593",
+    "carteirinha": "6275 6050 5329 8226",
+    "cid": "N18.3"
+   }
+  },
+  "foto-15.jpg": {
+   "estilo": "receituario",
+   "degradacao": "media",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 55"
+   ],
+   "jpeg_qualidade": 55,
+   "tamanho": [
+    1301,
+    1777
+   ],
+   "exames": [
+    {
+     "code": "FICT-085",
+     "name": "Fibrinogenio"
+    },
+    {
+     "code": "FICT-080",
+     "name": "IgG"
+    },
+    {
+     "code": "FICT-119",
+     "name": "Sifilis anticorpos totais"
+    },
+    {
+     "code": "FICT-064",
+     "name": "LDH"
+    },
+    {
+     "code": "FICT-029",
+     "name": "Insulina"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Ana Correia",
+    "nascimento": "11/01/1995",
+    "cpf": "046.789.800-68",
+    "rg": "96.901.681-4",
+    "telefone": "(21) 99597-5244",
+    "email": "ana56@exemplo.invalid",
+    "endereco": "Rua das Acácias, 2535",
+    "cep": "52211-784",
+    "medico": "Gabriel Ribeiro",
+    "crm": "CRM-BA 219260",
+    "carteirinha": "2184 7479 8940 4375",
+    "cid": "Z00.0"
+   }
+  },
+  "foto-16.jpg": {
+   "estilo": "rotulos",
+   "degradacao": "forte",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 74"
+   ],
+   "jpeg_qualidade": 74,
+   "tamanho": [
+    887,
+    1211
+   ],
+   "exames": [
+    {
+     "code": "FICT-006",
+     "name": "Colesterol total"
+    },
+    {
+     "code": "FICT-042",
+     "name": "Androstenediona"
+    },
+    {
+     "code": "FICT-041",
+     "name": "DHEA sulfato"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Juliana da Lima Lima",
+    "nascimento": "18/05/1951",
+    "cpf": "273.291.128-32",
+    "rg": "21.339.020-9",
+    "telefone": "(11) 90468-1449",
+    "email": "juliana.lima72@exemplo.invalid",
+    "endereco": "Avenida Getúlio Vargas, 969",
+    "cep": "59109-364",
+    "medico": "Fernanda Gomes",
+    "crm": "CRM-CE 328017",
+    "carteirinha": "5313 9445 3356 3239",
+    "cid": "N18.3"
+   }
+  },
+  "foto-17.jpg": {
+   "estilo": "lado-a-lado",
+   "degradacao": "forte",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 40"
+   ],
+   "jpeg_qualidade": 40,
+   "tamanho": [
+    1462,
+    1997
+   ],
+   "exames": [
+    {
+     "code": "FICT-067",
+     "name": "Creatinoquinase"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Márcia Lima",
+    "nascimento": "04/01/2009",
+    "cpf": "892.322.491-04",
+    "rg": "01.416.501-0",
+    "telefone": "(61) 97333-5371",
+    "email": "márcia70@exemplo.invalid",
+    "endereco": "Avenida São João, 736",
+    "cep": "29037-942",
+    "medico": "Priscila dos Oliveira Mendes",
+    "crm": "CRM-RS 298152",
+    "carteirinha": "9521 9922 9001 3714",
+    "cid": "I10"
+   }
+  },
+  "foto-18.jpg": {
+   "estilo": "receituario",
+   "degradacao": "forte",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 61"
+   ],
+   "jpeg_qualidade": 61,
+   "tamanho": [
+    1097,
+    1498
+   ],
+   "exames": [
+    {
+     "code": "FICT-011",
+     "name": "Sodio"
+    },
+    {
+     "code": "FICT-104",
+     "name": "Anti HBs"
+    },
+    {
+     "code": "FICT-019",
+     "name": "Transferrina"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Benedito Carvalho Freitas",
+    "nascimento": "06/12/1959",
+    "cpf": "811.466.121-65",
+    "rg": "36.131.628-5",
+    "telefone": "(11) 94708-7940",
+    "email": "benedito.freitas60@exemplo.invalid",
+    "endereco": "Rua das Acácias, 1613",
+    "cep": "57824-368",
+    "medico": "Luiz Pereira",
+    "crm": "CRM-BA 488790",
+    "carteirinha": "5907 8802 6968 1171",
+    "cid": "K21.0"
+   }
+  },
+  "foto-19.jpg": {
+   "estilo": "rotulos",
+   "degradacao": "leve",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "desfoque",
+    "ruído",
+    "JPEG 56"
+   ],
+   "jpeg_qualidade": 56,
+   "tamanho": [
+    1368,
+    1868
+   ],
+   "exames": [
+    {
+     "code": "FICT-011",
+     "name": "Sodio"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Inês dos Araújo Mendes",
+    "nascimento": "19/08/1980",
+    "cpf": "492.129.415-19",
+    "rg": "49.353.314-7",
+    "telefone": "(21) 96296-6112",
+    "email": "inês.araújo26@exemplo.invalid",
+    "endereco": "Rua Professor Antônio Prado, 163",
+    "cep": "47842-972",
+    "medico": "Carlos Freitas Oliveira",
+    "crm": "CRM-MG 085219",
+    "carteirinha": "6618 1274 0171 6887",
+    "cid": "E11.9"
+   }
+  },
+  "foto-20.jpg": {
+   "estilo": "lado-a-lado",
+   "degradacao": "leve",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "desfoque",
+    "ruído",
+    "JPEG 64"
+   ],
+   "jpeg_qualidade": 64,
+   "tamanho": [
+    1231,
+    1681
+   ],
+   "exames": [
+    {
+     "code": "FICT-082",
+     "name": "IgE total"
+    },
+    {
+     "code": "FICT-103",
+     "name": "HBsAg"
+    },
+    {
+     "code": "FICT-069",
+     "name": "Troponina I"
+    },
+    {
+     "code": "FICT-061",
+     "name": "Bilirrubina indireta"
+    },
+    {
+     "code": "FICT-015",
+     "name": "Magnesio"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Márcia de Cardoso Brandão",
+    "nascimento": "20/01/2001",
+    "cpf": "890.832.484-48",
+    "rg": "24.810.503-0",
+    "telefone": "(51) 91486-6985",
+    "email": "márcia.cardoso18@exemplo.invalid",
+    "endereco": "Alameda dos Ipês, 2138",
+    "cep": "48616-195",
+    "medico": "Inês Lima",
+    "crm": "CRM-RJ 094110",
+    "carteirinha": "6173 8647 3940 0622",
+    "cid": "I10"
+   }
+  },
+  "foto-21.jpg": {
+   "estilo": "receituario",
+   "degradacao": "leve",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "desfoque",
+    "ruído",
+    "JPEG 62"
+   ],
+   "jpeg_qualidade": 62,
+   "tamanho": [
+    1300,
+    1776
+   ],
+   "exames": [
+    {
+     "code": "FICT-039",
+     "name": "Testosterona livre"
+    },
+    {
+     "code": "FICT-061",
+     "name": "Bilirrubina indireta"
+    },
+    {
+     "code": "FICT-082",
+     "name": "IgE total"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Ana Dias",
+    "nascimento": "21/03/1989",
+    "cpf": "886.726.942-92",
+    "rg": "63.472.379-9",
+    "telefone": "(71) 99857-9258",
+    "email": "ana17@exemplo.invalid",
+    "endereco": "Alameda dos Ipês, 2820",
+    "cep": "72749-763",
+    "medico": "Sebastião Assunção Assunção",
+    "crm": "CRM-BA 496138",
+    "carteirinha": "6507 2314 9696 9706",
+    "cid": "N18.3"
+   }
+  },
+  "foto-22.jpg": {
+   "estilo": "rotulos",
+   "degradacao": "media",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 49"
+   ],
+   "jpeg_qualidade": 49,
+   "tamanho": [
+    1325,
+    1810
+   ],
+   "exames": [
+    {
+     "code": "FICT-055",
+     "name": "AST"
+    },
+    {
+     "code": "FICT-096",
+     "name": "Sangue oculto nas fezes"
+    },
+    {
+     "code": "FICT-066",
+     "name": "Lipase"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Fernanda Brandão",
+    "nascimento": "22/03/2001",
+    "cpf": "654.243.236-12",
+    "rg": "37.043.091-X",
+    "telefone": "(11) 90608-1762",
+    "email": "fernanda59@exemplo.invalid",
+    "endereco": "Travessa da Conceição, 2386",
+    "cep": "11008-863",
+    "medico": "José Cardoso Martins",
+    "crm": "CRM-DF 913022",
+    "carteirinha": "5664 4484 1265 9723",
+    "cid": "I10"
+   }
+  },
+  "foto-23.jpg": {
+   "estilo": "lado-a-lado",
+   "degradacao": "media",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 64"
+   ],
+   "jpeg_qualidade": 64,
+   "tamanho": [
+    1134,
+    1549
+   ],
+   "exames": [
+    {
+     "code": "FICT-017",
+     "name": "Ferro serico"
+    },
+    {
+     "code": "FICT-098",
+     "name": "Calprotectina fecal"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Francisca Barbosa",
+    "nascimento": "18/11/1985",
+    "cpf": "144.582.722-02",
+    "rg": "98.553.872-4",
+    "telefone": "(85) 98496-3355",
+    "email": "francisca24@exemplo.invalid",
+    "endereco": "Rua Dom Pedro II, 776",
+    "cep": "98490-854",
+    "medico": "Joaquim Oliveira Moreira",
+    "crm": "CRM-CE 389009",
+    "carteirinha": "0567 5082 5777 4824",
+    "cid": "E11.9"
+   }
+  },
+  "foto-24.jpg": {
+   "estilo": "receituario",
+   "degradacao": "media",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 55"
+   ],
+   "jpeg_qualidade": 55,
+   "tamanho": [
+    1336,
+    1825
+   ],
+   "exames": [
+    {
+     "code": "FICT-077",
+     "name": "Complemento C3"
+    },
+    {
+     "code": "FICT-100",
+     "name": "Pesquisa de rotavirus"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Aparecida de Brandão Mendes",
+    "nascimento": "22/07/1992",
+    "cpf": "580.479.641-04",
+    "rg": "31.981.533-9",
+    "telefone": "(11) 90853-5515",
+    "email": "aparecida.brandão81@exemplo.invalid",
+    "endereco": "Rua Visconde de Inhaúma, 1466",
+    "cep": "06089-535",
+    "medico": "João da Ribeiro Rocha",
+    "crm": "CRM-CE 719660",
+    "carteirinha": "3628 0419 5287 3535",
+    "cid": "K21.0"
+   }
+  },
+  "foto-25.jpg": {
+   "estilo": "rotulos",
+   "degradacao": "forte",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 68"
+   ],
+   "jpeg_qualidade": 68,
+   "tamanho": [
+    979,
+    1337
+   ],
+   "exames": [
+    {
+     "code": "FICT-050",
+     "name": "CEA"
+    },
+    {
+     "code": "FICT-096",
+     "name": "Sangue oculto nas fezes"
+    },
+    {
+     "code": "FICT-094",
+     "name": "Clearance de creatinina"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Luiz de Freitas Ribeiro",
+    "nascimento": "11/02/1997",
+    "cpf": "258.247.239-53",
+    "rg": "82.745.960-X",
+    "telefone": "(21) 99679-2964",
+    "email": "luiz.freitas16@exemplo.invalid",
+    "endereco": "Avenida São João, 1340",
+    "cep": "17735-511",
+    "medico": "Luiz de Assunção Gomes",
+    "crm": "CRM-SP 278652",
+    "carteirinha": "1672 5063 7392 0518",
+    "cid": "E11.9"
+   }
+  },
+  "foto-26.jpg": {
+   "estilo": "lado-a-lado",
+   "degradacao": "forte",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 40"
+   ],
+   "jpeg_qualidade": 40,
+   "tamanho": [
+    1360,
+    1857
+   ],
+   "exames": [
+    {
+     "code": "FICT-106",
+     "name": "Anti HCV"
+    },
+    {
+     "code": "FICT-008",
+     "name": "Colesterol LDL"
+    },
+    {
+     "code": "FICT-092",
+     "name": "Proteinuria de 24 horas"
+    },
+    {
+     "code": "FICT-027",
+     "name": "T4 total"
+    },
+    {
+     "code": "FICT-057",
+     "name": "Gama GT"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "José Lima Vieira",
+    "nascimento": "20/12/1978",
+    "cpf": "391.675.567-66",
+    "rg": "47.781.752-0",
+    "telefone": "(41) 93983-6502",
+    "email": "josé.vieira71@exemplo.invalid",
+    "endereco": "Rua Dom Pedro II, 626",
+    "cep": "91483-957",
+    "medico": "Letícia da Dias Nascimento",
+    "crm": "CRM-AM 885413",
+    "carteirinha": "6960 2852 3426 1841",
+    "cid": "K21.0"
+   }
+  },
+  "foto-27.jpg": {
+   "estilo": "receituario",
+   "degradacao": "forte",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "sombra",
+    "desfoque",
+    "ruído",
+    "JPEG 62"
+   ],
+   "jpeg_qualidade": 62,
+   "tamanho": [
+    1068,
+    1458
+   ],
+   "exames": [
+    {
+     "code": "FICT-042",
+     "name": "Androstenediona"
+    },
+    {
+     "code": "FICT-077",
+     "name": "Complemento C3"
+    },
+    {
+     "code": "FICT-065",
+     "name": "Amilase"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Raimundo de Pereira Oliveira",
+    "nascimento": "28/09/1940",
+    "cpf": "557.464.044-95",
+    "rg": "71.850.193-X",
+    "telefone": "(51) 90911-6771",
+    "email": "raimundo.pereira91@exemplo.invalid",
+    "endereco": "Avenida Getúlio Vargas, 1015",
+    "cep": "97396-797",
+    "medico": "Antônio Lima",
+    "crm": "CRM-AM 383942",
+    "carteirinha": "0745 0762 1859 4598",
+    "cid": "D50.9"
+   }
+  },
+  "foto-28.jpg": {
+   "estilo": "rotulos",
+   "degradacao": "leve",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "desfoque",
+    "ruído",
+    "JPEG 67"
+   ],
+   "jpeg_qualidade": 67,
+   "tamanho": [
+    1193,
+    1630
+   ],
+   "exames": [
+    {
+     "code": "FICT-065",
+     "name": "Amilase"
+    },
+    {
+     "code": "FICT-084",
+     "name": "Tempo de tromboplastina parcial"
+    },
+    {
+     "code": "FICT-056",
+     "name": "ALT"
+    },
+    {
+     "code": "FICT-049",
+     "name": "PSA livre"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Maria Brandão",
+    "nascimento": "13/02/1951",
+    "cpf": "989.518.246-54",
+    "rg": "61.462.581-6",
+    "telefone": "(81) 96815-1992",
+    "email": "maria79@exemplo.invalid",
+    "endereco": "Rua Professor Antônio Prado, 190",
+    "cep": "48120-572",
+    "medico": "Rafael Ribeiro",
+    "crm": "CRM-SP 662571",
+    "carteirinha": "4463 3692 5073 6617",
+    "cid": "D50.9"
+   }
+  },
+  "foto-29.jpg": {
+   "estilo": "lado-a-lado",
+   "degradacao": "leve",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "desfoque",
+    "ruído",
+    "JPEG 56"
+   ],
+   "jpeg_qualidade": 56,
+   "tamanho": [
+    1387,
+    1895
+   ],
+   "exames": [
+    {
+     "code": "FICT-118",
+     "name": "Chagas IgG"
+    },
+    {
+     "code": "FICT-102",
+     "name": "HIV antigeno e anticorpos"
+    },
+    {
+     "code": "FICT-115",
+     "name": "Dengue NS1"
+    },
+    {
+     "code": "FICT-021",
+     "name": "Vitamina B12"
+    },
+    {
+     "code": "FICT-089",
+     "name": "Proteina S"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Inês de Souza Freitas",
+    "nascimento": "22/04/1988",
+    "cpf": "677.290.256-40",
+    "rg": "75.761.790-1",
+    "telefone": "(31) 93898-2827",
+    "email": "inês.souza59@exemplo.invalid",
+    "endereco": "Rua Visconde de Inhaúma, 2608",
+    "cep": "55918-200",
+    "medico": "Márcia Moreira Costa",
+    "crm": "CRM-CE 324839",
+    "carteirinha": "3234 8888 3165 1114",
+    "cid": "D50.9"
+   }
+  },
+  "foto-30.jpg": {
+   "estilo": "receituario",
+   "degradacao": "leve",
+   "efeitos": [
+    "papel curvo",
+    "perspectiva",
+    "luz desigual",
+    "desfoque",
+    "ruído",
+    "JPEG 59"
+   ],
+   "jpeg_qualidade": 59,
+   "tamanho": [
+    1421,
+    1941
+   ],
+   "exames": [
+    {
+     "code": "FICT-048",
+     "name": "PSA total"
+    },
+    {
+     "code": "FICT-026",
+     "name": "T3 livre"
+    }
+   ],
+   "sensiveis": {
+    "paciente": "Carlos dos Freitas Gomes",
+    "nascimento": "01/07/1954",
+    "cpf": "806.306.355-40",
+    "rg": "70.096.062-8",
+    "telefone": "(81) 93404-4279",
+    "email": "carlos.freitas15@exemplo.invalid",
+    "endereco": "Rua Visconde de Inhaúma, 1757",
+    "cep": "76266-655",
+    "medico": "Márcia Teixeira Pereira",
+    "crm": "CRM-BA 103381",
+    "carteirinha": "5650 6065 2755 2726",
+    "cid": "E78.5"
+   }
+  }
+ }
+}
