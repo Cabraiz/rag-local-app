@@ -1,0 +1,631 @@
+{"query": "TRANSFERRINA", "expected": "FICT-019", "score": 1.0, "source": "ocr"}
+{"query": "BETA HCG", "expected": "FICT-047", "score": 1.0, "source": "ocr"}
+{"query": "HEMOGLOBINA GLICADA", "expected": "FICT-003", "score": 1.0, "source": "ocr"}
+{"query": "GGT", "expected": "FICT-057", "score": 1.0, "source": "ocr"}
+{"query": "Transsferrina", "expected": "FICT-019", "score": 0.96, "source": "ocr"}
+{"query": "Cobalamina", "expected": "FICT-021", "score": 1.0, "source": "ocr"}
+{"query": "Uocultura", "expected": "FICT-091", "score": 0.95, "source": "ocr"}
+{"query": "PCR", "expected": "FICT-071", "score": 1.0, "source": "ocr"}
+{"query": "AST", "expected": "FICT-055", "score": 1.0, "source": "ocr"}
+{"query": "“ EAS", "expected": "FICT-090", "score": 1.0, "source": "ocr"}
+{"query": "Sódio", "expected": "FICT-011", "score": 1.0, "source": "ocr"}
+{"query": "AST", "expected": "FICT-055", "score": 1.0, "source": "ocr"}
+{"query": "Hemograma completo", "expected": "FICT-001", "score": 1.0, "source": "ocr"}
+{"query": "hidroxivitamina D", "expected": "FICT-023", "score": 0.92, "source": "ocr"}
+{"query": "Proteíína S", "expected": "FICT-089", "score": 0.95, "source": "ocr"}
+{"query": "Citomegaloírus IgM", "expected": "FICT-114", "score": 0.97, "source": "ocr"}
+{"query": "PSA TOTAL", "expected": "FICT-048", "score": 1.0, "source": "ocr"}
+{"query": "Pequisa de rotavírus", "expected": "FICT-100", "score": 0.98, "source": "ocr"}
+{"query": "GAMA GT", "expected": "FICT-057", "score": 1.0, "source": "ocr"}
+{"query": "Exame parasitologico de fezes", "expected": "FICT-095", "score": 1.0, "source": "ocr"}
+{"query": "CEA", "expected": "FICT-050", "score": 1.0, "source": "ocr"}
+{"query": "Glicose de jejum", "expected": "FICT-002", "score": 1.0, "source": "ocr"}
+{"query": "ALT", "expected": "FICT-056", "score": 1.0, "source": "ocr"}
+{"query": "Colseterol total", "expected": "FICT-006", "score": 0.94, "source": "ocr"}
+{"query": "PSA TOTAL", "expected": "FICT-048", "score": 1.0, "source": "ocr"}
+{"query": "Citomegallovírus IgG", "expected": "FICT-113", "score": 0.97, "source": "ocr"}
+{"query": "Tireotrofina", "expected": "FICT-024", "score": 1.0, "source": "ocr"}
+{"query": "BNP", "expected": "FICT-070", "score": 1.0, "source": "ocr"}
+{"query": "CA 15-3", "expected": "FICT-053", "score": 1.0, "source": "ocr"}
+{"query": "COLESTEROL HDL", "expected": "FICT-007", "score": 1.0, "source": "ocr"}
+{"query": "Colesteorl HDL", "expected": "FICT-007", "score": 0.93, "source": "ocr"}
+{"query": "Bliirrubina direta", "expected": "FICT-060", "score": 0.94, "source": "ocr"}
+{"query": "UREIA", "expected": "FICT-004", "score": 1.0, "source": "ocr"}
+{"query": "« Androsteenediona", "expected": "FICT-042", "score": 0.97, "source": "ocr"}
+{"query": "« Bilirrrubina total", "expected": "FICT-059", "score": 0.97, "source": "ocr"}
+{"query": "Cobalamina", "expected": "FICT-021", "score": 1.0, "source": "ocr"}
+{"query": "FTA ABS", "expected": "FICT-108", "score": 1.0, "source": "ocr"}
+{"query": "Prtoeína €", "expected": "FICT-088", "score": 0.78, "source": "ocr"}
+{"query": "Sanngue oculto nas fezes", "expected": "FICT-096", "score": 0.98, "source": "ocr"}
+{"query": "GA", "expected": null, "score": 0.8, "source": "ocr"}
+{"query": "Vtiamina D", "expected": "FICT-023", "score": 0.9, "source": "ocr"}
+{"query": "“ALT", "expected": "FICT-056", "score": 1.0, "source": "ocr"}
+{"query": "Creatinina", "expected": "FICT-005", "score": 1.0, "source": "ocr"}
+{"query": "EPF", "expected": "FICT-095", "score": 1.0, "source": "ocr"}
+{"query": "Denngue IgG", "expected": "FICT-116", "score": 0.95, "source": "ocr"}
+{"query": "HBsAg", "expected": "FICT-103", "score": 1.0, "source": "ocr"}
+{"query": "Sífilis anticorpos totais", "expected": "FICT-119", "score": 1.0, "source": "ocr"}
+{"query": "Bilirrubina direta", "expected": "FICT-060", "score": 1.0, "source": "ocr"}
+{"query": "Complemento C4", "expected": "FICT-078", "score": 1.0, "source": "ocr"}
+{"query": "CREATINOQUINASE", "expected": "FICT-067", "score": 1.0, "source": "ocr"}
+{"query": "Creatinina", "expected": "FICT-005", "score": 1.0, "source": "ocr"}
+{"query": "Insulina", "expected": "FICT-029", "score": 1.0, "source": "ocr"}
+{"query": "Citomegalovírus IgM", "expected": "FICT-114", "score": 1.0, "source": "ocr"}
+{"query": "Citomegalovírus IgM", "expected": "FICT-114", "score": 1.0, "source": "ocr"}
+{"query": "Protena C reativa", "expected": "FICT-071", "score": 0.97, "source": "ocr"}
+{"query": "PSA total", "expected": "FICT-048", "score": 1.0, "source": "ocr"}
+{"query": "Proteína S", "expected": "FICT-089", "score": 1.0, "source": "ocr"}
+{"query": "PSA TOTAL", "expected": "FICT-048", "score": 1.0, "source": "ocr"}
+{"query": "UREIA", "expected": "FICT-004", "score": 1.0, "source": "ocr"}
+{"query": "PROTEINÚRIA DE 24 HORAS", "expected": "FICT-092", "score": 1.0, "source": "ocr"}
+{"query": "GAMA GT", "expected": "FICT-057", "score": 1.0, "source": "ocr"}
+{"query": "Tempo de protromibna", "expected": "FICT-083", "score": 0.95, "source": "ocr"}
+{"query": "Hemograma complteo", "expected": "FICT-001", "score": 0.94, "source": "ocr"}
+{"query": "Rubola IgG", "expected": "FICT-111", "score": 0.95, "source": "ocr"}
+{"query": "Coolesterol total", "expected": "FICT-006", "score": 0.97, "source": "ocr"}
+{"query": "CA 19-9", "expected": "FICT-052", "score": 1.0, "source": "ocr"}
+{"query": "GLICEMIA DE JEJUM", "expected": "FICT-002", "score": 1.0, "source": "ocr"}
+{"query": "Coleserol HDL", "expected": "FICT-007", "score": 0.96, "source": "ocr"}
+{"query": "Tempo de protrombina", "expected": "FICT-083", "score": 1.0, "source": "ocr"}
+{"query": "Hemograma", "expected": "FICT-001", "score": 1.0, "source": "ocr"}
+{"query": "Ácido foolico", "expected": "FICT-022", "score": 0.96, "source": "ocr"}
+{"query": "Hemograma", "expected": "FICT-001", "score": 1.0, "source": "ocr"}
+{"query": "TIPA", "expected": "FICT-084", "score": 0.75, "source": "ocr"}
+{"query": "HIV ANTÍGENO E ANTICORPOS", "expected": "FICT-102", "score": 1.0, "source": "ocr"}
+{"query": "CPK", "expected": "FICT-067", "score": 1.0, "source": "ocr"}
+{"query": "PSA TOTAL", "expected": "FICT-048", "score": 1.0, "source": "ocr"}
+{"query": "Toxplasmose IgG", "expected": "FICT-109", "score": 0.97, "source": "ocr"}
+{"query": "T4 Uxre", "expected": "FICT-025", "score": 0.67, "source": "ocr"}
+{"query": "Prollactina", "expected": "FICT-033", "score": 0.95, "source": "ocr"}
+{"query": "Cagas Tah", "expected": "FICT-118", "score": 0.63, "source": "ocr"}
+{"query": "SÓDIO", "expected": "FICT-011", "score": 1.0, "source": "ocr"}
+{"query": "Ferro sérrico", "expected": "FICT-017", "score": 0.96, "source": "ocr"}
+{"query": "CA 15-3", "expected": "FICT-053", "score": 1.0, "source": "ocr"}
+{"query": "Glicose de jejum", "expected": "FICT-002", "score": 1.0, "source": "ocr"}
+{"query": "HIV antíggeno e anticorpos", "expected": "FICT-102", "score": 0.98, "source": "ocr"}
+{"query": "HCG", "expected": "FICT-047", "score": 1.0, "source": "ocr"}
+{"query": "Bilivrrrubina total", "expected": "FICT-059", "score": 0.94, "source": "ocr"}
+{"query": "Proteinas totais", "expected": "FICT-063", "score": 1.0, "source": "ocr"}
+{"query": "Chaggas IgG", "expected": "FICT-118", "score": 0.95, "source": "ocr"}
+{"query": "Creatinina", "expected": "FICT-005", "score": 1.0, "source": "ocr"}
+{"query": "Bilirurbina direta", "expected": "FICT-060", "score": 0.94, "source": "ocr"}
+{"query": "Antitrombina", "expected": "FICT-087", "score": 1.0, "source": "ocr"}
+{"query": "Proetinúria de 24 horas", "expected": "FICT-092", "score": 0.96, "source": "ocr"}
+{"query": "Bilirrubina indireta", "expected": "FICT-061", "score": 1.0, "source": "ocr"}
+{"query": "Veloccidade de hemossedimentação", "expected": "FICT-072", "score": 0.98, "source": "ocr"}
+{"query": "Protíena C reativa", "expected": "FICT-071", "score": 0.94, "source": "ocr"}
+{"query": "Hemoglobina gicada", "expected": "FICT-003", "score": 0.97, "source": "ocr"}
+{"query": "Cobalamina", "expected": "FICT-021", "score": 1.0, "source": "ocr"}
+{"query": "e Antitrombina", "expected": "FICT-087", "score": 0.92, "source": "ocr"}
+{"query": "e Fósforo", "expected": "FICT-016", "score": 0.88, "source": "ocr"}
+{"query": "e Ácido úrico", "expected": "FICT-010", "score": 0.92, "source": "ocr"}
+{"query": "BUirrulina dureeta", "expected": "FICT-060", "score": 0.78, "source": "ocr"}
+{"query": "TTPA", "expected": "FICT-084", "score": 1.0, "source": "ocr"}
+{"query": "Hemograma completo", "expected": "FICT-001", "score": 1.0, "source": "synthetic-exact"}
+{"query": "HEMOGRAMA COMPLETO", "expected": "FICT-001", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Hemograma", "expected": "FICT-001", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Hemograma ompleto", "expected": "FICT-001", "score": 0.97, "source": "synthetic-typo1"}
+{"query": "Hmograma copmleto", "expected": "FICT-001", "score": 0.91, "source": "synthetic-typo2"}
+{"query": "Glicemia de jejum", "expected": "FICT-002", "score": 1.0, "source": "synthetic-exact"}
+{"query": "GLICEMIA DE JEJUM", "expected": "FICT-002", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Glicose em jejum", "expected": "FICT-002", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Glicose", "expected": "FICT-002", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Glicemia", "expected": "FICT-002", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Glicose de jejum", "expected": "FICT-002", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Glicemia em jejum", "expected": "FICT-002", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Glisemia de jejum", "expected": "FICT-002", "score": 0.94, "source": "synthetic-typo1"}
+{"query": "Gilcema de jejum", "expected": "FICT-002", "score": 0.91, "source": "synthetic-typo2"}
+{"query": "Hemoglobina glicada", "expected": "FICT-003", "score": 1.0, "source": "synthetic-exact"}
+{"query": "HEMOGLOBINA GLICADA", "expected": "FICT-003", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "HbA1c", "expected": "FICT-003", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Hemoglobina glicosilada", "expected": "FICT-003", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "A1C", "expected": "FICT-003", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Henoglobina glicada", "expected": "FICT-003", "score": 0.95, "source": "synthetic-typo1"}
+{"query": "Hegolobina glicada", "expected": "FICT-003", "score": 0.92, "source": "synthetic-typo2"}
+{"query": "Ureia", "expected": "FICT-004", "score": 1.0, "source": "synthetic-exact"}
+{"query": "UREIA", "expected": "FICT-004", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Ureia serica", "expected": "FICT-004", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Urea", "expected": "FICT-004", "score": 0.89, "source": "synthetic-typo1"}
+{"query": "Ueri", "expected": "FICT-004", "score": 0.67, "source": "synthetic-typo2"}
+{"query": "Creatinina", "expected": "FICT-005", "score": 1.0, "source": "synthetic-exact"}
+{"query": "CREATININA", "expected": "FICT-005", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Creatinina serica", "expected": "FICT-005", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Creatinin", "expected": "FICT-005", "score": 0.95, "source": "synthetic-typo1"}
+{"query": "Creatiina", "expected": "FICT-005", "score": 0.95, "source": "synthetic-typo2"}
+{"query": "Colesterol total", "expected": "FICT-006", "score": 1.0, "source": "synthetic-exact"}
+{"query": "COLESTEROL TOTAL", "expected": "FICT-006", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Colesteol total", "expected": "FICT-006", "score": 0.97, "source": "synthetic-typo1"}
+{"query": "Coletnerol total", "expected": "FICT-006", "score": 0.94, "source": "synthetic-typo2"}
+{"query": "Colesterol HDL", "expected": "FICT-007", "score": 1.0, "source": "synthetic-exact"}
+{"query": "COLESTEROL HDL", "expected": "FICT-007", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Cloesterol HDL", "expected": "FICT-007", "score": 0.93, "source": "synthetic-typo1"}
+{"query": "Coletserol HDL", "expected": "FICT-007", "score": 0.93, "source": "synthetic-typo2"}
+{"query": "Colesterol LDL", "expected": "FICT-008", "score": 1.0, "source": "synthetic-exact"}
+{"query": "COLESTEROL LDL", "expected": "FICT-008", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Coesterol LDL", "expected": "FICT-008", "score": 0.96, "source": "synthetic-typo1"}
+{"query": "Colestero LDL", "expected": "FICT-008", "score": 0.96, "source": "synthetic-typo2"}
+{"query": "Triglicerideos", "expected": "FICT-009", "score": 1.0, "source": "synthetic-exact"}
+{"query": "TRIGLICERIDEOS", "expected": "FICT-009", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Triglicerides", "expected": "FICT-009", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Triglcerideos", "expected": "FICT-009", "score": 0.96, "source": "synthetic-typo1"}
+{"query": "Tirgliceirdeos", "expected": "FICT-009", "score": 0.86, "source": "synthetic-typo2"}
+{"query": "Acido urico", "expected": "FICT-010", "score": 1.0, "source": "synthetic-exact"}
+{"query": "ACIDO URICO", "expected": "FICT-010", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "cAido urico", "expected": "FICT-010", "score": 0.91, "source": "synthetic-typo1"}
+{"query": "Acivo uryco", "expected": "FICT-010", "score": 0.82, "source": "synthetic-typo2"}
+{"query": "Sodio", "expected": "FICT-011", "score": 1.0, "source": "synthetic-exact"}
+{"query": "SODIO", "expected": "FICT-011", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Sosio", "expected": "FICT-011", "score": 0.8, "source": "synthetic-typo1"}
+{"query": "Sdjo", "expected": "FICT-011", "score": 0.67, "source": "synthetic-typo2"}
+{"query": "Potassio", "expected": "FICT-012", "score": 1.0, "source": "synthetic-exact"}
+{"query": "POTASSIO", "expected": "FICT-012", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Potssio", "expected": "FICT-012", "score": 0.93, "source": "synthetic-typo1"}
+{"query": "Potassix", "expected": "FICT-012", "score": 0.88, "source": "synthetic-typo2"}
+{"query": "Calcio total", "expected": "FICT-013", "score": 1.0, "source": "synthetic-exact"}
+{"query": "CALCIO TOTAL", "expected": "FICT-013", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Calcio total", "expected": "FICT-013", "score": 1.0, "source": "synthetic-typo1"}
+{"query": "Clcio tofal", "expected": "FICT-013", "score": 0.87, "source": "synthetic-typo2"}
+{"query": "Calcio ionizado", "expected": "FICT-014", "score": 1.0, "source": "synthetic-exact"}
+{"query": "CALCIO IONIZADO", "expected": "FICT-014", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Calcio ionizedo", "expected": "FICT-014", "score": 0.93, "source": "synthetic-typo1"}
+{"query": "aClcio ionizadn", "expected": "FICT-014", "score": 0.87, "source": "synthetic-typo2"}
+{"query": "Magnesio", "expected": "FICT-015", "score": 1.0, "source": "synthetic-exact"}
+{"query": "MAGNESIO", "expected": "FICT-015", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Mganesio", "expected": "FICT-015", "score": 0.88, "source": "synthetic-typo1"}
+{"query": "Magneiwo", "expected": "FICT-015", "score": 0.88, "source": "synthetic-typo2"}
+{"query": "Fosforo", "expected": "FICT-016", "score": 1.0, "source": "synthetic-exact"}
+{"query": "FOSFORO", "expected": "FICT-016", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Fosofro", "expected": "FICT-016", "score": 0.86, "source": "synthetic-typo1"}
+{"query": "Fosfor", "expected": "FICT-016", "score": 0.92, "source": "synthetic-typo2"}
+{"query": "Ferro serico", "expected": "FICT-017", "score": 1.0, "source": "synthetic-exact"}
+{"query": "FERRO SERICO", "expected": "FICT-017", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Ferrw serico", "expected": "FICT-017", "score": 0.92, "source": "synthetic-typo1"}
+{"query": "eFrro serio", "expected": "FICT-017", "score": 0.87, "source": "synthetic-typo2"}
+{"query": "Ferritina", "expected": "FICT-018", "score": 1.0, "source": "synthetic-exact"}
+{"query": "FERRITINA", "expected": "FICT-018", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Ferrtiina", "expected": "FICT-018", "score": 0.89, "source": "synthetic-typo1"}
+{"query": "Ferritwia", "expected": "FICT-018", "score": 0.89, "source": "synthetic-typo2"}
+{"query": "Transferrina", "expected": "FICT-019", "score": 1.0, "source": "synthetic-exact"}
+{"query": "TRANSFERRINA", "expected": "FICT-019", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Transerrina", "expected": "FICT-019", "score": 0.96, "source": "synthetic-typo1"}
+{"query": "Transfefrna", "expected": "FICT-019", "score": 0.87, "source": "synthetic-typo2"}
+{"query": "Capacidade de ligacao do ferro", "expected": "FICT-020", "score": 1.0, "source": "synthetic-exact"}
+{"query": "CAPACIDADE DE LIGACAO DO FERRO", "expected": "FICT-020", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Capacidade de lgacao do ferro", "expected": "FICT-020", "score": 0.98, "source": "synthetic-typo1"}
+{"query": "Capacieade de ligacao d ferro", "expected": "FICT-020", "score": 0.95, "source": "synthetic-typo2"}
+{"query": "Vitamina B12", "expected": "FICT-021", "score": 1.0, "source": "synthetic-exact"}
+{"query": "VITAMINA B12", "expected": "FICT-021", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Cobalamina", "expected": "FICT-021", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Vitamipa B12", "expected": "FICT-021", "score": 0.92, "source": "synthetic-typo1"}
+{"query": "VtaminarB12", "expected": "FICT-021", "score": 0.87, "source": "synthetic-typo2"}
+{"query": "Acido folico", "expected": "FICT-022", "score": 1.0, "source": "synthetic-exact"}
+{"query": "ACIDO FOLICO", "expected": "FICT-022", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Acid folico", "expected": "FICT-022", "score": 0.96, "source": "synthetic-typo1"}
+{"query": "Acid ooflico", "expected": "FICT-022", "score": 0.83, "source": "synthetic-typo2"}
+{"query": "Vitamina D", "expected": "FICT-023", "score": 1.0, "source": "synthetic-exact"}
+{"query": "VITAMINA D", "expected": "FICT-023", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "25-hidroxivitamina D", "expected": "FICT-023", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "25 OH vitamina D", "expected": "FICT-023", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Vitamiva D", "expected": "FICT-023", "score": 0.9, "source": "synthetic-typo1"}
+{"query": "Viamia D", "expected": "FICT-023", "score": 0.89, "source": "synthetic-typo2"}
+{"query": "TSH", "expected": "FICT-024", "score": 1.0, "source": "synthetic-exact"}
+{"query": "TSH", "expected": "FICT-024", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Hormonio tireoestimulante", "expected": "FICT-024", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Tireotrofina", "expected": "FICT-024", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "TSH", "expected": "FICT-024", "score": 1.0, "source": "synthetic-typo1"}
+{"query": "STH", "expected": "FICT-024", "score": 0.67, "source": "synthetic-typo2"}
+{"query": "T4 livre", "expected": "FICT-025", "score": 1.0, "source": "synthetic-exact"}
+{"query": "T4 LIVRE", "expected": "FICT-025", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "T4L", "expected": "FICT-025", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "T4 livre", "expected": "FICT-025", "score": 1.0, "source": "synthetic-typo1"}
+{"query": "4jlivre", "expected": "FICT-025", "score": 0.8, "source": "synthetic-typo2"}
+{"query": "T3 livre", "expected": "FICT-026", "score": 1.0, "source": "synthetic-exact"}
+{"query": "T3 LIVRE", "expected": "FICT-026", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "T3 liver", "expected": "FICT-026", "score": 0.88, "source": "synthetic-typo1"}
+{"query": "T3 live", "expected": "FICT-026", "score": 0.93, "source": "synthetic-typo2"}
+{"query": "T4 total", "expected": "FICT-027", "score": 1.0, "source": "synthetic-exact"}
+{"query": "T4 TOTAL", "expected": "FICT-027", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "y4 total", "expected": "FICT-027", "score": 0.88, "source": "synthetic-typo1"}
+{"query": "T4 totl", "expected": "FICT-027", "score": 0.93, "source": "synthetic-typo2"}
+{"query": "T3 total", "expected": "FICT-028", "score": 1.0, "source": "synthetic-exact"}
+{"query": "T3 TOTAL", "expected": "FICT-028", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "T3 total", "expected": "FICT-028", "score": 1.0, "source": "synthetic-typo1"}
+{"query": "T totl", "expected": "FICT-028", "score": 0.86, "source": "synthetic-typo2"}
+{"query": "Insulina", "expected": "FICT-029", "score": 1.0, "source": "synthetic-exact"}
+{"query": "INSULINA", "expected": "FICT-029", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Insflina", "expected": "FICT-029", "score": 0.88, "source": "synthetic-typo1"}
+{"query": "tsulina", "expected": "FICT-029", "score": 0.8, "source": "synthetic-typo2"}
+{"query": "Peptideo C", "expected": "FICT-030", "score": 1.0, "source": "synthetic-exact"}
+{"query": "PEPTIDEO C", "expected": "FICT-030", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "ePptideo C", "expected": "FICT-030", "score": 0.9, "source": "synthetic-typo1"}
+{"query": "Pttpideo C", "expected": "FICT-030", "score": 0.8, "source": "synthetic-typo2"}
+{"query": "Cortisol", "expected": "FICT-031", "score": 1.0, "source": "synthetic-exact"}
+{"query": "CORTISOL", "expected": "FICT-031", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "ortisol", "expected": "FICT-031", "score": 0.93, "source": "synthetic-typo1"}
+{"query": "Coritsl", "expected": "FICT-031", "score": 0.8, "source": "synthetic-typo2"}
+{"query": "ACTH", "expected": "FICT-032", "score": 1.0, "source": "synthetic-exact"}
+{"query": "ACTH", "expected": "FICT-032", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "ACtH", "expected": "FICT-032", "score": 1.0, "source": "synthetic-typo1"}
+{"query": "Prolactina", "expected": "FICT-033", "score": 1.0, "source": "synthetic-exact"}
+{"query": "PROLACTINA", "expected": "FICT-033", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Prolactjna", "expected": "FICT-033", "score": 0.9, "source": "synthetic-typo1"}
+{"query": "Ploactina", "expected": "FICT-033", "score": 0.84, "source": "synthetic-typo2"}
+{"query": "FSH", "expected": "FICT-034", "score": 1.0, "source": "synthetic-exact"}
+{"query": "FSH", "expected": "FICT-034", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "FHS", "expected": "FICT-034", "score": 0.67, "source": "synthetic-typo1"}
+{"query": "wFH", "expected": "FICT-034", "score": 0.67, "source": "synthetic-typo2"}
+{"query": "LH", "expected": "FICT-035", "score": 1.0, "source": "synthetic-exact"}
+{"query": "LH", "expected": "FICT-035", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "LH", "expected": "FICT-035", "score": 1.0, "source": "synthetic-typo1"}
+{"query": "Estradiol", "expected": "FICT-036", "score": 1.0, "source": "synthetic-exact"}
+{"query": "ESTRADIOL", "expected": "FICT-036", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Estrdaiol", "expected": "FICT-036", "score": 0.89, "source": "synthetic-typo1"}
+{"query": "Etsrdaiol", "expected": "FICT-036", "score": 0.78, "source": "synthetic-typo2"}
+{"query": "Progesterona", "expected": "FICT-037", "score": 1.0, "source": "synthetic-exact"}
+{"query": "PROGESTERONA", "expected": "FICT-037", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Progeterona", "expected": "FICT-037", "score": 0.96, "source": "synthetic-typo1"}
+{"query": "Progeternoa", "expected": "FICT-037", "score": 0.87, "source": "synthetic-typo2"}
+{"query": "Testosterona total", "expected": "FICT-038", "score": 1.0, "source": "synthetic-exact"}
+{"query": "TESTOSTERONA TOTAL", "expected": "FICT-038", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Testosterona totul", "expected": "FICT-038", "score": 0.94, "source": "synthetic-typo1"}
+{"query": "Testosreona total", "expected": "FICT-038", "score": 0.91, "source": "synthetic-typo2"}
+{"query": "Testosterona livre", "expected": "FICT-039", "score": 1.0, "source": "synthetic-exact"}
+{"query": "TESTOSTERONA LIVRE", "expected": "FICT-039", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Testosteronal ivre", "expected": "FICT-039", "score": 0.94, "source": "synthetic-typo1"}
+{"query": "Testostrona livrl", "expected": "FICT-039", "score": 0.91, "source": "synthetic-typo2"}
+{"query": "SHBG", "expected": "FICT-040", "score": 1.0, "source": "synthetic-exact"}
+{"query": "SHBG", "expected": "FICT-040", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "HBG", "expected": "FICT-040", "score": 0.86, "source": "synthetic-typo1"}
+{"query": "SiHG", "expected": "FICT-040", "score": 0.75, "source": "synthetic-typo2"}
+{"query": "DHEA sulfato", "expected": "FICT-041", "score": 1.0, "source": "synthetic-exact"}
+{"query": "DHEA SULFATO", "expected": "FICT-041", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "DHEA sulfoto", "expected": "FICT-041", "score": 0.92, "source": "synthetic-typo1"}
+{"query": "DEA sulfatl", "expected": "FICT-041", "score": 0.87, "source": "synthetic-typo2"}
+{"query": "Androstenediona", "expected": "FICT-042", "score": 1.0, "source": "synthetic-exact"}
+{"query": "ANDROSTENEDIONA", "expected": "FICT-042", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Adrostenediona", "expected": "FICT-042", "score": 0.97, "source": "synthetic-typo1"}
+{"query": "Androtnediona", "expected": "FICT-042", "score": 0.93, "source": "synthetic-typo2"}
+{"query": "Paratormonio", "expected": "FICT-043", "score": 1.0, "source": "synthetic-exact"}
+{"query": "PARATORMONIO", "expected": "FICT-043", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Paratoromnio", "expected": "FICT-043", "score": 0.92, "source": "synthetic-typo1"}
+{"query": "Paratoromio", "expected": "FICT-043", "score": 0.87, "source": "synthetic-typo2"}
+{"query": "Calcitonina", "expected": "FICT-044", "score": 1.0, "source": "synthetic-exact"}
+{"query": "CALCITONINA", "expected": "FICT-044", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Calciotnina", "expected": "FICT-044", "score": 0.91, "source": "synthetic-typo1"}
+{"query": "Czacitonina", "expected": "FICT-044", "score": 0.91, "source": "synthetic-typo2"}
+{"query": "IGF-1", "expected": "FICT-045", "score": 1.0, "source": "synthetic-exact"}
+{"query": "IGF-1", "expected": "FICT-045", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "IfF-1", "expected": "FICT-045", "score": 0.8, "source": "synthetic-typo1"}
+{"query": "IG1-", "expected": "FICT-045", "score": 0.75, "source": "synthetic-typo2"}
+{"query": "Hormonio do crescimento", "expected": "FICT-046", "score": 1.0, "source": "synthetic-exact"}
+{"query": "HORMONIO DO CRESCIMENTO", "expected": "FICT-046", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Hormonio do mrescimento", "expected": "FICT-046", "score": 0.96, "source": "synthetic-typo1"}
+{"query": "Homroio do crescimento", "expected": "FICT-046", "score": 0.93, "source": "synthetic-typo2"}
+{"query": "Beta HCG", "expected": "FICT-047", "score": 1.0, "source": "synthetic-exact"}
+{"query": "BETA HCG", "expected": "FICT-047", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "HCG", "expected": "FICT-047", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Beta hCG quantitativo", "expected": "FICT-047", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Bea HCG", "expected": "FICT-047", "score": 0.93, "source": "synthetic-typo1"}
+{"query": "Beat HCG", "expected": "FICT-047", "score": 0.88, "source": "synthetic-typo2"}
+{"query": "PSA total", "expected": "FICT-048", "score": 1.0, "source": "synthetic-exact"}
+{"query": "PSA TOTAL", "expected": "FICT-048", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "PSA", "expected": "FICT-048", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "PS Atotal", "expected": "FICT-048", "score": 0.89, "source": "synthetic-typo1"}
+{"query": "PSA ttla", "expected": "FICT-048", "score": 0.82, "source": "synthetic-typo2"}
+{"query": "PSA livre", "expected": "FICT-049", "score": 1.0, "source": "synthetic-exact"}
+{"query": "PSA LIVRE", "expected": "FICT-049", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "PSA livre", "expected": "FICT-049", "score": 1.0, "source": "synthetic-typo1"}
+{"query": "SP livre", "expected": "FICT-049", "score": 0.82, "source": "synthetic-typo2"}
+{"query": "CEA", "expected": "FICT-050", "score": 1.0, "source": "synthetic-exact"}
+{"query": "CEA", "expected": "FICT-050", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "CEA", "expected": "FICT-050", "score": 1.0, "source": "synthetic-typo1"}
+{"query": "gEA", "expected": "FICT-050", "score": 0.67, "source": "synthetic-typo2"}
+{"query": "CA 125", "expected": "FICT-051", "score": 1.0, "source": "synthetic-exact"}
+{"query": "CA 125", "expected": "FICT-051", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "C 125", "expected": "FICT-051", "score": 0.91, "source": "synthetic-typo1"}
+{"query": "CA215", "expected": "FICT-051", "score": 0.73, "source": "synthetic-typo2"}
+{"query": "CA 19-9", "expected": "FICT-052", "score": 1.0, "source": "synthetic-exact"}
+{"query": "CA 19-9", "expected": "FICT-052", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "C A19-9", "expected": "FICT-052", "score": 0.86, "source": "synthetic-typo1"}
+{"query": "CAr9-9", "expected": "FICT-052", "score": 0.77, "source": "synthetic-typo2"}
+{"query": "CA 15-3", "expected": "FICT-053", "score": 1.0, "source": "synthetic-exact"}
+{"query": "CA 15-3", "expected": "FICT-053", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "AC 15-3", "expected": "FICT-053", "score": 0.86, "source": "synthetic-typo1"}
+{"query": "CAv1-53", "expected": "FICT-053", "score": 0.71, "source": "synthetic-typo2"}
+{"query": "Alfa fetoproteina", "expected": "FICT-054", "score": 1.0, "source": "synthetic-exact"}
+{"query": "ALFA FETOPROTEINA", "expected": "FICT-054", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Alfa fetoprotiena", "expected": "FICT-054", "score": 0.94, "source": "synthetic-typo1"}
+{"query": "Alfa fetoproteina", "expected": "FICT-054", "score": 1.0, "source": "synthetic-typo2"}
+{"query": "AST", "expected": "FICT-055", "score": 1.0, "source": "synthetic-exact"}
+{"query": "AST", "expected": "FICT-055", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "TGO", "expected": "FICT-055", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Transaminase oxalacetica", "expected": "FICT-055", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "AST", "expected": "FICT-055", "score": 1.0, "source": "synthetic-typo1"}
+{"query": "AST", "expected": "FICT-055", "score": 1.0, "source": "synthetic-typo2"}
+{"query": "ALT", "expected": "FICT-056", "score": 1.0, "source": "synthetic-exact"}
+{"query": "ALT", "expected": "FICT-056", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "TGP", "expected": "FICT-056", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Transaminase piruvica", "expected": "FICT-056", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "ALT", "expected": "FICT-056", "score": 1.0, "source": "synthetic-typo1"}
+{"query": "tLT", "expected": "FICT-056", "score": 0.67, "source": "synthetic-typo2"}
+{"query": "Gama GT", "expected": "FICT-057", "score": 1.0, "source": "synthetic-exact"}
+{"query": "GAMA GT", "expected": "FICT-057", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "GGT", "expected": "FICT-057", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Gama glutamil transferase", "expected": "FICT-057", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "GamaGT", "expected": "FICT-057", "score": 0.92, "source": "synthetic-typo1"}
+{"query": "GaamG T", "expected": "FICT-057", "score": 0.71, "source": "synthetic-typo2"}
+{"query": "Fosfatase alcalina", "expected": "FICT-058", "score": 1.0, "source": "synthetic-exact"}
+{"query": "FOSFATASE ALCALINA", "expected": "FICT-058", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Fosfatase alcalinz", "expected": "FICT-058", "score": 0.94, "source": "synthetic-typo1"}
+{"query": "Fsaftase alcalina", "expected": "FICT-058", "score": 0.91, "source": "synthetic-typo2"}
+{"query": "Bilirrubina total", "expected": "FICT-059", "score": 1.0, "source": "synthetic-exact"}
+{"query": "BILIRRUBINA TOTAL", "expected": "FICT-059", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Bilirrbbina total", "expected": "FICT-059", "score": 0.94, "source": "synthetic-typo1"}
+{"query": "Bilrirubina toatl", "expected": "FICT-059", "score": 0.88, "source": "synthetic-typo2"}
+{"query": "Bilirrubina direta", "expected": "FICT-060", "score": 1.0, "source": "synthetic-exact"}
+{"query": "BILIRRUBINA DIRETA", "expected": "FICT-060", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "ilirrubina direta", "expected": "FICT-060", "score": 0.97, "source": "synthetic-typo1"}
+{"query": "Bilirrubina diteat", "expected": "FICT-060", "score": 0.89, "source": "synthetic-typo2"}
+{"query": "Bilirrubina indireta", "expected": "FICT-061", "score": 1.0, "source": "synthetic-exact"}
+{"query": "BILIRRUBINA INDIRETA", "expected": "FICT-061", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Bilirrubina indieta", "expected": "FICT-061", "score": 0.97, "source": "synthetic-typo1"}
+{"query": "Bilirrubqna indirqta", "expected": "FICT-061", "score": 0.9, "source": "synthetic-typo2"}
+{"query": "Albumina", "expected": "FICT-062", "score": 1.0, "source": "synthetic-exact"}
+{"query": "ALBUMINA", "expected": "FICT-062", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Albmuina", "expected": "FICT-062", "score": 0.88, "source": "synthetic-typo1"}
+{"query": "Albeimna", "expected": "FICT-062", "score": 0.75, "source": "synthetic-typo2"}
+{"query": "Proteinas totais", "expected": "FICT-063", "score": 1.0, "source": "synthetic-exact"}
+{"query": "PROTEINAS TOTAIS", "expected": "FICT-063", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Proteinas totis", "expected": "FICT-063", "score": 0.97, "source": "synthetic-typo1"}
+{"query": "Prtoeinas tokais", "expected": "FICT-063", "score": 0.88, "source": "synthetic-typo2"}
+{"query": "LDH", "expected": "FICT-064", "score": 1.0, "source": "synthetic-exact"}
+{"query": "LDH", "expected": "FICT-064", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "cDH", "expected": "FICT-064", "score": 0.67, "source": "synthetic-typo1"}
+{"query": "DLH", "expected": "FICT-064", "score": 0.8, "source": "synthetic-typo2"}
+{"query": "Amilase", "expected": "FICT-065", "score": 1.0, "source": "synthetic-exact"}
+{"query": "AMILASE", "expected": "FICT-065", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Amilas", "expected": "FICT-065", "score": 0.92, "source": "synthetic-typo1"}
+{"query": "Amilaes", "expected": "FICT-065", "score": 0.86, "source": "synthetic-typo2"}
+{"query": "Lipase", "expected": "FICT-066", "score": 1.0, "source": "synthetic-exact"}
+{"query": "LIPASE", "expected": "FICT-066", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Liase", "expected": "FICT-066", "score": 0.91, "source": "synthetic-typo1"}
+{"query": "pipse", "expected": "FICT-066", "score": 0.73, "source": "synthetic-typo2"}
+{"query": "Creatinoquinase", "expected": "FICT-067", "score": 1.0, "source": "synthetic-exact"}
+{"query": "CREATINOQUINASE", "expected": "FICT-067", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "CPK", "expected": "FICT-067", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "CK", "expected": "FICT-067", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Craetinoquinase", "expected": "FICT-067", "score": 0.93, "source": "synthetic-typo1"}
+{"query": "Craetinoquinae", "expected": "FICT-067", "score": 0.9, "source": "synthetic-typo2"}
+{"query": "CK MB", "expected": "FICT-068", "score": 1.0, "source": "synthetic-exact"}
+{"query": "CK MB", "expected": "FICT-068", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "CK BM", "expected": "FICT-068", "score": 0.8, "source": "synthetic-typo1"}
+{"query": "Ck nB", "expected": "FICT-068", "score": 0.8, "source": "synthetic-typo2"}
+{"query": "Troponina I", "expected": "FICT-069", "score": 1.0, "source": "synthetic-exact"}
+{"query": "TROPONINA I", "expected": "FICT-069", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Torponina I", "expected": "FICT-069", "score": 0.91, "source": "synthetic-typo1"}
+{"query": "Troponia I", "expected": "FICT-069", "score": 0.95, "source": "synthetic-typo2"}
+{"query": "BNP", "expected": "FICT-070", "score": 1.0, "source": "synthetic-exact"}
+{"query": "BNP", "expected": "FICT-070", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "BwP", "expected": "FICT-070", "score": 0.67, "source": "synthetic-typo1"}
+{"query": "kNP", "expected": "FICT-070", "score": 0.67, "source": "synthetic-typo2"}
+{"query": "Proteina C reativa", "expected": "FICT-071", "score": 1.0, "source": "synthetic-exact"}
+{"query": "PROTEINA C REATIVA", "expected": "FICT-071", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "PCR", "expected": "FICT-071", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Proteina  Creativa", "expected": "FICT-071", "score": 0.97, "source": "synthetic-typo1"}
+{"query": "PrteinaC reativa", "expected": "FICT-071", "score": 0.94, "source": "synthetic-typo2"}
+{"query": "Velocidade de hemossedimentacao", "expected": "FICT-072", "score": 1.0, "source": "synthetic-exact"}
+{"query": "VELOCIDADE DE HEMOSSEDIMENTACAO", "expected": "FICT-072", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "VHS", "expected": "FICT-072", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Veiocidade de hemossedimentacao", "expected": "FICT-072", "score": 0.97, "source": "synthetic-typo1"}
+{"query": "Vlocidad de hemossedimentacao", "expected": "FICT-072", "score": 0.97, "source": "synthetic-typo2"}
+{"query": "Fator reumatoide", "expected": "FICT-073", "score": 1.0, "source": "synthetic-exact"}
+{"query": "FATOR REUMATOIDE", "expected": "FICT-073", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Fator reumatodie", "expected": "FICT-073", "score": 0.94, "source": "synthetic-typo1"}
+{"query": "Fator reematoide", "expected": "FICT-073", "score": 0.94, "source": "synthetic-typo2"}
+{"query": "Anti CCP", "expected": "FICT-074", "score": 1.0, "source": "synthetic-exact"}
+{"query": "ANTI CCP", "expected": "FICT-074", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Anti CP", "expected": "FICT-074", "score": 0.93, "source": "synthetic-typo1"}
+{"query": "AntiCCP", "expected": "FICT-074", "score": 0.93, "source": "synthetic-typo2"}
+{"query": "FAN", "expected": "FICT-075", "score": 1.0, "source": "synthetic-exact"}
+{"query": "FAN", "expected": "FICT-075", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "cAN", "expected": "FICT-075", "score": 0.67, "source": "synthetic-typo1"}
+{"query": "FAN", "expected": "FICT-075", "score": 1.0, "source": "synthetic-typo2"}
+{"query": "Anti DNA", "expected": "FICT-076", "score": 1.0, "source": "synthetic-exact"}
+{"query": "ANTI DNA", "expected": "FICT-076", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "AntiDNA", "expected": "FICT-076", "score": 0.93, "source": "synthetic-typo1"}
+{"query": "An DNA", "expected": "FICT-076", "score": 0.86, "source": "synthetic-typo2"}
+{"query": "Complemento C3", "expected": "FICT-077", "score": 1.0, "source": "synthetic-exact"}
+{"query": "COMPLEMENTO C3", "expected": "FICT-077", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Complemnto C3", "expected": "FICT-077", "score": 0.96, "source": "synthetic-typo1"}
+{"query": "Complmtento C3", "expected": "FICT-077", "score": 0.93, "source": "synthetic-typo2"}
+{"query": "Complemento C4", "expected": "FICT-078", "score": 1.0, "source": "synthetic-exact"}
+{"query": "COMPLEMENTO C4", "expected": "FICT-078", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Coplemento C4", "expected": "FICT-078", "score": 0.96, "source": "synthetic-typo1"}
+{"query": "Comlemetno C4", "expected": "FICT-078", "score": 0.89, "source": "synthetic-typo2"}
+{"query": "IgA", "expected": "FICT-079", "score": 1.0, "source": "synthetic-exact"}
+{"query": "IGA", "expected": "FICT-079", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "bgA", "expected": "FICT-079", "score": 0.67, "source": "synthetic-typo1"}
+{"query": "IAg", "expected": "FICT-079", "score": 0.67, "source": "synthetic-typo2"}
+{"query": "IgG", "expected": "FICT-080", "score": 1.0, "source": "synthetic-exact"}
+{"query": "IGG", "expected": "FICT-080", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "IGg", "expected": "FICT-080", "score": 1.0, "source": "synthetic-typo1"}
+{"query": "ogG", "expected": "FICT-080", "score": 0.67, "source": "synthetic-typo2"}
+{"query": "IgM", "expected": "FICT-081", "score": 1.0, "source": "synthetic-exact"}
+{"query": "IGM", "expected": "FICT-081", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "lgM", "expected": "FICT-081", "score": 0.67, "source": "synthetic-typo1"}
+{"query": "bgM", "expected": "FICT-081", "score": 0.67, "source": "synthetic-typo2"}
+{"query": "IgE total", "expected": "FICT-082", "score": 1.0, "source": "synthetic-exact"}
+{"query": "IGE TOTAL", "expected": "FICT-082", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "IgE total", "expected": "FICT-082", "score": 1.0, "source": "synthetic-typo1"}
+{"query": "IgEt otl", "expected": "FICT-082", "score": 0.82, "source": "synthetic-typo2"}
+{"query": "Tempo de protrombina", "expected": "FICT-083", "score": 1.0, "source": "synthetic-exact"}
+{"query": "TEMPO DE PROTROMBINA", "expected": "FICT-083", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "TP", "expected": "FICT-083", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "TAP", "expected": "FICT-083", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Tempo de protrmbina", "expected": "FICT-083", "score": 0.97, "source": "synthetic-typo1"}
+{"query": "Tempo de protorbmina", "expected": "FICT-083", "score": 0.9, "source": "synthetic-typo2"}
+{"query": "Tempo de tromboplastina parcial", "expected": "FICT-084", "score": 1.0, "source": "synthetic-exact"}
+{"query": "TEMPO DE TROMBOPLASTINA PARCIAL", "expected": "FICT-084", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "TTPA", "expected": "FICT-084", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Tempo de tromboplastina paqcial", "expected": "FICT-084", "score": 0.97, "source": "synthetic-typo1"}
+{"query": "Tempo e rtomboplastina parcial", "expected": "FICT-084", "score": 0.95, "source": "synthetic-typo2"}
+{"query": "Fibrinogenio", "expected": "FICT-085", "score": 1.0, "source": "synthetic-exact"}
+{"query": "FIBRINOGENIO", "expected": "FICT-085", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Fibriogenio", "expected": "FICT-085", "score": 0.96, "source": "synthetic-typo1"}
+{"query": "Fibrinogeno", "expected": "FICT-085", "score": 0.96, "source": "synthetic-typo2"}
+{"query": "Dimero D", "expected": "FICT-086", "score": 1.0, "source": "synthetic-exact"}
+{"query": "DIMERO D", "expected": "FICT-086", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "DimerobD", "expected": "FICT-086", "score": 0.88, "source": "synthetic-typo1"}
+{"query": "iDero D", "expected": "FICT-086", "score": 0.8, "source": "synthetic-typo2"}
+{"query": "Antitrombina", "expected": "FICT-087", "score": 1.0, "source": "synthetic-exact"}
+{"query": "ANTITROMBINA", "expected": "FICT-087", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Antitrombinn", "expected": "FICT-087", "score": 0.92, "source": "synthetic-typo1"}
+{"query": "Aintrombina", "expected": "FICT-087", "score": 0.87, "source": "synthetic-typo2"}
+{"query": "Proteina C", "expected": "FICT-088", "score": 1.0, "source": "synthetic-exact"}
+{"query": "PROTEINA C", "expected": "FICT-088", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Proteian C", "expected": "FICT-088", "score": 0.9, "source": "synthetic-typo1"}
+{"query": "Proitena C", "expected": "FICT-088", "score": 0.9, "source": "synthetic-typo2"}
+{"query": "Proteina S", "expected": "FICT-089", "score": 1.0, "source": "synthetic-exact"}
+{"query": "PROTEINA S", "expected": "FICT-089", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Protina S", "expected": "FICT-089", "score": 0.95, "source": "synthetic-typo1"}
+{"query": "Protein S", "expected": "FICT-089", "score": 0.95, "source": "synthetic-typo2"}
+{"query": "Urina tipo I", "expected": "FICT-090", "score": 1.0, "source": "synthetic-exact"}
+{"query": "URINA TIPO I", "expected": "FICT-090", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Urina tipo 1", "expected": "FICT-090", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "EAS", "expected": "FICT-090", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Urina rotina", "expected": "FICT-090", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Sumario de urina", "expected": "FICT-090", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "lrina tipo I", "expected": "FICT-090", "score": 0.92, "source": "synthetic-typo1"}
+{"query": "Urina ipo I", "expected": "FICT-090", "score": 0.96, "source": "synthetic-typo2"}
+{"query": "Urocultura", "expected": "FICT-091", "score": 1.0, "source": "synthetic-exact"}
+{"query": "UROCULTURA", "expected": "FICT-091", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "grocultura", "expected": "FICT-091", "score": 0.9, "source": "synthetic-typo1"}
+{"query": "mrocutura", "expected": "FICT-091", "score": 0.84, "source": "synthetic-typo2"}
+{"query": "Proteinuria de 24 horas", "expected": "FICT-092", "score": 1.0, "source": "synthetic-exact"}
+{"query": "PROTEINURIA DE 24 HORAS", "expected": "FICT-092", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Priteinuria de 24 horas", "expected": "FICT-092", "score": 0.96, "source": "synthetic-typo1"}
+{"query": "Proteiuria de 2 4horas", "expected": "FICT-092", "score": 0.93, "source": "synthetic-typo2"}
+{"query": "Microalbuminuria", "expected": "FICT-093", "score": 1.0, "source": "synthetic-exact"}
+{"query": "MICROALBUMINURIA", "expected": "FICT-093", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "icroalbuminuria", "expected": "FICT-093", "score": 0.97, "source": "synthetic-typo1"}
+{"query": "Misroalbminuria", "expected": "FICT-093", "score": 0.9, "source": "synthetic-typo2"}
+{"query": "Clearance de creatinina", "expected": "FICT-094", "score": 1.0, "source": "synthetic-exact"}
+{"query": "CLEARANCE DE CREATININA", "expected": "FICT-094", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Caearance de creatinina", "expected": "FICT-094", "score": 0.96, "source": "synthetic-typo1"}
+{"query": "Clearaneude creatinina", "expected": "FICT-094", "score": 0.93, "source": "synthetic-typo2"}
+{"query": "Parasitologico de fezes", "expected": "FICT-095", "score": 1.0, "source": "synthetic-exact"}
+{"query": "PARASITOLOGICO DE FEZES", "expected": "FICT-095", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "EPF", "expected": "FICT-095", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Exame parasitologico de fezes", "expected": "FICT-095", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "Parasitologico de efzes", "expected": "FICT-095", "score": 0.96, "source": "synthetic-typo1"}
+{"query": "Paraistologico de fezes", "expected": "FICT-095", "score": 0.96, "source": "synthetic-typo2"}
+{"query": "Sangue oculto nas fezes", "expected": "FICT-096", "score": 1.0, "source": "synthetic-exact"}
+{"query": "SANGUE OCULTO NAS FEZES", "expected": "FICT-096", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Sangue ocultx nas fezes", "expected": "FICT-096", "score": 0.96, "source": "synthetic-typo1"}
+{"query": "Sangue ocluto ns fezes", "expected": "FICT-096", "score": 0.93, "source": "synthetic-typo2"}
+{"query": "Coprocultura", "expected": "FICT-097", "score": 1.0, "source": "synthetic-exact"}
+{"query": "COPROCULTURA", "expected": "FICT-097", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Coprocultrua", "expected": "FICT-097", "score": 0.92, "source": "synthetic-typo1"}
+{"query": "Corocultrua", "expected": "FICT-097", "score": 0.87, "source": "synthetic-typo2"}
+{"query": "Calprotectina fecal", "expected": "FICT-098", "score": 1.0, "source": "synthetic-exact"}
+{"query": "CALPROTECTINA FECAL", "expected": "FICT-098", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Calprotectinaf ecal", "expected": "FICT-098", "score": 0.95, "source": "synthetic-typo1"}
+{"query": "Calprotectina fela", "expected": "FICT-098", "score": 0.92, "source": "synthetic-typo2"}
+{"query": "Elastase fecal", "expected": "FICT-099", "score": 1.0, "source": "synthetic-exact"}
+{"query": "ELASTASE FECAL", "expected": "FICT-099", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Elastase ecal", "expected": "FICT-099", "score": 0.96, "source": "synthetic-typo1"}
+{"query": "Elastase efcal", "expected": "FICT-099", "score": 0.93, "source": "synthetic-typo2"}
+{"query": "Pesquisa de rotavirus", "expected": "FICT-100", "score": 1.0, "source": "synthetic-exact"}
+{"query": "PESQUISA DE ROTAVIRUS", "expected": "FICT-100", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Pesquisa de rotaviru", "expected": "FICT-100", "score": 0.98, "source": "synthetic-typo1"}
+{"query": "Pquisa de rotavirus", "expected": "FICT-100", "score": 0.95, "source": "synthetic-typo2"}
+{"query": "Pesquisa de adenovirus", "expected": "FICT-101", "score": 1.0, "source": "synthetic-exact"}
+{"query": "PESQUISA DE ADENOVIRUS", "expected": "FICT-101", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Pesquisa de adenovirds", "expected": "FICT-101", "score": 0.95, "source": "synthetic-typo1"}
+{"query": "Psequisa de rdenovirus", "expected": "FICT-101", "score": 0.91, "source": "synthetic-typo2"}
+{"query": "HIV antigeno e anticorpos", "expected": "FICT-102", "score": 1.0, "source": "synthetic-exact"}
+{"query": "HIV ANTIGENO E ANTICORPOS", "expected": "FICT-102", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Anti HIV", "expected": "FICT-102", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "HIV", "expected": "FICT-102", "score": 1.0, "source": "synthetic-synonym"}
+{"query": "IHV antigeno e anticorpos", "expected": "FICT-102", "score": 0.96, "source": "synthetic-typo1"}
+{"query": "HIV antigeno e anitcorpos", "expected": "FICT-102", "score": 0.96, "source": "synthetic-typo2"}
+{"query": "HBsAg", "expected": "FICT-103", "score": 1.0, "source": "synthetic-exact"}
+{"query": "HBSAG", "expected": "FICT-103", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "zBsAg", "expected": "FICT-103", "score": 0.8, "source": "synthetic-typo1"}
+{"query": "BHsAg", "expected": "FICT-103", "score": 0.8, "source": "synthetic-typo2"}
+{"query": "Anti HBs", "expected": "FICT-104", "score": 1.0, "source": "synthetic-exact"}
+{"query": "ANTI HBS", "expected": "FICT-104", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Atni HBs", "expected": "FICT-104", "score": 0.88, "source": "synthetic-typo1"}
+{"query": "Atni HBz", "expected": "FICT-104", "score": 0.75, "source": "synthetic-typo2"}
+{"query": "Anti HBc total", "expected": "FICT-105", "score": 1.0, "source": "synthetic-exact"}
+{"query": "ANTI HBC TOTAL", "expected": "FICT-105", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Ahti HBc total", "expected": "FICT-105", "score": 0.93, "source": "synthetic-typo1"}
+{"query": "Ant iHBc toal", "expected": "FICT-105", "score": 0.89, "source": "synthetic-typo2"}
+{"query": "Anti HCV", "expected": "FICT-106", "score": 1.0, "source": "synthetic-exact"}
+{"query": "ANTI HCV", "expected": "FICT-106", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Anti HCm", "expected": "FICT-106", "score": 0.88, "source": "synthetic-typo1"}
+{"query": "AvtiHCV", "expected": "FICT-106", "score": 0.8, "source": "synthetic-typo2"}
+{"query": "VDRL", "expected": "FICT-107", "score": 1.0, "source": "synthetic-exact"}
+{"query": "VDRL", "expected": "FICT-107", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "VRL", "expected": "FICT-107", "score": 0.86, "source": "synthetic-typo1"}
+{"query": "FTA ABS", "expected": "FICT-108", "score": 1.0, "source": "synthetic-exact"}
+{"query": "FTA ABS", "expected": "FICT-108", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "FTA BS", "expected": "FICT-108", "score": 0.92, "source": "synthetic-typo1"}
+{"query": "bTAvABS", "expected": "FICT-108", "score": 0.71, "source": "synthetic-typo2"}
+{"query": "Toxoplasmose IgG", "expected": "FICT-109", "score": 1.0, "source": "synthetic-exact"}
+{"query": "TOXOPLASMOSE IGG", "expected": "FICT-109", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Toxpolasmose IgG", "expected": "FICT-109", "score": 0.94, "source": "synthetic-typo1"}
+{"query": "Toxoplsamose Igw", "expected": "FICT-109", "score": 0.88, "source": "synthetic-typo2"}
+{"query": "Toxoplasmose IgM", "expected": "FICT-110", "score": 1.0, "source": "synthetic-exact"}
+{"query": "TOXOPLASMOSE IGM", "expected": "FICT-110", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Toxoplasmose IgM", "expected": "FICT-110", "score": 1.0, "source": "synthetic-typo1"}
+{"query": "Toxoplasmose IM", "expected": "FICT-110", "score": 0.97, "source": "synthetic-typo2"}
+{"query": "Rubeola IgG", "expected": "FICT-111", "score": 1.0, "source": "synthetic-exact"}
+{"query": "RUBEOLA IGG", "expected": "FICT-111", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Rubcola IgG", "expected": "FICT-111", "score": 0.91, "source": "synthetic-typo1"}
+{"query": "RubeclaIgG", "expected": "FICT-111", "score": 0.86, "source": "synthetic-typo2"}
+{"query": "Rubeola IgM", "expected": "FICT-112", "score": 1.0, "source": "synthetic-exact"}
+{"query": "RUBEOLA IGM", "expected": "FICT-112", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Rubeola igM", "expected": "FICT-112", "score": 1.0, "source": "synthetic-typo1"}
+{"query": "Rubol IgM", "expected": "FICT-112", "score": 0.9, "source": "synthetic-typo2"}
+{"query": "Citomegalovirus IgG", "expected": "FICT-113", "score": 1.0, "source": "synthetic-exact"}
+{"query": "CITOMEGALOVIRUS IGG", "expected": "FICT-113", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Citomegalovirus Ig", "expected": "FICT-113", "score": 0.97, "source": "synthetic-typo1"}
+{"query": "Citoemgalovirus lgG", "expected": "FICT-113", "score": 0.89, "source": "synthetic-typo2"}
+{"query": "Citomegalovirus IgM", "expected": "FICT-114", "score": 1.0, "source": "synthetic-exact"}
+{"query": "CITOMEGALOVIRUS IGM", "expected": "FICT-114", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Citoemgalovirus IgM", "expected": "FICT-114", "score": 0.95, "source": "synthetic-typo1"}
+{"query": "Citomegalovrus dgM", "expected": "FICT-114", "score": 0.92, "source": "synthetic-typo2"}
+{"query": "Dengue NS1", "expected": "FICT-115", "score": 1.0, "source": "synthetic-exact"}
+{"query": "DENGUE NS1", "expected": "FICT-115", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Dengue mS1", "expected": "FICT-115", "score": 0.9, "source": "synthetic-typo1"}
+{"query": "vngue NS1", "expected": "FICT-115", "score": 0.84, "source": "synthetic-typo2"}
+{"query": "Dengue IgG", "expected": "FICT-116", "score": 1.0, "source": "synthetic-exact"}
+{"query": "DENGUE IGG", "expected": "FICT-116", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Dengue jgG", "expected": "FICT-116", "score": 0.9, "source": "synthetic-typo1"}
+{"query": "DelguedIgG", "expected": "FICT-116", "score": 0.8, "source": "synthetic-typo2"}
+{"query": "Dengue IgM", "expected": "FICT-117", "score": 1.0, "source": "synthetic-exact"}
+{"query": "DENGUE IGM", "expected": "FICT-117", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Dengu IgM", "expected": "FICT-117", "score": 0.95, "source": "synthetic-typo1"}
+{"query": "Dngum IgM", "expected": "FICT-117", "score": 0.84, "source": "synthetic-typo2"}
+{"query": "Chagas IgG", "expected": "FICT-118", "score": 1.0, "source": "synthetic-exact"}
+{"query": "CHAGAS IGG", "expected": "FICT-118", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "hCagas IgG", "expected": "FICT-118", "score": 0.9, "source": "synthetic-typo1"}
+{"query": "Cmagls IgG", "expected": "FICT-118", "score": 0.8, "source": "synthetic-typo2"}
+{"query": "Sifilis anticorpos totais", "expected": "FICT-119", "score": 1.0, "source": "synthetic-exact"}
+{"query": "SIFILIS ANTICORPOS TOTAIS", "expected": "FICT-119", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Sifilis anticorpostotais", "expected": "FICT-119", "score": 0.98, "source": "synthetic-typo1"}
+{"query": "Sifilis ntycorpos totais", "expected": "FICT-119", "score": 0.94, "source": "synthetic-typo2"}
+{"query": "Covid antigeno", "expected": "FICT-120", "score": 1.0, "source": "synthetic-exact"}
+{"query": "COVID ANTIGENO", "expected": "FICT-120", "score": 1.0, "source": "synthetic-exact-upper"}
+{"query": "Covi antigeno", "expected": "FICT-120", "score": 0.96, "source": "synthetic-typo1"}
+{"query": "oCvi dantigeno", "expected": "FICT-120", "score": 0.86, "source": "synthetic-typo2"}
+{"query": "CID: E11.9", "expected": null, "score": 0.62, "source": "synthetic-nonexam"}
+{"query": "Obs: jejum de 8 horas", "expected": null, "score": 0.6, "source": "synthetic-nonexam"}
+{"query": "Glicemia em jejum (8 horas)", "expected": "FICT-002", "score": 0.81, "source": "synthetic-nonexam"}
+{"query": "Urina tipo 1 {EAS}", "expected": "FICT-090", "score": 0.86, "source": "synthetic-nonexam"}
+{"query": "Agendar em jejum", "expected": null, "score": 0.69, "source": "synthetic-nonexam"}
+{"query": "IGF-1", "expected": "FICT-045", "score": 1.0, "source": "synthetic-nonexam"}
+{"query": "IGF 1", "expected": "FICT-045", "score": 1.0, "source": "synthetic-nonexam"}
+{"query": "Somatomedina C", "expected": "FICT-045", "score": 0.67, "source": "synthetic-synonym"}
+{"query": "Obs: jejum de 8 horas", "expected": null, "score": 0.6, "source": "synthetic-nonexam"}
