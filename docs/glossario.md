@@ -8,7 +8,7 @@ em uma ou duas frases, com o lugar onde ele mora. Leia quando um termo não for 
 | Termo | O que é | Onde mora |
 |---|---|---|
 | **confiança** | O menor de três valores, de 0 a 1: a nota da busca no catálogo, o quanto a busca bate com a linha lida e a leitura que o OCR deu à linha. | `runtime/confianca.py` |
-| **faixas de confiança** | ≥ 0,90: o exame entra na lista sem aviso (com `--yes`, agenda sozinho). De 0,70 a 0,90: entra com aviso (`confira`); com `--yes`, fica de fora. Abaixo de 0,70: não é agendado, só avisado como `baixa confiança`. Esta é a referência das faixas; os outros documentos linkam para cá. | `BookingPolicy.min_confidence` (0,90) e `ask_from` (0,70) em `runtime/confianca.py` |
+| **faixas de confiança** | ≥ 0,90: o exame entra na lista sem aviso (com `--yes`, agenda sozinho). De 0,70 a 0,90: entra com aviso (`confira`); com `--yes`, fica de fora. Abaixo de 0,70: não é agendado, só avisado como `baixa confiança`. As mensagens de cada faixa e a calibração: [arquitetura.md](arquitetura.md#agendamento-conferido-em-código). | `BookingPolicy.min_confidence` (0,90) e `ask_from` (0,70) em `runtime/confianca.py` |
 | **piso de leitura** | A leitura mínima que o OCR precisa dar à linha para o exame valer: 75 numa linha comum, 85 numa sigla curta e 95 num sinônimo. | `BookingPolicy` em `runtime/confianca.py` |
 | **trecho próprio** | Cada exame agendado precisa de um pedaço da linha só dele; "Hemoglobina" escrita uma vez, dentro de "Hemoglobina glicada", vale um exame, não dois. | `confianca.best_spot` |
 | **`confira`** | Aviso na lista: o exame entra, mas a pessoa deve conferir no papel antes de responder `s`. | `runtime/relatorio.py` (`WHY`) |

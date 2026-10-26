@@ -1,9 +1,9 @@
 # Como rodar: guia completo
 
-**O que tem aqui:** os comandos para subir o projeto, transpilar a spec e executar o agente (pela CLI ou pelo
-`adk run`/`adk web`), o que cada aviso da saída quer dizer e o que fazer quando algo falha; no fim, variáveis de
-ambiente, backup do banco e testes. Leia depois do [README](../README.md#rodar-em-4-comandos), que resume tudo em 4
-comandos. O porquê de cada regra está em [arquitetura.md](arquitetura.md); os números, em [medicoes.md](medicoes.md).
+**O que tem aqui:** os comandos para subir o projeto, transpilar a spec e executar o agente (pela CLI ou pelo `adk run`/`adk web`), o que cada aviso da saída quer dizer e o que fazer quando algo falha; no fim, variáveis de ambiente, backup do banco e testes.
+
+- Leia depois do [README](../README.md#rodar-em-4-comandos), que resume tudo em 4 comandos.
+- O porquê de cada regra está em [arquitetura.md](arquitetura.md); os números, em [medicoes.md](medicoes.md).
 
 **Índice:** [Pré-requisitos](#pré-requisitos) · [1. Subir o ambiente Docker](#1-subir-o-ambiente-docker) · [2. Rodar o transpilador](#2-rodar-o-transpilador) · [3. Executar o agente](#3-executar-o-agente) · [4. Rodar com `adk run` ou `adk web`](#4-rodar-com-adk-run-ou-adk-web) · [Variáveis de ambiente](#variáveis-de-ambiente) · [Backup e restauração](#backup-e-restauração) · [Quando algo falha](#quando-algo-falha) · [Testes](#testes)
 
@@ -157,11 +157,11 @@ Exemplos em `samples/`:
 
 ### Pedidos manuscritos simulados
 
-`samples/manuscritos/` tem 120 pedidos fictícios com aparência de letra de mão: 70 de letra comum e 50 de "letra de
-médico" (inclinada, abreviada, com carimbo e assinatura). **São simulados com fontes de letra de mão do Windows (Ink
-Free, Segoe Print, Segoe Script), não escrita real.** 93 das 120 (77%) imitam foto ruim de celular; o resto, scan
-limpo. O `gabarito.json` diz os exames, a PII e a degradação de cada imagem (o CPF tem o dígito verificador errado de
-propósito). Para gerá-las de novo (no Windows, mesma semente):
+`samples/manuscritos/` tem 120 pedidos fictícios com aparência de letra de mão: 70 de letra comum e 50 de "letra de médico" (inclinada, abreviada, com carimbo e assinatura).
+
+- **São simulados com fontes de letra de mão do Windows (Ink Free, Segoe Print, Segoe Script), não escrita real.** 93 das 120 (77%) imitam foto ruim de celular; o resto, scan limpo.
+- O `gabarito.json` diz os exames, a PII e a degradação de cada imagem (o CPF tem o dígito verificador errado de propósito).
+- Para gerá-las de novo (no Windows, mesma semente):
 
 ```bash
 python exemplos/gerar_manuscrito.py --saida samples/manuscritos --comum 70 --medico 50
@@ -326,8 +326,22 @@ docker compose run --rm tests pytest -q -n auto
 - **Serviço `tests`:** a imagem do `agent` mais pytest, ruff, mypy, o Tesseract e os testes (estágio `test` do `Dockerfile`). Nunca recebe a `GOOGLE_API_KEY`: nada chama o Gemini, e o teste ponta a ponta é pulado.
 - **Ponta a ponta real, só quando pedido:** `docker compose run --rm tests-e2e` roda [`tests/test_e2e.py`](../tests/test_e2e.py) com a chave: o `run` inteiro com o Gemini sobre `pedido.png` precisa agendar exatamente `FICT-001`, `FICT-002` e `FICT-005`, e o `GET` do agendamento precisa devolver os mesmos. Sem a chave, falha (não é pulado).
 - **Resultado atual:** 615 funções de teste e 19.379 casos (`pytest --collect-only`), quase todos de corpus parametrizado (linhas legítimas, PII gerada, ataques, termos do catálogo); 19.378 passam e 1 é pulado (o ponta a ponta). Com `-n auto` e `--cov`, cerca de 3,5 min numa máquina de 12 núcleos (medido: 200 s e 205 s); em série, de 6 a 11 min.
-- **O que cobre:** specs e código gerado; a saída da CLI; o OCR e cada tipo de PII; a busca do RAG; as ferramentas MCP via SSE; a API ([`test_api_headers.py`](../tests/test_api_headers.py), [`test_crypto.py`](../tests/test_crypto.py), [`test_idempotencia.py`](../tests/test_idempotencia.py), [`test_backup.py`](../tests/test_backup.py)); o detector de injeção ([`tests/test_injection.py`](../tests/test_injection.py)) com o corpus de `tests/attacks/` (790 ataques e 1.482 linhas legítimas, 1.429 distintas); as faixas de confiança e a pergunta `[s/N]` ([`test_confianca.py`](../tests/test_confianca.py)); o preparo da imagem ([`test_preprocessamento.py`](../tests/test_preprocessamento.py)); o agente gerado com MCP real ([`test_agent_mcp.py`](../tests/test_agent_mcp.py)) e com `adk run`/`adk web` ([`test_adk_run.py`](../tests/test_adk_run.py)); o limiar de 0,90 sobre as 631 consultas de calibração ([`test_calibration.py`](../tests/test_calibration.py)); e uma fração da carga (20 pedidos), dos manuscritos (10 de 120) e da robustez (1 caso por categoria): [`test_carga.py`](../tests/test_carga.py), [`test_manuscritos.py`](../tests/test_manuscritos.py), [`test_robustez.py`](../tests/test_robustez.py).
-- **Qualidade na CI:** `ruff` (pyflakes, pycodestyle, ordem dos imports, bugbear) e `mypy` (sem `--strict`, com `ignore_missing_imports` e `check_untyped_defs`; config em [`pyproject.toml`](../pyproject.toml)); cobertura como relatório, sem limite que quebre o build: 98% das linhas de `api`, `catalogo`, `cli`, `guardrails`, `mcp_servers`, `runtime` e `transpiler` (sem o `agent.py` gerado). O `pip-audit` confere `requirements.txt`, `requirements-dev.txt` e `constraints.txt` e falha numa vulnerabilidade que já tem correção; o Dependabot abre os PRs de atualização toda semana. Para rodar local:
+- **O que cobre:**
+  - specs e código gerado
+  - a saída da CLI
+  - o OCR e cada tipo de PII
+  - a busca do RAG
+  - as ferramentas MCP via SSE
+  - a API ([`test_api_headers.py`](../tests/test_api_headers.py), [`test_crypto.py`](../tests/test_crypto.py), [`test_idempotencia.py`](../tests/test_idempotencia.py), [`test_backup.py`](../tests/test_backup.py))
+  - o detector de injeção ([`tests/test_injection.py`](../tests/test_injection.py)) com o corpus de `tests/attacks/` (790 ataques e 1.482 linhas legítimas, 1.429 distintas)
+  - as faixas de confiança e a pergunta `[s/N]` ([`test_confianca.py`](../tests/test_confianca.py))
+  - o preparo da imagem ([`test_preprocessamento.py`](../tests/test_preprocessamento.py))
+  - o agente gerado com MCP real ([`test_agent_mcp.py`](../tests/test_agent_mcp.py)) e com `adk run`/`adk web` ([`test_adk_run.py`](../tests/test_adk_run.py))
+  - o limiar de 0,90 sobre as 631 consultas de calibração ([`test_calibration.py`](../tests/test_calibration.py))
+  - e uma fração da carga (20 pedidos), dos manuscritos (10 de 120) e da robustez (1 caso por categoria): [`test_carga.py`](../tests/test_carga.py), [`test_manuscritos.py`](../tests/test_manuscritos.py), [`test_robustez.py`](../tests/test_robustez.py).
+- **Qualidade na CI:** `ruff` (pyflakes, pycodestyle, ordem dos imports, bugbear) e `mypy` (sem `--strict`, com `ignore_missing_imports` e `check_untyped_defs`; config em [`pyproject.toml`](../pyproject.toml)); cobertura como relatório, sem limite que quebre o build: 98% das linhas de `api`, `catalogo`, `cli`, `guardrails`, `mcp_servers`, `runtime` e `transpiler` (sem o `agent.py` gerado).
+  - O `pip-audit` confere `requirements.txt`, `requirements-dev.txt` e `constraints.txt` e falha numa vulnerabilidade que já tem correção; o Dependabot abre os PRs de atualização toda semana.
+  - Para rodar local:
 
   ```bash
   docker compose run --rm --no-deps tests ruff check .

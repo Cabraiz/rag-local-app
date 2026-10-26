@@ -46,15 +46,13 @@ Docker não são distribuídas por este repositório: cada pessoa as constrói l
 
 ## Fontes e imagens dos manuscritos
 
-Os pedidos de `samples/manuscritos/` (e as cópias `samples/pedido-manuscrito*.png`) são
-**renderizados** por `exemplos/gerar_manuscrito.py` com as fontes de letra de mão que vêm com o
-Windows (Ink Free, Segoe Print e Segoe Script, além de Arial no cabeçalho e no carimbo). Nenhuma
-fonte está no repositório nem é redistribuída: só as imagens resultantes estão versionadas. O
-gerador procura as fontes na pasta de `FONTS_DIR` ou, sem ela, nas pastas de fontes do sistema
-(Windows, Linux ou macOS). Para gerar as mesmas imagens é preciso ter essas fontes: fora do
-Windows, copie-as para uma pasta e aponte `FONTS_DIR` para ela. Uma fonte que falta para o
-gerador com uma mensagem que diz qual é e onde procurou. Todos os
-nomes, CPFs (com dígito verificador errado de propósito), CRMs, datas e clínicas são fictícios.
+Os pedidos de `samples/manuscritos/` (e as cópias `samples/pedido-manuscrito*.png`) são **renderizados** por `exemplos/gerar_manuscrito.py` com as fontes de letra de mão que vêm com o Windows (Ink Free, Segoe Print e Segoe Script, além de Arial no cabeçalho e no carimbo).
+
+- Nenhuma fonte está no repositório nem é redistribuída: só as imagens resultantes estão versionadas.
+- O gerador procura as fontes na pasta de `FONTS_DIR` ou, sem ela, nas pastas de fontes do sistema (Windows, Linux ou macOS).
+- Para gerar as mesmas imagens é preciso ter essas fontes: fora do Windows, copie-as para uma pasta e aponte `FONTS_DIR` para ela.
+- Uma fonte que falta para o gerador com uma mensagem que diz qual é e onde procurou.
+- Todos os nomes, CPFs (com dígito verificador errado de propósito), CRMs, datas e clínicas são fictícios.
 
 Os pedidos digitados do teste de carga (`tests/load/pedidos.py`) são outra coisa: são gerados em
 memória, dentro do container, com as fontes DejaVu da imagem (`/usr/share/fonts/truetype/dejavu`).
@@ -63,13 +61,10 @@ carga e não são gravadas no disco nem no repositório.
 
 ## Dados e IA
 
-Ao Gemini vai só texto: as linhas do pedido já mascaradas pelo servidor de OCR (`[NOME]`,
-`[CPF]`…), os códigos e nomes de exames do catálogo e um apelido da imagem
-(`pedido-1.png`), nunca o nome real do arquivo. A imagem e os
-dados pessoais nunca saem dos containers. O projeto funciona com a chave do plano gratuito, mas
-as execuções deste repositório usaram a Gemini API paga. Pelos
-[termos da Gemini API](https://ai.google.dev/gemini-api/terms) (seção "How Google Uses Your
-Data"), nos serviços pagos o Google não usa os prompts nem as respostas para melhorar seus
-produtos; nos gratuitos, pode usar. Para dados reais, use a API paga. O projeto não tem rastreamento nem telemetria: não há biblioteca de
-analytics nem exportador OpenTelemetry configurado, e a única chamada para fora é a do serviço
-`agent` à Gemini API (OCR e RAG ficam numa rede sem internet).
+Ao Gemini vai só texto: as linhas do pedido já mascaradas pelo servidor de OCR (`[NOME]`, `[CPF]`…), os códigos e nomes de exames do catálogo e um apelido da imagem (`pedido-1.png`), nunca o nome real do arquivo.
+
+- A imagem e os dados pessoais nunca saem dos containers.
+- O projeto funciona com a chave do plano gratuito, mas as execuções deste repositório usaram a Gemini API paga.
+- Pelos [termos da Gemini API](https://ai.google.dev/gemini-api/terms) (seção "How Google Uses Your Data"), nos serviços pagos o Google não usa os prompts nem as respostas para melhorar seus produtos; nos gratuitos, pode usar.
+- Para dados reais, use a API paga.
+- O projeto não tem rastreamento nem telemetria: não há biblioteca de analytics nem exportador OpenTelemetry configurado, e a única chamada para fora é a do serviço `agent` à Gemini API (OCR e RAG ficam numa rede sem internet).

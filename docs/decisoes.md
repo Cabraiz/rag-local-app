@@ -49,10 +49,8 @@ confiável, tem dados privados e pode mandar dados para fora. Aqui:
 
 Por isso o risco principal aqui é a integridade do agendamento, mais do que o vazamento.
 
-**As faixas de confiança.** A confiança de um exame é o menor valor entre o score da busca, o quanto a
-busca bate com a linha e a leitura do OCR naquela linha. Com 0,90 ou mais, o exame entra na lista; de
-0,70 a 0,90, entra com aviso; abaixo, só é avisado. Custo: um exame mal lido não agenda sozinho
-([detalhe](arquitetura.md#agendamento-conferido-em-código)).
+**As faixas de confiança** ([o que são](glossario.md#leitura-e-decisão-de-cada-exame)). Custo: um exame mal lido não
+agenda sozinho ([detalhe](arquitetura.md#agendamento-conferido-em-código)).
 
 ### A confirmação final da lista
 
@@ -63,11 +61,11 @@ Antes da API, a pessoa vê:
   inteiro é conferido antes da pergunta);
 - o que o OCR tirou da página e, uma vez no topo, as linhas que fizeram a página ser perguntada.
 
-E responde `Agendar estes N exames? [s/N]` (padrão: não). A pergunta é a confirmação nativa de
-ferramenta do ADK, pedida pelo callback, não pelo modelo, e funciona igual na CLI, no `adk run` e no
-`adk web`. O app é retomável: a execução pausa, a CLI pergunta fora do laço de eventos e retoma a mesma
-chamada, sem refazer o OCR nem a busca. Uma confirmação que o runtime não pediu, ou escrita no estado
-da sessão, não agenda nada, e cada execução agenda uma vez só.
+E responde `Agendar estes N exames? [s/N]` (padrão: não).
+
+- A pergunta é a confirmação nativa de ferramenta do ADK, pedida pelo callback, não pelo modelo, e funciona igual na CLI, no `adk run` e no `adk web`.
+- O app é retomável: a execução pausa, a CLI pergunta fora do laço de eventos e retoma a mesma chamada, sem refazer o OCR nem a busca.
+- Uma confirmação que o runtime não pediu, ou escrita no estado da sessão, não agenda nada, e cada execução agenda uma vez só.
 
 **Por quê.** Regras de página não enxergam todo layout: um X marcando só alguns exames num formulário
 impresso, um carimbo "CANCELADO" ou uma nota girada que o OCR não lê, uma nota abaixo da assinatura.
@@ -116,13 +114,13 @@ aceita código e nome de exame, grava o nome do catálogo e cifra a lista com AE
 **Custo.** A detecção é por regras e vale para os formatos testados: um nome escrito de um jeito não
 testado pode chegar ao modelo ([camadas](arquitetura.md#segurança-em-detalhe)).
 
-**A cifra.** Cada lista recebe um nonce aleatório e fica presa ao `id`, ao status e à data do
-agendamento (dado associado do GCM). Chave errada, byte alterado, valor copiado para outra linha ou data
-editada são detectados. Preferi AES-GCM ao Fernet por esse vínculo com os campos em claro. A chave é
-gerada na 1ª subida da API, num volume próprio (`api-key`), fora do git e fora do volume do banco
-(`api-data`): uma cópia do banco sozinha não revela os exames, e o início rápido não tem passo manual de
-chave. Em uso real, a chave viria de um gerenciador de segredos, por `DB_ENCRYPTION_KEY` (que tem
-precedência; `python -m api.crypto --gerar-chave` cria uma). Custos e limites:
+**A cifra.** Cada lista recebe um nonce aleatório e fica presa ao `id`, ao status e à data do agendamento (dado associado do GCM).
+
+- Chave errada, byte alterado, valor copiado para outra linha ou data editada são detectados.
+- Preferi AES-GCM ao Fernet por esse vínculo com os campos em claro.
+- A chave é gerada na 1ª subida da API, num volume próprio (`api-key`), fora do git e fora do volume do banco (`api-data`): uma cópia do banco sozinha não revela os exames, e o início rápido não tem passo manual de chave.
+- Em uso real, a chave viria de um gerenciador de segredos, por `DB_ENCRYPTION_KEY` (que tem precedência; `python -m api.crypto --gerar-chave` cria uma).
+- Custos e limites:
 
 - quem tem os dois volumes (ou o host do Docker) lê tudo; a API decifra para responder ao `GET`;
 - `id`, status e datas ficam em claro; rotação de chave está fora do escopo;
@@ -185,17 +183,15 @@ versão para já na importação, com mensagem clara.
 `leitura.py` para uma pasta fora do repositório e, num interpretador limpo, importa o agente e chama os
 callbacks com respostas simuladas do OCR e da busca.
 
-**Custo.** O arquivo gerado depende de `runtime/` (e de `catalogo.py` e `leitura.py`) ao lado dele: o
-`adk run generated` na raiz do projeto os encontra, e no container `PYTHONPATH=/app` também. Não é um
-pacote instalável pelo pip. Uma spec sem o plugin ([exemplo fora do domínio](../specs/exemplo-generico.json))
-importa só os toolsets e o modelo; o servidor dela não é do compose, então o `transpile` pede
-`-e ALLOWED_HOSTS=docs:8010` ([comando](transpilador.md#um-agente-fora-do-domínio)).
+**Custo.** O arquivo gerado depende de `runtime/` (e de `catalogo.py` e `leitura.py`) ao lado dele: o `adk run generated` na raiz do projeto os encontra, e no container `PYTHONPATH=/app` também.
 
-**O que fica só na CLI.** O modelo reserva vale nos três modos (por requisição no `adk run` e no
-`adk web`). A linha `Tempo:` e a checagem de que o `agent.py` é o que a spec gera hoje ficam só na CLI
-([detalhes](como-rodar.md#4-rodar-com-adk-run-ou-adk-web)). Antes da pergunta, a conferência do pedido
-inteiro roda no próprio laço de eventos do ADK: a execução espera por ela (segundos, ou até 30 s se a
-busca não responder), e no `adk web` as outras sessões seguem enquanto isso.
+- Não é um pacote instalável pelo pip.
+- Uma spec sem o plugin ([exemplo fora do domínio](../specs/exemplo-generico.json)) importa só os toolsets e o modelo; o servidor dela não é do compose, então o `transpile` pede `-e ALLOWED_HOSTS=docs:8010` ([comando](transpilador.md#um-agente-fora-do-domínio)).
+
+**O que fica só na CLI.** O modelo reserva vale nos três modos (por requisição no `adk run` e no `adk web`).
+
+- A linha `Tempo:` e a checagem de que o `agent.py` é o que a spec gera hoje ficam só na CLI ([detalhes](como-rodar.md#4-rodar-com-adk-run-ou-adk-web)).
+- Antes da pergunta, a conferência do pedido inteiro roda no próprio laço de eventos do ADK: a execução espera por ela (segundos, ou até 30 s se a busca não responder), e no `adk web` as outras sessões seguem enquanto isso.
 
 ### A resposta do OCR é um contrato versionado
 
@@ -212,11 +208,10 @@ uma versão nova do contrato, nos dois lados.
 
 ### `SequentialAgent`, obsoleto no ADK 2.10
 
-Ordem fixa `extract` → `search` → `schedule`, porque cada etapa depende da anterior. O ADK 2.10 emite um
-`DeprecationWarning` em favor de `Workflow`, que ainda não é um `BaseAgent`, e a spec descreve agentes.
-Custo: não há replanejamento (um exame fora do catálogo fica fora do agendamento), um aviso de depreciação e uma migração futura que mexe também na CLI, que
-trata o agente raiz como um `BaseAgent` (lê os `sub_agents` no `transpile` e o entrega ao `App` no
-`run`).
+Ordem fixa `extract` → `search` → `schedule`, porque cada etapa depende da anterior.
+
+- O ADK 2.10 emite um `DeprecationWarning` em favor de `Workflow`, que ainda não é um `BaseAgent`, e a spec descreve agentes.
+- Custo: não há replanejamento (um exame fora do catálogo fica fora do agendamento), um aviso de depreciação e uma migração futura que mexe também na CLI, que trata o agente raiz como um `BaseAgent` (lê os `sub_agents` no `transpile` e o entrega ao `App` no `run`).
 
 ### OCR: Tesseract com preparo
 
@@ -233,50 +228,38 @@ p95 por imagem em CPU; o PaddleOCR soma +2,4 GB. Fica para quando houver GPU ou 
 
 ### Pedido em papel, em produção
 
-Receita estruturada primeiro. No papel, para letra de médico, um modelo de visão em GPU local, ou em
-nuvem sob contrato de operador de dados (dado de saúde é sensível na LGPD), aceito só quando a
-transcrição livre e a escolha no catálogo concordam; o que não é certo vai para uma pessoa conferir.
-Por quê: o leitor local medido em CPU aceitou 24% da letra de médico simulada sem errar, mas nenhum
-exame da foto real, e a escolha no catálogo sozinha aceitou 71 errados. Custo: GPU ou contrato, e
-revisão humana dos pedidos duvidosos
-([medição](medicoes.md#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão)).
+Receita estruturada primeiro.
+
+- No papel, para letra de médico, um modelo de visão em GPU local, ou em nuvem sob contrato de operador de dados (dado de saúde é sensível na LGPD), aceito só quando a transcrição livre e a escolha no catálogo concordam; o que não é certo vai para uma pessoa conferir.
+- Por quê: o leitor local medido em CPU aceitou 24% da letra de médico simulada sem errar, mas nenhum exame da foto real, e a escolha no catálogo sozinha aceitou 71 errados.
+- Custo: GPU ou contrato, e revisão humana dos pedidos duvidosos ([medição](medicoes.md#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão)).
 
 ### API: contrato, idempotência e defesas
 
 - **Contrato lido do `/openapi.json` vivo** (`OpenAPIToolset`): o agente usa exatamente o contrato do
   Swagger. Custo: a API precisa estar no ar quando o agente monta as ferramentas.
-- **`Idempotency-Key` opcional no `POST /appointments`:** a mesma chave com os mesmos códigos devolve o
-  mesmo agendamento (201); um código já agendado com a mesma chave, noutra lista, dá 409. Só os códigos
-  definem o agendamento: o `name` é opcional e a API grava o do catálogo. A tabela guarda HMACs
-  (derivados da chave do banco), nunca a chave nem o corpo, porque a chave vem do cliente e pode carregar
-  dado pessoal. Cada chave vale por `API_IDEMPOTENCY_TTL_HOURS` (padrão 24 h). Num banco de versão
-  anterior, a tabela com a chave em claro é apagada ao subir, com `secure_delete`. O agente manda só o
-  `code` de cada exame e uma chave própria por execução (um uuid aleatório, nunca a do modelo), e o
-  modelo reserva usa a mesma. Depois do 1º agendamento, o callback devolve esse mesmo agendamento a
-  qualquer nova chamada da execução, sem chegar à API. Sem a chave, dois POSTs iguais criam dois
-  agendamentos.
-- **Log estruturado:** uma linha JSON por requisição, com `request_id` (sempre novo, devolvido no
-  `X-Request-ID`; o do cliente pode ter dado pessoal), método, rota (o modelo, como
-  `/appointments/{appointment_id}`), status e duração. Não entram corpo, exames, `Idempotency-Key` nem
-  caminho desconhecido. Substitui o access log do uvicorn. Nos servidores MCP, todo valor de log que não é número, nome de ferramenta,
-  método ou rota conhecida vira `…`, e uma exceção aparece só pelo tipo.
-- **`Host` conferido** ([`test_api_host.py`](../tests/test_api_host.py)): só `127.0.0.1`, `localhost` e
-  `api`, em qualquer porta, de `API_ALLOWED_HOSTS` (um valor inválido faz a API não subir); o resto recebe
-  `400` antes do limite por cliente e do corpo. Escutar só em `127.0.0.1` não basta
-  contra DNS rebinding: o navegador manda `Host: evil.example`. Foi escrito à mão porque o middleware do
-  Starlette lê a lista ao ser montado, antes do `lifespan` que lê as variáveis, e responde em texto puro.
-- **Limite por cliente:** um balde de tokens por IP, em memória, 1200 requisições por minuto
-  (`API_RATE_LIMIT_PER_MINUTE`; 0 desliga); acima, `429` com `Retry-After`; `/health` fica de fora. É
-  defesa em profundidade (os ids já são uuid4 e não há listagem), não controle de acesso, e a carga de 500
-  pedidos fica bem abaixo dele; um valor inválido faz a API não subir. O IP não entra
-  no log. Custo: o estado é por processo; com várias réplicas cada uma conta o seu, e atrás de um proxy
-  ou da porta publicada do Docker os clientes tendem a parecer um só.
-- **Cabeçalhos de segurança em toda resposta** ([`test_api_headers.py`](../tests/test_api_headers.py)):
-  `nosniff`, `X-Frame-Options: DENY` e `Referrer-Policy: no-referrer`, inclusive nos erros. As rotas
-  JSON levam também `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`; `/docs` e
-  `/redoc` ficam sem ela, porque carregam scripts do `cdn.jsdelivr.net` e um script inline.
-  `/appointments` leva `Cache-Control: no-store`. Um erro não tratado é respondido pelo Starlette fora dos
-  middlewares, então o `SecurityHeaders` manda ele mesmo esse `500`, sem stack trace.
+- **`Idempotency-Key` opcional no `POST /appointments`:** a mesma chave com os mesmos códigos devolve o mesmo agendamento (201); um código já agendado com a mesma chave, noutra lista, dá 409.
+  - Só os códigos definem o agendamento: o `name` é opcional e a API grava o do catálogo.
+  - A tabela guarda HMACs (derivados da chave do banco), nunca a chave nem o corpo, porque a chave vem do cliente e pode carregar dado pessoal.
+  - Cada chave vale por `API_IDEMPOTENCY_TTL_HOURS` (padrão 24 h).
+  - Num banco de versão anterior, a tabela com a chave em claro é apagada ao subir, com `secure_delete`.
+  - O agente manda só o `code` de cada exame e uma chave própria por execução (um uuid aleatório, nunca a do modelo), e o modelo reserva usa a mesma.
+  - Depois do 1º agendamento, o callback devolve esse mesmo agendamento a qualquer nova chamada da execução, sem chegar à API.
+  - Sem a chave, dois POSTs iguais criam dois agendamentos.
+- **Log estruturado:** uma linha JSON por requisição, com `request_id` (sempre novo, devolvido no `X-Request-ID`; o do cliente pode ter dado pessoal), método, rota (o modelo, como `/appointments/{appointment_id}`), status e duração.
+  - Não entram corpo, exames, `Idempotency-Key` nem caminho desconhecido.
+  - Substitui o access log do uvicorn.
+  - Nos servidores MCP, todo valor de log que não é número, nome de ferramenta, método ou rota conhecida vira `…`, e uma exceção aparece só pelo tipo.
+- **`Host` conferido** ([`test_api_host.py`](../tests/test_api_host.py)): só `127.0.0.1`, `localhost` e `api`, em qualquer porta, de `API_ALLOWED_HOSTS` (um valor inválido faz a API não subir); o resto recebe `400` antes do limite por cliente e do corpo.
+  - Escutar só em `127.0.0.1` não basta contra DNS rebinding: o navegador manda `Host: evil.example`.
+  - Foi escrito à mão porque o middleware do Starlette lê a lista ao ser montado, antes do `lifespan` que lê as variáveis, e responde em texto puro.
+- **Limite por cliente:** um balde de tokens por IP, em memória, 1200 requisições por minuto (`API_RATE_LIMIT_PER_MINUTE`; 0 desliga); acima, `429` com `Retry-After`; `/health` fica de fora.
+  - É defesa em profundidade (os ids já são uuid4 e não há listagem), não controle de acesso, e a carga de 500 pedidos fica bem abaixo dele; um valor inválido faz a API não subir.
+  - O IP não entra no log.
+  - Custo: o estado é por processo; com várias réplicas cada uma conta o seu, e atrás de um proxy ou da porta publicada do Docker os clientes tendem a parecer um só.
+- **Cabeçalhos de segurança em toda resposta** ([`test_api_headers.py`](../tests/test_api_headers.py)): `nosniff`, `X-Frame-Options: DENY` e `Referrer-Policy: no-referrer`, inclusive nos erros.
+  - As rotas JSON levam também `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`; `/docs` e `/redoc` ficam sem ela, porque carregam scripts do `cdn.jsdelivr.net` e um script inline. `/appointments` leva `Cache-Control: no-store`.
+  - Um erro não tratado é respondido pelo Starlette fora dos middlewares, então o `SecurityHeaders` manda ele mesmo esse `500`, sem stack trace.
 
 ### Keep-alive de 75 s
 
@@ -301,19 +284,18 @@ atende o mock. Para escalar: Postgres no lugar do SQLite e mais réplicas do `ag
 
 ### Com `--yes`, um exame injetado como linha comum é agendado
 
-Sem `--yes`, a pessoa vê a lista inteira e confirma. Com ele, as regras são a única barreira. Numa
-página que é só a lista, uma linha que só diz "Ferritina" é indistinguível de um pedido real e agenda
-sozinha. Qualquer texto além da lista (fora campos, assinatura e cabeçalho da clínica) faz a página
-inteira ser perguntada, inclusive numa página legítima: uma observação de preparo com outras palavras,
-um cabeçalho que as regras não conhecem, um erro de OCR na letra de mão ou uma assinatura à mão que o
-OCR lê como texto abaixo da lista ([medição](medicoes.md#lista-branca-por-página)).
+Sem `--yes`, a pessoa vê a lista inteira e confirma.
+
+- Com ele, as regras são a única barreira.
+- Numa página que é só a lista, uma linha que só diz "Ferritina" é indistinguível de um pedido real e agenda sozinha.
+- Qualquer texto além da lista (fora campos, assinatura e cabeçalho da clínica) faz a página inteira ser perguntada, inclusive numa página legítima: uma observação de preparo com outras palavras, um cabeçalho que as regras não conhecem, um erro de OCR na letra de mão ou uma assinatura à mão que o OCR lê como texto abaixo da lista ([medição](medicoes.md#lista-branca-por-página)).
 
 **O que ainda passa, com `--yes`.** A regra só vê o texto que o Tesseract lê:
 
 - um carimbo, uma nota na vertical ou em diagonal, um risco à mão ou uma letra clara demais deixam o
   exame como linha comum (a letra cinza que ele lê, menor ou mais clara que a da página, é pega);
 - um teste da tinta que o OCR não leu (cor saturada, tinta escura fora das caixas das palavras) pegaria
-  os 4 carimbos e notas giradas de uma revisão, mas disparou em 30 de 30 fotos e 110 de 120 manuscritas,
+  os 4 carimbos e notas giradas do conjunto de ataques, mas disparou em 30 de 30 fotos e 110 de 120 manuscritas,
   e ficou de fora ([medição](medicoes.md#rodapé-formulário-nome-e-nome-mais-longo));
 - acima da lista, uma linha tirada inteira conta como cabeçalho da clínica se parece um (clínica,
   hospital ou laboratório, endereço, telefone, CNPJ, CRM, "Receituário" ou data) e está separada da
@@ -344,31 +326,27 @@ propósito: com uma imagem nova, o resultado pode ser um agendamento parcial com
 
 ### Filtros determinísticos não são prova contra ataques novos
 
-A máscara de PII e a remoção de injeção são regras, testadas em corpora do próprio projeto (790 ataques
-e 1.482 linhas legítimas, 1.429 distintas): é teste de regressão. A última barreira é o callback do
-agendamento: só são agendados códigos que a busca devolveu, ancorados nas linhas lidas, no nome mais longo
-do catálogo escrito ali ("Proteína C" dentro de "Proteína C reativa" é perguntada). A lista da
-confirmação ainda pode mostrar um exame que o modelo associou mal (achado na linha de outro exame),
-marcado `confira`: a pessoa o vê e decide. Sem a leitura do OCR
-por linha, nada é agendado sem um "sim".
+A máscara de PII e a remoção de injeção são regras, testadas em corpora do próprio projeto (790 ataques e 1.482 linhas legítimas, 1.429 distintas): é teste de regressão.
+
+- A última barreira é o callback do agendamento: só são agendados códigos que a busca devolveu, ancorados nas linhas lidas, no nome mais longo do catálogo escrito ali ("Proteína C" dentro de "Proteína C reativa" é perguntada).
+- A lista da confirmação ainda pode mostrar um exame que o modelo associou mal (achado na linha de outro exame), marcado `confira`: a pessoa o vê e decide.
+- Sem a leitura do OCR por linha, nada é agendado sem um "sim".
 
 ### Sem autenticação: na API e entre serviços
 
-A API é o mock local do estudo: a porta publicada fica só em `127.0.0.1`, com limite de requisições por
-IP; em produção, entraria OAuth2 ou uma chave de API. OCR, RAG, API e agente dividem uma rede interna
-sem internet, e qualquer um deles chama os outros sem credencial. A API também está na rede padrão, que
-tem saída para a internet, porque uma porta publicada no host exige uma rede não interna; o código dela não
-chama nada fora. Um OCR comprometido por uma imagem hostil poderia agendar na API. Em produção, uma rede por par (agente↔OCR, agente↔RAG, agente↔API) e um
-token por serviço.
+A API é o mock local do estudo: a porta publicada fica só em `127.0.0.1`, com limite de requisições por IP; em produção, entraria OAuth2 ou uma chave de API.
+
+- OCR, RAG, API e agente dividem uma rede interna sem internet, e qualquer um deles chama os outros sem credencial.
+- A API também está na rede padrão, que tem saída para a internet, porque uma porta publicada no host exige uma rede não interna; o código dela não chama nada fora.
+- Um OCR comprometido por uma imagem hostil poderia agendar na API.
+- Em produção, uma rede por par (agente↔OCR, agente↔RAG, agente↔API) e um token por serviço.
 
 ### Cadeia de suprimentos, em parte
 
-A imagem base é fixada por digest e as Actions da CI por commit; os pacotes Python, todos por versão
-(`==`): os diretos em `requirements.txt` e `requirements-dev.txt`, os que eles puxam em
-`constraints.txt`. Faltam: `--require-hashes`, versão fixa dos pacotes do `apt` (Tesseract) e
-atualização automática do digest da base. O `/docs` carrega o Swagger UI do `cdn.jsdelivr.net` em versão
-flutuante (`swagger-ui-dist@5`, o padrão do FastAPI; o ReDoc, `@2`), sem SRI nem CSP estrita (as rotas JSON
-levam `default-src 'none'`).
+A imagem base é fixada por digest e as Actions da CI por commit; os pacotes Python, todos por versão (`==`): os diretos em `requirements.txt` e `requirements-dev.txt`, os que eles puxam em `constraints.txt`.
+
+- Faltam: `--require-hashes`, versão fixa dos pacotes do `apt` (Tesseract) e atualização automática do digest da base.
+- O `/docs` carrega o Swagger UI do `cdn.jsdelivr.net` em versão flutuante (`swagger-ui-dist@5`, o padrão do FastAPI; o ReDoc, `@2`), sem SRI nem CSP estrita (as rotas JSON levam `default-src 'none'`).
 
 ### Confirmação forjada e pedido repetido
 

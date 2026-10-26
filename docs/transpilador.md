@@ -8,12 +8,10 @@ arquivo é gerado e as proteções que nenhuma spec remove, inclusive a confirma
 servidores que respondem, gera `generated/agent.py` e importa o arquivo gerado para provar que ele
 expõe um `root_agent` do ADK.
 
-A spec descreve construções genéricas do ADK: os servidores (MCP por SSE ou OpenAPI, com qualquer
-nome), os `LlmAgent`, o workflow que os roda (`SequentialAgent`, `ParallelAgent`, `LoopAgent` ou
-nenhum) e os plugins do `App`, cada um com o caminho da classe e os seus `kwargs`. O transpilador não
-conhece pedido, exame nem agendamento: o domínio está num plugin do runtime, o
-[`BookingPlugin`](../runtime/plugin.py), que a spec declara. Cinco specs de exemplo transpilam e
-importam nos testes:
+A spec descreve construções genéricas do ADK: os servidores (MCP por SSE ou OpenAPI, com qualquer nome), os `LlmAgent`, o workflow que os roda (`SequentialAgent`, `ParallelAgent`, `LoopAgent` ou nenhum) e os plugins do `App`, cada um com o caminho da classe e os seus `kwargs`.
+
+- O transpilador não conhece pedido, exame nem agendamento: o domínio está num plugin do runtime, o [`BookingPlugin`](../runtime/plugin.py), que a spec declara.
+- Cinco specs de exemplo transpilam e importam nos testes:
 
 | Spec | Agentes | O que faz |
 |---|---|---|
@@ -48,12 +46,9 @@ exata do `transpile` para `specs/agent.json`, e um teste falha se ela ficar desa
   modelo), o workflow e os plugins com os seus `kwargs`. Na `specs/agent.json`, os `kwargs` do
   `BookingPlugin` dizem qual ferramenta lê, qual busca e qual agenda, e a política de agendamento
   (limiares, faixa de pergunta, pisos do OCR, `top_k`).
-- **O transpilador** ([`transpiler/`](../transpiler/)) só confere o que é genérico: o schema estrito,
-  os nomes, os placeholders, os hosts de `ALLOWED_HOSTS`, as classes que a spec nomeia (plugins e
-  `output_schema`) e as ferramentas nos servidores que respondem. Ele não importa nada do domínio:
-  só uma spec que declara o `BookingPlugin` o carrega. Um plugin com `Config` (um modelo pydantic dos
-  seus `kwargs`), `check_spec` e `check_live` tem essas checagens chamadas pelo transpilador, com as
-  mesmas mensagens `campo: motivo`; as chaves de estado que o `BookingPlugin` reserva são dele.
+- **O transpilador** ([`transpiler/`](../transpiler/)) só confere o que é genérico: o schema estrito, os nomes, os placeholders, os hosts de `ALLOWED_HOSTS`, as classes que a spec nomeia (plugins e `output_schema`) e as ferramentas nos servidores que respondem.
+  - Ele não importa nada do domínio: só uma spec que declara o `BookingPlugin` o carrega.
+  - Um plugin com `Config` (um modelo pydantic dos seus `kwargs`), `check_spec` e `check_live` tem essas checagens chamadas pelo transpilador, com as mesmas mensagens `campo: motivo`; as chaves de estado que o `BookingPlugin` reserva são dele.
 - **O código gerado** instancia só classes do Google ADK (`LlmAgent`, `SequentialAgent`, `McpToolset`, `OpenAPIToolset`, `Gemini`/`FallbackModel`, `App`); os toolsets e o plugin vêm da biblioteca versionada `runtime/` (abaixo), como subclasses finas de classes do ADK e um `BasePlugin`. Ele só declara o agente, em cerca de 110 linhas, nenhuma com mais de 120 colunas:
   - o modelo Gemini;
   - cada `LlmAgent` com a sua instrução, as ferramentas dele e o `output_key`: o `McpToolset`/`SseConnectionParams` do OCR e do RAG, ou o `LiveOpenAPIToolset`, uma camada fina que monta o `OpenAPIToolset` do ADK a partir do `/openapi.json` vivo da API;
@@ -61,11 +56,10 @@ exata do `transpile` para `specs/agent.json`, e um teste falha se ela ficar desa
   - os plugins do `App`, com os `kwargs` da spec; um plugin que recebe `servers` ganha também os endereços dos servidores da spec, e por isso os `kwargs` nomeiam uma ferramenta como `servidor.ferramenta`.
 
   Nenhum agente tem callback próprio, e não há função, classe nem regra de negócio no arquivo gerado.
-- **O plugin de agendamento, [`runtime/plugin.py`](../runtime/plugin.py)**: o `BookingPlugin` é um
-  `BasePlugin` do ADK e são os callbacks de [`callbacks.py`](../runtime/callbacks.py). Pelo lugar do agente no pipeline: a raiz abre o pedido (`start_order`) e o fecha no
-  relatório (`report`); toda chamada ao modelo passa por `before_model`, que põe a regra fixa sobre
-  dados não confiáveis antes da instrução, e por `model_failed`, e toda ferramenta por `before_tool` e
-  `after_tool`; numa spec que só lista, a última resposta passa por `review_list`.
+- **O plugin de agendamento, [`runtime/plugin.py`](../runtime/plugin.py)**:
+  - o `BookingPlugin` é um `BasePlugin` do ADK e são os callbacks de [`callbacks.py`](../runtime/callbacks.py). Pelo lugar do agente no pipeline: a raiz abre o pedido (`start_order`) e o fecha no relatório (`report`)
+  - toda chamada ao modelo passa por `before_model`, que põe a regra fixa sobre dados não confiáveis antes da instrução, e por `model_failed`, e toda ferramenta por `before_tool` e `after_tool`
+  - numa spec que só lista, a última resposta passa por `review_list`.
 - **A biblioteca de runtime do transpilador, [`runtime/`](../runtime/)** (versão 6 da interface, `API_VERSION`: o arquivo gerado confere essa versão na importação), guarda as regras, num código fixo e testado por conta própria. Ela tem duas partes, e um agente sem o `BookingPlugin` importa só a genérica (`adk.py`, `rede.py`):
 
   | Parte | Módulo | O que faz |
@@ -161,43 +155,31 @@ precisa do `BookingPlugin`; este agente roda com `adk run` e `adk web`.
 
 ### Hosts permitidos: quem decide é quem implanta, não a spec
 
-A spec escolhe os servidores, mas o
-host de cada URL precisa estar em `ALLOWED_HOSTS`, uma variável de ambiente (lista separada por
-vírgula). Sem ela (ou vazia, ou só com vírgulas), valem exatamente os três serviços do compose, cada
-um na sua porta: `ocr:8001,rag:8002,api:8000`; `localhost`, `127.0.0.1` e outras portas ficam de fora
-(a API do Docker em `localhost:2375`, por exemplo). Uma entrada `host` aceita qualquer porta;
-`host:porta`, só aquela; uma entrada que não é nenhum dos dois é um erro do `transpile`, nunca ignorada.
-Assim uma spec não aponta o agente para outro host ou porta (SSRF: `169.254.169.254`, a rede interna,
-um serviço local), e um outro ambiente não exige mudar o código: basta
-`ALLOWED_HOSTS=ocr:8001,rag:8002,api:8000,clinica.interna:8443` no `.env`. A checagem roda no
-`transpile`, de novo no `cli run`, que lê a spec outra vez, e uma terceira vez quando o `agent.py`
-é importado: os toolsets da biblioteca de runtime (`McpToolset`, `LiveOpenAPIToolset`) recusam um
-host fora de `ALLOWED_HOSTS`, então um `agent.py` gerado antes de uma mudança na variável, ou editado
-à mão, não importa. O `cli run` também confere que o `agent.py` é exatamente o que a spec gera hoje,
-e para se não for. `ALLOWED_HOSTS` compara nomes. No `cli run`, cada nome é resolvido uma vez, antes da
-primeira requisição, e um nome que aponta para um endereço local ou de metadados (`127.0.0.1`,
-`169.254.169.254`, `fd00:ec2::254`…) para a execução; os endereços conferidos ficam fixados até o
-fim dela nos clientes que o runtime cria (o `McpToolset`, o `OpenAPIToolset` do ADK e as consultas do
-próprio runtime recebem um cliente `httpx` que conecta só a eles), e um nome que não resolveu fica sem nenhum
-([regra e limites](arquitetura.md#segurança-em-detalhe)).
+A spec escolhe os servidores, mas o host de cada URL precisa estar em `ALLOWED_HOSTS`, uma variável de ambiente (lista separada por vírgula).
+
+- Sem ela (ou vazia, ou só com vírgulas), valem exatamente os três serviços do compose, cada um na sua porta: `ocr:8001,rag:8002,api:8000`; `localhost`, `127.0.0.1` e outras portas ficam de fora (a API do Docker em `localhost:2375`, por exemplo).
+- Uma entrada `host` aceita qualquer porta; `host:porta`, só aquela; uma entrada que não é nenhum dos dois é um erro do `transpile`, nunca ignorada.
+- Assim uma spec não aponta o agente para outro host ou porta (SSRF: `169.254.169.254`, a rede interna, um serviço local), e um outro ambiente não exige mudar o código: basta `ALLOWED_HOSTS=ocr:8001,rag:8002,api:8000,clinica.interna:8443` no `.env`.
+- A checagem roda no `transpile`, de novo no `cli run`, que lê a spec outra vez, e uma terceira vez quando o `agent.py` é importado: os toolsets da biblioteca de runtime (`McpToolset`, `LiveOpenAPIToolset`) recusam um host fora de `ALLOWED_HOSTS`, então um `agent.py` gerado antes de uma mudança na variável, ou editado à mão, não importa.
+- O `cli run` também confere que o `agent.py` é exatamente o que a spec gera hoje, e para se não for. `ALLOWED_HOSTS` compara nomes.
+- No `cli run`, cada nome é resolvido uma vez, antes da primeira requisição, e um nome que aponta para um endereço local ou de metadados (`127.0.0.1`, `169.254.169.254`, `fd00:ec2::254`…) para a execução; os endereços conferidos ficam fixados até o fim dela nos clientes que o runtime cria (o `McpToolset`, o `OpenAPIToolset` do ADK e as consultas do próprio runtime recebem um cliente `httpx` que conecta só a eles), e um nome que não resolveu fica sem nenhum ([regra e limites](arquitetura.md#segurança-em-detalhe)).
 
 ### Ferramentas conferidas nos servidores
 
-No `transpile`, cada servidor que responde em até 3 s é
-consultado: o MCP pelo `list_tools`, a API pelo `/openapi.json`. Uma ferramenta que ele não tem é
-um erro já no `transpile`, e o `OK` ganha a linha `Ferramentas conferidas nos servidores: ocr, rag, api`.
-Um servidor fora do ar (um `transpile` offline, a CI) fica com a lista declarada na spec, sem linha
-a mais. Um servidor que responde, mas não com JSON (um `/openapi.json` malformado), é um erro, e um
-defeito do próprio transpilador nunca passa por servidor fora do ar; o `cli run` pergunta de novo a todos antes de chamar o Gemini, então uma ferramenta errada
-na prática não chega a uma execução. No `cli run`, todo servidor precisa responder e listar as
-ferramentas: um que responde ao GET mas não termina o `list_tools` (ou não serve um `/openapi.json`)
-para a execução com `servers.<nome>: <url> respondeu, mas não listou as ferramentas`. A mesma consulta passa pelo `check_live` de cada plugin: o
-do `BookingPlugin` confere que a ferramenta de `read` recebe `filename`, a de `search` recebe `query`
-e `top_k`, e o contrato da operação de `book` (abaixo).
+No `transpile`, cada servidor que responde em até 3 s é consultado: o MCP pelo `list_tools`, a API pelo `/openapi.json`.
+
+- Uma ferramenta que ele não tem é um erro já no `transpile`, e o `OK` ganha a linha `Ferramentas conferidas nos servidores: ocr, rag, api`.
+- Um servidor fora do ar (um `transpile` offline, a CI) fica com a lista declarada na spec, sem linha a mais.
+- Um servidor que responde, mas não com JSON (um `/openapi.json` malformado), é um erro, e um defeito do próprio transpilador nunca passa por servidor fora do ar; o `cli run` pergunta de novo a todos antes de chamar o Gemini, então uma ferramenta errada na prática não chega a uma execução.
+- No `cli run`, todo servidor precisa responder e listar as ferramentas: um que responde ao GET mas não termina o `list_tools` (ou não serve um `/openapi.json`) para a execução com `servers.<nome>: <url> respondeu, mas não listou as ferramentas`.
+- A mesma consulta passa pelo `check_live` de cada plugin: o do `BookingPlugin` confere que a ferramenta de `read` recebe `filename`, a de `search` recebe `query` e `top_k`, e o contrato da operação de `book` (abaixo).
 
 ### `fallback_model`, por requisição
 
-No código gerado, o modelo é o `FallbackModel` do ADK: uma requisição que o principal recusa com `429`/`503` vai, igual, ao reserva, no `cli run`, no `adk run` e no `adk web`, que rodam o mesmo `app` sem mudança. Não agenda em dobro nem pergunta de novo: a chamada que se repete é ao modelo, e uma chamada ao modelo que falhou não rodou nenhuma ferramenta; as respostas e a `Idempotency-Key` seguem no registro do pedido. Com ele na spec, o principal não repete `429` nem `503` (só `500`): a troca para o reserva é imediata, em vez de esperar cerca de 1 minuto de tentativas.
+No código gerado, o modelo é o `FallbackModel` do ADK: uma requisição que o principal recusa com `429`/`503` vai, igual, ao reserva, no `cli run`, no `adk run` e no `adk web`, que rodam o mesmo `app` sem mudança.
+
+- Não agenda em dobro nem pergunta de novo: a chamada que se repete é ao modelo, e uma chamada ao modelo que falhou não rodou nenhuma ferramenta; as respostas e a `Idempotency-Key` seguem no registro do pedido.
+- Com ele na spec, o principal não repete `429` nem `503` (só `500`): a troca para o reserva é imediata, em vez de esperar cerca de 1 minuto de tentativas.
 
 ### O `BookingPlugin`: quem lê, quem busca e quem agenda
 
@@ -227,15 +209,11 @@ As regras abaixo são do plugin (`check_spec`), chamadas pelo `transpile` com as
   - Na listagem, os limiares (opcionais; os valores de `listar-exames.json` são os padrões) só
     definem as faixas de confiança: o que sai como exame lido, o que sai como `confira` e o que fica
     de fora. Nada é agendado.
-- **Toda ferramenta de um agente tem papel, e uma operação de API só chega a um agente como
-  `book`**, a única chamada que o runtime confere antes de enviar. O `transpile` recusa uma
-  ferramenta sem papel e qualquer outra operação de API: uma 2ª operação, um 2º servidor OpenAPI, a API
-  renomeada sem mudar `book` ou uma API numa spec que só lista. O runtime também recusa, em tempo de
-  execução, qualquer ferramenta fora dos papéis e, no agendamento, qualquer campo além de `exams` e da
-  nossa `Idempotency-Key`. Com a API no ar, o `transpile` confere o contrato da operação de `book`: ela
-  recebe `Idempotency-Key` e um corpo só com `exams` (`additionalProperties: false`), cada exame com
-  `code` (o `name` é opcional: a API do projeto não o guarda e devolve o nome do catálogo). Faltar um
-  papel nunca quer dizer "sem checagem".
+- **Toda ferramenta de um agente tem papel, e uma operação de API só chega a um agente como `book`**, a única chamada que o runtime confere antes de enviar.
+  - O `transpile` recusa uma ferramenta sem papel e qualquer outra operação de API: uma 2ª operação, um 2º servidor OpenAPI, a API renomeada sem mudar `book` ou uma API numa spec que só lista.
+  - O runtime também recusa, em tempo de execução, qualquer ferramenta fora dos papéis e, no agendamento, qualquer campo além de `exams` e da nossa `Idempotency-Key`.
+  - Com a API no ar, o `transpile` confere o contrato da operação de `book`: ela recebe `Idempotency-Key` e um corpo só com `exams` (`additionalProperties: false`), cada exame com `code` (o `name` é opcional: a API do projeto não o guarda e devolve o nome do catálogo).
+  - Faltar um papel nunca quer dizer "sem checagem".
 - **Os `kwargs` são conferidos de novo ao criar o plugin:** um `agent.py` editado à mão também não
   afrouxa a política.
 
@@ -252,13 +230,10 @@ docker compose run --rm agent python -m cli run --image pedido.png --spec specs/
 
 ### As garantias medidas valem para a política padrão
 
-"Nenhum exame errado agendado sem confirmação"
-foi medido com 0,90 / 0,70 / 75-85-95, e por isso esses valores são também os pisos: uma spec pode deixar a
-política mais rígida (subir um valor, ou `"ask_from": null`), nunca mais frouxa. Abaixo de um piso, o
-`transpile` para e nomeia o campo e o mínimo, por exemplo `plugins.0.kwargs.min_confidence: deve ser no mínimo 0,9,
-o valor medido: uma spec pode deixar a política mais rígida, nunca mais frouxa` (a 0,80, um "- GA" mal lido
-seria agendado como IgA). Baixar um piso pede uma nova medição, com `tests/load/manuscritos.py`, e uma
-mudança no código, não na spec.
+"Nenhum exame errado agendado sem confirmação" foi medido com 0,90 / 0,70 / 75-85-95, e por isso esses valores são também os pisos: uma spec pode deixar a política mais rígida (subir um valor, ou `"ask_from": null`), nunca mais frouxa.
+
+- Abaixo de um piso, o `transpile` para e nomeia o campo e o mínimo, por exemplo `plugins.0.kwargs.min_confidence: deve ser no mínimo 0,9, o valor medido: uma spec pode deixar a política mais rígida, nunca mais frouxa` (a 0,80, um "- GA" mal lido seria agendado como IgA).
+- Baixar um piso pede uma nova medição, com `tests/load/manuscritos.py`, e uma mudança no código, não na spec.
 
 Uma 2ª spec de exemplo, [`specs/agent-sem-confirmacao.json`](../specs/agent-sem-confirmacao.json),
 usa `"ask_from": null` e outra instrução de agendamento: o que fica abaixo de 0,90 só é avisado,
@@ -337,13 +312,12 @@ manteria só a última silenciosamente.
 
 ## Geração
 
-[`transpiler/generator.py`](../transpiler/generator.py) preenche
-[`agent_template.py.tmpl`](../transpiler/agent_template.py.tmpl) com `string.Template`, com um bloco
-por agente da spec. Toda chamada sai com um argumento por linha, então o gerador não decide onde
-quebrar uma linha; só uma instrução longa vira literais adjacentes de até 120 colunas. Cada valor da
-spec entra como literal Python via `repr()`, então nenhum valor da spec é executado como código. Em
-seguida o arquivo passa por `py_compile` e é importado. O `transpile` só imprime `OK` se `root_agent`
-existir:
+[`transpiler/generator.py`](../transpiler/generator.py) preenche [`agent_template.py.tmpl`](../transpiler/agent_template.py.tmpl) com `string.Template`, com um bloco por agente da spec.
+
+- Toda chamada sai com um argumento por linha, então o gerador não decide onde quebrar uma linha; só uma instrução longa vira literais adjacentes de até 120 colunas.
+- Cada valor da spec entra como literal Python via `repr()`, então nenhum valor da spec é executado como código.
+- Em seguida o arquivo passa por `py_compile` e é importado.
+- O `transpile` só imprime `OK` se `root_agent` existir:
 
 ```text
 OK: generated/agent.py gerado e importado; root_agent "clinic_scheduler" (SequentialAgent: extract -> search -> schedule)
@@ -410,11 +384,9 @@ Estas proteções ficam no `runtime/`, fora da spec, e por isso nenhuma spec con
   respostas e as perguntas de cada chamada, a `Idempotency-Key` e a resposta da API) fica no próprio
   `BookingPlugin`, um registro por sessão, e nunca é lido do estado da sessão, que os clientes do ADK
   escrevem (`adk web`, `adk run --state`). O estado recebe uma cópia, para a CLI e para a pessoa.
-- **`start_order`** (antes do pipeline, no `before_agent_callback` do plugin para a raiz; também no `adk run` e no `adk web`): a imagem vem do `cli run`
-  (`orders.start`) ou da mensagem da pessoa, que precisa ser só texto e trazer um só nome de arquivo, sem pasta.
-  Antes de qualquer turno do modelo, o nome vira o apelido, os endereços dos servidores são conferidos e o
-  OCR confere a imagem. Um pedido por sessão; numa sessão em que a API já agendou, a resposta é esse
-  agendamento e `não repita este pedido`.
+- **`start_order`** (antes do pipeline, no `before_agent_callback` do plugin para a raiz; também no `adk run` e no `adk web`): a imagem vem do `cli run` (`orders.start`) ou da mensagem da pessoa, que precisa ser só texto e trazer um só nome de arquivo, sem pasta.
+  - Antes de qualquer turno do modelo, o nome vira o apelido, os endereços dos servidores são conferidos e o OCR confere a imagem.
+  - Um pedido por sessão; numa sessão em que a API já agendou, a resposta é esse agendamento e `não repita este pedido`.
 - **`before_model`:** o modelo recebe `Arquivo do pedido: <apelido>` no lugar da mensagem da pessoa; o nome
   real do arquivo nunca aparece no que ele recebe, e cada parte leva só texto e chamadas de ferramenta e
   suas respostas (um anexo, código ou outro dado que um cliente mande fica de fora).
@@ -434,10 +406,7 @@ Estas proteções ficam no `runtime/`, fora da spec, e por isso nenhuma spec con
   - no agendamento, decide em código, antes da API:
     - bloqueia se algum código não veio de nenhuma busca no catálogo;
     - dá a cada exame um trecho próprio do pedido, em qualquer linha. "Creatinina, Clearance de creatinina" são 2, na mesma linha ou em linhas separadas. Valem 1: nomes sobrepostos ("Hemoglobina" em "Hemoglobina glicada" escrito uma vez), uma linha só parecida, e cópias da mesma linha;
-    - decide em 3 faixas:
-      - **≥ `min_confidence`** (0,90, calibrado em 631 consultas; ver [`test_calibration.py`](../tests/test_calibration.py)): entra na lista;
-      - **de `ask_from` a `min_confidence`** (0,70 a 0,90): entra na lista com aviso (com `--yes`, fica de fora);
-      - **abaixo:** sai como `baixa confiança: ... confira o pedido`.
+    - decide pelas faixas de confiança: `min_confidence` (0,90, calibrado em 631 consultas; ver [`test_calibration.py`](../tests/test_calibration.py)) e `ask_from` (0,70) ([o que cada faixa faz](glossario.md#leitura-e-decisão-de-cada-exame)).
 
     Bloqueia se nenhum exame sobra; senão, pede a confirmação final da lista (abaixo).
 - **Pedido sem exame:** as instruções citam a etapa anterior como `{chave?}`, que o ADK troca por

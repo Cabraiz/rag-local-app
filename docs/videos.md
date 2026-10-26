@@ -48,19 +48,32 @@ https://github.com/user-attachments/assets/4d4626a2-5d7f-46c9-add8-b401d5bddfda
 
 ### 08. Segurança
 
-nos pedidos com instruções escondidas, o OCR conta e tira o texto delas (`Instruções neutralizadas no OCR: …`) e a lista perguntada traz só os exames legítimos, todos marcados `confira` porque a página tem texto além da lista (no 2º pedido, os 3 que dividiam a linha com uma instrução removida dizem também `o pedido tem outras palavras além do exame`); respondida "s", só eles são agendados; o cabeçalho (`Laboratorio Ficticio Beta`, `PEDIDO MEDICO FICTICIO`) também sai como `[TEXTO_REMOVIDO]`, porque o OCR só deixa sair o que parece exame ou estrutura do pedido. Por isso a tela mostra um `[TEXTO_REMOVIDO]` a mais que o `instructions_removed` (5 contra 4 e 4 contra 3): `text_removed` conta todos os trechos removidos, o título incluído. Pela regra da [página inteira só com a lista](medicoes.md#lista-branca-por-página), nenhum desses exames é agendado sem a resposta ([mp4](gravacoes/08-seguranca.mp4))
+nos pedidos com instruções escondidas, o OCR conta e tira o texto delas (`Instruções neutralizadas no OCR:
+
+- …`) e a lista perguntada traz só os exames legítimos, todos marcados `confira` porque a página tem texto além da lista (no 2º pedido, os 3 que dividiam a linha com uma instrução removida dizem também `o pedido tem outras palavras além do exame`)
+- respondida "s", só eles são agendados
+- o cabeçalho (`Laboratorio Ficticio Beta`, `PEDIDO MEDICO FICTICIO`) também sai como `[TEXTO_REMOVIDO]`, porque o OCR só deixa sair o que parece exame ou estrutura do pedido.
+
+- Por isso a tela mostra um `[TEXTO_REMOVIDO]` a mais que o `instructions_removed` (5 contra 4 e 4 contra 3): `text_removed` conta todos os trechos removidos, o título incluído.
+- Pela regra da [página inteira só com a lista](medicoes.md#lista-branca-por-página), nenhum desses exames é agendado sem a resposta ([mp4](gravacoes/08-seguranca.mp4))
 
 https://github.com/user-attachments/assets/48c084df-85f0-4560-940d-a6cbe1823551
 
 ### 09. Dados sensíveis em carga
 
-A imagem de entrada (fictícia) de um pedido do gerador e a saída do OCR, com nome, CPF, RG, endereço, carteirinha e CRM mascarados; depois, 200 pedidos pelo OCR, RAG e API: 0 vazamentos, os 200 agendamentos lidos de volta iguais e nada em claro nos bytes do SQLite. A soma de mascarados (2451) passa dos 2400 campos sensíveis porque a data do pedido também sai como `[DATA]`, enquanto endereço e CEP na mesma linha saem num só `[ENDERECO]`. Parciais na tela, perto de 99%: exames preservados no texto e códigos certos no RAG; os poucos exames não lidos pelo OCR (letra ou sigla solta, como em "Troponina I") são listados pelo nome ([por quê](medicoes.md#carga-de-dados-sensíveis)) ([mp4](gravacoes/09-dados-sensiveis.mp4))
+A imagem de entrada (fictícia) de um pedido do gerador e a saída do OCR, com nome, CPF, RG, endereço, carteirinha e CRM mascarados; depois, 200 pedidos pelo OCR, RAG e API: 0 vazamentos, os 200 agendamentos lidos de volta iguais e nada em claro nos bytes do SQLite.
+
+- A soma de mascarados (2451) passa dos 2400 campos sensíveis porque a data do pedido também sai como `[DATA]`, enquanto endereço e CEP na mesma linha saem num só `[ENDERECO]`.
+- Parciais na tela, perto de 99%: exames preservados no texto e códigos certos no RAG; os poucos exames não lidos pelo OCR (letra ou sigla solta, como em "Troponina I") são listados pelo nome ([por quê](medicoes.md#carga-de-dados-sensíveis)) ([mp4](gravacoes/09-dados-sensiveis.mp4))
 
 https://github.com/user-attachments/assets/62219d86-1348-4388-a40e-c3f58acff3e0
 
 ### 10. Pedido manuscrito
 
-com Gemini, numa letra de mão simulada (fonte, não escrita real): a página tem texto além da lista, então os 5 exames vão para a lista marcados `confira` (Triglicerídeos lido com confiança 0,71); `Agendar estes 5 exames? [s/N]` respondido "s", e os 5 são agendados. A linha `[schedule] chamando create_appointment` aparece antes da pergunta porque a confirmação nativa do ADK pausa dentro dessa chamada: o `POST` só sai depois do "s". Pela regra da [página inteira só com a lista](medicoes.md#lista-branca-por-página), nenhum deles é agendado sem a resposta ([mp4](gravacoes/10-manuscrito.mp4))
+com Gemini, numa letra de mão simulada (fonte, não escrita real): a página tem texto além da lista, então os 5 exames vão para a lista marcados `confira` (Triglicerídeos lido com confiança 0,71); `Agendar estes 5 exames? [s/N]` respondido "s", e os 5 são agendados.
+
+- A linha `[schedule] chamando create_appointment` aparece antes da pergunta porque a confirmação nativa do ADK pausa dentro dessa chamada: o `POST` só sai depois do "s".
+- Pela regra da [página inteira só com a lista](medicoes.md#lista-branca-por-página), nenhum deles é agendado sem a resposta ([mp4](gravacoes/10-manuscrito.mp4))
 
 https://github.com/user-attachments/assets/678ba071-31fb-466f-a79b-48cad6e8f4ca
 

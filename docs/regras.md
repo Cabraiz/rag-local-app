@@ -2,7 +2,7 @@
 
 O que tem aqui: as 22 regras determinísticas que decidem, para cada exame lido, se ele agenda sozinho (com
 `--yes`), se vai para a lista com aviso, se fica de fora e o que o modelo lê; para cada uma, o exemplo que a
-motivou. Cada regra veio de um furo que uma revisão achou ([revisao.md](revisao.md)) e tem teste.
+motivou. Cada regra tem o caso que a motivou e um teste ([revisao.md](revisao.md) liga os casos aos testes).
 
 **Onde estão.** [`guardrails/intent.py`](../guardrails/intent.py) (o que cada linha pede e se a página é só a
 lista), [`mcp_servers/ocr.py`](../mcp_servers/ocr.py) (a resposta do OCR), [`runtime/confianca.py`](../runtime/confianca.py)
@@ -10,12 +10,11 @@ lista), [`mcp_servers/ocr.py`](../mcp_servers/ocr.py) (a resposta do OCR), [`run
 vocabulários ficam em [`catalogo.py`](../catalogo.py) (os que toda imagem usa, inclusive o runtime) e
 [`guardrails/pii_rules.py`](../guardrails/pii_rules.py) (os do OCR).
 
-**Por que tantas regras.** A imagem é entrada não confiável e o pedido é médico. Sem `--yes`, a pessoa confirma a
-lista inteira, e as regras só decidem o aviso ao lado de cada exame e o que fica de fora. Com `--yes`, elas são a
-única barreira, então falham para o lado de perguntar: um exame só agenda sozinho se a página inteira for só a lista
-de exames (com rótulos, campos e o cabeçalho da clínica), em vez de procurar palavras de negação, uma lista que
-crescia a cada revisão. As regras que valem sempre (negação, histórico, preparo, o que o modelo lê) são poucas e
-diretas; a maior parte da tabela existe para o `--yes` não agendar o que uma pessoa não viu.
+**Por que tantas regras.** A imagem é entrada não confiável e o pedido é médico.
+
+- Sem `--yes`, a pessoa confirma a lista inteira, e as regras só decidem o aviso ao lado de cada exame e o que fica de fora.
+- Com `--yes`, elas são a única barreira, então falham para o lado de perguntar: um exame só agenda sozinho se a página inteira for só a lista de exames (com rótulos, campos e o cabeçalho da clínica), em vez de procurar palavras de negação, uma lista que crescia a cada revisão.
+- As regras que valem sempre (negação, histórico, preparo, o que o modelo lê) são poucas e diretas; a maior parte da tabela existe para o `--yes` não agendar o que uma pessoa não viu.
 
 "Sempre" vale com e sem `--yes`; "`--yes`" quer dizer que, sem `--yes`, a regra só muda o aviso na confirmação.
 

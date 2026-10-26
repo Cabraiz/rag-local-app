@@ -1,11 +1,9 @@
 # Guia do desenvolvedor
 
-**O que tem aqui / quando ler.** O caminho mais curto para mexer no código: onde está cada coisa, por onde um pedido
-passa, como rodar cada peça e os testes, receitas para as mudanças mais comuns e como depurar um pedido que falhou ou
-foi perguntado. Leia depois do [README](../README.md). A referência de cada tema fica nos outros documentos, com links
-no ponto certo: [arquitetura.md](arquitetura.md) (como funciona), [transpilador.md](transpilador.md) (spec e código
-gerado), [regras.md](regras.md) (regras de linha e de página), [medicoes.md](medicoes.md) (números),
-[como-rodar.md](como-rodar.md) (operação) e [decisoes.md](decisoes.md) (escolhas e limites).
+**O que tem aqui / quando ler.** O caminho mais curto para mexer no código: onde está cada coisa, por onde um pedido passa, como rodar cada peça e os testes, receitas para as mudanças mais comuns e como depurar um pedido que falhou ou foi perguntado.
+
+- Leia depois do [README](../README.md).
+- A referência de cada tema fica nos outros documentos, com links no ponto certo: [arquitetura.md](arquitetura.md) (como funciona), [transpilador.md](transpilador.md) (spec e código gerado), [regras.md](regras.md) (regras de linha e de página), [medicoes.md](medicoes.md) (números), [como-rodar.md](como-rodar.md) (operação) e [decisoes.md](decisoes.md) (escolhas e limites).
 
 **Índice:** [Mapa do repositório](#mapa-do-repositório) · [O caminho de um pedido no código](#o-caminho-de-um-pedido-no-código) ·
 [Rodar cada peça e os testes](#rodar-cada-peça-e-os-testes) · [Primeira mudança](#primeira-mudança-passo-a-passo) · [Receitas](#receitas) ·
@@ -227,12 +225,14 @@ spec nova acrescentando-a às listas de `tests/test_transpiler.py` e `tests/test
 | Como a linha vira exames | `mcp_servers/rag.py`: `split_exams`, `unglue`, `ahead`, `behind` | `tests/test_rag.py` |
 | O texto de um aviso | `runtime/relatorio.py` (`WHY`, `LEFT_OUT`, `REFUSED`) | `tests/test_confianca.py`, `tests/test_negacao.py`; o exemplo em [como-rodar.md](como-rodar.md#3-executar-o-agente) é conferido contra o log das evidências |
 
-Passos: (1) escreva o caso que falha, em `tests/test_negacao.py` ou `tests/test_negacao_casos.py`; (2) mude a regra; (3) rode
-`tests/test_negacao*.py`, `tests/test_texto_livre.py`, `tests/test_pii.py` e `tests/test_injection.py` (a regra não pode
-apagar exame nem deixar PII); (4) se o efeito nos conjuntos medidos mudar, rode as cargas e atualize [medicoes.md](medicoes.md); (5)
-acrescente a regra ao mapa [regras.md](regras.md) com o exemplo que a motivou. Uma regra nova falha para o lado de perguntar:
-"só agenda sozinho o que é só exame" é a escolha ([por quê](decisoes.md#por-que-existe-uma-camada-de-regras)). Um campo ou um tipo de linha novo na
-resposta do OCR pede uma versão nova do contrato (`leitura.VERSION`), nos dois lados.
+Passos: (1) escreva o caso que falha, em `tests/test_negacao.py` ou `tests/test_negacao_casos.py`;
+
+- (2) mude a regra;
+- (3) rode `tests/test_negacao*.py`, `tests/test_texto_livre.py`, `tests/test_pii.py` e `tests/test_injection.py` (a regra não pode apagar exame nem deixar PII);
+- (4) se o efeito nos conjuntos medidos mudar, rode as cargas e atualize [medicoes.md](medicoes.md);
+- (5) acrescente a regra ao mapa [regras.md](regras.md) com o exemplo que a motivou.
+- Uma regra nova falha para o lado de perguntar: "só agenda sozinho o que é só exame" é a escolha ([por quê](decisoes.md#por-que-existe-uma-camada-de-regras)).
+- Um campo ou um tipo de linha novo na resposta do OCR pede uma versão nova do contrato (`leitura.VERSION`), nos dois lados.
 
 ### Acrescentar um padrão de PII
 
@@ -297,15 +297,15 @@ em `line_intent` (passo 1) e procure-o no mapa [regras.md](regras.md).
   que fazer; nunca um traceback. Texto que vem da imagem nunca vai a um log sem passar por máscara.
 - **Segurança por padrão.** Nada de dado pessoal no modelo, no log ou no banco; a política vive em `runtime/` e nenhuma
   spec a afrouxa (os limiares da spec só podem endurecer); uma regra nova falha para o lado de perguntar.
-- **Testes que leem a documentação.** `tests/test_readme.py` confere, sem Docker nem rede: links e âncoras relativos de
-  `README.md` e `docs/*.md`; caminhos citados entre crases (têm de existir; os de fora do repositório entram em
-  `NOT_IN_REPO`); os números que o repositório sabe calcular (catálogo, corpora, funções e casos de teste); a saída de
-  exemplo contra `docs/evidencias/log-run-pedido.txt`; o `OK:` do `transpile` contra `specs/agent.json`; cada comando
-  `docker compose` (serviço, perfil, módulo). Outros testes leem o `como-rodar.md`: `test_variaveis.py` (toda variável de ambiente
-  que o código lê tem linha na tabela e entrada no `.env.example`), `test_adk_comandos.py` (os comandos `adk run` e `runtime.web` são executados
-  como estão escritos), `test_confirmacao_nativa.py` (a pergunta `[s/N]` do exemplo) e `test_transpiler.py`
-  (`docs/exemplo-agent.py` é a saída exata do `transpile`). Quando mudar um número, uma saída ou um comando, o teste
-  diz o arquivo e a linha.
+- **Testes que leem a documentação.** `tests/test_readme.py` confere, sem Docker nem rede:
+  - links e âncoras relativos de `README.md` e `docs/*.md`
+  - caminhos citados entre crases (têm de existir; os de fora do repositório entram em `NOT_IN_REPO`)
+  - os números que o repositório sabe calcular (catálogo, corpora, funções e casos de teste)
+  - a saída de exemplo contra `docs/evidencias/log-run-pedido.txt`
+  - o `OK:` do `transpile` contra `specs/agent.json`
+  - cada comando `docker compose` (serviço, perfil, módulo).
+  - Outros testes leem o `como-rodar.md`: `test_variaveis.py` (toda variável de ambiente que o código lê tem linha na tabela e entrada no `.env.example`), `test_adk_comandos.py` (os comandos `adk run` e `runtime.web` são executados como estão escritos), `test_confirmacao_nativa.py` (a pergunta `[s/N]` do exemplo) e `test_transpiler.py` (`docs/exemplo-agent.py` é a saída exata do `transpile`).
+  - Quando mudar um número, uma saída ou um comando, o teste diz o arquivo e a linha.
 - **Docs.** Um fato, um lugar: a referência fica num documento e os outros apontam para ele. Texto novo no estilo dos
   vizinhos: o estado atual, sem história, com o comando ou o caminho.
 - **Commits.** Conventional Commits (`feat(api): ...`, `fix(ocr): ...`, `docs: ...`, `test(...)`), uma mudança lógica

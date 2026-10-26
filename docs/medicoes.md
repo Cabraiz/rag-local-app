@@ -32,12 +32,11 @@ docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga ru
 | Qualidade da foto, antes do OCR | 24 pedidos degradados passo a passo; 120 manuscritas, 200 da carga e as amostras | recusa só onde o OCR lê ~0%, com uma dica; **0** imagens reais recusadas | `pytest tests/test_qualidade.py` |
 | Pedido que cancela, adia ou anota um exame | 69 linhas que não pedem o exame; 31 páginas de ataque em imagem | **0 agendados sozinhos** ([linha](#negação-histórico-e-observações), [página](#lista-branca-por-página)) | `pytest tests/test_negacao.py` (as 69 linhas) |
 
-**Como ler.** A confiança é o menor valor entre busca, apoio na linha e leitura do OCR
-([arquitetura](arquitetura.md#agendamento-conferido-em-código)): ≥ 0,90, **agendado sozinho** (com `--yes`, sem
-confirmação); de 0,70 a 0,90, ou se uma regra pede, **perguntado** (`[s/N]`); abaixo, **baixa confiança** (só
-avisado). **Sem estado**: nenhum dos três; **errado**: exame que o pedido não pediu. Nas medições das regras ninguém
-responde, e o modelo simulado é **cuidadoso** (busca o nome de cada exame), **preguiçoso** (cada linha como lida) ou
-**guloso** (propõe tudo).
+**Como ler.** **Agendado sozinho**, **perguntado** e **baixa confiança** seguem as [faixas de confiança](glossario.md#leitura-e-decisão-de-cada-exame).
+
+- **Sem estado**: nenhum dos três;
+- **errado**: exame que o pedido não pediu.
+- Nas medições das regras ninguém responde, e o modelo simulado é **cuidadoso** (busca o nome de cada exame), **preguiçoso** (cada linha como lida) ou **guloso** (propõe tudo).
 
 ## Carga de dados sensíveis
 
@@ -113,13 +112,12 @@ Glicemia de jejum e Creatinina); 17 testes, 22 casos.
 
 ## Texto livre fora do modelo
 
-O OCR marca, em `exam_lines`, as linhas que a busca do catálogo resolve, mesmo com erro de leitura (sem rótulos como
-"Solicito:" e valores mascarados): nome inteiro do catálogo, palavra a um erro de uma palavra de exame (não só
-qualificador) ou texto que a busca acha (piso de 0,60). Linhas que negam, dão como feito ou preparam ficam de fora.
-O modelo recebe só `{"lines": [...]}`: essas linhas, mascaradas, e `[linha de texto livre omitida]` no lugar das
-outras (sem `exam_lines`, nenhuma); a regra de agendamento e o relatório seguem lendo todas. Medido com OCR, busca e
-regra reais e a lista branca por página; o modelo simulado busca cada linha recebida e propõe o melhor resultado.
-"Antes": ele recebe todas as linhas mascaradas.
+O OCR marca, em `exam_lines`, as linhas que a busca do catálogo resolve, mesmo com erro de leitura (sem rótulos como "Solicito:" e valores mascarados): nome inteiro do catálogo, palavra a um erro de uma palavra de exame (não só qualificador) ou texto que a busca acha (piso de 0,60).
+
+- Linhas que negam, dão como feito ou preparam ficam de fora.
+- O modelo recebe só `{"lines": [...]}`: essas linhas, mascaradas, e `[linha de texto livre omitida]` no lugar das outras (sem `exam_lines`, nenhuma); a regra de agendamento e o relatório seguem lendo todas.
+- Medido com OCR, busca e regra reais e a lista branca por página; o modelo simulado busca cada linha recebida e propõe o melhor resultado.
+- "Antes": ele recebe todas as linhas mascaradas.
 
 | Conjunto | Linhas lidas · omitidas | Agendados sem perguntar (antes → depois) | Perguntados | Baixa confiança | Errados | PII nas linhas do modelo |
 |---|---|---|---|---|---|---|
@@ -227,11 +225,11 @@ passo a passo (ruído de sensor, JPEG 70, preparo do OCR; exame achado com score
 | Contraste entre papel e tinta | 28 | ~22 a 27: 0% · ~26 a 32: 7% · ~30 a 37: 38% |
 | Foco (as duas medidas abaixo do limite: variância do Laplaciano e bordas mais fortes) | 10 e 3,0 | desfoque de 6 px ou mais: recusado · 4 px com ruído (0% lido): **aceito** |
 
-**O que o filtro não faz:** nas 120 manuscritas, na carga e nas amostras, recusa **0**; só pega casos extremos, que o
-OCR devolveria vazios sem explicação. O preparo do OCR lê muito do que parecia ilegível (a 400 px, de 0% para 53%;
-com contraste ~33, de 0% para 38%). As manuscritas sem exame achado são quase todas de letra de médico (6% dos exames
-até em scan, 1% em foto ruim): o limite é a letra. E nenhuma medida separa manuscrita ilegível de legível: uma foto
-ruim de letra comum que rende 3 de 4 exames tem foco mais baixo que um impresso com desfoque de 4 px.
+**O que o filtro não faz:** nas 120 manuscritas, na carga e nas amostras, recusa **0**; só pega casos extremos, que o OCR devolveria vazios sem explicação.
+
+- O preparo do OCR lê muito do que parecia ilegível (a 400 px, de 0% para 53%; com contraste ~33, de 0% para 38%).
+- As manuscritas sem exame achado são quase todas de letra de médico (6% dos exames até em scan, 1% em foto ruim): o limite é a letra.
+- E nenhuma medida separa manuscrita ilegível de legível: uma foto ruim de letra comum que rende 3 de 4 exames tem foco mais baixo que um impresso com desfoque de 4 px.
 
 `pytest tests/test_qualidade.py` confere os 4 motivos em imagens geradas, que uma faixa de cabeçalho e um pedido
 pequeno numa foto de 4500×4500 passam e que nenhuma das 7 amostras PNG da raiz de `samples/` é recusada. O comando
@@ -249,15 +247,12 @@ GPU ou um modelo menor. _Medido fora do repositório, sem os dados aqui_: nenhum
 
 ## Letra de médico: leitor local avaliado, não ligado por padrão
 
-Para ver se um leitor de visão local, sem internet, lê letra de médico, cada linha escrita à mão foi recortada
-(pelas caixas do gerador) e lida pelo **Qwen3-VL 2B Instruct** (Q8_0, `llama-server` do llama.cpp, CPU com 4
-núcleos e 8 GB, sem rede) e pelo **TrOCR base handwritten**. Conjunto: 115 dos 120 manuscritos (66 de letra comum,
-49 de médico; 5 que o gerador desta máquina não reproduz ficaram de fora), com 3 linhas por página que não são exame,
-e uma foto real de pedido pré-operatório (5 exames do catálogo e 1 fora), da qual só se guarda acerto ou erro. Duas
-rodadas por leitor (na letra comum, a 2ª do Qwen3-VL cobriu 20 páginas), saídas idênticas (temperatura 0). "Errado
-confiante": exame aceito que o pedido não tem.
-Repetir: [`exemplos/avaliar_letra.py`](../exemplos/avaliar_letra.py)
-([comandos](../exemplos/README.md#letra-de-médico-avaliar-um-leitor-local-experimento)).
+Para ver se um leitor de visão local, sem internet, lê letra de médico, cada linha escrita à mão foi recortada (pelas caixas do gerador) e lida pelo **Qwen3-VL 2B Instruct** (Q8_0, `llama-server` do llama.cpp, CPU com 4 núcleos e 8 GB, sem rede) e pelo **TrOCR base handwritten**.
+
+- Conjunto: 115 dos 120 manuscritos (66 de letra comum, 49 de médico; 5 que o gerador desta máquina não reproduz ficaram de fora), com 3 linhas por página que não são exame, e uma foto real de pedido pré-operatório (5 exames do catálogo e 1 fora), da qual só se guarda acerto ou erro.
+- Duas rodadas por leitor (na letra comum, a 2ª do Qwen3-VL cobriu 20 páginas), saídas idênticas (temperatura 0).
+- "Errado confiante": exame aceito que o pedido não tem.
+- Repetir: [`exemplos/avaliar_letra.py`](../exemplos/avaliar_letra.py) ([comandos](../exemplos/README.md#letra-de-médico-avaliar-um-leitor-local-experimento)).
 
 | Leitor · regra | Letra de médico (202 exames) | Errados confiantes | Abstenção | Letra comum (274 exames) | Errados confiantes | s/página (p50 · p95) |
 |---|---|---|---|---|---|---|
@@ -274,11 +269,9 @@ Repetir: [`exemplos/avaliar_letra.py`](../exemplos/avaliar_letra.py)
 as regras de acordo se abstiveram em todas as linhas, inclusive o cabeçalho e o exame fora do catálogo; o modo fechado
 sozinho acertou 1 de 5: letra real de médico segue fora do alcance do modelo pequeno.
 
-- **Regra de acordo.** O modo fechado (catálogo no prompt e gramática GBNF: só sai um nome do catálogo ou `NENHUM`)
-  não carrega PII, mas chuta: 71 errados na letra de médico, como "Sódio" para "Solicito:". O acordo só aceita se a
-  transcrição livre, pela busca, aponta o mesmo exame **e** vale um exame por si (score ≥ 0,80, o piso de "exame
-  próprio" de [`mcp_servers/rag.py`](../mcp_servers/rag.py)); sem o piso, "Solicito." virava Sódio (0,62) em 5
-  páginas. Piso escolhido na letra de médico, conferido na comum.
+- **Regra de acordo.** O modo fechado (catálogo no prompt e gramática GBNF: só sai um nome do catálogo ou `NENHUM`) não carrega PII, mas chuta: 71 errados na letra de médico, como "Sódio" para "Solicito:".
+  - O acordo só aceita se a transcrição livre, pela busca, aponta o mesmo exame **e** vale um exame por si (score ≥ 0,80, o piso de "exame próprio" de [`mcp_servers/rag.py`](../mcp_servers/rag.py)); sem o piso, "Solicito." virava Sódio (0,62) em 5 páginas.
+  - Piso escolhido na letra de médico, conferido na comum.
 - **Custo.** Qwen3-VL: 2,2 GB de pesos (modelo 1,8 GB + projetor 0,45 GB), imagem de 1,2 GB, cerca de 3 GiB de
   memória (o cache de prompts chega a 7,6 de 8 GiB), 2–3 s por linha (p95 3–5 s). TrOCR: 1,3 GB de pesos, cerca de
   1,5 GB de PyTorch, 1,8 GB de memória; lê o mesmo que o Qwen3-VL, 3 vezes mais lento e sem catálogo.
@@ -287,11 +280,9 @@ sozinho acertou 1 de 5: letra real de médico segue fora do alcance do modelo pe
   [pedido em papel, em produção](decisoes.md#pedido-em-papel-em-produção).
 - **Licenças.** Qwen3-VL: Apache-2.0; llama.cpp: MIT; TrOCR: o cartão diz MIT, mas foi ajustado no conjunto IAM, só
   para pesquisa não comercial (uso comercial dos pesos é zona cinzenta).
-- **Estado da arte.** Não há modelo aberto nem conjunto de letra de médico em português (o mais próximo, BRESSAY,
-  CC-BY-4.0, [Zenodo](https://zenodo.org/records/11637681), não publicou os modelos da ICDAR 2024). A nuvem (Google
-  Document AI e Gemini, Azure, AWS Textract) leva dado de saúde para fora (na LGPD, contrato de operador). E modelos
-  fortes erram com confiança: 63% a 91% dos erros vieram do "chute" pelo idioma
-  ([WildHandBench](https://arxiv.org/abs/2608.22959)).
+- **Estado da arte.** Não há modelo aberto nem conjunto de letra de médico em português (o mais próximo, BRESSAY, CC-BY-4.0, [Zenodo](https://zenodo.org/records/11637681), não publicou os modelos da ICDAR 2024).
+  - A nuvem (Google Document AI e Gemini, Azure, AWS Textract) leva dado de saúde para fora (na LGPD, contrato de operador).
+  - E modelos fortes erram com confiança: 63% a 91% dos erros vieram do "chute" pelo idioma ([WildHandBench](https://arxiv.org/abs/2608.22959)).
 
 ## Linhas com vários exames e sorologias
 
@@ -309,11 +300,10 @@ inteira, a linha casa com um nome só e o resto fica sem estado. Por isso:
   agente`, e a confirmação termina com `ATENÇÃO: N possível(is) exame(s) do pedido sem decisão do agente, confira os
   avisos acima`.
 
-Medido com o pior modelo plausível (busca cada linha inteira e propõe tudo), em conjuntos com semente fixa feitos por
-quem não escreveu a correção (_medidos fora do repositório, sem os dados aqui_). **Sorologias, qualificadores e
-controles** (198 linhas, 325 exames): 84 de sorologia (6 doenças, IgG e IgM em várias formas), 36 de qualificadores,
-30 de controle, 40 variantes e 8 linhas que não podem mudar. Sem o exame no catálogo (Chagas IgM, Hepatite A), o
-esperado é nada.
+Medido com o pior modelo plausível (busca cada linha inteira e propõe tudo), em conjuntos com semente fixa feitos por quem não escreveu a correção (_medidos fora do repositório, sem os dados aqui_).
+
+- **Sorologias, qualificadores e controles** (198 linhas, 325 exames): 84 de sorologia (6 doenças, IgG e IgM em várias formas), 36 de qualificadores, 30 de controle, 40 variantes e 8 linhas que não podem mudar.
+- Sem o exame no catálogo (Chagas IgM, Hepatite A), o esperado é nada.
 
 | Versão | Agendados certos | **Agendados errados** | Perguntados | Perguntas fora do pedido | Avisados | Sem aviso |
 |---|---|---|---|---|---|---|
@@ -379,13 +369,10 @@ Tesseract, e que a `test` parte dela.
 
 ## Negação, histórico e observações
 
-O OCR lê o que cada linha pede antes da máscara ([arquitetura](arquitetura.md#onde-a-pii-é-mascarada)): negação clara
-não agenda e avisa; outra pista pergunta; texto tirado antes do exame faz da linha uma observação; exame contestado
-numa linha não agenda em nenhuma; página em tabela pergunta tudo ([regras.md](regras.md)). Exemplo: a última linha de
-[Modelo que alucina](#modelo-que-alucina), que o Gemini real agendava inteira sem estas regras. Os ataques escritos de
-fora (45 e 61 casos, com 60 e 23 linhas honestas, e um 3º em outras línguas) estão em
-[`tests/test_negacao_casos.py`](../tests/test_negacao_casos.py); o efeito nos honestos, na
-[seção seguinte](#lista-branca-só-agenda-sozinha-a-linha-que-é-só-exame).
+O OCR lê o que cada linha pede antes da máscara ([arquitetura](arquitetura.md#onde-a-pii-é-mascarada)): negação clara não agenda e avisa; outra pista pergunta; texto tirado antes do exame faz da linha uma observação; exame contestado numa linha não agenda em nenhuma; página em tabela pergunta tudo ([regras.md](regras.md)).
+
+- Exemplo: a última linha de [Modelo que alucina](#modelo-que-alucina), que o Gemini real agendava inteira sem estas regras.
+- Os ataques escritos de fora (45 e 61 casos, com 60 e 23 linhas honestas, e um 3º em outras línguas) estão em [`tests/test_negacao_casos.py`](../tests/test_negacao_casos.py); o efeito nos honestos, na [seção seguinte](#lista-branca-só-agenda-sozinha-a-linha-que-é-só-exame).
 
 | Ataque | Sem as regras | Com as regras | Como repetir |
 |---|---|---|---|
@@ -399,10 +386,11 @@ suspensão do ferro" e linhas com valor e unidade ("Glicemia de jejum 98 mg/dL")
 
 ## Lista branca: só agenda sozinha a linha que é só exame
 
-Uma linha só agenda sozinha se, tirados marcador, rótulo e conectivos, sobram só nomes do catálogo e qualificadores
-([`guardrails/intent.py`](../guardrails/intent.py)); qualquer outra palavra a faz ser perguntada, porque uma lista de
-negações nunca fecha ("pedido por engano" escapava). As negações só trocam a pergunta por aviso. Qualificadores incluem
-palavras do próprio exame ("para", a doença de uma sorologia); "4 TGP" e "Solreito:" contam como marcador.
+Uma linha só agenda sozinha se, tirados marcador, rótulo e conectivos, sobram só nomes do catálogo e qualificadores ([`guardrails/intent.py`](../guardrails/intent.py)); qualquer outra palavra a faz ser perguntada, porque uma lista de negações nunca fecha ("pedido por engano" escapava).
+
+- As negações só trocam a pergunta por aviso.
+- Qualificadores incluem palavras do próprio exame ("para", a doença de uma sorologia);
+- "4 TGP" e "Solreito:" contam como marcador.
 
 | Ataque | Sem a regra | Com a regra | Como repetir |
 |---|---|---|---|
@@ -430,11 +418,10 @@ de onde saiu uma ordem ao modelo) é perguntada.
 
 ## Lista branca por página
 
-Um exame só agenda sozinho se a página inteira for só a lista de exames
-([`guardrails/intent.py`](../guardrails/intent.py), `clean_page`): fora os itens, só rótulo, jejum, marcas, campo de
-paciente ou médico, cabeçalho impresso da clínica (timbre) ou carimbo. Se não, todo exame da página é perguntado
-(`; o pedido tem texto além da lista de exames`): o cancelamento pode estar em outra linha ("Ferritina somente se a
-hemoglobina vier abaixo de 12"). Medido com OCR, busca e callbacks reais, modelos cuidadoso e preguiçoso:
+Um exame só agenda sozinho se a página inteira for só a lista de exames ([`guardrails/intent.py`](../guardrails/intent.py), `clean_page`): fora os itens, só rótulo, jejum, marcas, campo de paciente ou médico, cabeçalho impresso da clínica (timbre) ou carimbo.
+
+- Se não, todo exame da página é perguntado (`; o pedido tem texto além da lista de exames`): o cancelamento pode estar em outra linha ("Ferritina somente se a hemoglobina vier abaixo de 12").
+- Medido com OCR, busca e callbacks reais, modelos cuidadoso e preguiçoso:
 
 | Corpus | Sem a regra de página | Com a regra de página |
 |---|---|---|
@@ -446,21 +433,23 @@ hemoglobina vier abaixo de 12"). Medido com OCR, busca e callbacks reais, modelo
 | 1.482 linhas e 11 páginas legítimas (texto, cada linha uma página) | 1.446 agendados | 1.446 agendados |
 | Sorologias (198 linhas, 325 exames) | 305 e 293 certos, 0 errados | iguais |
 
-**Custo:** só passam a ser perguntados exames em páginas com algo além da lista; nenhum é agendado errado. Em `samples/`,
-os dois ataques de injeção (3 e 1 exames) e `pedido-manuscrito.png` (4: assinatura à mão lida com confiança 27 a 38).
-Nas fotos, `foto-07`, `foto-09` e `foto-26` (timbre lido com confiança 38). Nas manuscritas, 82 exames de 41 páginas
-sem observação, pelo erro do OCR na letra de mão: em 24, texto tirado e lido com confiança abaixo de 60; em 12, linha
-que não é lista nem campo; em 5, exame com outra palavra. Sem a regra da confiança baixa, 19 das 120 páginas ficariam
-limpas em vez de 13.
+**Custo:** só passam a ser perguntados exames em páginas com algo além da lista; nenhum é agendado errado.
+
+- Em `samples/`, os dois ataques de injeção (3 e 1 exames) e `pedido-manuscrito.png` (4: assinatura à mão lida com confiança 27 a 38).
+- Nas fotos, `foto-07`, `foto-09` e `foto-26` (timbre lido com confiança 38).
+- Nas manuscritas, 82 exames de 41 páginas sem observação, pelo erro do OCR na letra de mão: em 24, texto tirado e lido com confiança abaixo de 60; em 12, linha que não é lista nem campo; em 5, exame com outra palavra.
+- Sem a regra da confiança baixa, 19 das 120 páginas ficariam limpas em vez de 13.
 
 ## Rodapé, formulário, nome e nome mais longo
 
-Regras para furos achados em 37 pedidos adversariais e 16 honestos em imagem ([regras.md](regras.md)): abaixo do 1º
-exame, nada é timbre; formulário com marcas em só algumas linhas pergunta tudo (`; formulário com marcas: só os
-marcados contam; confira`); maiúscula ao lado de `[NOME]` ("Érica Ferro") é do nome, e a linha sai de `exam_lines`;
-trecho dentro do nome mais longo de outro exame (`exam_terms`: "Proteína C" em "Proteína C reativa") é no máximo
-perguntado (11 casos: 6 agendados sem a regra, 0 com ela); número ou palavra com maiúscula fora do catálogo depois do
-exame sai ("Franco"); contagem menor que a lista tira a página da lista.
+Regras para furos achados em 37 pedidos adversariais e 16 honestos em imagem ([regras.md](regras.md)):
+
+- abaixo do 1º exame, nada é timbre
+- formulário com marcas em só algumas linhas pergunta tudo (`; formulário com marcas: só os marcados contam; confira`)
+- maiúscula ao lado de `[NOME]` ("Érica Ferro") é do nome, e a linha sai de `exam_lines`
+- trecho dentro do nome mais longo de outro exame (`exam_terms`: "Proteína C" em "Proteína C reativa") é no máximo perguntado (11 casos: 6 agendados sem a regra, 0 com ela)
+- número ou palavra com maiúscula fora do catálogo depois do exame sai ("Franco")
+- contagem menor que a lista tira a página da lista.
 
 Medido com OCR, busca e callbacks reais, modelos cuidadoso e guloso; contam só os exames do pedido.
 
