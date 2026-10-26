@@ -9,7 +9,7 @@ em uma ou duas frases, com o lugar onde ele mora. Leia quando um termo não for 
 |---|---|---|
 | **confiança** | O menor de três valores, de 0 a 1: a nota da busca no catálogo, o quanto a busca bate com a linha lida e a leitura que o OCR deu à linha. | `runtime/confianca.py` |
 | **faixas de confiança** | ≥ 0,90: o exame entra na lista sem aviso (com `--yes`, agenda sozinho). De 0,70 a 0,90: entra com aviso (`confira`); com `--yes`, fica de fora. Abaixo de 0,70: não é agendado, só avisado como `baixa confiança`. As mensagens de cada faixa e a calibração: [arquitetura.md](arquitetura.md#agendamento-conferido-em-código). | `BookingPolicy.min_confidence` (0,90) e `ask_from` (0,70) em `runtime/confianca.py` |
-| **piso de leitura** | A leitura mínima que o OCR precisa dar à linha para o exame valer: 75 numa linha comum, 85 numa sigla curta e 95 num sinônimo. | `BookingPolicy` em `runtime/confianca.py` |
+| **piso de leitura** | A leitura mínima (0 a 100) que o OCR precisa dar à linha para o exame agendar sozinho: 75 numa linha comum; 85 quando o nome lido ou o do exame tem até 3 letras; 95 quando o lido tem até 3 letras e é a abreviação de um nome mais longo ("TGP" lido "TAP" seria Tempo de protrombina). | `BookingPolicy` em `runtime/confianca.py` |
 | **trecho próprio** | Cada exame agendado precisa de um pedaço da linha só dele; "Hemoglobina" escrita uma vez, dentro de "Hemoglobina glicada", vale um exame, não dois. | `confianca.best_spot` |
 | **`confira`** | Aviso na lista: o exame entra, mas a pessoa deve conferir no papel antes de responder `s`. | `runtime/relatorio.py` (`WHY`) |
 | **`partial`** | Resultado da busca que é só parte do que a linha escreve; nem entra na lista nem é perguntado, só avisado. | `mcp_servers/rag.py` |

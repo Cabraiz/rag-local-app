@@ -132,8 +132,7 @@ exame, que agora vai ao modelo mascarado e fica para conferir.
 
 - **As 2 de baixa confiança a menos** (Creatinina em `medico-036` e `medico-038`) vinham do carimbo "Clínica Médica"
   (0,65 com "Creatinina sérica"); o OCR não leu a linha do exame.
-- **Por que a busca:** exigir uma palavra de exame que não fosse qualificador perderia "Colesterol total" e "Urina
-  tipo I" (13 agendados a menos nas manuscritas, 5 nas fotos).
+- **Por que a busca:** exigir uma palavra de exame que não fosse qualificador perderia "Colesterol total" e "Urina tipo I" (13 agendados a menos nas manuscritas, 5 nas fotos).
 - **Restos de PII na linha de exame** saem pela forma ([`test_pii.py`](../tests/test_pii.py)): documento com qualquer
   separador (`898*0010*0123*4567`), número longo antes de unidade de tempo (`12345678 h`), nome depois do exame
   (`TSH Zé`). O que ainda passa está nos [limites](#limites-conhecidos).
@@ -158,9 +157,7 @@ a [regra de linha](#lista-branca-só-agenda-sozinha-a-linha-que-é-só-exame).
 | **todas (497)** | **113 (23%)** | **37** (5 deles errados) | **98** | **249** | **0** |
 
 Com a [regra de página](#lista-branca-por-página), os agendados sozinhos caem para 24, com 0 errados. Sem a busca por
-pedaço (cada exame da linha buscado à parte, ":" como separador, como em "Solicito: PSA total"), seriam 103 e 41.
-
-- **Os 5 errados perguntados** (comum-013, 028, 038, 042 e 048) são trocas de leitura que a pessoa vê: "TGP" lido
+pedaço (cada exame da linha buscado à parte, ":" como separador, como em "Solicito: PSA total"), seriam 103 e 41. **Os 5 errados perguntados** (comum-013, 028, 038, 042 e 048) são trocas de leitura que a pessoa vê: "TGP" lido
   "TAP" (Tempo de protrombina, 2 vezes), "Vitamina D" lido "Vitamina 2" (Vitamina B12) e 2 cálcios.
 - **0 PII sobrando;** sem a última etapa da máscara (só sai do OCR o que parece exame), sobravam 33 valores.
 - **20 linhas, em 19 imagens,** saem como `lido mas não reconhecido no catálogo: linha N`: 18 exames deformados demais
@@ -214,8 +211,7 @@ erro 500, traceback, PII no texto do OCR ou exame agendado fora da imagem, e tod
 ## Qualidade da foto
 
 Antes do OCR, [`mcp_servers/qualidade.py`](../mcp_servers/qualidade.py) mede a foto só com Pillow (cerca de 20 ms) e
-recusa a que o OCR não leria, com motivo e dica (`OCR recusou a imagem: foto desfocada: segure o celular firme,
-espere focar e tire outra`). Cada limite fica onde a leitura cai a ~0%, numa curva de 24 pedidos da carga degradados
+recusa a que o OCR não leria, com motivo e dica (`OCR recusou a imagem: foto desfocada: segure o celular firme, espere focar e tire outra`). Cada limite fica onde a leitura cai a ~0%, numa curva de 24 pedidos da carga degradados
 passo a passo (ruído de sensor, JPEG 70, preparo do OCR; exame achado com score ≥ 0,90):
 
 | Medida | Recusa abaixo de | Leitura na curva |
@@ -289,16 +285,13 @@ sozinho acertou 1 de 5: letra real de médico segue fora do alcance do modelo pe
 Um pedido junta exames na mesma linha ("Toxoplasmose IgG e IgM", "PSA total e livre", "Vitamina B12 e D"). Buscada
 inteira, a linha casa com um nome só e o resto fica sem estado. Por isso:
 
-- **A busca separa a linha** em " e ", ",", "+", ";", "/" e ":", sem partir um nome do catálogo ("HIV antigeno e
-  anticorpos"), e num "e" grudado pelo OCR ("TSHe T4 livre") se os dois lados são exames; nas 1.750 linhas distintas
+- **A busca separa a linha** em " e ", ",", "+", ";", "/" e ":", sem partir um nome do catálogo ("HIV antigeno e anticorpos"), e num "e" grudado pelo OCR ("TSHe T4 livre") se os dois lados são exames; nas 1.750 linhas distintas
   dos corpora legítimos, nenhuma é cortada de outro jeito.
 - **O pedaço que é parte do vizinho é completado por ele:** "Toxoplasmose IgG e IgM" → Toxoplasmose IgM (não a IgM
   genérica), "PSA total e livre" → PSA livre. Amostra ou tempo ("urina 24h") não vira busca.
 - **Exame que o pedido não nomeia** (a IgM genérica de "Chagas IgG e IgM"; Chagas IgG para "Chagas IgM", que o
   catálogo não tem) só sai em `baixa confiança`.
-- **A CLI confere o pedido inteiro:** exame sem decisão sai como `não buscado pelo agente` ou `não incluído pelo
-  agente`, e a confirmação termina com `ATENÇÃO: N possível(is) exame(s) do pedido sem decisão do agente, confira os
-  avisos acima`.
+- **A CLI confere o pedido inteiro:** exame sem decisão sai como `não buscado pelo agente` ou `não incluído pelo agente`, e a confirmação termina com `ATENÇÃO: N possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima`.
 
 Medido com o pior modelo plausível (busca cada linha inteira e propõe tudo), em conjuntos com semente fixa feitos por quem não escreveu a correção (_medidos fora do repositório, sem os dados aqui_).
 
@@ -380,9 +373,7 @@ O OCR lê o que cada linha pede antes da máscara ([arquitetura](arquitetura.md#
 | Os 61 casos do 2º conjunto | 26 exames negados ou já feitos agendados (cuidadoso) e 10 (preguiçoso); 1 em silêncio | **0 e 0; nenhum em silêncio** | `pytest tests/test_negacao_casos.py` |
 | 12 imagens em que o Gemini real agendava exames cancelados em outra linha, numa tabela "Realizar?", no rodapé ou em resultados anteriores (regra de página) | 16 (cuidadoso) e 12 (preguiçoso) | **0 e 0** | 4 redesenhadas nos testes |
 
-**Custo, de propósito:** passam a perguntar "Hemograma completo, Ferritina e TSH, exceto Ferritina" (os 3), "TSH e
-T4 livre - não repetir T4 livre" (TSH), "Ferritina e TSH: realizar apenas TSH" (os 2), "Ferritina - controle após
-suspensão do ferro" e linhas com valor e unidade ("Glicemia de jejum 98 mg/dL"), com `a linha parece um resultado`.
+**Custo, de propósito:** passam a perguntar "Hemograma completo, Ferritina e TSH, exceto Ferritina" (os 3), "TSH e T4 livre - não repetir T4 livre" (TSH), "Ferritina e TSH: realizar apenas TSH" (os 2), "Ferritina - controle após suspensão do ferro" e linhas com valor e unidade ("Glicemia de jejum 98 mg/dL"), com `a linha parece um resultado`.
 
 ## Lista branca: só agenda sozinha a linha que é só exame
 
@@ -513,7 +504,7 @@ errados; honestos: 12, 52, 24). Só "Colesterol total e frações (HDL, LDL)" se
 
 - **Letra de médico:** 1 de 206 exames agendado sozinho. Letra comum: 45% no scan, 44% na foto, 14% na foto ruim
   ([leitor local](#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão)).
-- **Troca entre exames:** "TGP" lido "TAP" é perguntado (com `--yes`, sai). O piso de 95 para sigla curta foi
+- **Troca entre exames:** "TGP" lido "TAP" é perguntado (com `--yes`, sai). O piso de 95, para a sigla de até 3 letras que abrevia um nome mais longo, foi
   calibrado nesse caso; TGO/TGP não é coberta.
 - **Leitura fraca de exame certo:** no `pedido-realista.png`, Colesterol total e Hemoglobina glicada (leitura 68 e
   60, piso 75) ficam em `baixa confiança`; só Glicemia e TSH são agendados. A CLI mostra `(confiança 0,68)`.
@@ -522,8 +513,7 @@ errados; honestos: 12, 52, 24). Só "Colesterol total e frações (HDL, LDL)" se
 
 **Catálogo**
 
-- **Sorologias por extenso:** 7 das 198 linhas ficam sem estado (`Sorologia para rubéola IgG e IgM`, `IgG para
-  Doença de Chagas`, a IgA de `Imunoglobulinas IgA e IgE total`); sem Chagas IgM nem Hepatite A, nada é agendado.
+- **Sorologias por extenso:** 7 das 198 linhas ficam sem estado (`Sorologia para rubéola IgG e IgM`, `IgG para Doença de Chagas`, a IgA de `Imunoglobulinas IgA e IgE total`); sem Chagas IgM nem Hepatite A, nada é agendado.
 - **Abreviação de 1 ou 2 letras** ("Ur.") é removida pela máscara; o RAG também não a acharia.
 
 **Máscara**
@@ -532,8 +522,7 @@ errados; honestos: 12, 52, 24). Só "Colesterol total e frações (HDL, LDL)" se
 - **Preparo e observações** podem sair como `[TEXTO_REMOVIDO]`; o que a linha pede segue em `line_intent`.
 - **Injeção, na dúvida, remove:** `Laboratório System Lab`, `Prompt Diagnóstico Ltda` e o nome em `Dra. Ana Prompto`
   não chegam ao modelo; em `Ignorar jejum para TSH` só a ordem sai. Os 240 nomes e sinônimos do catálogo passam.
-- **Contagem de nomes é um piso:** sobrenome sem prenome comum ao lado de um exame conta em `Trechos removidos pelo
-  OCR`, não em `NOME`.
+- **Contagem de nomes é um piso:** sobrenome sem prenome comum ao lado de um exame conta em `Trechos removidos pelo OCR`, não em `NOME`.
 - **Número depois do exame** sai (`Glicose [TEXTO_REMOVIDO] mg/dl`), menos o que está num nome do catálogo ("125",
   "19", "25") ou é tempo de jejum; sigla a uma letra de uma do catálogo fica ("AB" de "AB 12").
 - **Sobrenome que é palavra de exame:** em minúsculas ("érica ferro" → `[NOME] ferro`) fica, mas a linha não vai ao
@@ -560,5 +549,4 @@ errados; honestos: 12, 52, 24). Só "Colesterol total e frações (HDL, LDL)" se
 - **Marcador impresso:** "[NAO_REALIZAR] PSA total" na imagem só suprime, como escrever "não realizar".
 - **Observação só pergunta:** "Obs.: acrescentar Ferritina", "Considerar Ferritina"; com `--yes`, ficam de fora, com
   aviso.
-- **A pergunta mostra a linha mascarada:** a palavra que cancela pode ter sido tirada ("- Ferritina -
-  [TEXTO_REMOVIDO]"); quem responde confere o papel.
+- **A pergunta mostra a linha mascarada:** a palavra que cancela pode ter sido tirada ("- Ferritina - [TEXTO_REMOVIDO]"); quem responde confere o papel.

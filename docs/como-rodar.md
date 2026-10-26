@@ -119,8 +119,7 @@ Cada aviso, o que significa, de onde vem no código e o que fazer: a tabela fica
 [guia do desenvolvedor](guia-dev.md#depurar-um-pedido-que-falhou-ou-foi-perguntado).
 
 Todos os estados de um exame e a regra de cada um: [arquitetura.md](arquitetura.md#agendamento-conferido-em-código).
-Exemplos de linhas (negação, caixas, preparo, vários exames numa linha como "TSH, T4 livre" ou "Toxoplasmose IgG e
-IgM") e os limites: [regras.md](regras.md) e [medicoes.md](medicoes.md#limites-conhecidos).
+Exemplos de linhas (negação, caixas, preparo, vários exames numa linha como "TSH, T4 livre" ou "Toxoplasmose IgG e IgM") e os limites: [regras.md](regras.md) e [medicoes.md](medicoes.md#limites-conhecidos).
 
 **A linha `Tempo:`** traz cada etapa (buscas em paralelo contam uma vez), o total e o modelo que respondeu por último;
 aparece também antes de um `Erro:` e não traz dado do pedido. Cada etapa inclui o turno do modelo que gera a chamada
@@ -173,9 +172,7 @@ Para passar as 120 pelo OCR e pelo RAG, sem Gemini, com a regra real do agente:
 docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga run --rm tests python -m tests.load.manuscritos
 ```
 
-- **Resultado atual:** 113 de 497 exames agendados sem perguntar (23%), 37 perguntados, **0 errados sem confirmação** e 0 PII sobrando. Letra de médico: 1 de 206 exames agendado sem perguntar.
-- Uma troca entre exames do catálogo (`TGP` lido como `TAP`) vira pergunta.
-- Tabela por grupo em [medicoes.md](medicoes.md#pedidos-manuscritos-simulados). Na CI, `tests/test_manuscritos.py` roda 10 das 120 e falha com um exame agendado errado sem confirmação ou PII sobrando.
+- **O que esperar e os números medidos:** [medicoes.md](medicoes.md#pedidos-manuscritos-simulados). Na CI, `tests/test_manuscritos.py` roda 10 das 120 e falha com um exame agendado errado sem confirmação ou PII sobrando.
 
 ### Robustez: entradas faltando ou quebradas
 

@@ -48,9 +48,7 @@ https://github.com/user-attachments/assets/4d4626a2-5d7f-46c9-add8-b401d5bddfda
 
 ### 08. Segurança
 
-nos pedidos com instruções escondidas, o OCR conta e tira o texto delas (`Instruções neutralizadas no OCR:
-
-- …`) e a lista perguntada traz só os exames legítimos, todos marcados `confira` porque a página tem texto além da lista (no 2º pedido, os 3 que dividiam a linha com uma instrução removida dizem também `o pedido tem outras palavras além do exame`)
+nos pedidos com instruções escondidas, o OCR conta e tira o texto delas (`Instruções neutralizadas no OCR: …`) e a lista perguntada traz só os exames legítimos, todos marcados `confira` porque a página tem texto além da lista (no 2º pedido, os 3 que dividiam a linha com uma instrução removida dizem também `o pedido tem outras palavras além do exame`)
 - respondida "s", só eles são agendados
 - o cabeçalho (`Laboratorio Ficticio Beta`, `PEDIDO MEDICO FICTICIO`) também sai como `[TEXTO_REMOVIDO]`, porque o OCR só deixa sair o que parece exame ou estrutura do pedido.
 

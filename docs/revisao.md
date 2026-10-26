@@ -59,8 +59,7 @@ só parte, e a varredura das siglas foi feita uma vez); a 21 testou o agente e n
   porque `Workflow` ainda não é um `BaseAgent`, e a CLI usa o agente raiz como um
   ([decisão](decisoes.md#sequentialagent-obsoleto-no-adk-210)).
 - **Sorologias escritas por extenso podem sair sem aviso:** nas 198 linhas de sorologias e qualificadores,
-  7 exames ainda terminam sem estado, como em `Sorologia para rubéola IgG e IgM`, `Sorologia para doença de
-  Chagas IgG e IgM`, `IgG para Doença de Chagas` e a IgA de `Imunoglobulinas IgA e IgE total`: a doença e a
+  7 exames ainda terminam sem estado, como em `Sorologia para rubéola IgG e IgM`, `Sorologia para doença de Chagas IgG e IgM`, `IgG para Doença de Chagas` e a IgA de `Imunoglobulinas IgA e IgE total`: a doença e a
   primeira classe ficam num pedaço só, que não é um nome do catálogo.
 - **Exames que o catálogo não tem:** Chagas IgM e Hepatite A (Anti HAV) não estão nos 120 exames. Uma
   linha com eles não agenda nada no lugar; a IgG ou IgM genérica que a busca acha só sai em `baixa confiança`.
@@ -75,8 +74,7 @@ só parte, e a varredura das siglas foi feita uma vez); a 21 testou o agente e n
 - **Sessão MCP morta:** o ADK não reabre uma sessão MCP que morreu. O keep-alive de 75 s tira o gatilho
   conhecido, não a causa.
 - **Exame acrescentado como item da lista:** escrito como item próprio, igual aos outros, só a pessoa que confere
-  a lista o distingue; com `--yes`, é agendado. Dentro de uma linha legítima, não agenda sozinho: em `Exame: Vitamina D
-  (incluir também Ferritina)`, os dois são perguntados (a linha tem outras palavras).
+  a lista o distingue; com `--yes`, é agendado. Dentro de uma linha legítima, não agenda sozinho: em `Exame: Vitamina D (incluir também Ferritina)`, os dois são perguntados (a linha tem outras palavras).
 ## Referências e orquestração do agente
 
 - **Referências:**

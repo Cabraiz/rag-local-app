@@ -89,8 +89,7 @@ A imagem é entrada não confiável e o pedido é médico. As regras determinís
   impresso da clínica. Qualquer outro texto lido faz todo exame da página ser perguntado.
 
 **Por quê "só a lista" e não uma lista de negações.** A primeira versão procurava palavras de negação,
-e três revisões acharam o que ela não cobria ("somente se", "adiar para a próxima consulta", "Trazer os
-laudos de:", "desconsiderar o 2º", outra língua, uma 2ª folha). Exigir que a página seja só a lista
+e três revisões acharam o que ela não cobria ("somente se", "adiar para a próxima consulta", "Trazer os laudos de:", "desconsiderar o 2º", outra língua, uma 2ª folha). Exigir que a página seja só a lista
 falha para o lado de perguntar.
 
 **Custo.** Páginas honestas com uma observação, ou com erros de OCR na letra de mão, perguntam tudo
@@ -238,8 +237,7 @@ Receita estruturada primeiro.
 
 - **Contrato lido do `/openapi.json` vivo** (`OpenAPIToolset`): o agente usa exatamente o contrato do
   Swagger. Custo: a API precisa estar no ar quando o agente monta as ferramentas.
-- **`Idempotency-Key` opcional no `POST /appointments`:** a mesma chave com os mesmos códigos devolve o mesmo agendamento (201); um código já agendado com a mesma chave, noutra lista, dá 409.
-  - Só os códigos definem o agendamento: o `name` é opcional e a API grava o do catálogo.
+- **`Idempotency-Key` opcional no `POST /appointments`:** a mesma chave com os mesmos códigos devolve o mesmo agendamento (201); um código já agendado com a mesma chave, noutra lista, dá 409. Só os códigos definem o agendamento: o `name` é opcional e a API grava o do catálogo.
   - A tabela guarda HMACs (derivados da chave do banco), nunca a chave nem o corpo, porque a chave vem do cliente e pode carregar dado pessoal.
   - Cada chave vale por `API_IDEMPOTENCY_TTL_HOURS` (padrão 24 h).
   - Num banco de versão anterior, a tabela com a chave em claro é apagada ao subir, com `secure_delete`.
@@ -303,8 +301,7 @@ Sem `--yes`, a pessoa vê a lista inteira e confirma.
   qualquer texto que a máscara tira ou não reconhece faz a página ser perguntada, em qualquer língua,
   menos uma assinatura que é só nome, CRM e data;
 - "TSH ferro" (um sobrenome que é palavra de exame, sem parênteses) conta como dois exames. Já um exame
-  entre parênteses ou ao lado de um resultado na linha de outro ("Glicemia de jejum (HIV +)", "HIV
-  positivo") é anotação e faz a linha ser perguntada;
+  entre parênteses ou ao lado de um resultado na linha de outro ("Glicemia de jejum (HIV +)", "HIV positivo") é anotação e faz a linha ser perguntada;
 - num formulário, só os exames marcados contam: se o OCR lê a marca de uns e não de outros, tudo é
   perguntado (`; formulário com marcas: só os marcados contam; confira`); se não lê nenhuma marca, a
   lista impressa parece um pedido comum;

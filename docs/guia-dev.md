@@ -156,9 +156,7 @@ a abreviação "Ur. serica" como Ureia (`FICT-004`). Os serviços `tests` e `rag
    `docker compose run --rm tests pytest -q tests/test_rag.py tests/test_calibration.py tests/test_pii.py tests/test_readme.py`.
    O `test_readme.py` vai apontar o arquivo e a linha dos docs que citam a contagem de nomes e sinônimos do
    catálogo; corrija o número ali. É assim que a documentação fica honesta.
-5. **Veja no serviço:** `docker compose up -d --build rag` e repita o passo 1: o score passa a 1,00.
-
-Para desfazer: `git checkout -- data/exams.json tests/test_rag.py docs/` e `docker compose up -d --build rag`.
+5. **Veja no serviço:** `docker compose up -d --build rag` e repita o passo 1: o score passa a 1,00. Para desfazer: `git checkout -- data/exams.json tests/test_rag.py docs/` e `docker compose up -d --build rag`.
 
 ## Receitas
 
@@ -256,8 +254,7 @@ portas): [como-rodar.md](como-rodar.md#quando-algo-falha).
 2. **Reproduza a busca** de uma linha: `... mcp_call.py rag search_exams query="Colesterol total e Triglicerideos"`.
 3. **Rode com `--verbose`** (`cli run`): logs do ADK, do Gemini (novas tentativas) e do MCP no `stderr` e, numa falha
    inesperada, o traceback, com a chave trocada por `[GOOGLE_API_KEY]`. Sem ele, toda falha é uma linha `Erro: ...`
-   com código 2.
-4. **Leia a saída como uma tabela de causas.** Cada linha vem de um ponto do código:
+   com código 2. 4. **Leia a saída como uma tabela de causas.** Cada linha vem de um ponto do código:
 
 | Saída da CLI | Significa | Vem de | O que fazer |
 |---|---|---|---|
