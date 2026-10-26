@@ -3,7 +3,7 @@
 **O que tem aqui / quando ler.** Os players de cada vídeo, um por parte do sistema, com uma frase sobre o que ele
 mostra. O que cada tela prova, em detalhe, com miniatura e duração: [`docs/gravacoes/`](gravacoes/README.md).
 
-Gravados no commit `828ac9c`, com `API_PORT=18905` (o padrão é 8765). Em cada execução que agenda, a CLI pergunta
+Gravados no commit `828ac9c`, com `API_PORT=18905` (o padrão é 8765). O histórico de `main` foi compactado depois; esse commit está na tag `backup/main-antes-compacta-f16f26c`. Em cada execução que agenda, a CLI pergunta
 `Agendar estes N exames? [s/N]` e a gravação responde "s"; no 12, o console do ADK pede "yes".
 
 ### 01. Transpilador

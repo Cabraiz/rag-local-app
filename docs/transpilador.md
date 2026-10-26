@@ -50,7 +50,9 @@ exata do `transpile` para `specs/agent.json`, e um teste falha se ela ficar desa
 - **O transpilador** ([`transpiler/`](../transpiler/)) só confere o que é genérico: o schema estrito, os nomes, os placeholders, os hosts de `ALLOWED_HOSTS`, as classes que a spec nomeia (plugins e `output_schema`) e as ferramentas nos servidores que respondem.
   - Ele não importa nada do domínio: só uma spec que declara o `BookingPlugin` o carrega.
   - Um plugin com `Config` (um modelo pydantic dos seus `kwargs`), `check_spec` e `check_live` tem essas checagens chamadas pelo transpilador, com as mesmas mensagens `campo: motivo`; as chaves de estado que o `BookingPlugin` reserva são dele.
-- **O código gerado** instancia só classes do Google ADK (`LlmAgent`, `SequentialAgent`, `McpToolset`, `OpenAPIToolset`, `Gemini`/`FallbackModel`, `App`); os toolsets e o plugin vêm da biblioteca versionada `runtime/` (abaixo), como subclasses finas de classes do ADK e um `BasePlugin`. Ele só declara o agente, em cerca de 110 linhas, nenhuma com mais de 120 colunas:
+- **O código gerado** instancia só classes do Google ADK: `LlmAgent`, `SequentialAgent`, `McpToolset`, `OpenAPIToolset`, `Gemini`/`FallbackModel` e `App`.
+  - Os toolsets e o plugin vêm da biblioteca versionada `runtime/` (abaixo): subclasses finas de classes do ADK e um `BasePlugin`.
+  - Ele só declara o agente, em cerca de 110 linhas, nenhuma com mais de 120 colunas:
   - o modelo Gemini;
   - cada `LlmAgent` com a sua instrução, as ferramentas dele e o `output_key`: o `McpToolset`/`SseConnectionParams` do OCR e do RAG, ou o `LiveOpenAPIToolset`, uma camada fina que monta o `OpenAPIToolset` do ADK a partir do `/openapi.json` vivo da API;
   - o workflow (`SequentialAgent`) e o `App` retomável que o `adk run` e o `adk web` carregam (o `transpile` grava também um `__init__.py` ao lado, então a pasta é uma pasta de agente do ADK: [como rodar](como-rodar.md#4-rodar-com-adk-run-ou-adk-web));
@@ -463,6 +465,9 @@ O resto:
 - **`--yes`** (só na CLI): o callback nem pede confirmação, e o que tem de 0,70 a 0,90 fica de fora. Chega ao agente pelo registro do pedido que a CLI abre (`orders.start`), não por variável de ambiente. Sem TTY e sem `--yes`, a CLI para antes de ler o pedido e de chamar o modelo (`cli.check_someone_answers`).
 - **Confirmação forjada:** só vale a resposta à pausa que o runtime registrou para aquela chamada, no registro do pedido, não no estado da sessão. Uma resposta a outra chamada, ou uma lista escrita no estado, não agenda nada.
 - **Um "não" vale para a execução:** uma chamada repetida pelo modelo não pergunta de novo e não agenda, nem depois de uma troca para o `fallback_model`.
-- **Um agendamento por execução:** cada execução manda uma `Idempotency-Key` própria (nunca a do modelo), e depois que uma chamada vai para a API, outra recebe esse mesmo agendamento, sem chegar à API. Vale também para duas chamadas no mesmo turno, cada uma com a sua lista: um "sim" que chega depois não gera outro `POST`, e o exame sai no relatório como `não agendado (você confirmou, mas o agendamento desta execução já tinha sido criado)`.
+- **Um agendamento por execução:**
+  - cada execução manda uma `Idempotency-Key` própria, nunca a do modelo;
+  - depois que uma chamada vai para a API, outra recebe esse mesmo agendamento, sem chegar à API;
+  - vale também para duas chamadas no mesmo turno, cada uma com a sua lista. Um "sim" que chega depois não gera outro `POST`, e o exame sai no relatório como `não agendado (você confirmou, mas o agendamento desta execução já tinha sido criado)`.
 - **Enquanto espera a resposta**, a resposta de pausa não é resumida para o modelo (`skip_summarization`).
 - **API experimental:** a confirmação de ferramenta e o `ResumabilityConfig` são marcados como experimentais no ADK 2.10 (aparecem entre os avisos). O ADK está fixo em 2.10 no `requirements.txt`.

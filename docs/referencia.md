@@ -188,7 +188,10 @@ quatro etapas, nesta ordem:
 4. **Só sai o que parece exame** (`guardrails/pii.py`, regra 4): cada trecho da linha (separado por `,`, `;`, `(`, `)`, `:` e ` - `) só sai se parecer exame, pela mesma régua do RAG, ou se for estrutura do pedido em volta de valores já mascarados (`Solicito:`, `CPF: [CPF]`).
    - Os outros viram `[TEXTO_REMOVIDO]`, ou `[NOME]` se tiverem um prenome comum; as palavras de negação e histórico ficam.
    - Dentro de um trecho de exame, o mesmo vale para cada palavra que não é de exame e para um número de 5 dígitos ou mais sem unidade ("Glicose 98765432"; nenhum nome do catálogo passa de 3, como "CA 125").
-   - Pela forma (regra 5): uma palavra com maiúscula depois de um nome mascarado ou de uma inicial é do nome ("Érica Ferro", "E. Ferro" viram `[NOME]`), e, depois do nome do exame, um número ou uma palavra com maiúscula que não é do catálogo nem qualificador sai ("Glicemia 1234567 mg/dl", "TSH Franco"; ficam "25(OH)D", "Vitamina B12", "jejum de 8h").
+   - Pela forma (regra 5):
+     - uma palavra com maiúscula depois de um nome mascarado ou de uma inicial é do nome: "Érica Ferro" e "E. Ferro" viram `[NOME]`;
+     - depois do nome do exame, sai um número ou uma palavra com maiúscula que não é do catálogo nem qualificador: "Glicemia 1234567 mg/dl", "TSH Franco";
+     - ficam "25(OH)D", "Vitamina B12" e "jejum de 8h".
    - Um nome manuscrito sozinho na linha ou um carimbo deformado para aqui.
    - Um item da lista ("4) Ressonância magnética de crânio") que sai inteiro como `[TEXTO_REMOVIDO]` é marcado `unrecognized`, e a CLI avisa só o número da linha.
 
@@ -211,7 +214,7 @@ Consequências:
 Limites:
 
 - as duas detecções são por regras, não detectores universais. Os testes cobrem cada tipo de PII
-  (`tests/test_pii.py`, com 3.600 casos gerados por `tests/pii_corpus.py`: 12 tipos × 300, semente fixa) e
+  (`tests/test_pii.py`, com 3.600 casos gerados por `tests/pii_corpus.py`: 12 tipos × 300, semente fixa; os outros 2 dos 14 marcadores, `IDADE` e `CLINICO`, têm casos fixos em `test_pii.py`) e
   um corpus de ataques do projeto (`tests/test_injection.py`, `tests/attacks/`: 790 ataques e 1.482
   linhas legítimas, 1.429 distintas);
 - o detector de injeção reduz o risco, não o elimina. A garantia é o callback do agendamento, que só
@@ -249,13 +252,25 @@ Cada camada com os números e os exemplos.
   - **Só o `agent.py` de hoje:** o `cli run` só executa o `agent.py` que a spec gera hoje, e importa uma cópia privada dos bytes que comparou, então uma troca do arquivo depois da checagem não roda.
   - **Sem redirect para fora:** o `httpx` do `/openapi.json` não segue redirects, e o cliente SSE do SDK MCP (`mcp` 2.2) só segue um na mesma origem.
   - **Nomes e endereços:** `ALLOWED_HOSTS` permite nomes.
-    - Antes da 1ª requisição, cada servidor é resolvido uma vez, e a execução para se o nome apontar para loopback (`127.0.0.0/8`, `::1`), link-local (`169.254.0.0/16`, onde fica o `169.254.169.254`, e `fe80::/10`), IPv6 local único (`fc00::/7`, onde fica o `fd00:ec2::254` da AWS), `100.64.0.0/10` (o `100.100.100.200` da Alibaba Cloud), o `168.63.129.16` da Azure, `0.0.0.0`, multicast, ou esses endereços escritos como IPv4 dentro de IPv6.
+    - Antes da 1ª requisição, cada servidor é resolvido uma vez. A execução para se o nome apontar para um destes endereços:
+      - loopback: `127.0.0.0/8`, `::1`;
+      - link-local: `169.254.0.0/16` (onde fica o `169.254.169.254`) e `fe80::/10`;
+      - IPv6 local único: `fc00::/7` (onde fica o `fd00:ec2::254` da AWS);
+      - `100.64.0.0/10` (o `100.100.100.200` da Alibaba Cloud) e o `168.63.129.16` da Azure;
+      - `0.0.0.0`, multicast, ou qualquer um desses escrito como IPv4 dentro de IPv6.
     - Só um host escrito como o próprio endereço (`127.0.0.1`, `localhost`) e listado pode apontar para lá.
   - **Endereços fixados:** os endereços conferidos ficam fixos nos clientes que o runtime cria (o ADK e o SDK MCP aceitam uma fábrica de cliente `httpx`, cujo transporte conecta ao endereço conferido, mantendo o nome no `Host` e no TLS).
     - Um DNS que mude no meio, um *DNS rebinding* ou uma linha no `/etc/hosts` não leva `clinica.exemplo` a `127.0.0.1`, e nada mais do processo é afetado.
     - Um nome que não resolve fica sem endereço: a execução para no GET seguinte com a mensagem de serviço fora do ar.
-  - **Fora da CLI** (`adk run`, `adk web`): cada toolset, antes da 1ª conexão, e cada pedido, antes do 1º turno do modelo, conferem com a mesma regra; os endereços aceitos ficam fixos até o processo terminar, e um nome recusado é conferido de novo na vez seguinte. Custo: se um serviço mudar de endereço, é preciso reiniciar o processo. O `transpile` compara só o nome.
-  - **Limites:** endereços privados (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) são aceitos, porque é onde o DNS do Docker põe os serviços; um nome externo que resolva para outro serviço da rede interna não é barrado. Endereços de metadados fora dessas faixas não são reconhecidos, uma rede do compose com IPv6 em `fc00::/7` seria recusada, e uma entrada sem porta aceita qualquer porta.
+  - **Fora da CLI** (`adk run`, `adk web`), a mesma regra vale em dois pontos: em cada toolset, antes da 1ª conexão, e em cada pedido, antes do 1º turno do modelo.
+    - Os endereços aceitos ficam fixos até o processo terminar. Custo: se um serviço mudar de endereço, é preciso reiniciar o processo.
+    - Um nome recusado é conferido de novo na vez seguinte.
+    - O `transpile` compara só o nome.
+  - **Limites:**
+    - endereços privados (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) são aceitos, porque é onde o DNS do Docker põe os serviços. Por isso um nome externo que resolva para outro serviço da rede interna não é barrado;
+    - endereços de metadados fora dessas faixas não são reconhecidos;
+    - uma rede do compose com IPv6 em `fc00::/7` seria recusada;
+    - uma entrada sem porta aceita qualquer porta.
 - **Menor privilégio:** cada agente só enxerga as ferramentas que a spec lhe dá (`tool_filter`; na spec padrão, uma por etapa); containers sem root, somente leitura e sem capabilities; OCR e RAG sem internet; só a API publica porta, em `127.0.0.1`.
 - **Dados de saúde cifrados no banco** ([`api/crypto.py`](../api/crypto.py), [`test_crypto.py`](../tests/test_crypto.py)): o banco guarda só código e nome de exame do catálogo, o `id`, o status, a data e a `Idempotency-Key` (como HMAC).
   - A lista de exames vai cifrada com AES-256-GCM; no arquivo SQLite não há código `FICT` nem nome de exame em claro.
@@ -314,7 +329,7 @@ Em [`runtime/callbacks.py`](../runtime/callbacks.py), antes do `POST`, o callbac
 Com algum `não incluído` ou `não buscado`, a linha final avisa, como possibilidade: `Agendamento confirmado pela API: id <id>, status scheduled; ATENÇÃO: 1 possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima`. O agendamento existe: o código de saída é 0 quando a pessoa confirmou a lista
 e 3 com `--yes`, para a automação perceber.
 
-**A confirmação final.** Antes da API, o callback confere o pedido inteiro e pede a confirmação nativa do ADK com o que a página tem além da lista (uma vez, no topo), a lista inteira (cada exame com código e aviso, e os não agendados) e a pergunta `Agendar estes N exames? [s/N]`.
+**A confirmação final.** Antes da API, o callback confere o pedido inteiro e pede a confirmação nativa do ADK com o que a página tem além da lista (uma vez, no topo), a lista inteira (cada exame com código e aviso, e os não agendados) e a pergunta `Agendar estes N exames? [s/N]` (com um exame só, `Agendar este exame? [s/N]`).
 
 - A CLI responde no terminal; o console do `adk run` e a página do `adk web` mostram o mesmo texto.
 - Só um "sim" àquela lista, naquela chamada, agenda; com `--yes` (só na CLI), não há pergunta e só agenda o que tem ≥ 0,90 numa página que é só a lista ([como funciona](transpilador.md#a-confirmação-da-lista-confirmação-nativa-do-adk)).

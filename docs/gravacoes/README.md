@@ -43,7 +43,7 @@ do Docker da máquina da gravação estavam esgotados; numa máquina comum ele n
 
 Formato: H.264/yuv420p, cada arquivo com menos de 10 MB, miniatura `.png` com o último frame em 1280x720; o 00 tem 1280x784, com a barra de etapas acima do vídeo.
 
-Gravado em 2026-10-08, todos os vídeos e capturas no mesmo commit, `828ac9c` · esperas aceleradas pelo menos 16x; uma espera
+Gravado em 2026-10-08, todos os vídeos e capturas no mesmo commit, `828ac9c` (na tag `backup/main-antes-compacta-f16f26c`, porque o histórico de `main` foi compactado depois) · esperas aceleradas pelo menos 16x; uma espera
 que nem a 16x caberia em 5 s (o `pytest` do 07, a carga do 09 e os `run` com Gemini) passa mais rápido e
 ocupa 5 s (o 04 não tem espera longa). Modelo: todos os vídeos com Gemini (05, 06, 08, 10, 11 e 12) rodaram
 com o modelo principal da spec, `gemini-3.5-flash`. Os vídeos somam 7 execuções com Gemini

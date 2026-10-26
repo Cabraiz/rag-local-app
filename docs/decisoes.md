@@ -7,8 +7,33 @@ funciona e o que o contorna. Os números vêm de [medicoes.md](medicoes.md); o f
 
 **Índice**
 
-- **[Decisões](#decisões):** [O modelo propõe, o código decide, a pessoa confirma](#o-modelo-propõe-o-código-decide-a-pessoa-confirma) · [A confirmação final da lista](#a-confirmação-final-da-lista) · [Por que existe uma camada de regras](#por-que-existe-uma-camada-de-regras) · [Filtros determinísticos dentro do OCR, antes de qualquer modelo](#filtros-determinísticos-dentro-do-ocr-antes-de-qualquer-modelo) · [PII mascarada na origem, banco sem PII](#pii-mascarada-na-origem-banco-sem-pii) · [Busca lexical, sem embeddings](#busca-lexical-sem-embeddings) · [MCP só via SSE, rede interna, containers endurecidos](#mcp-só-via-sse-rede-interna-containers-endurecidos) · [Transpilador estrito e genérico](#transpilador-estrito-e-genérico) · [O `agent.py` usa só classes do ADK; a política mora num plugin versionado](#o-agentpy-usa-só-classes-do-adk-a-política-mora-num-plugin-versionado) · [A resposta do OCR é um contrato versionado](#a-resposta-do-ocr-é-um-contrato-versionado) · [`SequentialAgent`, obsoleto no ADK 2.10](#sequentialagent-obsoleto-no-adk-210) · [OCR: Tesseract com preparo](#ocr-tesseract-com-preparo) · [Pedido em papel, em produção](#pedido-em-papel-em-produção) · [API: contrato, idempotência e defesas](#api-contrato-idempotência-e-defesas) · [Keep-alive de 75 s](#keep-alive-de-75-s) · [Um `Dockerfile` multi-stage](#um-dockerfile-multi-stage) · [Escala](#escala)
-- **[Limites](#limites):** [Com `--yes`, um exame injetado como linha comum é agendado](#com---yes-um-exame-injetado-como-linha-comum-é-agendado) · [A pergunta mostra a linha mascarada](#a-pergunta-mostra-a-linha-mascarada) · [Exame lido certo, mas com leitura fraca, fica fora da pergunta](#exame-lido-certo-mas-com-leitura-fraca-fica-fora-da-pergunta) · [Filtros determinísticos não são prova contra ataques novos](#filtros-determinísticos-não-são-prova-contra-ataques-novos) · [Sem autenticação: na API e entre serviços](#sem-autenticação-na-api-e-entre-serviços) · [Cadeia de suprimentos, em parte](#cadeia-de-suprimentos-em-parte) · [Confirmação forjada e pedido repetido](#confirmação-forjada-e-pedido-repetido) · [Histórico compactado por camada](#histórico-compactado-por-camada)
+- **[Decisões](#decisões):**
+  - [O modelo propõe, o código decide, a pessoa confirma](#o-modelo-propõe-o-código-decide-a-pessoa-confirma)
+  - [A confirmação final da lista](#a-confirmação-final-da-lista)
+  - [Por que existe uma camada de regras](#por-que-existe-uma-camada-de-regras)
+  - [Filtros determinísticos dentro do OCR, antes de qualquer modelo](#filtros-determinísticos-dentro-do-ocr-antes-de-qualquer-modelo)
+  - [PII mascarada na origem, banco sem PII](#pii-mascarada-na-origem-banco-sem-pii)
+  - [Busca lexical, sem embeddings](#busca-lexical-sem-embeddings)
+  - [MCP só via SSE, rede interna, containers endurecidos](#mcp-só-via-sse-rede-interna-containers-endurecidos)
+  - [Transpilador estrito e genérico](#transpilador-estrito-e-genérico)
+  - [O `agent.py` usa só classes do ADK; a política mora num plugin versionado](#o-agentpy-usa-só-classes-do-adk-a-política-mora-num-plugin-versionado)
+  - [A resposta do OCR é um contrato versionado](#a-resposta-do-ocr-é-um-contrato-versionado)
+  - [`SequentialAgent`, obsoleto no ADK 2.10](#sequentialagent-obsoleto-no-adk-210)
+  - [OCR: Tesseract com preparo](#ocr-tesseract-com-preparo)
+  - [Pedido em papel, em produção](#pedido-em-papel-em-produção)
+  - [API: contrato, idempotência e defesas](#api-contrato-idempotência-e-defesas)
+  - [Keep-alive de 75 s](#keep-alive-de-75-s)
+  - [Um `Dockerfile` multi-stage](#um-dockerfile-multi-stage)
+  - [Escala](#escala)
+- **[Limites](#limites):**
+  - [Com `--yes`, um exame injetado como linha comum é agendado](#com---yes-um-exame-injetado-como-linha-comum-é-agendado)
+  - [A pergunta mostra a linha mascarada](#a-pergunta-mostra-a-linha-mascarada)
+  - [Exame lido certo, mas com leitura fraca, fica fora da pergunta](#exame-lido-certo-mas-com-leitura-fraca-fica-fora-da-pergunta)
+  - [Filtros determinísticos não são prova contra ataques novos](#filtros-determinísticos-não-são-prova-contra-ataques-novos)
+  - [Sem autenticação: na API e entre serviços](#sem-autenticação-na-api-e-entre-serviços)
+  - [Cadeia de suprimentos, em parte](#cadeia-de-suprimentos-em-parte)
+  - [Confirmação forjada e pedido repetido](#confirmação-forjada-e-pedido-repetido)
+  - [Histórico compactado por camada](#histórico-compactado-por-camada)
 
 ## Decisões
 
@@ -286,7 +311,11 @@ Sem `--yes`, a pessoa vê a lista inteira e confirma.
 
 - Com ele, as regras são a única barreira.
 - Numa página que é só a lista, uma linha que só diz "Ferritina" é indistinguível de um pedido real e agenda sozinha.
-- Qualquer texto além da lista (fora campos, assinatura e cabeçalho da clínica) faz a página inteira ser perguntada, inclusive numa página legítima: uma observação de preparo com outras palavras, um cabeçalho que as regras não conhecem, um erro de OCR na letra de mão ou uma assinatura à mão que o OCR lê como texto abaixo da lista ([medição](medicoes.md#lista-branca-por-página)).
+- Qualquer texto além da lista faz a página inteira ser perguntada, inclusive numa página legítima ([medição](medicoes.md#lista-branca-por-página)). Campos, assinatura e cabeçalho da clínica não contam. Exemplos que fazem perguntar:
+  - uma observação de preparo com outras palavras;
+  - um cabeçalho que as regras não conhecem;
+  - um erro de OCR na letra de mão;
+  - uma assinatura à mão que o OCR lê como texto abaixo da lista.
 
 **O que ainda passa, com `--yes`.** A regra só vê o texto que o Tesseract lê:
 
