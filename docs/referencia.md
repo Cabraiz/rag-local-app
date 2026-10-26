@@ -6,7 +6,7 @@ agendamento é conferido em código, as variáveis de ambiente, os códigos de s
 [arquitetura.md](arquitetura.md); as regras de linha e de página, em [regras.md](regras.md); os termos, no
 [glossário](glossario.md).
 
-**Índice:** [Como a busca corta uma linha](#como-a-busca-corta-uma-linha) · [Componentes](#componentes) · [Rede e processos](#rede-e-processos) · [Servidores MCP](#servidores-mcp) · [Fluxo de dados de uma execução](#fluxo-de-dados-de-uma-execução) · [Onde a PII é mascarada](#onde-a-pii-é-mascarada) · [Segurança em detalhe](#segurança-em-detalhe) · [Agendamento conferido em código](#agendamento-conferido-em-código) · [Variáveis de ambiente](#variáveis-de-ambiente) · [Mensagens e erros](#mensagens-e-erros) ([códigos de saída](#códigos-de-saída))
+**Índice:** [Como a busca corta uma linha](#como-a-busca-corta-uma-linha) · [Componentes](#componentes) ([regras do `agent.py`](#as-regras-que-o-agentpy-importa)) · [Rede e processos](#rede-e-processos) · [Servidores MCP](#servidores-mcp) · [Fluxo de dados de uma execução](#fluxo-de-dados-de-uma-execução) · [Onde a PII é mascarada](#onde-a-pii-é-mascarada) · [Segurança em detalhe](#segurança-em-detalhe) ([hosts permitidos](#hosts-permitidos)) · [Agendamento conferido em código](#agendamento-conferido-em-código) · [Variáveis de ambiente](#variáveis-de-ambiente) · [Mensagens e erros](#mensagens-e-erros) ([códigos de saída](#códigos-de-saída), [avisos](#avisos-sobre-os-exames-de-um-pedido), [erros por camada](#erros-por-camada))
 
 ## Como a busca corta uma linha
 
@@ -14,7 +14,7 @@ agendamento é conferido em código, as variáveis de ambiente, os códigos de s
 
 | Caso | O que acontece | Exemplo |
 |---|---|---|
-| Vários exames numa linha | Separa em " e ", ",", "+", ";" e "/", menos dentro de um nome do catálogo | "TSH, T4 livre" → 2 buscas; "HIV antigeno e anticorpos" → 1 |
+| Vários exames numa linha | Separa em " e ", ",", "+", ";", "/" e ":", menos dentro de um nome do catálogo | "TSH, T4 livre" → 2 buscas; "HIV antigeno e anticorpos" → 1 |
 | "e" grudado pelo OCR | Separa quando um lado é nome do catálogo (≥ 0,90) e o outro é exame (≥ 0,80); o pedaço guarda o texto lido | "TSHe T4 livre" → TSH (0,86, vai para a pergunta) e T4 livre; "Lipase" nunca é cortado |
 | Pedaço completado pelo vizinho | Usa o começo do anterior, ou as palavras do seguinte, quando juntos formam um nome do catálogo | "PSA total e livre" → PSA livre; "IgG e IgM para toxoplasmose" → Toxoplasmose IgG |
 | Amostra ou tempo | "urina 24h", "sangue", "em jejum" junto de um exame não viram busca própria | "Clearance de creatinina, urina 24h" → 1 exame |
@@ -47,6 +47,7 @@ O `agent.py` só declara o agente com classes do ADK: `LlmAgent` (uma por etapa)
 
 - Os dois toolsets passam por uma subclasse fina do runtime que confere o host antes da primeira conexão.
 - A política entra no `App` como um plugin do ADK, o `BookingPlugin` ([`runtime/plugin.py`](../runtime/plugin.py)), com os valores da spec; nenhum agente tem callback próprio.
+
 O que o plugin faz:
 
 - **Abre e fecha o pedido** (`start_order` e `report`, na raiz): a imagem vem da CLI ou da 1ª mensagem da pessoa (`adk run`, `adk web`).
@@ -114,13 +115,16 @@ do modelo, para recusar logo um arquivo que o OCR recusaria.
 
 | Servidor | SSE | Saúde | Ferramenta |
 |---|---|---|---|
-| OCR | `http://ocr:8001/sse` | `http://ocr:8001/health` | `extract_exam_text(filename)` → `{"version": 1, "lines": [...], "line_confidence": [92.0, ...], "line_intent": ["request", ...], "pii_masked": {"NOME": 1, ...}, "instructions_removed": 0, "text_removed": 2}`; só aceita um nome de arquivo de `samples/`. `check_image(filename)` → `{"format": "PNG", "width": ..., "height": ...}`: as mesmas recusas da leitura (nome, tamanho, formato real, resolução, integridade, qualidade da foto), sem o Tesseract |
+| OCR | `http://ocr:8001/sse` | `http://ocr:8001/health` | `extract_exam_text(filename)` → `{"version": 1, "lines": [...], "line_confidence": [92.0, ...], "line_intent": ["request", ...], "exam_lines": [...], "page_clean": false, "off_list": [...], "exam_terms": [...], "pii_masked": {"NOME": 1, ...}, "instructions_removed": 0, "text_removed": 2}` (contrato completo: [`leitura.py`](../leitura.py), `OcrReading`); só aceita um nome de arquivo de `samples/`. `check_image(filename)` → `{"format": "PNG", "width": ..., "height": ...}`: as mesmas recusas da leitura (nome, tamanho, formato real, resolução, integridade, qualidade da foto), sem o Tesseract |
 | RAG | `http://rag:8002/sse` | `http://rag:8002/health` | `search_exams(query, top_k=3)` → `[{"code", "name", "score", "term"}]` (`term`: o nome ou o sinônimo que deu o score), melhores primeiro, score ≥ 0,6, `top_k` até 10; numa linha com vários exames, `top_k` por pedaço e cada resultado com `"piece"` |
 
 O RAG entende abreviações de pedido médico (`Hemogr.`, `Glicemia jej.`, `Vit D`, `25(OH)D`, `T4L`, `β-HCG`, `TGO`).
 
 - Siglas de 2 letras que viram outra com 1 caractere errado no OCR (TG, CT, Cr, Ur, BT/BD/BI, FR) ficaram de fora: lidas sozinhas, caem em baixa confiança em vez de agendar o exame errado.
-- Risco aceito: `GH`↔`LH`, `HDL`↔`LDL` e `T3L`↔`T4L` diferem em 1 caractere, mas são as formas usadas nos pedidos. [`tests/test_mcp_sse.py`](../tests/test_mcp_sse.py) chama as ferramentas com `mcp.client.sse`, o mesmo transporte do agente, sem chave do Gemini.
+- Risco aceito: `GH`↔`LH`, `HDL`↔`LDL` e `T3L`↔`T4L` diferem em 1 caractere, mas são as formas usadas nos pedidos.
+
+[`tests/test_mcp_sse.py`](../tests/test_mcp_sse.py) chama as ferramentas com `mcp.client.sse`, o mesmo transporte do
+agente, sem chave do Gemini.
 
 Como o agente chega a cada servidor:
 
@@ -128,7 +132,7 @@ Como o agente chega a cada servidor:
 - **No `transpile`:** cada servidor que responde diz quais ferramentas tem, e uma que ele não tem é recusada; se ele não responder, vale a lista da spec ([por quê](transpilador.md#ferramentas-conferidas-nos-servidores)).
 - **No `run`:** todos os servidores precisam responder e listar as ferramentas, e o `agent.py` precisa ser o que a spec gera hoje.
 - **No `adk run` e no `adk web`:** os toolsets conferem e fixam o endereço de cada servidor antes da primeira conexão ([o que fica só na CLI](como-rodar.md#4-rodar-com-adk-run-ou-adk-web)).
-- **Na importação do `agent.py`:** os toolsets conferem `ALLOWED_HOSTS` de novo ([regra e limites](#segurança-em-detalhe)).
+- **Na importação do `agent.py`:** os toolsets conferem `ALLOWED_HOSTS` de novo ([regra e limites](#hosts-permitidos)).
 
 ## Fluxo de dados de uma execução
 
@@ -143,7 +147,7 @@ sequenceDiagram
     participant A as API FastAPI
     C->>X: "Arquivo do pedido: pedido-1.png" (um apelido; o nome real fica na CLI)
     X->>O: extract_exam_text("pedido-1.png"), trocado pelo nome real no before_tool
-    Note over O: preparo → Tesseract (PSM 11) → join_split_orders() → neutralize_joined() → pii.mask_page()
+    Note over O: preparo → Tesseract (PSM 11) → join_split_orders() → neutralize_joined() → line_intent → pii.mask_page()
     O-->>X: {"lines": [..., "[NOME]"], "pii_masked": {"NOME": 1}}
     X-->>B: output_key exam_names
     B->>R: search_exams("Hemograma completo")
@@ -180,7 +184,7 @@ quatro etapas, nesta ordem:
    parece exame, então a etapa 4 o troca por `[TEXTO_REMOVIDO]`.
 2. **O que cada linha pede** (`guardrails/intent.py`), na página inteira e antes da máscara, sobre o
    texto como foi lido. Um tipo por linha em `line_intent`.
-   Os tipos são `request`, `uncertain`, `negated`, `history`, `table`, `form` e `prep`. Só uma linha `request` numa
+   Os tipos são `request`, `uncertain`, `negated`, `history`, `table`, `form`, `prep` e `unrecognized` (item que sai inteiro como `[TEXTO_REMOVIDO]`, abaixo). Só uma linha `request` numa
    página que é só a lista (`page_clean`) deixa um exame agendar sozinho; sem `page_clean` verdadeiro na resposta, nada
    agenda sozinho. Cada tipo e cada regra de página, com o exemplo que a motivou: [regras.md](regras.md); o significado
    curto de cada termo: [glossário](glossario.md#resposta-do-ocr).
@@ -200,8 +204,10 @@ Consequências:
 - o texto original não sai do container `ocr`: o LLM e os logs do agente veem o texto mascarado, com
   `[NOME]`, `[CPF]`, `[RG]`, `[TELEFONE]`, `[EMAIL]`, `[DATA]`, `[CRM]`, `[ENDERECO]`, `[SUS]`,
   `[PRONTUARIO]`, `[CID]`, `[CLINICO]`, `[CONVENIO]`, `[IDADE]` e `[TEXTO_REMOVIDO]`;
-- o modelo recebe só as linhas de exame (`exam_lines`); as outras chegam como
-  `[linha de texto livre omitida]`; um item da lista com o exame antes do nome vai mascarado (`- Hemograma completo [NOME]`) e a página fica para conferir, e uma linha que começa pelo nome não vai ao modelo;
+- o modelo recebe só as linhas de exame (`exam_lines`):
+  - as outras chegam como `[linha de texto livre omitida]`;
+  - um item da lista com o exame antes do nome vai mascarado (`- Hemograma completo [NOME]`), e a página fica para conferir;
+  - uma linha que começa pelo nome não vai ao modelo;
 - a API e o SQLite não dependem da máscara: a API só aceita código e nome de cada exame (um campo a mais
   dá `422`) e grava o nome do catálogo;
 - a proteção não depende do prompt nem do modelo;
@@ -247,30 +253,7 @@ Cada camada com os números e os exemplos.
   - Uma foto que ele quase não leria volta com o motivo e o que fazer (`OCR recusou a imagem: foto desfocada: segure o celular firme, espere focar e tire outra`).
   - Cada limite fica onde o OCR para de ler (ex.: 320 px, papel quase preto, desfoque de 6 px). Nenhum dos 120 pedidos manuscritos simulados, dos pedidos da carga ou das amostras é recusado.
   - Uma página de lado ou de cabeça para baixo é endireitada, um PNG transparente é lido sobre branco, e um PDF renomeado para `.png` recebe a mensagem certa.
-- **Hosts permitidos, conferidos onde o agente conecta** ([`runtime/adk.py`](../runtime/adk.py), [`runtime/rede.py`](../runtime/rede.py), [`test_enderecos.py`](../tests/test_enderecos.py)):
-  - **Três conferências:** `ALLOWED_HOSTS` vale no `transpile`, no `cli run` e na importação do `agent.py`, porque os toolsets e os callbacks do runtime recusam outro host.
-  - **Só o `agent.py` de hoje:** o `cli run` só executa o `agent.py` que a spec gera hoje, e importa uma cópia privada dos bytes que comparou, então uma troca do arquivo depois da checagem não roda.
-  - **Sem redirect para fora:** o `httpx` do `/openapi.json` não segue redirects, e o cliente SSE do SDK MCP (`mcp` 2.2) só segue um na mesma origem.
-  - **Nomes e endereços:** `ALLOWED_HOSTS` permite nomes.
-    - Antes da 1ª requisição, cada servidor é resolvido uma vez. A execução para se o nome apontar para um destes endereços:
-      - loopback: `127.0.0.0/8`, `::1`;
-      - link-local: `169.254.0.0/16` (onde fica o `169.254.169.254`) e `fe80::/10`;
-      - IPv6 local único: `fc00::/7` (onde fica o `fd00:ec2::254` da AWS);
-      - `100.64.0.0/10` (o `100.100.100.200` da Alibaba Cloud) e o `168.63.129.16` da Azure;
-      - `0.0.0.0`, multicast, ou qualquer um desses escrito como IPv4 dentro de IPv6.
-    - Só um host escrito como o próprio endereço (`127.0.0.1`, `localhost`) e listado pode apontar para lá.
-  - **Endereços fixados:** os endereços conferidos ficam fixos nos clientes que o runtime cria (o ADK e o SDK MCP aceitam uma fábrica de cliente `httpx`, cujo transporte conecta ao endereço conferido, mantendo o nome no `Host` e no TLS).
-    - Um DNS que mude no meio, um *DNS rebinding* ou uma linha no `/etc/hosts` não leva `clinica.exemplo` a `127.0.0.1`, e nada mais do processo é afetado.
-    - Um nome que não resolve fica sem endereço: a execução para no GET seguinte com a mensagem de serviço fora do ar.
-  - **Fora da CLI** (`adk run`, `adk web`), a mesma regra vale em dois pontos: em cada toolset, antes da 1ª conexão, e em cada pedido, antes do 1º turno do modelo.
-    - Os endereços aceitos ficam fixos até o processo terminar. Custo: se um serviço mudar de endereço, é preciso reiniciar o processo.
-    - Um nome recusado é conferido de novo na vez seguinte.
-    - O `transpile` compara só o nome.
-  - **Limites:**
-    - endereços privados (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) são aceitos, porque é onde o DNS do Docker põe os serviços. Por isso um nome externo que resolva para outro serviço da rede interna não é barrado;
-    - endereços de metadados fora dessas faixas não são reconhecidos;
-    - uma rede do compose com IPv6 em `fc00::/7` seria recusada;
-    - uma entrada sem porta aceita qualquer porta.
+- **Hosts permitidos, conferidos onde o agente conecta:** ver [Hosts permitidos](#hosts-permitidos), abaixo.
 - **Menor privilégio:** cada agente só enxerga as ferramentas que a spec lhe dá (`tool_filter`; na spec padrão, uma por etapa); containers sem root, somente leitura e sem capabilities; OCR e RAG sem internet; só a API publica porta, em `127.0.0.1`.
 - **Dados de saúde cifrados no banco** ([`api/crypto.py`](../api/crypto.py), [`test_crypto.py`](../tests/test_crypto.py)): o banco guarda só código e nome de exame do catálogo, o `id`, o status, a data e a `Idempotency-Key` (como HMAC).
   - A lista de exames vai cifrada com AES-256-GCM; no arquivo SQLite não há código `FICT` nem nome de exame em claro.
@@ -278,6 +261,34 @@ Cada camada com os números e os exemplos.
   - Na 1ª subida, a API cria a chave no volume `api-key`, separado do banco (`api-data`); uma chave ausente ou inválida faz a API não subir, com uma linha (`A API não subiu: <motivo>`) que não mostra a chave ([por que AES-GCM e os limites](decisoes.md#pii-mascarada-na-origem-banco-sem-pii)).
 - **Segredo:** a chave do Gemini fica só no `.env` (fora do git) e só os serviços `agent` e `tests-e2e` a recebem; a chave do banco fica só no volume `api-key` (ou em `DB_ENCRYPTION_KEY`) e só o serviço `api` a vê.
 - **A API em si** (idempotência, `Host` conferido, limite por cliente, cabeçalhos de segurança, log sem dados): [decisoes.md](decisoes.md#api-contrato-idempotência-e-defesas).
+
+### Hosts permitidos
+
+Onde e como `ALLOWED_HOSTS` é conferido ([`runtime/adk.py`](../runtime/adk.py), [`runtime/rede.py`](../runtime/rede.py), [`test_enderecos.py`](../tests/test_enderecos.py)):
+
+- **Três conferências:** `ALLOWED_HOSTS` vale no `transpile`, no `cli run` e na importação do `agent.py`, porque os toolsets e os callbacks do runtime recusam outro host.
+- **Só o `agent.py` de hoje:** o `cli run` só executa o `agent.py` que a spec gera hoje, e importa uma cópia privada dos bytes que comparou, então uma troca do arquivo depois da checagem não roda.
+- **Sem redirect para fora:** o `httpx` do `/openapi.json` não segue redirects, e o cliente SSE do SDK MCP (`mcp` 2.2) só segue um na mesma origem.
+- **Nomes e endereços:** `ALLOWED_HOSTS` permite nomes.
+  - Antes da 1ª requisição, cada servidor é resolvido uma vez. A execução para se o nome apontar para um destes endereços:
+    - loopback: `127.0.0.0/8`, `::1`;
+    - link-local: `169.254.0.0/16` (onde fica o `169.254.169.254`) e `fe80::/10`;
+    - IPv6 local único: `fc00::/7` (onde fica o `fd00:ec2::254` da AWS);
+    - `100.64.0.0/10` (o `100.100.100.200` da Alibaba Cloud) e o `168.63.129.16` da Azure;
+    - `0.0.0.0`, multicast, ou qualquer um desses escrito como IPv4 dentro de IPv6.
+  - Só um host escrito como o próprio endereço (`127.0.0.1`, `localhost`) e listado pode apontar para lá.
+- **Endereços fixados:** os endereços conferidos ficam fixos nos clientes que o runtime cria (o ADK e o SDK MCP aceitam uma fábrica de cliente `httpx`, cujo transporte conecta ao endereço conferido, mantendo o nome no `Host` e no TLS).
+  - Um DNS que mude no meio, um *DNS rebinding* ou uma linha no `/etc/hosts` não leva `clinica.exemplo` a `127.0.0.1`, e nada mais do processo é afetado.
+  - Um nome que não resolve fica sem endereço: a execução para no GET seguinte com a mensagem de serviço fora do ar.
+- **Fora da CLI** (`adk run`, `adk web`), a mesma regra vale em dois pontos: em cada toolset, antes da 1ª conexão, e em cada pedido, antes do 1º turno do modelo.
+  - Os endereços aceitos ficam fixos até o processo terminar. Custo: se um serviço mudar de endereço, é preciso reiniciar o processo.
+  - Um nome recusado é conferido de novo na vez seguinte.
+  - O `transpile` compara só o nome.
+- **Limites:**
+  - endereços privados (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) são aceitos, porque é onde o DNS do Docker põe os serviços. Por isso um nome externo que resolva para outro serviço da rede interna não é barrado;
+  - endereços de metadados fora dessas faixas não são reconhecidos;
+  - uma rede do compose com IPv6 em `fc00::/7` seria recusada;
+  - uma entrada sem porta aceita qualquer porta.
 
 ## Agendamento conferido em código
 
@@ -334,11 +345,10 @@ e 3 com `--yes`, para a automação perceber.
 - A CLI responde no terminal; o console do `adk run` e a página do `adk web` mostram o mesmo texto.
 - Só um "sim" àquela lista, naquela chamada, agenda; com `--yes` (só na CLI), não há pergunta e só agenda o que tem ≥ 0,90 numa página que é só a lista ([como funciona](transpilador.md#a-confirmação-da-lista-confirmação-nativa-do-adk)).
 
-Cada estado de um exame, a mensagem que a CLI mostra e o código que a produz estão numa tabela só, no
-[referência de avisos](#avisos-sobre-os-exames-de-um-pedido).
+- Se não sobra nenhum exame, nada é agendado.
 
-Se não sobra nenhum, nada é agendado. O código gerado, sem Docker: [`docs/exemplo-agent.py`](exemplo-agent.py),
-a saída exata do `transpile` para `specs/agent.json` (um teste falha se ela ficar desatualizada).
+Cada estado de um exame, a mensagem que a CLI mostra e o código que a produz estão numa tabela só:
+[Avisos sobre os exames de um pedido](#avisos-sobre-os-exames-de-um-pedido).
 
 ## Variáveis de ambiente
 
@@ -394,7 +404,7 @@ O que a CLI mostra sobre cada exame, de onde vem no código e o que fazer.
 | `Trechos removidos pelo OCR (não pareciam exame): N` | O que o filtro final do OCR tirou; pode conter um nome não reconhecido | `text_removed`, `pii.only_what_may_leave` | Nada |
 | `Instruções neutralizadas no OCR: N` | Ordens ao modelo tiradas do texto (`[TEXTO_REMOVIDO]`) | `injection.neutralize_joined` | Conferir o papel |
 | `Atenção: o pedido tem texto além da lista de exames: linha N "..."` | A página não é só a lista: todo exame é perguntado; dito uma vez, com as linhas | `intent.clean_page` (`off_list`), `relatorio.WHY['page']` | Conferir o papel |
-| `- IgA (FICT-079): lido "- GA", confiança 0,80; confira` | Confiança de 0,70 a 0,90; com `--yes` sai como `não agendado sem confirmação` | `confianca.sort_out`, `BookingPolicy.ask_from`/`min_confidence` | Conferir a linha |
+| `- IgA (FICT-079): lido "- GA", confiança 0,80; confira` | Confiança de 0,70 a menos de 0,90; com `--yes` sai como `não agendado sem confirmação` | `confianca.sort_out`, `BookingPolicy.ask_from`/`min_confidence` | Conferir a linha |
 | `...; o pedido tem outras palavras além do exame; confira` | Linha `uncertain` ("Ferritina - pedido por engano"): confiança de no máximo 0,89 | `intent.line_kind`, `relatorio.WHY` | Conferir a linha |
 | `...; o pedido está em tabela ou colunas` / `; formulário com marcas: só os marcados contam; confira` | Linhas `table` ou `form` | `intent.layout`, `intent.form` | Conferir a página |
 | `...; o nome escrito é de outro exame, mais longo` | O trecho está dentro de um nome maior ("Proteína C" em "Proteína C reativa") | `confianca.longer`, `OcrReading.exam_terms` | Conferir a linha |
@@ -414,23 +424,16 @@ O que a CLI mostra sobre cada exame, de onde vem no código e o que fazer.
 
 ### Erros por camada
 
-As mensagens são as que o usuário vê; nenhuma mostra stack trace.
+As mensagens são as que o usuário vê; nenhuma mostra stack trace. Na ordem em que podem acontecer: spec e checagens da
+CLI antes do modelo, OCR, RAG, API, o agente gerado e, por fim, o fim da execução.
 
 | Situação | Onde | Resultado |
 |---|---|---|
 | Spec inválida (JSON, chave duplicada, campo extra, formato) | `transpiler/spec.py` | `Erro: campo: motivo`, uma linha por problema, código 2 ([exemplos](transpilador.md#validação-e-mensagens-de-erro)) |
+| `agent.py` com um host fora de `ALLOWED_HOSTS` | importação fora do `cli run` (`runtime/adk.py`) | `generated/agent.py: o código gerado não pôde ser importado (ValueError: host "…" fora de ALLOWED_HOSTS (…); gere o agent.py de novo ou inclua o host em ALLOWED_HOSTS)` |
 | `generated/agent.py` ausente | `cli run` | `generated/agent.py não existe: rode antes: docker compose run --rm agent python -m cli transpile specs/agent.json` |
 | `agent.py` diferente do que a spec gera hoje | `cli run` | `generated/agent.py não é o que specs/agent.json gera hoje (gerado de outra spec, antes de uma mudança ou editado à mão); gere de novo: docker compose run --rm agent python -m cli transpile specs/agent.json`, antes de qualquer serviço ou do Gemini. Se você gerou o agente de outra spec, não gere de novo: passe ao `run` a spec e o agente dela (`--spec specs/<sua-spec>.json --agent generated/<nome>/agent.py`) |
-| `agent.py` com um host fora de `ALLOWED_HOSTS` | importação fora do `cli run` (`runtime/adk.py`) | `generated/agent.py: o código gerado não pôde ser importado (ValueError: host "…" fora de ALLOWED_HOSTS (…); gere o agent.py de novo ou inclua o host em ALLOWED_HOSTS)` |
 | Chave Gemini ausente | `cli run` | `GOOGLE_API_KEY não definida: preencha GOOGLE_API_KEY= no .env (crie com "cp .env.example .env" se ele não existir)`, antes de qualquer chamada |
-| `DB_ENCRYPTION_KEY` vazia | `api` (`api/crypto.py`) | não é erro: na 1ª subida a API cria a chave no volume `api-key` e loga `chave do banco criada em /keys/db.key`, sem a chave; depois, reusa a mesma |
-| `DB_ENCRYPTION_KEY` ou arquivo de chave inválido | `api` (`api/crypto.py`) | a API não sobe; o log mostra o motivo (e, para a variável, o comando `docker compose run --rm --no-deps api python -m api.crypto --gerar-chave`), sem a chave |
-| `Idempotency-Key` repetida com um código já agendado por ela, noutra lista, dentro de `API_IDEMPOTENCY_TTL_HOURS` | `POST /appointments` | `409`: `Esta Idempotency-Key já agendou um destes exames, com outra lista. Para um novo agendamento, use uma chave nova.`; com os mesmos códigos (qualquer `name`, qualquer ordem), `201` com o mesmo agendamento |
-| `Host` fora de `API_ALLOWED_HOSTS` (DNS rebinding, nome errado) | todas as rotas | `400`: `Cabeçalho Host não permitido: chame a API por 127.0.0.1 ou localhost (no host) ou por api (na rede do compose), ou inclua o nome em API_ALLOWED_HOSTS.`, sem repetir o valor recebido |
-| Mais de `API_RATE_LIMIT_PER_MINUTE` requisições por minuto do mesmo IP | todas as rotas, menos `/health` | `429`: `Muitas requisições deste cliente: tente de novo em N s.`, com `Retry-After: N` |
-| `API_RATE_LIMIT_PER_MINUTE` que não é um inteiro | `api`, ao subir | a API não sobe: `A API não subiu: API_RATE_LIMIT_PER_MINUTE inválido: use um número inteiro de requisições por minuto (0 desliga).` |
-| `API_IDEMPOTENCY_TTL_HOURS` abaixo de 1 ou `API_ALLOWED_HOSTS` com algo que não é nome de host | `api`, ao subir | a API não sobe, com uma linha que nomeia a variável e o formato esperado |
-| Registro do banco alterado ou gravado com outra chave | `GET /appointments/{id}` | `500` com mensagem fixa; a cifra autenticada detecta a alteração em vez de devolver dado errado |
 | OCR, RAG ou API fora do ar | `cli run` | `OCR (MCP) fora do ar em http://ocr:8001/sse ...; suba os serviços com docker compose up -d --wait`, antes de chamar o Gemini |
 | Nome de servidor que resolve para um endereço local ou de metadados (ex.: `clinica.exemplo` → `127.0.0.1`) | `cli run`, antes da 1ª requisição | `servers.api.openapi_url: "clinica.exemplo" resolve para 127.0.0.1, um endereço local ou de metadados de nuvem (ex.: 127.0.0.1, 169.254.169.254, fd00:ec2::254); só um host escrito como esse endereço (IP ou localhost) e listado em ALLOWED_HOSTS pode apontar para ele` |
 | Servidor que responde ao GET, mas não lista as ferramentas | `cli run` | `servers.rag: http://rag:8002/sse respondeu, mas não listou as ferramentas (é um servidor MCP?)`, antes de chamar o Gemini |
@@ -442,24 +445,30 @@ As mensagens são as que o usuário vê; nenhuma mostra stack trace.
 | PDF renomeado para `.png` | OCR | `O arquivo é um PDF, não uma imagem: exporte a página como PNG ou JPEG.` |
 | Página de lado ou de cabeça para baixo | OCR | é endireitada e lida; se nem assim der, `imagem de lado ou de cabeça para baixo: gire e envie de novo` |
 | Foto que o OCR quase não leria (resolução baixa, escura, sem contraste ou desfocada) | OCR (`mcp_servers/qualidade.py`) | o motivo e a dica, antes do Tesseract (ex.: `foto desfocada: segure o celular firme, espere focar e tire outra`); a CLI mostra `OCR recusou a imagem: <motivo>; nada foi agendado` |
+| Resposta do OCR sem `line_intent` | `BookingPlugin.after_tool`, na resposta do OCR | falha fechado: toda linha conta como dúvida, e nada é agendado sem um sim |
+| Resposta do OCR fora do contrato ([`leitura.py`](../leitura.py)) | `BookingPlugin.after_tool`, na resposta do OCR | não é lida: nada é agendado nem perguntado; a CLI diz `o OCR não devolveu o texto do pedido` |
 | Exame sem correspondência (score < 0,6) | RAG | lista vazia; a instrução manda omitir o exame, sem inventar código |
+| `Idempotency-Key` repetida com um código já agendado por ela, noutra lista, dentro de `API_IDEMPOTENCY_TTL_HOURS` | `POST /appointments` | `409`: `Esta Idempotency-Key já agendou um destes exames, com outra lista. Para um novo agendamento, use uma chave nova.`; com os mesmos códigos (qualquer `name`, qualquer ordem), `201` com o mesmo agendamento |
+| `Host` fora de `API_ALLOWED_HOSTS` (DNS rebinding, nome errado) | todas as rotas | `400`: `Cabeçalho Host não permitido: chame a API por 127.0.0.1 ou localhost (no host) ou por api (na rede do compose), ou inclua o nome em API_ALLOWED_HOSTS.`, sem repetir o valor recebido |
+| Mais de `API_RATE_LIMIT_PER_MINUTE` requisições por minuto do mesmo IP | todas as rotas, menos `/health` | `429`: `Muitas requisições deste cliente: tente de novo em N s.`, com `Retry-After: N` |
+| Registro do banco alterado ou gravado com outra chave | `GET /appointments/{id}` | `500` com mensagem fixa; a cifra autenticada detecta a alteração em vez de devolver dado errado |
 | Código inválido ou desconhecido | API | `422`; a CLI mostra `a API recusou o agendamento (HTTP 422: ...)` |
 | Agendamento inexistente | API | `404` |
-| Agente termina sem agendamento | `cli run` | `o agente terminou sem um agendamento confirmado pela API` (código 2) |
+| `DB_ENCRYPTION_KEY` vazia | `api` (`api/crypto.py`) | não é erro: na 1ª subida a API cria a chave no volume `api-key` e loga `chave do banco criada em /keys/db.key`, sem a chave; depois, reusa a mesma |
+| `DB_ENCRYPTION_KEY` ou arquivo de chave inválido | `api` (`api/crypto.py`) | a API não sobe; o log mostra o motivo (e, para a variável, o comando `docker compose run --rm --no-deps api python -m api.crypto --gerar-chave`), sem a chave |
+| `API_RATE_LIMIT_PER_MINUTE` que não é um inteiro | `api`, ao subir | a API não sobe: `A API não subiu: API_RATE_LIMIT_PER_MINUTE inválido: use um número inteiro de requisições por minuto (0 desliga).` |
+| `API_IDEMPOTENCY_TTL_HOURS` abaixo de 1 ou `API_ALLOWED_HOSTS` com algo que não é nome de host | `api`, ao subir | a API não sobe, com uma linha que nomeia a variável e o formato esperado |
 | Gemini temporariamente indisponível (`429`, `500`, `503`) | agente gerado | até 5 tentativas com espera exponencial (`HttpRetryOptions`); com `fallback_model`, o principal só repete o `500` |
 | Modelo principal sobrecarregado (`503`) ou sem cota (`429`) | agente gerado (`cli run`, `adk run`, `adk web`) | a mesma requisição vai na hora ao `fallback_model` (`FallbackModel` do ADK): `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite`; não agenda em dobro, porque se repete a chamada ao modelo, não uma ferramenta |
 | O principal e o reserva indisponíveis | agente gerado | `Gemini indisponível no momento (HTTP 503); tente novamente`, sem traceback; as etapas seguintes não chamam o modelo; o `cli run` mostra a mesma linha (código 2) |
-| Modelo descontinuado ou outra recusa do Gemini (ex.: `404`) | `cli run` | `o Gemini recusou a chamada (HTTP 404: ...)` (código 2); troque com `-e GEMINI_MODEL=<modelo>` |
 | Código que nenhuma busca no catálogo devolveu (inventado) | `BookingPlugin.before_tool` (`only_confident_codes`) | `agendamento bloqueado antes de chamar a API: código(s) que nenhuma busca no catálogo devolveu: ...; nada foi agendado` (código 2), sem `POST` |
 | Lista não confirmada (qualquer resposta além de `s`/`sim`, Enter incluído) | `BookingPlugin.before_tool` (`only_confident_codes`) | `agendamento bloqueado antes de chamar a API: você não confirmou a lista de exames; nada foi agendado` (código 2), sem `POST` |
-| Sem terminal (`-T`, pipe, `CI`) e sem `--yes` | `cli run`, `check_someone_answers` | para antes de ler o pedido e de chamar o modelo: `Erro: sem terminal para confirmar a lista de exames: rode num terminal ou com --yes; nada foi lido nem agendado (…)` |
-| Resposta do OCR sem `line_intent` | `BookingPlugin.after_tool`, na resposta do OCR | falha fechado: toda linha conta como dúvida, e nada é agendado sem um sim |
-| Resposta do OCR fora do contrato ([`leitura.py`](../leitura.py)) | `BookingPlugin.after_tool`, na resposta do OCR | não é lida: nada é agendado nem perguntado; a CLI diz `o OCR não devolveu o texto do pedido` |
 | Nenhum exame com confiança suficiente | `BookingPlugin.before_tool` (`only_confident_codes`) | `agendamento bloqueado antes de chamar a API: nenhum exame com confiança suficiente para agendar; nada foi agendado` (código 2) |
+| O modelo chama o agendamento 2 vezes na mesma execução | `BookingPlugin.before_tool` (`only_confident_codes`) | a 2ª chamada recebe o mesmo agendamento, sem chegar à API (uma `Idempotency-Key` por sessão, derivada dela) |
+| Agente termina sem agendamento | `cli run` | `o agente terminou sem um agendamento confirmado pela API` (código 2) |
+| Modelo descontinuado ou outra recusa do Gemini (ex.: `404`) | `cli run` | `o Gemini recusou a chamada (HTTP 404: ...)` (código 2); troque com `-e GEMINI_MODEL=<modelo>` |
 | Pedido sem nenhum exame | `cli run` | `Nenhum exame encontrado no pedido; nada foi agendado` (código 2) |
-| OCR recusou a imagem | `cli run` | `OCR recusou a imagem: <motivo do OCR>; nada foi agendado` (código 2) |
 | OCR não devolveu texto nem motivo | `cli run` | `o OCR não devolveu o texto do pedido (serviço indisponível?); nada foi agendado` (código 2) |
 | O modelo não chamou o OCR | `cli run` | `o agente não leu a imagem (não chamou o OCR); nada foi agendado` (código 2) |
 | O modelo tentou agendar sem buscar no catálogo | `cli run` | `a busca no catálogo não foi feita (o agente tentou agendar sem buscar os exames); nada foi agendado` (código 2) |
-| O modelo chama o agendamento 2 vezes na mesma execução | `BookingPlugin.before_tool` (`only_confident_codes`) | a 2ª chamada recebe o mesmo agendamento, sem chegar à API (uma `Idempotency-Key` por sessão, derivada dela) |
 | Falha depois que a API foi chamada | `cli run` | a mensagem acrescenta `o agendamento <id> já foi criado, não repita` ou `a API já foi chamada, confira os agendamentos antes de repetir` |

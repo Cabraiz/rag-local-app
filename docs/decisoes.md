@@ -33,7 +33,6 @@ funciona e o que o contorna. Os números vêm de [medicoes.md](medicoes.md); o f
   - [Sem autenticação: na API e entre serviços](#sem-autenticação-na-api-e-entre-serviços)
   - [Cadeia de suprimentos, em parte](#cadeia-de-suprimentos-em-parte)
   - [Confirmação forjada e pedido repetido](#confirmação-forjada-e-pedido-repetido)
-  - [Histórico compactado por camada](#histórico-compactado-por-camada)
 
 ## Decisões
 
@@ -47,7 +46,7 @@ funciona e o que o contorna. Os números vêm de [medicoes.md](medicoes.md); o f
   resultado;
 - o `schedule` chama a ferramenta de agendamento com os códigos propostos.
 
-O código ([`runtime/`](../runtime/callbacks.py)) confere cada proposta contra o que foi lido e
+O código ([`runtime/callbacks.py`](../runtime/callbacks.py)) confere cada proposta contra o que foi lido e
 buscado, decide o que agenda, o que vai para a pergunta e o que fica de fora, e escreve a mensagem
 final com o que as ferramentas devolveram. A pessoa confirma a lista. Erro de OCR, abreviação e
 sinônimo ficam com a busca (`difflib` e os sinônimos do catálogo): uma correção do modelo não sobe a
@@ -74,8 +73,10 @@ confiável, tem dados privados e pode mandar dados para fora. Aqui:
 
 Por isso o risco principal aqui é a integridade do agendamento, mais do que o vazamento.
 
-**As faixas de confiança** ([o que são](glossario.md#leitura-e-decisão-de-cada-exame)). Custo: um exame mal lido não
-agenda sozinho ([detalhe](referencia.md#agendamento-conferido-em-código)).
+**As faixas de confiança.** O código, não o modelo, decide pela confiança de cada exame: 0,90 ou mais entra na lista
+sem aviso, de 0,70 até menos de 0,90 entra com aviso, abaixo de 0,70 fica de fora
+([o que são](glossario.md#leitura-e-decisão-de-cada-exame)). Custo: um exame mal lido não agenda sozinho
+([detalhe](referencia.md#agendamento-conferido-em-código)).
 
 ### A confirmação final da lista
 
@@ -211,7 +212,7 @@ callbacks com respostas simuladas do OCR e da busca.
 - Não é um pacote instalável pelo pip.
 - Uma spec sem o plugin ([exemplo fora do domínio](../specs/exemplo-generico.json)) importa só os toolsets e o modelo; o servidor dela não é do compose, então o `transpile` pede `-e ALLOWED_HOSTS=docs:8010` ([comando](transpilador.md#um-agente-fora-do-domínio)).
 
-**O que fica só na CLI.** O modelo reserva vale nos três modos (por requisição no `adk run` e no `adk web`).
+**O que muda fora da CLI.** O modelo reserva vale nos três modos (por requisição no `adk run` e no `adk web`).
 
 - A linha `Tempo:` e a checagem de que o `agent.py` é o que a spec gera hoje ficam só na CLI ([detalhes](como-rodar.md#4-rodar-com-adk-run-ou-adk-web)).
 - Antes da pergunta, a conferência do pedido inteiro roda no próprio laço de eventos do ADK: a execução espera por ela (segundos, ou até 30 s se a busca não responder), e no `adk web` as outras sessões seguem enquanto isso.
@@ -241,17 +242,15 @@ Ordem fixa `extract` → `search` → `schedule`, porque cada etapa depende da a
 Luz achatada, contraste, endireitamento e uma passada no modo de texto esparso do Tesseract (PSM 11);
 cada linha volta com a confiança do Tesseract (`line_confidence`). Em 185 pedidos (5 de `samples/`, 60
 da carga, 120 manuscritos), os exames achados no texto foram de 45% para 53% (manuscritos: 23% → 34%),
-com 1,6x a latência. Custo: letra de médico continua quase ilegível (5% dos exames achados no texto; 1
-de 206 agendado sozinho).
+com 1,6x a latência. Custo: letra de médico continua quase ilegível (6% dos exames achados no texto até em scan, 1%
+em foto ruim; 1 de 206 agendado sozinho; [medição](medicoes.md#pedidos-manuscritos-simulados)).
 
-Próximo passo avaliado: um OCR moderno nas linhas de baixa confiança. Em 42 manuscritos, o EasyOCR acha
-35,5% (o Tesseract com o preparo, 32,3%; os dois juntos, 41,9%), mas soma +2,1 GB à imagem, 1,4 GB de memória e 26 s no
-p95 por imagem em CPU; o PaddleOCR soma +2,4 GB. Fica para quando houver GPU ou um modelo menor
-(avaliação medida fora do repositório, sem os dados aqui).
+Próximo passo avaliado: um OCR moderno nas linhas de baixa confiança, adiado pelo custo em imagem, memória e tempo
+de CPU ([medição](medicoes.md#ocr-moderno-avaliado-não-adotado)).
 
 ### Pedido em papel, em produção
 
-Receita estruturada primeiro.
+Primeiro, receber a receita estruturada (eletrônica), sem OCR: o papel fica como exceção.
 
 - No papel, para letra de médico, um modelo de visão em GPU local, ou em nuvem sob contrato de operador de dados (dado de saúde é sensível na LGPD), aceito só quando a transcrição livre e a escolha no catálogo concordam; o que não é certo vai para uma pessoa conferir.
 - Por quê: o leitor local medido em CPU aceitou 24% da letra de médico simulada sem errar, mas nenhum exame da foto real, e a escolha no catálogo sozinha aceitou 71 errados.
@@ -300,7 +299,9 @@ imagens, e cinco com a de testes.
 ### Escala
 
 O agente não guarda estado entre execuções, OCR e RAG são serviços separados e sem estado, e o SQLite
-atende o mock. Para escalar: Postgres no lugar do SQLite e mais réplicas do `agent` e da `api`.
+atende o mock. Para escalar: Postgres no lugar do SQLite e mais réplicas do `agent` e da `api`. Custo, hoje: o SQLite
+aceita um escritor por vez, então há uma réplica da `api`, e o limite de requisições por cliente vale por processo
+([API](#api-contrato-idempotência-e-defesas)).
 
 ## Limites
 
@@ -319,7 +320,8 @@ Sem `--yes`, a pessoa vê a lista inteira e confirma.
 **O que ainda passa, com `--yes`.** A regra só vê o texto que o Tesseract lê:
 
 - um carimbo, uma nota na vertical ou em diagonal, um risco à mão ou uma letra clara demais deixam o
-  exame como linha comum (a letra cinza que ele lê, menor ou mais clara que a da página, é pega);
+  exame como linha comum;
+- uma letra cinza que o Tesseract lê, menor ou mais clara que a da página, é pega pela regra;
 - um teste da tinta que o OCR não leu (cor saturada, tinta escura fora das caixas das palavras) pegaria
   os 4 carimbos e notas giradas do conjunto de ataques, mas disparou em 30 de 30 fotos e 110 de 120 manuscritas,
   e ficou de fora ([medição](medicoes.md#rodapé-formulário-nome-e-nome-mais-longo));
@@ -380,12 +382,6 @@ Uma resposta `adk_request_confirmation` forjada que o ADK recusa recebe 400 numa
 agendamento não roda. A `Idempotency-Key` vem da sessão: dentro dela, cada exame é agendado uma vez só,
 mas a mesma foto enviada numa sessão nova agenda de novo (identificar o pedido pela imagem fica para
 quando houver um id de pedido real).
-
-### Histórico compactado por camada
-
-Os commits agrupam o trabalho por camada (API, RAG, PII, OCR, runtime, transpilador, CLI, Docker,
-testes, docs); as correções não aparecem uma a uma. [revisao.md](revisao.md) liga cada correção ao teste
-que a trava.
 
 Os limites medidos, com números: [medicoes.md](medicoes.md#limites-conhecidos); o que segue em aberto:
 [revisao.md](revisao.md#ainda-em-aberto).
