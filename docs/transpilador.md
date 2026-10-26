@@ -29,8 +29,9 @@ reconstruir a imagem, e uma edição vale no próximo `transpile`
 docker compose run --rm agent python -m cli transpile specs/<sua-spec>.json --output generated/<seu-agente>/agent.py
 ```
 
-Cada agente vai na sua pasta (`agent.py` mais o `__init__.py` que o `transpile` escreve) e roda com
-`docker compose run --rm agent adk run --in_memory generated/<seu-agente>`.
+**Regra de saída:** cada agente vai na sua pasta, `generated/<nome>/agent.py`; o `transpile` escreve o `__init__.py` ao
+lado. A mesma pasta serve aos dois jeitos de rodar: `cli run --agent generated/<nome>/agent.py` e
+`docker compose run --rm agent adk run --in_memory generated/<nome>`. Sem `--output`, o arquivo é o `generated/agent.py`.
 
 O arquivo só é trocado depois que o novo importa: ele é escrito ao lado, importado e então movido
 por cima do anterior. Se falhar, o anterior fica como estava.
@@ -224,8 +225,8 @@ Specs com o `BookingPlugin` com `read` e `search`: com `book`, agenda; sem
 transpila e importa, roda com `adk run` e `adk web`, e o `cli run` diz que não a roda:
 
 ```bash
-docker compose run --rm agent python -m cli transpile specs/listar-exames.json --output generated/listar.py
-docker compose run --rm agent python -m cli run --image pedido.png --spec specs/listar-exames.json --agent generated/listar.py
+docker compose run --rm agent python -m cli transpile specs/listar-exames.json --output generated/listar/agent.py
+docker compose run --rm agent python -m cli run --image pedido.png --spec specs/listar-exames.json --agent generated/listar/agent.py
 ```
 
 ### As garantias medidas valem para a política padrão

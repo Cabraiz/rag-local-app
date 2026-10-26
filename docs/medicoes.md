@@ -146,6 +146,9 @@ exame, que agora vai ao modelo mascarado e fica para conferir.
 ([como-rodar.md](como-rodar.md#pedidos-manuscritos-simulados)). Medido com OCR por linha, busca, faixas de confiança e
 a [regra de linha](#lista-branca-só-agenda-sozinha-a-linha-que-é-só-exame).
 
+**Estado atual:** com todas as regras de hoje, as 120 manuscritas têm **24 exames agendados sozinhos e 0 errados sem
+confirmação**. A tabela abaixo mede só a regra de linha, sem as regras de página: mostra o teto da leitura por estilo.
+
 | Estilo · qualidade | Agendados sozinhos | Perguntados | Baixa confiança | Não lidos | Errados sem confirmação |
 |---|---|---|---|---|---|
 | comum · scan (80 exames) | 41 (51%) | 8 | 22 | 9 | 0 |
@@ -156,7 +159,7 @@ a [regra de linha](#lista-branca-só-agenda-sozinha-a-linha-que-é-só-exame).
 | médico · foto ruim (77) | 0 | 0 | 1 | 76 | 0 |
 | **todas (497)** | **113 (23%)** | **37** (5 deles errados) | **98** | **249** | **0** |
 
-Com a [regra de página](#lista-branca-por-página), os agendados sozinhos caem para 24, com 0 errados. Sem a busca por
+Com a [regra de página](#lista-branca-por-página), os agendados sozinhos caem de 113 para 24 (o estado atual), com 0 errados. Sem a busca por
 pedaço (cada exame da linha buscado à parte, ":" como separador, como em "Solicito: PSA total"), seriam 103 e 41. **Os 5 errados perguntados** (comum-013, 028, 038, 042 e 048) são trocas de leitura que a pessoa vê: "TGP" lido
   "TAP" (Tempo de protrombina, 2 vezes), "Vitamina D" lido "Vitamina 2" (Vitamina B12) e 2 cálcios.
 - **0 PII sobrando;** sem a última etapa da máscara (só sai do OCR o que parece exame), sobravam 33 valores.
@@ -502,7 +505,7 @@ errados; honestos: 12, 52, 24). Só "Colesterol total e frações (HDL, LDL)" se
 
 **Leitura**
 
-- **Letra de médico:** 1 de 206 exames agendado sozinho. Letra comum: 45% no scan, 44% na foto, 14% na foto ruim
+- **Letra de médico:** 1 de 206 exames agendado sozinho. Letra comum, só com a regra de linha: 51% no scan, 48% na foto, 14% na foto ruim
   ([leitor local](#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão)).
 - **Troca entre exames:** "TGP" lido "TAP" é perguntado (com `--yes`, sai). O piso de 95, para a sigla de até 3 letras que abrevia um nome mais longo, foi
   calibrado nesse caso; TGO/TGP não é coberta.

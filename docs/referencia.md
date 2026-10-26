@@ -322,7 +322,7 @@ e 3 com `--yes`, para a automação perceber.
 - Só um "sim" àquela lista, naquela chamada, agenda; com `--yes` (só na CLI), não há pergunta e só agenda o que tem ≥ 0,90 numa página que é só a lista ([como funciona](transpilador.md#a-confirmação-da-lista-confirmação-nativa-do-adk)).
 
 Cada estado de um exame, a mensagem que a CLI mostra e o código que a produz estão numa tabela só, no
-[guia do desenvolvedor](guia-dev.md#depurar-um-pedido-que-falhou-ou-foi-perguntado).
+[referência de avisos](#avisos-sobre-os-exames-de-um-pedido).
 
 Se não sobra nenhum, nada é agendado. O código gerado, sem Docker: [`docs/exemplo-agent.py`](exemplo-agent.py),
 a saída exata do `transpile` para `specs/agent.json` (um teste falha se ela ficar desatualizada).

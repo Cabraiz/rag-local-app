@@ -72,7 +72,7 @@ Todos os comandos rodam na raiz do clone, com o ambiente de pé (`docker compose
 
 | Peça | Comando |
 |---|---|
-| Transpilador | `docker compose run --rm agent python -m cli transpile specs/agent.json` (`--output generated/outro.py` para não trocar o `agent.py`) |
+| Transpilador | `docker compose run --rm agent python -m cli transpile specs/agent.json` (`--output generated/outro/agent.py` para não trocar o `agent.py`) |
 | OCR sozinho | `docker compose run --rm agent python exemplos/mcp_call.py ocr extract_exam_text filename=pedido.png` |
 | RAG sozinho | `docker compose run --rm agent python exemplos/mcp_call.py rag search_exams query=Glicose top_k=3` |
 | API sozinha | `docker compose up -d api` e, em Git Bash, `curl -s -X POST http://127.0.0.1:8765/appointments -H 'Content-Type: application/json' -d '{"exams":[{"code":"FICT-001"}]}'`; o Swagger fica em `/docs` |
@@ -254,13 +254,12 @@ portas): [como-rodar.md](como-rodar.md#quando-algo-falha).
 2. **Reproduza a busca** de uma linha: `... mcp_call.py rag search_exams query="Colesterol total e Triglicerideos"`.
 3. **Rode com `--verbose`** (`cli run`): logs do ADK, do Gemini (novas tentativas) e do MCP no `stderr` e, numa falha
    inesperada, o traceback, com a chave trocada por `[GOOGLE_API_KEY]`. Sem ele, toda falha é uma linha `Erro: ...`
-   com código 2. 4. **Leia a saída como uma tabela de causas.** Cada linha vem de um ponto do código:
-
-A tabela de cada aviso (o que significa, de onde vem no código e o que fazer) está em
-[referencia.md](referencia.md#avisos-sobre-os-exames-de-um-pedido).
+   com código 2.
+4. **Leia cada aviso na tabela de causas:** o que significa, de onde vem no código e o que fazer, em
+   [referencia.md](referencia.md#avisos-sobre-os-exames-de-um-pedido).
 
 As demais mensagens de erro (API, Host, limite, cifra, hosts proibidos): a tabela completa em
-[arquitetura.md](referencia.md#mensagens-e-erros); o que fazer com cada falha de ambiente:
+[referencia.md](referencia.md#mensagens-e-erros); o que fazer com cada falha de ambiente:
 [como-rodar.md](como-rodar.md#quando-algo-falha). Para saber **por que** uma linha foi para a pergunta, ache o tipo dela
 em `line_intent` (passo 1) e procure-o no mapa [regras.md](regras.md).
 

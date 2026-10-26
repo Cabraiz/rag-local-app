@@ -3,7 +3,7 @@
 **O que tem aqui:** os comandos para subir o projeto, transpilar a spec e executar o agente (pela CLI ou pelo `adk run`/`adk web`), o que cada aviso da saída quer dizer e o que fazer quando algo falha; no fim, variáveis de ambiente, backup do banco e testes.
 
 - Leia depois do [README](../README.md#rodar-em-4-comandos), que resume tudo em 4 comandos.
-- O porquê de cada regra está em [arquitetura.md](arquitetura.md); os números, em [medicoes.md](medicoes.md).
+- O porquê de cada regra está em [regras.md](regras.md) e [decisoes.md](decisoes.md); os números, em [medicoes.md](medicoes.md).
 
 **Índice:** [Pré-requisitos](#pré-requisitos) · [1. Subir o ambiente Docker](#1-subir-o-ambiente-docker) · [2. Rodar o transpilador](#2-rodar-o-transpilador) · [3. Executar o agente](#3-executar-o-agente) · [4. Rodar com `adk run` ou `adk web`](#4-rodar-com-adk-run-ou-adk-web) · [Variáveis de ambiente](#variáveis-de-ambiente) · [Backup e restauração](#backup-e-restauração) · [Quando algo falha](#quando-algo-falha) · [Testes](#testes)
 
@@ -60,8 +60,8 @@ próximo comando.
 
 ```bash
 cp specs/listar-exames.json specs/minha-spec.json                         # ou escreva a sua do zero
-docker compose run --rm agent python -m cli transpile specs/minha-spec.json --output generated/minha.py
-docker compose run --rm agent python -m cli run --image pedido.png --spec specs/minha-spec.json --agent generated/minha.py
+docker compose run --rm agent python -m cli transpile specs/minha-spec.json --output generated/minha/agent.py
+docker compose run --rm agent python -m cli run --image pedido.png --spec specs/minha-spec.json --agent generated/minha/agent.py
 ```
 
 Sem `--output`, o novo arquivo substitui o `generated/agent.py`. Se a spec não passar na validação ou o código não
@@ -116,9 +116,9 @@ Tempo: OCR 2,1 s · busca 2,4 s · agendamento 1,6 s · total 13 s (modelo gemin
 dizer: olhe o pedido em papel (a saída mostra as linhas já mascaradas) e, se ele pede o exame, agende-o à parte.
 
 Cada aviso, o que significa, de onde vem no código e o que fazer: a tabela fica num lugar só, no
-[guia do desenvolvedor](guia-dev.md#depurar-um-pedido-que-falhou-ou-foi-perguntado).
+[referência de avisos](referencia.md#avisos-sobre-os-exames-de-um-pedido).
 
-Todos os estados de um exame e a regra de cada um: [arquitetura.md](referencia.md#agendamento-conferido-em-código).
+Todos os estados de um exame e a regra de cada um: [referencia.md](referencia.md#agendamento-conferido-em-código).
 Exemplos de linhas (negação, caixas, preparo, vários exames numa linha como "TSH, T4 livre" ou "Toxoplasmose IgG e IgM") e os limites: [regras.md](regras.md) e [medicoes.md](medicoes.md#limites-conhecidos).
 
 **A linha `Tempo:`** traz cada etapa (buscas em paralelo contam uma vez), o total e o modelo que respondeu por último;
@@ -275,11 +275,11 @@ num cofre de senhas): quem tem as duas lê os dados, e a restauração precisa d
 ## Quando algo falha
 
 **Escopo desta tabela:** falhas de ambiente e de execução (Docker, chave, portas, serviços). Os avisos sobre cada exame
-estão no [guia do desenvolvedor](guia-dev.md#depurar-um-pedido-que-falhou-ou-foi-perguntado); onde cada erro nasce no
-código, em [arquitetura.md](referencia.md#mensagens-e-erros).
+estão no [referência de avisos](referencia.md#avisos-sobre-os-exames-de-um-pedido); onde cada erro nasce no
+código, em [referencia.md](referencia.md#mensagens-e-erros).
 
 Erros saem como uma linha `Erro: ...`, com código 2. Para ver o que houve por trás, rode de novo com `--verbose`.
-Tabela completa em [arquitetura.md](referencia.md#mensagens-e-erros).
+Tabela completa em [referencia.md](referencia.md#mensagens-e-erros).
 
 | Sintoma | O que fazer |
 |---|---|
