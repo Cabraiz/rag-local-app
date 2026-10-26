@@ -1,19 +1,30 @@
 # Regras de página e de linha
 
-O que tem aqui: as 22 regras determinísticas que decidem, para cada exame lido, se ele agenda sozinho (com
-`--yes`), se vai para a lista com aviso, se fica de fora e o que o modelo lê; para cada uma, o exemplo que a
-motivou. Cada regra tem o caso que a motivou e um teste ([revisao.md](revisao.md) liga os casos aos testes).
+**O que tem aqui / quando ler.** As 22 regras determinísticas que decidem, para cada exame lido:
 
-**Onde estão.** [`guardrails/intent.py`](../guardrails/intent.py) (o que cada linha pede e se a página é só a
-lista), [`mcp_servers/ocr.py`](../mcp_servers/ocr.py) (a resposta do OCR), [`runtime/confianca.py`](../runtime/confianca.py)
-(a confiança de cada exame) e [`mcp_servers/rag.py`](../mcp_servers/rag.py) (o corte da linha em exames). Os
-vocabulários ficam em [`catalogo.py`](../catalogo.py) (os que toda imagem usa, inclusive o runtime) e
-[`guardrails/pii_rules.py`](../guardrails/pii_rules.py) (os do OCR).
+- se ele agenda sozinho, com `--yes`;
+- se vai para a lista com aviso;
+- se fica de fora;
+- o que o modelo lê.
+
+Cada regra tem o caso que a motivou e um teste ([revisao.md](revisao.md) liga os casos aos testes). Leia antes de
+mudar uma regra ou para entender um aviso.
+
+**Onde estão.**
+
+- [`guardrails/intent.py`](../guardrails/intent.py): o que cada linha pede e se a página é só a lista.
+- [`mcp_servers/ocr.py`](../mcp_servers/ocr.py): a resposta do OCR.
+- [`runtime/confianca.py`](../runtime/confianca.py): a confiança de cada exame.
+- [`mcp_servers/rag.py`](../mcp_servers/rag.py): o corte da linha em exames.
+- Os vocabulários: em [`catalogo.py`](../catalogo.py), os que toda imagem usa, inclusive o runtime; em
+  [`guardrails/pii_rules.py`](../guardrails/pii_rules.py), os do OCR.
 
 **Por que tantas regras.** A imagem é entrada não confiável e o pedido é médico.
 
 - Sem `--yes`, a pessoa confirma a lista inteira, e as regras só decidem o aviso ao lado de cada exame e o que fica de fora.
-- Com `--yes`, elas são a única barreira, então falham para o lado de perguntar: um exame só agenda sozinho se a página inteira for só a lista de exames (com rótulos, campos e o cabeçalho da clínica), em vez de procurar palavras de negação, uma lista que crescia a cada revisão.
+- Com `--yes`, elas são a única barreira, então falham para o lado de perguntar. Um exame só agenda sozinho se a página
+  inteira for só a lista de exames, com rótulos, campos e o cabeçalho da clínica. Procurar palavras de negação foi a
+  primeira versão, e a lista crescia a cada revisão.
 - As regras que valem sempre (negação, histórico, preparo, o que o modelo lê) são poucas e diretas; a maior parte da tabela existe para o `--yes` não agendar o que uma pessoa não viu.
 
 A coluna "Importa" diz quando a regra decide:
@@ -46,7 +57,9 @@ A coluna "Importa" diz quando a regra decide:
 | Um trecho, um exame | "Clearance de creatinina" toma a linha; "Creatinina" precisa de outra ocorrência | o segundo é relatado (`line_used`) | sempre |
 | O "e" que o OCR cola na palavra | "TSHe T4 livre" | a busca corta a linha ali, e "TSHe" conta como TSH (0,86) | sempre |
 
-Duas regras de nome parecido não se confundem: [`catalogo.MASK_TAG`](../catalogo.py) acha todo marcador que sai do OCR,
-inclusive `[TEXTO_REMOVIDO]`; [`pii_rules.TYPED_TAG`](../guardrails/pii_rules.py) só o de um valor mascarado por tipo
-(`[CPF]`, `[NOME]`), para que o filtro que só deixa sair o que parece exame troque o marcador interno `[INSTRUCAO_REMOVIDA]` por
-`[TEXTO_REMOVIDO]` e ele nunca saia do OCR.
+Duas regras de nome parecido não se confundem:
+
+- [`catalogo.MASK_TAG`](../catalogo.py) acha todo marcador que sai do OCR, inclusive `[TEXTO_REMOVIDO]`;
+- [`pii_rules.TYPED_TAG`](../guardrails/pii_rules.py) acha só o de um valor mascarado por tipo (`[CPF]`, `[NOME]`).
+  Assim o filtro que só deixa sair o que parece exame troca o marcador interno `[INSTRUCAO_REMOVIDA]` por
+  `[TEXTO_REMOVIDO]`, e ele nunca sai do OCR.

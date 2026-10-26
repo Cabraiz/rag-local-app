@@ -139,7 +139,8 @@ Gemini (até 5) e a espera pelo `[s/N]`: pode passar bem da soma das etapas.
 
 - Outro modelo, sem editar a spec (ou `GEMINI_MODEL=` no `.env`, para todas as execuções):
   `docker compose run --rm -e GEMINI_MODEL=<modelo> agent python -m cli run --image pedido.png`
-- Logs das bibliotecas (ADK, MCP, novas tentativas do Gemini) no stderr e, numa falha inesperada, o traceback, com a chave trocada por `[GOOGLE_API_KEY]` (vale em `run` e `transpile`):
+- Logs das bibliotecas (ADK, MCP, novas tentativas do Gemini) no stderr. Numa falha inesperada, sai também o
+  traceback, com a chave trocada por `[GOOGLE_API_KEY]`. Vale em `run` e `transpile`:
   `docker compose run --rm agent python -m cli run --image pedido.png --verbose`
 
 ### Testar outra imagem
@@ -157,7 +158,12 @@ docker compose run --rm agent python -m cli run --image <arquivo>
 
 Exemplos em `samples/`:
 
-- **`pedido-realista.png`:** cabeçalho de clínica, CPF, telefone, CID, convênio, data, CRM e 4 exames numa fonte que imita letra de mão. Glicemia e TSH são agendados; Colesterol total e Hemoglobina glicada saem em `baixa confiança` (`(confiança 0,68)`), porque o OCR leu essas linhas com 68 e 60, abaixo do piso de 75. É o esperado: o que não foi lido com segurança vai para conferência humana.
+- **`pedido-realista.png`:** cabeçalho de clínica, CPF, telefone, CID, convênio, data, CRM e 4 exames numa fonte que
+  imita letra de mão.
+  - Glicemia e TSH são agendados.
+  - Colesterol total e Hemoglobina glicada saem em `baixa confiança` (`(confiança 0,68)`): o OCR leu essas linhas com 68
+    e 60, abaixo do piso de 75.
+  - É o esperado: o que não foi lido com segurança vai para conferência humana.
 - **`pedido-sem-exame.png`:** nenhum exame, o caso (b) do [teste de alucinação](evidencias/log-alucinacao.txt): nada é agendado (na execução do teste, `Erro: a busca no catálogo não foi feita (o agente tentou agendar sem buscar os exames); nada foi agendado`). Gerado por `exemplos/gerar_pedido_sem_exame.py`, com semente fixa.
 - **`pedido-variacao.png`:** nome sem rótulo, marcadores, sinônimo `Glicose`, telefone sem rótulo, data e CRM.
 - **`ataque-injecao.png` e `ataque-exame-disfarcado.png`:** instruções escondidas; só os exames legítimos são agendados ([Segurança em detalhe](referencia.md#segurança-em-detalhe)).
@@ -165,9 +171,11 @@ Exemplos em `samples/`:
 
 ## 4. Rodar com `adk run` ou `adk web`
 
-O agente gerado também roda com as ferramentas do ADK, sem a CLI do projeto: o `transpile` grava `generated/agent.py`
-e `generated/__init__.py`, e o `agent.py` expõe `root_agent` e um `app` retomável (a confirmação da lista pausa e
-retoma a mesma chamada de agendamento).
+O agente gerado também roda com as ferramentas do ADK, sem a CLI do projeto.
+
+- O `transpile` grava `generated/agent.py` e `generated/__init__.py`.
+- O `agent.py` expõe `root_agent` e um `app` retomável: a confirmação da lista pausa e retoma a mesma chamada de
+  agendamento.
 
 ```bash
 docker compose run --rm agent python -m cli transpile specs/agent.json   # gera de novo depois de atualizar o projeto
@@ -198,7 +206,11 @@ ocupada, troque só o primeiro número (ex.: `127.0.0.1:8090:8000`).
 - **Fora do Docker**, faça o que a imagem já faz:
   - rode `adk telemetry disable`. Sem isso, o ADK pergunta sobre telemetria, e Enter responde sim;
   - defina `GOOGLE_API_USE_CLIENT_CERTIFICATE=false`, como o `docker-compose.yml` faz em `agent`, `tests` e `tests-e2e`. Sem ela, o cliente MCP do ADK 2.10 procura credenciais do Google a cada conexão, inclusive em `169.254.169.254`.
-- **Testes:** [`tests/test_adk_run.py`](../tests/test_adk_run.py) (o `adk run` e o `adk web` com modelos roteirizados, MCP e API reais), [`tests/test_adk_seguranca.py`](../tests/test_adk_seguranca.py) (um cliente que tenta forjar estado e confirmação) e [`tests/test_adk_comandos.py`](../tests/test_adk_comandos.py) (as linhas deste guia, como estão escritas).
+- **Testes:**
+  - [`tests/test_adk_run.py`](../tests/test_adk_run.py): o `adk run` e o `adk web` com modelos roteirizados, MCP e API
+    reais;
+  - [`tests/test_adk_seguranca.py`](../tests/test_adk_seguranca.py): um cliente que tenta forjar estado e confirmação;
+  - [`tests/test_adk_comandos.py`](../tests/test_adk_comandos.py): as linhas deste guia, como estão escritas.
 
 O porquê de cada defesa, e os limites do registro por sessão: [Segurança em detalhe](referencia.md#segurança-em-detalhe).
 

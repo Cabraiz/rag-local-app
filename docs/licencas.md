@@ -49,7 +49,9 @@ Docker não são distribuídas por este repositório: cada pessoa as constrói l
 
 ## Fontes e imagens dos manuscritos
 
-Os pedidos de `samples/manuscritos/` (e as cópias `samples/pedido-manuscrito*.png`) são **renderizados** por `exemplos/gerar_manuscrito.py` com as fontes de letra de mão que vêm com o Windows (Ink Free, Segoe Print e Segoe Script, além de Arial no cabeçalho e no carimbo).
+Os pedidos de `samples/manuscritos/` e as cópias `samples/pedido-manuscrito*.png` são **renderizados** por
+`exemplos/gerar_manuscrito.py`. Ele usa as fontes de letra de mão que vêm com o Windows: Ink Free, Segoe Print e Segoe
+Script, além de Arial no cabeçalho e no carimbo.
 
 - Nenhuma fonte está no repositório nem é redistribuída: só as imagens resultantes estão versionadas.
 - O gerador procura as fontes na pasta de `FONTS_DIR` ou, sem ela, nas pastas de fontes do sistema (Windows, Linux ou macOS).

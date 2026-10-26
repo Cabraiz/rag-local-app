@@ -31,7 +31,10 @@ docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga ru
 - **Agendado sozinho**, **perguntado** e **baixa confiança** seguem as [faixas de confiança](glossario.md#leitura-e-decisão-de-cada-exame).
 - **Sem estado:** nenhum dos três.
 - **Errado:** exame que o pedido não pediu.
-- **Modelo simulado:** nas medições das regras ninguém responde, e o modelo é **cuidadoso** (busca o nome de cada exame), **preguiçoso** (busca cada linha como foi lida) ou **guloso** (propõe tudo o que a busca devolve).
+- **Modelo simulado:** nas medições das regras ninguém responde, e o modelo é um destes:
+  - **cuidadoso:** busca o nome de cada exame;
+  - **preguiçoso:** busca cada linha como foi lida;
+  - **guloso:** propõe tudo o que a busca devolve.
 - **Na época:** cada seção do [histórico das regras](#histórico-das-regras-de-linha-e-de-página) mede uma regra quando ela entrou, com o modelo simulado daquela medição. Os números não se comparam entre seções; os de hoje estão no [Estado atual](#estado-atual).
 
 ## Estado atual
@@ -84,31 +87,41 @@ O limiar de 0,90 foi calibrado em 631 consultas versionadas em [`tests/calibrati
 - Com só 10 erros conhecidos, é uma checagem de piso, não uma taxa de erro; [`test_calibration.py`](../tests/test_calibration.py) recalcula os números com o RAG atual.
 - Os erros de score alto eram consultas curtas, como um "IGF-1" manuscrito lido "GA" e tomado por IgA (0,80).
 - O corte de 0,6 do RAG só decide o que vira candidato.
-- **Com a leitura real do OCR** e os pisos de leitura: nas 120 manuscritas ([`tests/load/manuscritos.py`](../tests/load/manuscritos.py)), nenhum exame errado é agendado sem confirmação (5 erros de leitura viram pergunta); com 200 pedidos da carga, 602 dos 618 exames são agendados sozinhos e 12 são perguntados ([estado atual](#estado-atual)).
+- **Com a leitura real do OCR** e os pisos de leitura ([estado atual](#estado-atual)):
+  - nas 120 manuscritas ([`tests/load/manuscritos.py`](../tests/load/manuscritos.py)), nenhum exame errado é agendado
+    sem confirmação; 5 erros de leitura viram pergunta;
+  - com 200 pedidos da carga, 602 dos 618 exames são agendados sozinhos e 12 são perguntados.
 
 ## Carga de dados sensíveis
 
-`tests/load/carga.py` gera 500 pedidos com semente fixa (3 layouts, 3 fontes, rotação e ruído), com 12 campos
-sensíveis (nome do paciente e do médico, CPF, RG, telefone, e-mail, endereço, CEP, nascimento, CRM, carteirinha e CID)
-e de 1 a 5 exames, e os passa em paralelo
-(`--concorrencia`) pelo OCR via MCP/SSE, pelo RAG e pela API. O banco, cifrado, é conferido nos bytes crus do SQLite e
-do WAL e pelo `GET` de cada agendamento, que prova que a API decifra o que gravou.
+`tests/load/carga.py` gera 500 pedidos com semente fixa, em 3 layouts e 3 fontes, com rotação e ruído.
+
+- **Cada pedido** tem 12 campos sensíveis (nome do paciente e do médico, CPF, RG, telefone, e-mail, endereço, CEP,
+  nascimento, CRM, carteirinha e CID) e de 1 a 5 exames.
+- **O caminho:** os pedidos passam em paralelo (`--concorrencia`) pelo OCR via MCP/SSE, pelo RAG e pela API.
+- **A conferência:** o banco, cifrado, é lido nos bytes crus do SQLite e do WAL. O `GET` de cada agendamento prova que
+  a API decifra o que gravou.
 
 | Pedidos | Campos sensíveis | Vazamentos no texto | Valores em claro no banco | `GET` igual ao enviado | Exames preservados | Códigos certos no RAG | OCR p50 / p95 | Vazão |
 |---|---|---|---|---|---|---|---|---|
 | 500 | 6.000 | **0** | **0** | 499/499 (499 de 500 agendados) | 98,3% (1.511 de 1.537) | 98,6% (1.516 de 1.537) | 0,55 s / 0,71 s | 5,0 pedidos/s |
 
-- **Os 26 exames que faltam** são erros do OCR na letra ou sigla final ("Troponina I" lido "Troponina 1"): Troponina
-  I 7, Proteína C 7, Urina tipo I 5, Peptídeo C 4, CK MB 2, LDH 1; nenhum apagado pela máscara. O pedido não agendado
-  tem um só exame, não lido. 0 sessões MCP quebraram ou ficaram abertas.
+- **Os 26 exames que faltam** são erros do OCR na letra ou sigla final, como "Troponina I" lido "Troponina 1".
+  Nenhum foi apagado pela máscara. Por exame: Troponina I 7, Proteína C 7, Urina tipo I 5, Peptídeo C 4, CK MB 2 e
+  LDH 1.
+- **O pedido não agendado** tem um só exame, não lido.
+- **Sessões MCP:** 0 quebraram ou ficaram abertas.
 - **Latência:** a tabela foi medida sem os limites de CPU e memória do compose. Com eles (OCR com 2 CPUs e 1,5 GB, até
   3 leituras simultâneas), 100 pedidos com 8 em paralelo: p50 / p95 de 2,18 s / 2,64 s, 3,6 pedidos/s, 0 vazamentos.
 
 ## Fotos de celular de pedidos impressos
 
-`samples/fotos-celular/` tem 30 fotos de celular **simuladas** (geradas por `tests/load/fotos.py`, semente fixa) de
-pedidos **impressos** fictícios nos 3 layouts da carga: papel curvo, perspectiva, luz desigual, sombra, desfoque,
-ruído e JPEG, em 3 níveis, pelo OCR, pelo RAG e pela regra real. Na CI, `tests/load/test_fotos.py` roda 5 das 30.
+`samples/fotos-celular/` tem 30 fotos de celular **simuladas** de pedidos **impressos** fictícios, geradas por
+`tests/load/fotos.py` com semente fixa.
+
+- **Layouts:** os 3 da carga.
+- **Degradação, em 3 níveis:** papel curvo, perspectiva, luz desigual, sombra, desfoque, ruído e JPEG.
+- **Medição:** cada foto passa pelo OCR, pelo RAG e pela regra real. Na CI, `tests/load/test_fotos.py` roda 5 das 30.
 
 **Números de antes da [regra por página](#lista-branca-por-página).** Hoje são 85 agendados sozinhos e 6 perguntados
 ([estado atual](#estado-atual)).
@@ -156,10 +169,11 @@ Glicemia de jejum e Creatinina); 17 testes, 22 casos.
   [decisões](decisoes.md#pii-mascarada-na-origem-banco-sem-pii).
 - **Imagens da carga:** num volume em memória (tmpfs) que o OCR vê como `/data/samples`, só leitura; nada gerado vai
   para o disco ou o git. Na CI, [`test_carga.py`](../tests/test_carga.py) roda 20 pedidos e falha se um valor vazar.
-- **O que a carga achou e corrigiu:** 13 formas de vazamento por erro de leitura, cada uma com teste em
-  [`test_pii.py`](../tests/test_pii.py) (e-mail com o "@" lido "g" ou "€", CPF com vírgula ou colado ao rótulo,
-  `CRM-R]`…); e 8 leituras em paralelo levavam 88 s em vez de 2 s (o Tesseract usava todos os núcleos; hoje, uma
-  thread por chamada).
+- **O que a carga achou e corrigiu:**
+  - 13 formas de vazamento por erro de leitura, cada uma com teste em [`test_pii.py`](../tests/test_pii.py): e-mail com
+    o "@" lido "g" ou "€", CPF com vírgula ou colado ao rótulo, `CRM-R]`…;
+  - 8 leituras em paralelo levavam 88 s em vez de 2 s, porque o Tesseract usava todos os núcleos. Hoje, uma thread por
+    chamada.
 
 ## Texto livre fora do modelo
 
@@ -189,11 +203,8 @@ A tabela é da época desta regra. Com as regras de página que vieram depois e 
 - carga e `pedido.png`: iguais;
 - sempre 0 errados e 0 PII.
 
-A linha omitida a mais nas manuscritas é um item com o nome do paciente depois do exame, que agora vai ao modelo
-mascarado e fica para conferir.
-
-- **As 2 de baixa confiança a menos** (Creatinina em `medico-036` e `medico-038`) vinham do carimbo "Clínica Médica"
-  (0,65 com "Creatinina sérica"); o OCR não leu a linha do exame.
+- **As 2 de baixa confiança a menos** são a Creatinina em `medico-036` e `medico-038`. Elas vinham do carimbo
+  "Clínica Médica", que dava 0,65 com "Creatinina sérica"; o OCR não leu a linha do exame.
 - **Por que a busca:** exigir uma palavra de exame que não fosse qualificador perderia "Colesterol total" e "Urina tipo I" (13 agendados a menos nas manuscritas, 5 nas fotos).
 - **Restos de PII na linha de exame** saem pela forma ([`test_pii.py`](../tests/test_pii.py)): documento com qualquer
   separador (`898*0010*0123*4567`), número longo antes de unidade de tempo (`12345678 h`), nome depois do exame
@@ -244,8 +255,10 @@ Com a [regra de página](#lista-branca-por-página), os agendados sozinhos caem 
 
 - **Sem a busca por pedaço** (cada exame da linha buscado à parte, ":" como separador, como em "Solicito: PSA total"),
   seriam 103 agendados sozinhos e 41 perguntados, em vez de 113 e 37.
-- **Os 5 errados perguntados** (comum-013, 028, 038, 042 e 048) são trocas de leitura que a pessoa vê: "TGP" lido
-  "TAP" (Tempo de protrombina, 2 vezes), "Vitamina D" lido "Vitamina 2" (Vitamina B12) e 2 cálcios.
+- **Os 5 errados perguntados** (comum-013, 028, 038, 042 e 048) são trocas de leitura que a pessoa vê:
+  - "TGP" lido "TAP", que é Tempo de protrombina (2 vezes);
+  - "Vitamina D" lido "Vitamina 2", que bate com Vitamina B12;
+  - 2 cálcios.
 - **0 PII sobrando;** sem a última etapa da máscara (só sai do OCR o que parece exame), sobravam 33 valores.
 - **20 linhas, em 19 imagens,** saem como `lido mas não reconhecido no catálogo: linha N`: 18 exames deformados demais
   ("- Pafinina") e 2 nomes de paciente escritos como item.
@@ -298,8 +311,8 @@ Total: **312 ok, 290 recusas com mensagem clara e 0 falhas**, p95 de até 0,97 s
 erro 500, traceback, PII no texto do OCR ou exame agendado fora da imagem, e toda recusa com uma frase para o usuário.
 
 - Página em branco e imagem de 50 px são recusadas com uma dica ([qualidade da foto](#qualidade-da-foto)).
-- A mesma linha 2 ou 3 vezes ("- Colesterol LDL") não agenda o vizinho parecido (Colesterol HDL, 0,93): só o melhor
-  resultado de cada busca se prende às palavras, e cópias idênticas valem um exame (teste para 1, 2 e 3).
+- A mesma linha 2 ou 3 vezes ("- Colesterol LDL") não agenda o vizinho parecido (Colesterol HDL, 0,93). Só o melhor
+  resultado de cada busca se prende às palavras, e cópias idênticas valem um exame; há teste para 1, 2 e 3 cópias.
 - Argumento de tipo errado recebe uma frase (`filename deve ser o nome de um arquivo, ex.: pedido.png.`); ausente, a
   recusa do SDK do MCP (`filename` e `query` seguem obrigatórios no schema). Na CI, `tests/test_robustez.py` roda um
   caso de cada categoria.
@@ -333,15 +346,26 @@ docker compose run --rm --no-deps tests python -c "from pathlib import Path; fro
 
 ## OCR moderno (avaliado, não adotado)
 
-Em 42 manuscritos, o EasyOCR acha 35,5% dos exames (o Tesseract com preparo, 32,3%; os dois juntos, 41,9%), mas soma
-2,1 GB à imagem, 1,4 GB de memória e 26 s no p95 por imagem em CPU; o PaddleOCR soma 2,4 GB. Fica para quando houver
-GPU ou um modelo menor. _Medido fora do repositório, sem os dados aqui_: nenhum dos dois entra nas imagens.
+Em 42 manuscritos, o EasyOCR acha 35,5% dos exames; o Tesseract com preparo, 32,3%; os dois juntos, 41,9%
+(_medido fora do repositório, sem os dados aqui_).
+
+- **Custo:** o EasyOCR soma 2,1 GB à imagem, 1,4 GB de memória e 26 s no p95 por imagem em CPU; o PaddleOCR soma
+  2,4 GB.
+- **Decisão:** fica para quando houver GPU ou um modelo menor. Nenhum dos dois entra nas imagens.
 
 ## Letra de médico: leitor local avaliado, não ligado por padrão
 
-Para ver se um leitor de visão local, sem internet, lê letra de médico, cada linha escrita à mão foi recortada (pelas caixas do gerador) e lida pelo **Qwen3-VL 2B Instruct** (Q8_0, `llama-server` do llama.cpp, CPU com 4 núcleos e 8 GB, sem rede) e pelo **TrOCR base handwritten**.
+Para ver se um leitor de visão local, sem internet, lê letra de médico, cada linha escrita à mão foi recortada pelas
+caixas do gerador e lida por dois leitores:
 
-- Conjunto: 115 dos 120 manuscritos (66 de letra comum, 49 de médico; 5 que o gerador desta máquina não reproduz ficaram de fora), com 3 linhas por página que não são exame, e uma foto real de pedido pré-operatório (5 exames do catálogo e 1 fora), da qual só se guarda acerto ou erro.
+- **Qwen3-VL 2B Instruct:** Q8_0, `llama-server` do llama.cpp, CPU com 4 núcleos e 8 GB, sem rede;
+- **TrOCR base handwritten.**
+
+- **Conjunto:**
+  - 115 dos 120 manuscritos: 66 de letra comum e 49 de médico. Os 5 que o gerador desta máquina não reproduz ficaram de
+    fora.
+  - 3 linhas por página que não são exame, para medir a abstenção.
+  - Uma foto real de pedido pré-operatório, com 5 exames do catálogo e 1 fora. Dela só se guarda acerto ou erro.
 - Duas rodadas por leitor (na letra comum, a 2ª do Qwen3-VL cobriu 20 páginas), saídas idênticas (temperatura 0).
 - "Errado confiante": exame aceito que o pedido não tem.
 - Repetir: [`exemplos/avaliar_letra.py`](../exemplos/avaliar_letra.py) ([comandos](../exemplos/README.md#letra-de-médico-avaliar-um-leitor-local-experimento)).
@@ -357,23 +381,30 @@ Para ver se um leitor de visão local, sem internet, lê letra de médico, cada 
 | TrOCR, 5 leituras reordenadas pelo RAG ≥ 0,90 (10 páginas, 45 exames) | 15 de 45 (33%) | 0 | 67% | — | — | 70–76 · 84–92 |
 | Qwen3-VL acordo + livre ≥ 0,80, nas mesmas 10 páginas | 15 de 45 (33%) | 0 | 67% | — | — | 21 · 32 |
 
-**Na foto real, nenhum leitor aceitou exame errado** (_medido fora do repositório, sem os dados aqui_): o Tesseract e
-as regras de acordo se abstiveram em todas as linhas, inclusive o cabeçalho e o exame fora do catálogo; o modo fechado
-sozinho acertou 1 de 5: letra real de médico segue fora do alcance do modelo pequeno.
+**Na foto real, nenhum leitor aceitou exame errado** (_medido fora do repositório, sem os dados aqui_).
+
+- O Tesseract e as regras de acordo se abstiveram em todas as linhas, inclusive o cabeçalho e o exame fora do catálogo.
+- O modo fechado sozinho acertou 1 de 5.
+- Letra real de médico segue fora do alcance do modelo pequeno.
 
 - **Regra de acordo.** O modo fechado (catálogo no prompt e gramática GBNF: só sai um nome do catálogo ou `NENHUM`) não carrega PII, mas chuta: 71 errados na letra de médico, como "Sódio" para "Solicito:".
-  - O acordo só aceita se a transcrição livre, pela busca, aponta o mesmo exame **e** vale um exame por si (score ≥ 0,80, o piso de "exame próprio" de [`mcp_servers/rag.py`](../mcp_servers/rag.py)); sem o piso, "Solicito." virava Sódio (0,62) em 5 páginas.
+  - O acordo só aceita um exame quando a transcrição livre, pela busca, aponta o mesmo exame **e** vale um exame por si:
+    score ≥ 0,80, o piso de "exame próprio" de [`mcp_servers/rag.py`](../mcp_servers/rag.py). Sem o piso, "Solicito."
+    virava Sódio (0,62) em 5 páginas.
   - Piso escolhido na letra de médico, conferido na comum.
-- **Custo.** Qwen3-VL: 2,2 GB de pesos (modelo 1,8 GB + projetor 0,45 GB), imagem de 1,2 GB, cerca de 3 GiB de
-  memória (o cache de prompts chega a 7,6 de 8 GiB), 2–3 s por linha (p95 3–5 s). TrOCR: 1,3 GB de pesos, cerca de
-  1,5 GB de PyTorch, 1,8 GB de memória; lê o mesmo que o Qwen3-VL, 3 vezes mais lento e sem catálogo.
+- **Custo:**
+  - Qwen3-VL: 2,2 GB de pesos (modelo 1,8 GB e projetor 0,45 GB), imagem de 1,2 GB e cerca de 3 GiB de memória. O
+    cache de prompts chega a 7,6 de 8 GiB. Leva 2–3 s por linha (p95 3–5 s).
+  - TrOCR: 1,3 GB de pesos, cerca de 1,5 GB de PyTorch e 1,8 GB de memória. Lê o mesmo que o Qwen3-VL, 3 vezes mais
+    lento e sem catálogo.
 - **Decisão: avaliado, não ligado por padrão.** Ganho real e sem erro, mas somaria um serviço, cerca de 3,4 GB e 14 a
   24 s por página (contra cerca de 1 s). Produção:
   [pedido em papel, em produção](decisoes.md#pedido-em-papel-em-produção).
 - **Licenças.** Qwen3-VL: Apache-2.0; llama.cpp: MIT; TrOCR: o cartão diz MIT, mas foi ajustado no conjunto IAM, só
   para pesquisa não comercial (uso comercial dos pesos é zona cinzenta).
 - **Estado da arte.** Não há modelo aberto nem conjunto de letra de médico em português (o mais próximo, BRESSAY, CC-BY-4.0, [Zenodo](https://zenodo.org/records/11637681), não publicou os modelos da ICDAR 2024).
-  - A nuvem (Google Document AI e Gemini, Azure, AWS Textract) leva dado de saúde para fora (na LGPD, contrato de operador).
+  - A nuvem leva dado de saúde para fora, o que na LGPD pede contrato de operador: Google Document AI e Gemini, Azure e
+    AWS Textract.
   - E modelos fortes erram com confiança: 63% a 91% dos erros vieram do "chute" pelo idioma ([WildHandBench](https://arxiv.org/abs/2608.22959)).
 
 ## Linhas com vários exames e sorologias
@@ -381,17 +412,22 @@ sozinho acertou 1 de 5: letra real de médico segue fora do alcance do modelo pe
 Um pedido junta exames na mesma linha ("Toxoplasmose IgG e IgM", "PSA total e livre", "Vitamina B12 e D"). Buscada
 inteira, a linha casa com um nome só e o resto fica sem estado. Por isso:
 
-- **A busca separa a linha** em " e ", ",", "+", ";", "/" e ":", sem partir um nome do catálogo ("HIV antigeno e anticorpos"), e num "e" grudado pelo OCR ("TSHe T4 livre") se os dois lados são exames; nas 1.750 linhas distintas
-  dos corpora legítimos, nenhuma é cortada de outro jeito.
+- **A busca separa a linha** em " e ", ",", "+", ";", "/" e ":", sem partir um nome do catálogo
+  ("HIV antigeno e anticorpos").
+  - Também separa num "e" grudado pelo OCR ("TSHe T4 livre"), se os dois lados são exames.
+  - Nas 1.750 linhas distintas dos corpora legítimos, nenhuma é cortada de outro jeito.
 - **O pedaço que é parte do vizinho é completado por ele:** "Toxoplasmose IgG e IgM" → Toxoplasmose IgM (não a IgM
   genérica), "PSA total e livre" → PSA livre. Amostra ou tempo ("urina 24h") não vira busca.
 - **Exame que o pedido não nomeia** (a IgM genérica de "Chagas IgG e IgM"; Chagas IgG para "Chagas IgM", que o
   catálogo não tem) só sai em `baixa confiança`.
 - **A CLI confere o pedido inteiro:** exame sem decisão sai como `não buscado pelo agente` ou `não incluído pelo agente`, e a confirmação termina com `ATENÇÃO: N possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima`.
 
-Medido com o pior modelo plausível (busca cada linha inteira e propõe tudo), em conjuntos com semente fixa feitos por quem não escreveu a correção (_medidos fora do repositório, sem os dados aqui_).
+Medido com o pior modelo plausível, que busca cada linha inteira e propõe tudo. Os conjuntos têm semente fixa e foram
+feitos por quem não escreveu a correção (_medidos fora do repositório, sem os dados aqui_).
 
-- **Sorologias, qualificadores e controles** (198 linhas, 325 exames): 84 de sorologia (6 doenças, IgG e IgM em várias formas), 36 de qualificadores, 30 de controle, 40 variantes e 8 linhas que não podem mudar.
+- **Sorologias, qualificadores e controles:** 198 linhas, 325 exames.
+  - 84 de sorologia: 6 doenças, IgG e IgM em várias formas.
+  - 36 de qualificadores, 30 de controle, 40 variantes e 8 linhas que não podem mudar.
 - Sem o exame no catálogo (Chagas IgM, Hepatite A), o esperado é nada.
 
 | Versão | Agendados certos | **Agendados errados** | Perguntados | Perguntas fora do pedido | Avisados | Sem aviso |
@@ -433,12 +469,18 @@ nas linhas do OCR). Melhor resultado de cada consulta:
 ¹ Leituras erradas do OCR que batem com outro exame ("TGP" lido "TAP"), iguais nas duas buscas; o piso de leitura do
 OCR não as agenda sozinhas.
 
-- **Ganho:** nenhum agendamento a mais. As perguntas certas sobem 15 nas paráfrases (0 erradas a mais), 15 nas linhas do OCR (2 erradas a mais) e 1 na calibração (4 erradas a mais).
+- **Ganho:** nenhum agendamento a mais. As perguntas certas sobem:
+  - 15 nas paráfrases, com 0 erradas a mais;
+  - 15 nas linhas do OCR, com 2 erradas a mais;
+  - 1 na calibração, com 4 erradas a mais.
 - **Limite:** a última etapa da máscara (a "rede de segurança", que tira da linha o que não parece exame) barra 56 das
   104 paráfrases antes do RAG; afrouxá-la enfraqueceria a privacidade.
-- **Custo:** a imagem `rag` iria de 235 MB para 697 MB e a `agent` de então (662 MB, antes de ficar enxuta) para
-  1.117 MB (onnxruntime, numpy, tokenizers e os 135 MB do modelo); o build sem cache da `agent`, de 183 s para 755 a
-  941 s; cerca de 5 ms por consulta.
+- **Custo:**
+  - a imagem `rag` iria de 235 MB para 697 MB;
+  - a `agent` de então iria de 662 MB (antes de ficar enxuta) para 1.117 MB: onnxruntime, numpy, tokenizers e os 135 MB
+    do modelo;
+  - o build sem cache da `agent` iria de 183 s para 755 a 941 s;
+  - cerca de 5 ms por consulta.
 
 Por isso a busca segue lexical (cerca de 460 MB a mais por imagem e três dependências, por ganho só em perguntas).
 Medido num build separado; nem o código nem as paráfrases entram no projeto.
@@ -481,7 +523,14 @@ O OCR lê o que cada linha pede antes da máscara ([referência](referencia.md#o
 | Os 61 casos do 2º conjunto | 26 exames negados ou já feitos agendados (cuidadoso) e 10 (preguiçoso); 1 em silêncio | **0 e 0; nenhum em silêncio** | `pytest tests/test_negacao_casos.py` |
 | 12 imagens em que o Gemini real agendava exames cancelados em outra linha, numa tabela "Realizar?", no rodapé ou em resultados anteriores (regra de página) | 16 (cuidadoso) e 12 (preguiçoso) | **0 e 0** | 4 delas redesenhadas em `tests/test_negacao_casos.py` |
 
-**Custo, de propósito:** passam a perguntar "Hemograma completo, Ferritina e TSH, exceto Ferritina" (os 3), "TSH e T4 livre - não repetir T4 livre" (TSH), "Ferritina e TSH: realizar apenas TSH" (os 2), "Ferritina - controle após suspensão do ferro" e linhas com valor e unidade ("Glicemia de jejum 98 mg/dL"), com `a linha parece um resultado`.
+**Custo, de propósito.** Passam a ser perguntadas as linhas abaixo. Cada uma é `uncertain`, e o exame sai com
+`; o pedido tem outras palavras além do exame`:
+
+- "Hemograma completo, Ferritina e TSH, exceto Ferritina" (os 3);
+- "TSH e T4 livre - não repetir T4 livre" (TSH);
+- "Ferritina e TSH: realizar apenas TSH" (os 2);
+- "Ferritina - controle após suspensão do ferro";
+- linhas com valor e unidade, como "Glicemia de jejum 98 mg/dL".
 
 ### Lista branca: só agenda sozinha a linha que é só exame
 
@@ -497,7 +546,7 @@ Uma linha só agenda sozinha se, tirados marcador, rótulo e conectivos, sobram 
 | 30 linhas novas com outras palavras ("Ferritina talvez", "TSH ~", "PSA total - opcional"...) | 30 de 30 agendadas | **0 agendadas**: 30 perguntadas | `pytest tests/test_negacao.py` |
 | Nome do paciente ou do médico que é palavra de exame ("Paciente: Albina Ferro", "Dr. Paulo Fosforo") | "Albina Ferro" chegava ao modelo; "Maria Ferro" saía "[NOME] Ferro" | o valor inteiro do rótulo vira `[NOME]` | `pytest tests/test_negacao_casos.py` |
 | "=Creatinina" lido com 75 (um traço sobre o nome) | agendado | perguntado; "Creatinina" limpo lido com 76 continua agendado | `pytest tests/test_negacao_casos.py` |
-| Os 77 casos do 2º conjunto de ataques | 0 cancelados agendados, 0 em silêncio; 12 pedidos perguntados | 0 e 0; **41 pedidos perguntados** | _medido fora do repositório, sem os dados aqui_ |
+| 77 casos de ataque de um conjunto externo (não é o 2º conjunto acima) | 0 cancelados agendados, 0 em silêncio; 12 pedidos perguntados | 0 e 0; **41 pedidos perguntados** | _medido fora do repositório, sem os dados aqui_ |
 
 **Conjuntos honestos** com as regras de negação (iguais a sem regras, salvo onde dito) e também com esta. São números da época desta regra; os de hoje estão no [estado atual](#estado-atual):
 
@@ -536,9 +585,13 @@ Um exame só agenda sozinho se a página inteira for só a lista de exames ([`gu
 
 **Custo:** só passam a ser perguntados exames em páginas com algo além da lista; nenhum é agendado errado.
 
-- Em `samples/`, os dois ataques de injeção (3 e 1 exames) e `pedido-manuscrito.png` (4: assinatura à mão lida com confiança 27 a 38).
+- Em `samples/`: os dois ataques de injeção (3 e 1 exames) e `pedido-manuscrito.png` (4 exames), por uma assinatura à
+  mão lida com confiança de 27 a 38.
 - Nas fotos, `foto-07`, `foto-09` e `foto-26` (timbre lido com confiança 38).
-- Nas manuscritas, 82 exames de 41 páginas sem observação, pelo erro do OCR na letra de mão: em 24, texto tirado e lido com confiança abaixo de 60; em 12, linha que não é lista nem campo; em 5, exame com outra palavra.
+- Nas manuscritas, 82 exames de 41 páginas sem observação, pelo erro do OCR na letra de mão:
+  - em 24 páginas, texto tirado e lido com confiança abaixo de 60;
+  - em 12, uma linha que não é lista nem campo;
+  - em 5, um exame com outra palavra.
 - Sem a regra da confiança baixa, 19 das 120 páginas ficariam limpas em vez de 13.
 
 ### Rodapé, formulário, nome e nome mais longo
@@ -548,7 +601,8 @@ Regras para furos achados em 37 pedidos adversariais e 16 honestos em imagem ([r
 - abaixo do 1º exame, nada é timbre
 - formulário com marcas em só algumas linhas pergunta tudo (`; formulário com marcas: só os marcados contam; confira`)
 - maiúscula ao lado de `[NOME]` ("Érica Ferro") é do nome, e a linha sai de `exam_lines`
-- trecho dentro do nome mais longo de outro exame (`exam_terms`: "Proteína C" em "Proteína C reativa") é no máximo perguntado (11 casos: 6 agendados sem a regra, 0 com ela)
+- trecho dentro do nome mais longo de outro exame (`exam_terms`: "Proteína C" em "Proteína C reativa") é no máximo
+  perguntado. Em 11 casos, 6 eram agendados sem a regra, e 0 com ela
 - número ou palavra com maiúscula fora do catálogo depois do exame sai ("Franco")
 - contagem menor que a lista tira a página da lista.
 
@@ -561,8 +615,12 @@ manuscritas aqui (32, 124, 0) difere da seção anterior (32, 118, 0, só o cuid
 | 120 manuscritas (497 exames): agendados sozinhos, perguntados, errados | 32, 124, 0 | 24, 131, 0 (hoje 24, 126, 0: [estado atual](#estado-atual)) |
 | 84 pedidos de uma pré-checagem independente (64 adversariais, 20 honestos): adversariais com exame errado agendado sozinho; exames honestos perguntados | 2; 46 de 82 (56%) | **0**; 24 de 82 (29%) |
 
-Sem mudança (agendados sozinhos, perguntados, errados): 16 honestos (62 exames: 45, 12, 0), 30 fotos (85, 4, 0), 200
-da carga (618 exames: 602, 12, 0) e `samples/` (13 sozinhos).
+Sem mudança, em agendados sozinhos, perguntados e errados:
+
+- 16 honestos (62 exames): 45, 12, 0;
+- 30 fotos: 85, 4, 0;
+- 200 da carga (618 exames): 602, 12, 0;
+- `samples/`: 13 sozinhos.
 
 - **Os 5 que ainda passam:** tinta que o OCR não lê (2 carimbos "CANCELADO", 2 notas giradas, na vertical e a 18°) e
   um exame acrescentado como item comum, em outra letra ([limites](#limites-conhecidos)).
@@ -572,9 +630,11 @@ da carga (618 exames: 602, 12, 0) e `samples/` (13 sozinhos).
 - **Na pré-checagem,** 22 deixam de ser perguntados ("Solicito os seguintes exames:" é rótulo); os 24 restantes têm
   assinatura à mão abaixo da lista (8 páginas).
 - **Detectar tinta não lida: avaliado, não ligado.** Cor saturada ou tinta escura fora das palavras lidas pegariam os
-  4 casos, mas disparam em quase todas as fotos e manuscritas (tinta fora das caixas acima de 0,06% da página em 30 de
-  30 fotos e 110 de 120 manuscritas): custariam os 85 exames que as fotos agendam sozinhas e 13 das manuscritas. Nos
-  200 impressos da carga, nenhum dispara.
+  4 casos.
+  - Mas disparam em quase todas as fotos e manuscritas: tinta fora das caixas acima de 0,06% da página em 30 de 30 fotos
+    e 110 de 120 manuscritas.
+  - Custariam os 85 exames que as fotos agendam sozinhas e 13 das manuscritas. Nos 200 impressos da carga, nenhum
+    dispara.
 
 ### Anotação, timbre e o contexto antes da pergunta
 
@@ -599,14 +659,19 @@ Exames para agendar:
 Agendar estes 3 exames?
 ```
 
-Medido como na seção anterior (o modelo busca o nome de cada exame do gabarito e cada linha): nos 29 adversariais, os
-exames errados agendados sozinhos caem de 9 (em 8 pedidos) para **6 (em 6)**; nas 16 notas de topo, as páginas limpas,
-de 8 para **0**. Os 6 que passam são tinta que o OCR não lê (2 carimbos, nota na vertical, "NÃO" a lápis claro) e
-exame acrescentado como item comum (2, um em outra letra e cor).
+Medido como na seção anterior: o modelo busca o nome de cada exame do gabarito e cada linha.
 
-**Custo nas páginas honestas: nenhum exame errado.** Este modelo simulado também busca o nome de cada exame do
-gabarito, por isso alguns números diferem da seção anterior (16 honestos com 60 exames contados, e não 62; fotos com 6
-perguntados, e não 4). São os números do [Estado atual](#estado-atual):
+- Nos 29 adversariais, os exames errados agendados sozinhos caem de 9 (em 8 pedidos) para **6 (em 6)**.
+- Nas 16 notas de topo, as páginas limpas caem de 8 para **0**.
+- Os 6 que passam:
+  - tinta que o OCR não lê: 2 carimbos, uma nota na vertical e um "NÃO" a lápis claro;
+  - exame acrescentado como item comum: 2, um deles em outra letra e cor.
+
+**Custo nas páginas honestas: nenhum exame errado.** São os números do [Estado atual](#estado-atual). Alguns diferem
+da seção anterior porque este modelo simulado também busca o nome de cada exame do gabarito:
+
+- os 16 honestos contam 60 exames, e não 62;
+- as fotos têm 6 perguntados, e não 4.
 
 | Conjunto | Páginas que são só a lista | Agendados sozinhos | Perguntados | Errados |
 |---|---|---|---|---|

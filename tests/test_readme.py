@@ -161,6 +161,65 @@ def test_every_test_file_is_in_the_developer_guide_map():
     assert not missing, 'missing from the table "Onde cada tema é testado" of docs/guia-dev.md: ' + ', '.join(missing)
 
 
+def test_every_message_the_report_writes_is_in_the_warnings_table():
+    """Each fixed piece of every message runtime/relatorio.py writes about an exam is in the table a reader searches."""
+    from runtime import relatorio
+    reference = (ROOT / 'docs' / 'referencia.md').read_text(encoding='utf-8')
+    table = reference.split('### Avisos sobre os exames de um pedido', 1)[1].split('\n### ', 1)[0]
+    messages = [*relatorio.WHY.values(), *relatorio.LEFT_OUT.values(), *relatorio.REFUSED.values()]
+    pieces = {piece.strip() for message in messages for piece in re.split(r'\{\w+\}', message) if len(piece.strip()) > 8}
+    missing = sorted(piece for piece in pieces if piece not in table)
+    assert not missing, 'missing from "Avisos sobre os exames de um pedido" in docs/referencia.md: ' + ' | '.join(missing)
+
+
+# --- 2b. Prose a reader can scan ------------------------------------------------------------------
+
+LIST_ITEM = re.compile(r'\s*(?:[-*]|\d+\.) ')
+MAX_WORDS, MAX_ASIDES = 40, 1  # per sentence; an aside is a parenthesis of 4 words or more
+
+
+def prose_paragraphs(doc):
+    """(first line, text) of each paragraph or list item outside code, tables, headings and the one-line indexes."""
+    out, current, start = [], [], 0
+    for number, line, fence in lines_of(doc) + [(0, '', None)]:
+        stripped = line.strip()
+        skip = fence or stripped.startswith(('|', '#', '<', 'https://')) or ' · ' in stripped
+        if skip or not stripped or LIST_ITEM.match(line):
+            if current:
+                out.append((start, ' '.join(current)))
+            current, start = ([stripped] if stripped and not skip else []), number
+            continue
+        current, start = current + [stripped], start if current else number
+    return out
+
+
+def test_prose_sentences_stay_short():
+    """docs/ only: one idea per sentence, the rule before the exception (the Google developer documentation style)."""
+    stale = []
+    for doc in DOCS[1:]:
+        for number, text in prose_paragraphs(doc):
+            plain = re.sub(r'`[^`]*`', 'X', re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', text))
+            for sentence in re.split(r'(?<=[.!?])\s+(?=[A-Z"*(])', plain):
+                words = len(sentence.split())
+                asides = sum(len(inner.split()) >= 4 for inner in re.findall(r'\(([^()]*)\)', sentence))
+                if words > MAX_WORDS or asides > MAX_ASIDES:
+                    stale.append(f'{rel(doc)}:{number}: {words} words, {asides} asides: {sentence[:80]}…')
+    assert not stale, 'split these sentences:\n' + '\n'.join(stale)
+
+
+def test_a_list_item_never_runs_into_an_unindented_line():
+    """A line right after a list item, not indented and not a new item, is glued to the item on GitHub."""
+    stale = []
+    for doc in DOCS:
+        previous = (0, '', None)
+        for number, line, fence in lines_of(doc):
+            if not fence and not previous[2] and LIST_ITEM.match(previous[1]) and line.strip() \
+                    and not line.startswith((' ', '|', '#', '<', '`')) and not LIST_ITEM.match(line):
+                stale.append(f'{rel(doc)}:{number}: {line[:60]}')
+            previous = (number, line, fence)
+    assert not stale, 'indent the line or leave a blank line before it:\n' + '\n'.join(stale)
+
+
 # --- 3. Numbers the docs quote that can be computed offline --------------------------------------
 
 def read_json(path):

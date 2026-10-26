@@ -1,14 +1,22 @@
 # Transpilador: spec JSON → agente Google ADK
 
-O que tem aqui: o que o `transpile` faz, as cinco specs de exemplo, o que fica na spec, no transpilador,
-no código gerado e no `runtime/`, cada campo da spec, cada erro de validação com a mensagem real, como o
-arquivo é gerado e as proteções que nenhuma spec remove, inclusive a confirmação da lista.
+**O que tem aqui / quando ler.** Leia para escrever ou validar uma spec, ou para entender o código gerado:
+
+- o que o `transpile` faz e as cinco specs de exemplo;
+- o que fica na spec, no transpilador, no código gerado e no `runtime/`;
+- cada campo da spec e cada erro de validação, com a mensagem real;
+- como o arquivo é gerado e as proteções que nenhuma spec remove, inclusive a confirmação da lista.
 
 `python -m cli transpile specs/agent.json` lê a spec, valida, confere as ferramentas nos
 servidores que respondem, gera `generated/agent.py` e importa o arquivo gerado para provar que ele
 expõe um `root_agent` do ADK.
 
-A spec descreve construções genéricas do ADK: os servidores (MCP por SSE ou OpenAPI, com qualquer nome), os `LlmAgent`, o workflow que os roda (`SequentialAgent`, `ParallelAgent`, `LoopAgent` ou nenhum) e os plugins do `App`, cada um com o caminho da classe e os seus `kwargs`.
+A spec descreve construções genéricas do ADK, cada uma com o caminho da classe e os seus `kwargs`:
+
+- os servidores: MCP por SSE ou OpenAPI, com qualquer nome;
+- os `LlmAgent`;
+- o workflow que os roda: `SequentialAgent`, `ParallelAgent`, `LoopAgent` ou nenhum;
+- os plugins do `App`.
 
 - O transpilador não conhece pedido, exame nem agendamento: o domínio está num plugin do runtime, o [`BookingPlugin`](../runtime/plugin.py), que a spec declara.
 - Cinco specs de exemplo transpilam e importam nos testes:
@@ -199,7 +207,10 @@ No `transpile`, cada servidor que responde em até 3 s é consultado: o MCP pelo
 
 - Uma ferramenta que ele não tem é um erro já no `transpile`, e o `OK` ganha a linha `Ferramentas conferidas nos servidores: ocr, rag, api`.
 - Um servidor fora do ar (um `transpile` offline, a CI) fica com a lista declarada na spec, sem linha a mais.
-- Um servidor que responde, mas não com JSON (um `/openapi.json` malformado), é um erro, e um defeito do próprio transpilador nunca passa por servidor fora do ar; o `cli run` pergunta de novo a todos antes de chamar o Gemini, então uma ferramenta errada na prática não chega a uma execução.
+- Um servidor que responde, mas não com JSON (um `/openapi.json` malformado), é um erro.
+- Um defeito do próprio transpilador nunca passa por servidor fora do ar.
+- O `cli run` pergunta de novo a todos os servidores antes de chamar o Gemini. Assim, uma ferramenta errada não chega a
+  uma execução.
 - No `cli run`, todo servidor precisa responder e listar as ferramentas: um que responde ao GET mas não termina o `list_tools` (ou não serve um `/openapi.json`) para a execução com `servers.<nome>: <url> respondeu, mas não listou as ferramentas`.
 - A mesma consulta passa pelo `check_live` de cada plugin: o do `BookingPlugin` confere que a ferramenta de `read` recebe `filename`, a de `search` recebe `query` e `top_k`, e o contrato da operação de `book` (abaixo).
 
@@ -225,23 +236,26 @@ dizem qual ferramenta faz cada papel, como `servidor.ferramenta`.
 As regras abaixo são do plugin (`check_spec`), chamadas pelo `transpile` com as mesmas mensagens:
 
 - **O plugin roda em ordem:** pede `"workflow": "SequentialAgent"`.
-- **Quem agenda** é o agente que tem a ferramenta de `book` nas suas `tools`. Só um agente pode tê-la
-  (um pedido, um agendamento), e as ferramentas de `read` e `search` precisam estar em agentes
-  anteriores, num agente só ou em dois: a trava de código só agenda o que a busca achou, medido
-  contra o que foi lido.
+- **Quem agenda** é o agente que tem a ferramenta de `book` nas suas `tools`.
+  - Só um agente pode tê-la: um pedido, um agendamento.
+  - As ferramentas de `read` e `search` precisam estar em agentes anteriores, num agente só ou em dois. A trava de
+    código só agenda o que a busca achou, medido contra o que foi lido.
 - **`book` pede `read` e `search`,** e `search` pede `read`: sem eles não há confiança a medir.
-- **Sem `book`, a spec lista em vez de agendar.** O último agente responde com
-  `"output_schema": "runtime.plugin.ListedExams"` (os exames, cada um com `code` e `name`), que o ADK
-  confere; essa resposta passa pela mesma política, sem pergunta: o plugin chama `review_list` depois do
-  último agente, e a CLI mostra cada exame com a sua confiança (`confira` de 0,70 a 0,90), os que
-  ficaram de fora e os códigos que nenhuma busca devolveu. Nada é enviado a uma API.
+- **Sem `book`, a spec lista em vez de agendar.** Nada é enviado a uma API.
+  - O último agente responde com `"output_schema": "runtime.plugin.ListedExams"` (cada exame com `code` e `name`), que
+    o ADK confere.
+  - Essa resposta passa pela mesma política, sem pergunta: o plugin chama `review_list` depois do último agente.
+  - A CLI mostra cada exame com a sua confiança (`confira` de 0,70 até menos de 0,90), os que ficaram de fora e os
+    códigos que nenhuma busca devolveu.
   - Na listagem, os limiares (opcionais; os valores de `listar-exames.json` são os padrões) só
     definem as faixas de confiança: o que sai como exame lido, o que sai como `confira` e o que fica
     de fora. Nada é agendado.
 - **Toda ferramenta de um agente tem papel, e uma operação de API só chega a um agente como `book`**, a única chamada que o runtime confere antes de enviar.
   - O `transpile` recusa uma ferramenta sem papel e qualquer outra operação de API: uma 2ª operação, um 2º servidor OpenAPI, a API renomeada sem mudar `book` ou uma API numa spec que só lista.
   - O runtime também recusa, em tempo de execução, qualquer ferramenta fora dos papéis e, no agendamento, qualquer campo além de `exams` e da nossa `Idempotency-Key`.
-  - Com a API no ar, o `transpile` confere o contrato da operação de `book`: ela recebe `Idempotency-Key` e um corpo só com `exams` (`additionalProperties: false`), cada exame com `code` (o `name` é opcional: a API do projeto não o guarda e devolve o nome do catálogo).
+  - Com a API no ar, o `transpile` confere o contrato da operação de `book`:
+    - ela recebe `Idempotency-Key` e um corpo só com `exams` (`additionalProperties: false`);
+    - cada exame tem `code`; o `name` é opcional, e a API do projeto devolve o nome do catálogo.
   - Faltar um papel nunca quer dizer "sem checagem".
 - **Os `kwargs` são conferidos de novo ao criar o plugin:** um `agent.py` editado à mão também não
   afrouxa a política.
@@ -283,11 +297,14 @@ sem stack trace, e o comando termina com código 2:
    - placeholder (`{chave}` ou `{chave?}`) de um agente que não existe ou não rodou antes;
    - `output_schema` fora dos pacotes permitidos, que não existe ou não é um modelo pydantic;
    - workflow que não serve aos agentes;
-   - plugin fora dos pacotes permitidos, que não existe ou não é um `BasePlugin`; `kwargs` fora do
-     `Config` do plugin; e as regras do próprio plugin (`check_spec`): no `BookingPlugin`, papéis em
-     ferramentas que nenhum agente usa, do tipo errado, `book` sem `read` e `search`, limiares
-     incoerentes, agendamento antes da leitura e da busca, `output_key` numa chave que ele usa no
-     estado e uma listagem que não termina em `ListedExams`.
+   - plugin fora dos pacotes permitidos, que não existe ou não é um `BasePlugin`;
+   - `kwargs` fora do `Config` do plugin;
+   - as regras do próprio plugin (`check_spec`). No `BookingPlugin`:
+     - papéis em ferramentas que nenhum agente usa, ou do tipo errado;
+     - `book` sem `read` e `search`, ou agendamento antes da leitura e da busca;
+     - limiares incoerentes;
+     - `output_key` numa chave que ele usa no estado;
+     - uma listagem que não termina em `ListedExams`.
 4. **Servidores que respondem** (só no `transpile` e no `cli run`): ferramenta que o servidor não
    tem, ou, pelo `check_live` do plugin, ferramenta de papel que não recebe o que o runtime envia.
 
@@ -409,16 +426,20 @@ não declara em `servers`.
 
 Estas proteções ficam no `runtime/`, fora da spec, e por isso nenhuma spec consegue removê-las:
 
-- **O registro do pedido:** o que a política usa (a imagem, as linhas lidas, os códigos de cada busca, as
-  respostas e as perguntas de cada chamada, a `Idempotency-Key` e a resposta da API) fica no próprio
-  `BookingPlugin`, um registro por sessão, e nunca é lido do estado da sessão, que os clientes do ADK
-  escrevem (`adk web`, `adk run --state`). O estado recebe uma cópia, para a CLI e para a pessoa.
-- **`start_order`** (antes do pipeline, no `before_agent_callback` do plugin para a raiz; também no `adk run` e no `adk web`): a imagem vem do `cli run` (`orders.start`) ou da mensagem da pessoa, que precisa ser só texto e trazer um só nome de arquivo, sem pasta.
+- **O registro do pedido** fica no próprio `BookingPlugin`, um registro por sessão. Ele guarda o que a política usa:
+  a imagem, as linhas lidas, os códigos de cada busca, as respostas e as perguntas de cada chamada, a
+  `Idempotency-Key` e a resposta da API.
+  - Nunca é lido do estado da sessão, que os clientes do ADK escrevem (`adk web`, `adk run --state`).
+  - O estado recebe uma cópia, para a CLI e para a pessoa.
+- **`start_order`** roda antes do pipeline, no `before_agent_callback` do plugin para a raiz, também no `adk run` e no
+  `adk web`. A imagem vem do `cli run` (`orders.start`) ou da mensagem da pessoa, que precisa ser só texto e trazer um
+  só nome de arquivo, sem pasta.
   - Antes de qualquer turno do modelo, o nome vira o apelido, os endereços dos servidores são conferidos e o OCR confere a imagem.
   - Um pedido por sessão; numa sessão em que a API já agendou, a resposta é esse agendamento e `não repita este pedido`.
-- **`before_model`:** o modelo recebe `Arquivo do pedido: <apelido>` no lugar da mensagem da pessoa; o nome
-  real do arquivo nunca aparece no que ele recebe, e cada parte leva só texto e chamadas de ferramenta e
-  suas respostas (um anexo, código ou outro dado que um cliente mande fica de fora).
+- **`before_model`:** o modelo recebe `Arquivo do pedido: <apelido>` no lugar da mensagem da pessoa.
+  - O nome real do arquivo nunca aparece no que ele recebe.
+  - Cada parte leva só texto, chamadas de ferramenta e as respostas delas. Um anexo, código ou outro dado que um
+    cliente mande fica de fora.
 - **Toolsets:** `McpToolset` e `LiveOpenAPIToolset` conferem o endereço do servidor antes da 1ª conexão, e
   toda conexão usa os endereços conferidos.
 - **Regra fixa antes de cada instrução** (`before_model` do `BookingPlugin`): o que as ferramentas

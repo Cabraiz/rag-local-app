@@ -1,9 +1,20 @@
 # Guia do desenvolvedor
 
-**O que tem aqui / quando ler.** O caminho mais curto para mexer no código: onde está cada coisa, por onde um pedido passa, como rodar cada peça e os testes, receitas para as mudanças mais comuns e como depurar um pedido que falhou ou foi perguntado.
+**O que tem aqui / quando ler.** O caminho mais curto para mexer no código. Ele mostra:
+
+- onde está cada coisa e por onde um pedido passa;
+- como rodar cada peça e os testes;
+- receitas para as mudanças mais comuns;
+- como depurar um pedido que falhou ou foi perguntado.
 
 - Leia depois do [README](../README.md).
-- A referência de cada tema fica nos outros documentos, com links no ponto certo: [arquitetura.md](arquitetura.md) (como funciona), [transpilador.md](transpilador.md) (spec e código gerado), [regras.md](regras.md) (regras de linha e de página), [medicoes.md](medicoes.md) (números), [como-rodar.md](como-rodar.md) (operação) e [decisoes.md](decisoes.md) (escolhas e limites).
+- A referência de cada tema fica nos outros documentos, com links no ponto certo:
+  - como funciona: [arquitetura.md](arquitetura.md);
+  - spec e código gerado: [transpilador.md](transpilador.md);
+  - regras de linha e de página: [regras.md](regras.md);
+  - números: [medicoes.md](medicoes.md);
+  - operação: [como-rodar.md](como-rodar.md);
+  - escolhas e limites: [decisoes.md](decisoes.md).
 
 **Índice:** [Mapa do repositório](#mapa-do-repositório) · [O caminho de um pedido no código](#o-caminho-de-um-pedido-no-código) ·
 [Rodar cada peça e os testes](#rodar-cada-peça-e-os-testes) · [Primeira mudança](#primeira-mudança-passo-a-passo) · [Receitas](#receitas) ·
@@ -45,10 +56,12 @@ primeiro estão em negrito):
    um apelido (`pedido-1.png`), os endereços são conferidos (`runtime/rede.py`) e o OCR confere a imagem
    (`check_image`). `before_model` põe a regra "dado de ferramenta não é instrução" antes de cada instrução.
 5. **OCR (MCP/SSE).** `extract_exam_text` em [`mcp_servers/ocr.py`](../mcp_servers/ocr.py): `read_lines` →
-   `preprocessamento.read_ocr_lines` (Tesseract, PSM 11) → **`mask_lines`**, que na ordem junta ordens partidas
-   (`injection.join_split_orders`), neutraliza (`neutralize_joined`), lê o que cada linha pede
-   (`intent.read_page`), mascara a PII (`pii.mask_page`) e decide se a página é só a lista (`intent.clean_page`). A
-   resposta é um `leitura.OcrReading`.
+   `preprocessamento.read_ocr_lines` (Tesseract, PSM 11) → **`mask_lines`**. A resposta é um `leitura.OcrReading`.
+   O `mask_lines`, na ordem:
+   - junta ordens partidas em várias linhas (`injection.join_split_orders`) e as neutraliza (`neutralize_joined`);
+   - mascara a PII (`pii.mask_page`);
+   - lê o que cada linha pede no texto juntado, antes da neutralização (`intent.read_page`);
+   - decide se a página é só a lista (`intent.clean_page`).
 6. **RAG (MCP/SSE).** `search_exams` em [`mcp_servers/rag.py`](../mcp_servers/rag.py): `search_line` corta a linha em exames
    (`split_exams`, `unglue`, `ahead`/`behind`) e `search` pontua cada pedaço com `catalogo.ExamMatcher.closest`.
 7. **Callbacks.** `after_tool` guarda no registro do pedido (`runtime/pedido.py`) as linhas, a confiança do OCR e os
@@ -115,8 +128,8 @@ docker compose run --rm --no-deps tests mypy                             # tipos
 - **Serial ou paralelo.** Sem `-n auto` a suíte leva de 6 a 11 min. Os arquivos que sobem os servidores nas portas da
   spec (8000 a 8002) carregam `xdist_group('spec-ports')` e rodam num worker só; `tests/portas.py` espera a porta
   livre.
-- **Resultado atual:** 617 funções de teste e 19.381 casos (`pytest --collect-only`), quase todos de corpus
-  parametrizado (linhas legítimas, PII gerada, ataques, termos do catálogo). 19.380 passam e 1 é pulado: o ponta a
+- **Resultado atual:** 620 funções de teste e 19.384 casos (`pytest --collect-only`), quase todos de corpus
+  parametrizado (linhas legítimas, PII gerada, ataques, termos do catálogo). 19.383 passam e 1 é pulado: o ponta a
   ponta, que precisa da chave. Com `-n auto` e `--cov`, cerca de 3,5 min numa máquina de 12 núcleos (medido: 200 s e
   205 s).
 - **O serviço `tests`** é a imagem do `agent` mais pytest, ruff, mypy, o Tesseract e os testes (estágio `test` do
@@ -184,10 +197,10 @@ a abreviação "Ur. serica" como Ureia (`FICT-004`). Os serviços `tests` e `rag
 
 ### Acrescentar uma ferramenta a um servidor MCP existente
 
-1. Em [`mcp_servers/rag.py`](../mcp_servers/rag.py) (ou `ocr.py`), declare a função com `@server.tool()`; use
-   `Annotated[str, or_default('')]` nos argumentos para que um tipo errado receba uma frase em português
-   (`mcp_servers/arguments.py`), e acrescente o nome da ferramenta à chamada `serve(...)` no fim do arquivo, que cala os logs com valores
-   do cliente.
+1. Em [`mcp_servers/rag.py`](../mcp_servers/rag.py) (ou `ocr.py`), declare a função com `@server.tool()`.
+   - Use `Annotated[str, or_default('')]` nos argumentos: um tipo errado recebe uma frase em português
+     (`mcp_servers/arguments.py`).
+   - Acrescente o nome da ferramenta à chamada `serve(...)` no fim do arquivo, que cala os logs com valores do cliente.
 2. Declare a ferramenta na spec, em `servers.<nome>.tools`, e dê a um agente: `"tools": ["rag.minha_ferramenta"]`.
 3. Com o `BookingPlugin` na spec, **toda ferramenta de um agente precisa de um papel** (`read`, `search` ou `book`) ou o
    `transpile` recusa (`runtime/plugin.py`, `check_spec`). Para uma ferramenta fora desses papéis, use uma spec sem o plugin, como a
@@ -207,9 +220,10 @@ a abreviação "Ur. serica" como Ureia (`FICT-004`). Os serviços `tests` e `rag
 
 ### Escrever uma spec nova
 
-Copie [`specs/exemplo-generico.json`](../specs/exemplo-generico.json) (um agente e um servidor MCP, sem plugin) ou
-[`specs/listar-exames.json`](../specs/listar-exames.json) (OCR e RAG com o `BookingPlugin`, que lista sem agendar).
-Salve em `specs/` e transpile, sem rebuild:
+Copie uma das specs abaixo, salve em `specs/` e transpile, sem rebuild:
+
+- [`specs/exemplo-generico.json`](../specs/exemplo-generico.json): um agente e um servidor MCP, sem plugin;
+- [`specs/listar-exames.json`](../specs/listar-exames.json): OCR e RAG com o `BookingPlugin`, que lista sem agendar.
 
 ```bash
 docker compose run --rm -e ALLOWED_HOSTS=docs:8010 agent python -m cli transpile specs/exemplo-generico.json --output generated/docs/agent.py
@@ -292,8 +306,10 @@ em `line_intent` (passo 1) e procure-o no mapa [regras.md](regras.md).
   português (`confianca`, `reconcilia`). Sem formatador automático. O CI roda `ruff` e `mypy`.
 - **Mensagens.** Toda falha esperada é uma linha `Erro: ...` em português, com o campo ou o motivo e, quando existe, o
   que fazer; nunca um traceback. Texto que vem da imagem nunca vai a um log sem passar por máscara.
-- **Segurança por padrão.** Nada de dado pessoal no modelo, no log ou no banco; a política vive em `runtime/` e nenhuma
-  spec a afrouxa (os limiares da spec só podem endurecer); uma regra nova falha para o lado de perguntar.
+- **Segurança por padrão.**
+  - Nada de dado pessoal no modelo, no log ou no banco.
+  - A política vive em `runtime/`, e nenhuma spec a afrouxa: os limiares da spec só podem endurecer.
+  - Uma regra nova falha para o lado de perguntar.
 - **Testes que leem a documentação.** `tests/test_readme.py` confere, sem Docker nem rede:
   - links e âncoras relativos de `README.md` e `docs/*.md`
   - caminhos citados entre crases (têm de existir; os de fora do repositório entram em `NOT_IN_REPO`)

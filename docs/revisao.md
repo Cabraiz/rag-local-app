@@ -3,15 +3,22 @@
 O que tem aqui: cada achado de revisão ligado à correção e ao teste que o trava, o que segue em aberto, as referências
 e, no fim, como o código foi feito com IA. Leia quando quiser saber por que uma regra ou um teste existe.
 
-O código foi escrito com assistentes de IA (Claude Code e OpenAI Codex) sob minha direção. Esta página
-mostra a revisão na prática: o que as revisões de código, os testes de carga e de robustez e os conjuntos
-de ataque à máscara acharam, o que mudou por causa disso e o teste que falha se o problema voltar. Os
-testes rodam sem chave e sem rede: `docker compose run --rm tests pytest -q tests/<arquivo>.py`.
+O código foi escrito com assistentes de IA (Claude Code e OpenAI Codex) sob minha direção. Esta página mostra a revisão
+na prática:
+
+- o que as revisões de código, os testes de carga e de robustez e os conjuntos de ataque à máscara acharam;
+- o que mudou por causa disso;
+- o teste que falha se o problema voltar.
+
+Os testes rodam sem chave e sem rede: `docker compose run --rm tests pytest -q tests/<arquivo>.py`.
 
 ## O que a revisão e os testes acharam
 
-São 25 achados: 24 mudaram o código, e 23 dessas mudanças têm um teste que as trava (na 12, o teste cobre
-só parte, e a varredura das siglas foi feita uma vez); a 21 testou o agente e não pediu mudança.
+São 25 achados.
+
+- 24 mudaram o código, e 23 dessas mudanças têm um teste que as trava. Na 12, o teste cobre só parte, e a varredura das
+  siglas foi feita uma vez.
+- A 21 testou o agente e não pediu mudança.
 
 | # | Achado | O que mudou | Teste que trava |
 |---|---|---|---|
@@ -58,9 +65,10 @@ só parte, e a varredura das siglas foi feita uma vez); a 21 testou o agente e n
 - **`SequentialAgent` obsoleto:** no ADK 2.10 ele é marcado como obsoleto em favor de `Workflow`. Ficou
   porque `Workflow` ainda não é um `BaseAgent`, e a CLI usa o agente raiz como um
   ([decisão](decisoes.md#sequentialagent-obsoleto-no-adk-210)).
-- **Sorologias escritas por extenso podem sair sem aviso:** nas 198 linhas de sorologias e qualificadores,
-  7 exames ainda terminam sem estado, como em `Sorologia para rubéola IgG e IgM`, `Sorologia para doença de Chagas IgG e IgM`, `IgG para Doença de Chagas` e a IgA de `Imunoglobulinas IgA e IgE total`: a doença e a
-  primeira classe ficam num pedaço só, que não é um nome do catálogo.
+- **Sorologias escritas por extenso podem sair sem aviso:** nas 198 linhas de sorologias e qualificadores, 7 exames
+  ainda terminam sem estado. A doença e a primeira classe ficam num pedaço só, que não é um nome do catálogo. Exemplos:
+  `Sorologia para rubéola IgG e IgM`, `Sorologia para doença de Chagas IgG e IgM`, `IgG para Doença de Chagas` e a IgA
+  de `Imunoglobulinas IgA e IgE total`.
 - **Exames que o catálogo não tem:** Chagas IgM e Hepatite A (Anti HAV) não estão nos 120 exames. Uma
   linha com eles não agenda nada no lugar; a IgG ou IgM genérica que a busca acha só sai em `baixa confiança`.
 - **Exame que o OCR não lê não é avisado:** a conferência do pedido só vê o que o OCR leu; nas fotos e
@@ -91,12 +99,12 @@ só parte, e a varredura das siglas foi feita uma vez); a 21 testou o agente e n
 ## Segunda versão: o que as avaliações apontaram
 
 Depois da primeira versão, avaliações independentes e revisões de código apontaram 7 pontos. 6 mudaram
-o projeto, todos com teste que trava a mudança; o 7º (busca semântica) foi medido e não adotado.
+o projeto, todos com teste que trava a mudança; um deles, a busca semântica (#31), foi medido e não adotado.
 
 | # | O que a revisão achou | O que mudou | Teste que trava |
 |---|---|---|---|
 | 26a | <a name="perda-silenciosa"></a>**Exame perdido sem aviso:** numa avaliação independente, em `2. Colesterol total e Triglicerideos` o agente buscou a linha inteira, agendou o Colesterol total, e o Triglicerídeos terminou sem estado nenhum. Buscar a linha inteira agendava 10 de 966 exames escritos juntos em linhas limpas. Separar a linha não bastava: "Toxoplasmose IgG e IgM" agendava a IgM genérica, e 85 de 325 exames de sorologias saíam errados | A busca separa os exames de uma linha, sem partir um nome do catálogo, e completa um pedaço com o vizinho quando isso forma um nome: "Toxoplasmose IgG e IgM" → Toxoplasmose IgM, "PSA total e livre" → PSA livre. Um exame que o pedido não nomeia nunca é agendado nem perguntado, só sai em `baixa confiança` ([medição](medicoes.md#linhas-com-vários-exames-e-sorologias)) | `test_rag.py::test_each_exam_of_a_line_is_searched_on_its_own`, `test_rag.py::test_a_piece_that_is_part_of_the_exam_next_to_it_is_searched_as_that_exam`, `test_confianca.py::test_an_antibody_class_the_order_does_not_name_is_never_booked_alone` |
-| 26b | **O pedido inteiro, conferido depois:** um exame que o agente não decidia sumia sem aviso | Depois da execução, a CLI confere o pedido inteiro com a mesma busca: um exame que o agente não decidiu sai como `não buscado pelo agente` ou `não incluído pelo agente`, e a confirmação termina com `ATENÇÃO: N possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima`. Nada a mais é agendado sozinho | `test_reconcilia.py::test_the_reviewed_case_reports_the_exam_the_model_never_searched`, `test_reconcilia.py::test_the_cli_says_the_agent_left_an_exam_out_and_keeps_exit_0`, `test_alucinacao.py::test_an_exam_the_model_never_searched_is_reported_after_the_run` |
+| 26b | **O pedido inteiro, conferido depois:** um exame que o agente não decidia sumia sem aviso | Antes da pergunta `[s/N]`, e de novo depois da execução, o runtime confere o pedido inteiro com a mesma busca: um exame que o agente não decidiu sai como `não buscado pelo agente` ou `não incluído pelo agente`, e a confirmação termina com `ATENÇÃO: N possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima`. Nada a mais é agendado sozinho | `test_reconcilia.py::test_the_reviewed_case_reports_the_exam_the_model_never_searched`, `test_reconcilia.py::test_the_cli_says_the_agent_left_an_exam_out_and_keeps_exit_0`, `test_alucinacao.py::test_an_exam_the_model_never_searched_is_reported_after_the_run` |
 | 26c | **"e" grudado pelo OCR:** `1) TSH e T4 livre` lido `1) TSHe T4 livre` não tinha separador; a linha era buscada inteira e o TSH não aparecia nem na conferência | Um "e" grudado no fim ou no começo de uma palavra que não é do catálogo separa os exames quando os dois lados são exames: TSH sai com 0,86 (perguntado), e `Ureiae Creatinina` deixa de virar Clearance de creatinina | `test_rag.py::test_an_e_the_ocr_glued_to_a_word_still_separates_the_exams`, `test_rag.py::test_a_word_that_ends_or_starts_with_e_is_not_cut`, `test_reconcilia.py::test_an_exam_glued_to_the_connective_the_model_never_searched_is_reported` |
 | 27 | **Transpilador de um agente só:** servidores, ferramentas e o papel de cada uma (ler, buscar, agendar) eram fixos no código, e só os 3 endereços do compose eram aceitos | A spec declara os servidores (MCP ou OpenAPI), as ferramentas de cada agente e o papel de cada uma (hoje nos `kwargs` do `BookingPlugin`); sem o papel de agendar, o fluxo só lista os exames. O host e a porta de cada URL precisam estar em `ALLOWED_HOSTS`, configurado por quem implanta (padrão `ocr:8001,rag:8002,api:8000`): com o padrão, 32 endereços hostis (`169.254.169.254`, `0x7f000001`, `localhost.evil`, `localhost:2375`, `127.0.0.1:6379`, outras portas dos serviços, IPv6, Unicode) são recusados com mensagem clara, e variantes legítimas (`https`, maiúsculas, espaços nas pontas) passam. No `transpile`, cada servidor que responde confirma as ferramentas. 4 specs de exemplo na época (hoje 5), uma que só lista | `test_spec_generica.py::test_servers_take_any_name_and_the_roles_follow_the_spec`, `test_spec_generica.py::test_allowed_hosts_come_from_the_deployment_not_from_the_spec`, `test_spec_generica.py::test_a_tool_the_server_does_not_have_fails_in_transpile`, `test_spec_generica.py::test_the_listing_spec_lists_what_the_policy_accepts_and_books_nothing` |
 | 28 | **Código gerado que não se sustenta sozinho:** o `agent.py` dependia do repositório inteiro, sem dizer de que versão das regras precisava | `runtime/` virou uma biblioteca com interface declarada (`API_VERSION`, `require_api`): cada arquivo gerado grava a versão e, se ela não bater, para com uma mensagem clara. O `agent.py` explica nos comentários o que declara, de acordo com a spec (agenda, agenda sem perguntar ou só lista). Importar `runtime` ou `catalogo` não lê arquivo | `test_runtime.py::test_agent_py_runs_with_the_runtime_library_alone_outside_the_repository`, `test_runtime.py::test_every_example_spec_imports_with_the_runtime_library_alone`, `test_runtime.py::test_a_generated_file_for_another_interface_stops_with_a_clear_message` |
@@ -119,15 +127,20 @@ O README e `docs/como-rodar.md` passaram a cobrir cada um.
 
 ## Como trabalhei
 
-- **Direção e critérios meus:** escopo, arquitetura (agente sequencial com Gemini, OCR e RAG como
-  servidores MCP via SSE, PII mascarada dentro do OCR), o contrato entre os módulos (nomes, portas,
-  ferramentas MCP, formato da API), escrito antes do código, e o critério de aceite de cada parte.
-  Também ficaram comigo o modelo, o limite de gasto, o que conta como dado pessoal e os segredos.
+- **Direção e critérios meus:**
+  - o escopo e a arquitetura: agente sequencial com Gemini, OCR e RAG como servidores MCP via SSE, PII mascarada dentro
+    do OCR;
+  - o contrato entre os módulos (nomes, portas, ferramentas MCP, formato da API), escrito antes do código;
+  - o critério de aceite de cada parte;
+  - o modelo, o limite de gasto, o que conta como dado pessoal e os segredos.
 - **Uma parte de cada vez:** transpilador, servidores MCP, API e PII, e documentação foram feitos
   separadamente, todos seguindo o mesmo contrato entre os módulos. Cada parte só entrou depois de
   revisão do diff e de testes verdes.
 - **Simplicidade como critério:** cada arquivo deve ser explicável em poucos minutos.
-- **Como validei:** `pytest` por módulo; cliente MCP real via SSE; execução ponta a ponta com o Gemini;
-  carga de 500 pedidos; 602 entradas quebradas; dois conjuntos de 79 imagens com formatos de dado pessoal
-  que o gerador da carga não produz; duas revisões independentes, em que um revisor de fora (uma pessoa ou uma
-  sessão de IA sem o histórico do projeto) clonou o repositório e o rodou do zero, seguindo só o README.
+- **Como validei:**
+  - `pytest` por módulo e um cliente MCP real via SSE;
+  - execução ponta a ponta com o Gemini;
+  - carga de 500 pedidos e 602 entradas quebradas;
+  - dois conjuntos de 79 imagens com formatos de dado pessoal que o gerador da carga não produz;
+  - duas revisões independentes: um revisor de fora, uma pessoa ou uma sessão de IA sem o histórico do projeto, clonou
+    o repositório e o rodou do zero, seguindo só o README.

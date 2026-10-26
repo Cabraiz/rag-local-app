@@ -1,10 +1,11 @@
 # Arquitetura
 
-**O que tem aqui / quando ler.** Como as partes se encaixam e por quê, em poucas telas: as etapas, o caminho de um
-pedido e o porquê dos servidores à parte, da máscara de PII, das camadas de segurança e do agendamento decidido em
-código. Leia antes de mexer no código. Os detalhes de
-cada parte (tabelas, limites, mensagens) estão em [referencia.md](referencia.md); o porquê de cada escolha, em
-[decisoes.md](decisoes.md); os comandos, em [como-rodar.md](como-rodar.md).
+**O que tem aqui / quando ler.** Como as partes se encaixam e por quê, em poucas telas. Leia antes de mexer no código.
+
+- **Aqui:** as etapas, o caminho de um pedido e o porquê dos servidores à parte, da máscara de PII, das camadas de
+  segurança e do agendamento decidido em código.
+- **Em outro lugar:** os detalhes de cada parte (tabelas, limites, mensagens), em [referencia.md](referencia.md); o
+  porquê de cada escolha, em [decisoes.md](decisoes.md); os comandos, em [como-rodar.md](como-rodar.md).
 
 **Índice:** [Visão geral](#visão-geral) · [Etapas](#etapas) · [O caminho de um pedido](#o-caminho-de-um-pedido) ·
 [Por que OCR e RAG são servidores à parte](#por-que-ocr-e-rag-são-servidores-à-parte) ·
