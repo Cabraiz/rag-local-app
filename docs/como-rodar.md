@@ -112,23 +112,8 @@ bate com a linha e a leitura que o OCR deu à linha: de 0,90 para cima, o exame 
 com aviso; abaixo, não é agendado. "Conferir" quer dizer: olhe o pedido em papel (a saída mostra as linhas já
 mascaradas) e, se ele pede o exame, agende-o à parte.
 
-| Aviso | O que significa | O que fazer |
-|---|---|---|
-| `PII reconhecida e mascarada pelo OCR: …` | Dados pessoais mascarados, por tipo. É um piso: `nenhuma` não quer dizer que não sobrou nenhum (um nome feito de palavras de exame, como "Albina Ferro", passa). | Nada. |
-| `Trechos removidos pelo OCR (não pareciam exame): N` | O que o filtro do OCR tirou do texto; pode conter um nome que as regras não reconheceram. | Nada. |
-| `Instruções neutralizadas no OCR: N` | Ordens escondidas no pedido, tiradas do texto (viram `[TEXTO_REMOVIDO]`). | Conferir. |
-| `Atenção: o pedido tem texto além da lista de exames: linha 1 "[TEXTO_REMOVIDO]"; confira o papel` | A página não é só a lista de exames; o aviso vem uma vez, no topo, com as linhas que o causam. | Conferir antes de responder. |
-| `- IgA (FICT-079): lido "- GA", confiança 0,80; confira` | Confiança de 0,70 a 0,90. Com `--yes`, sai como `não agendado sem confirmação`. | Conferir a linha. |
-| `…; o pedido tem outras palavras além do exame; confira` | A linha tem algo além do exame ("Ferritina - pedido por engano"); confiança de no máximo 0,89. Com `--yes`: `não agendado sem confirmação: ...; o pedido tem outras palavras além do exame, confirme`. | Conferir a linha. |
-| `não agendado: '...' → Ferritina FICT-018; o pedido diz para não realizar` (ou `que já foi realizado`) | A linha diz para não fazer ("NÃO realizar Ferritina"), que já foi feito ("Resultado de Ferritina: 45") ou marca "não" numa caixa ou tabela. | Conferir. |
-| `não agendado: ...; a linha é uma orientação de preparo, não um pedido` | O exame só aparece numa linha de preparo ("jejum de 8 horas para Glicemia"). | Nada. |
-| `baixa confiança: '<linha lida>' → <exame> <código> (confiança 0,xx); confira o pedido` | Confiança abaixo de 0,70. | Conferir. |
-| `não agendado: '<linha>' → <exame> <código>; o mesmo trecho da linha já foi usado por <outro exame>; confira o pedido` | Cada exame precisa de um trecho próprio: "Hemoglobina" dentro de "Hemoglobina glicada", escrito uma vez, vale um só. | Conferir. |
-| `lido mas não reconhecido no catálogo: linha N; confira o pedido` | Item da lista que não parece exame do catálogo; só o número da linha sai do OCR. | Conferir. |
-| `não incluído pelo agente: '<linha lida>' → <exame> <código> (confiança 0,xx); confira o pedido` | A busca achou o exame e o modelo o deixou de fora. | Conferir. |
-| `não buscado pelo agente: ...; confira o pedido` | A conferência do pedido inteiro, feita em código no RAG depois da execução, achou um exame que o modelo nem buscou. | Conferir. |
-| `…, status scheduled; ATENÇÃO: N possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima` | Há `não incluído` ou `não buscado`. O agendamento existe: o código de saída é 0 quando a pessoa confirmou a lista e 3 com `--yes`, para a automação notar. | Ler os avisos acima. |
-| `Aviso: o pedido não foi conferido por inteiro` | A conferência do pedido inteiro passou de 30 s (o RAG travou). | Conferir o pedido todo. |
+Cada aviso, o que significa, de onde vem no código e o que fazer: a tabela fica num lugar só, no
+[guia do desenvolvedor](guia-dev.md#depurar-um-pedido-que-falhou-ou-foi-perguntado).
 
 Todos os estados de um exame e a regra de cada um: [arquitetura.md](arquitetura.md#agendamento-conferido-em-código).
 Exemplos de linhas (negação, caixas, preparo, vários exames numa linha como "TSH, T4 livre" ou "Toxoplasmose IgG e
@@ -342,4 +327,4 @@ docker compose run --rm tests pytest -q -n auto
   docker compose run --rm --no-deps tests mypy
   docker compose run --rm tests pytest -q -n auto --cov --cov-report=term
   ```
-- **Avisos filtrados:** o `pyproject.toml` filtra, cada um pelo nome, a depreciação do `SequentialAgent` ([Decisões técnicas](arquitetura.md#decisões-técnicas-em-detalhe)) e os avisos `[EXPERIMENTAL]` do ADK sobre os recursos em uso, que cada processo do `-n auto` repetiria. Um aviso novo continua aparecendo.
+- **Avisos filtrados:** o `pyproject.toml` filtra, cada um pelo nome, a depreciação do `SequentialAgent` ([Decisões técnicas](decisoes.md#sequentialagent-obsoleto-no-adk-210)) e os avisos `[EXPERIMENTAL]` do ADK sobre os recursos em uso, que cada processo do `-n auto` repetiria. Um aviso novo continua aparecendo.

@@ -6,7 +6,7 @@ execução, onde a PII é mascarada, as camadas de segurança, como o agendament
 tabela de erros. O porquê de cada escolha está em [decisoes.md](decisoes.md); os comandos, em
 [como-rodar.md](como-rodar.md).
 
-**Índice:** [Etapas](#etapas) · [Componentes](#componentes) · [Rede e processos](#rede-e-processos) · [Servidores MCP](#servidores-mcp) · [Fluxo de dados de uma execução](#fluxo-de-dados-de-uma-execução) · [Onde a PII é mascarada](#onde-a-pii-é-mascarada) · [Segurança em detalhe](#segurança-em-detalhe) · [Agendamento conferido em código](#agendamento-conferido-em-código) · [Decisões técnicas em detalhe](#decisões-técnicas-em-detalhe) · [Tratamento de erros](#tratamento-de-erros)
+**Índice:** [Etapas](#etapas) · [Componentes](#componentes) · [Rede e processos](#rede-e-processos) · [Servidores MCP](#servidores-mcp) · [Fluxo de dados de uma execução](#fluxo-de-dados-de-uma-execução) · [Onde a PII é mascarada](#onde-a-pii-é-mascarada) · [Segurança em detalhe](#segurança-em-detalhe) · [Agendamento conferido em código](#agendamento-conferido-em-código) · [Tratamento de erros](#tratamento-de-erros)
 
 ## Etapas
 
@@ -111,8 +111,8 @@ nem internet. Logs: `docker compose logs -f ocr rag`.
 
 O agente conecta com `McpToolset(connection_params=SseConnectionParams(url=...))`, com as URLs da spec,
 e cada agente só enxerga as ferramentas que a spec lhe dá (`tool_filter`). O OCR tem também
-`check_image`, que nenhuma spec declara: só a CLI a chama, antes do 1º turno do modelo, para recusar logo
-um arquivo que o OCR recusaria.
+`check_image`, que nenhuma spec declara: a CLI e o plugin (no `adk run` e no `adk web`) a chamam antes do 1º turno
+do modelo, para recusar logo um arquivo que o OCR recusaria.
 
 | Servidor | SSE | Saúde | Ferramenta |
 |---|---|---|---|
@@ -349,7 +349,8 @@ proposto ("Colesterol" dentro de "Colesterol LDL") não conta.
 
 Com algum `não incluído` ou `não buscado`, a linha final avisa, como possibilidade: `Agendamento
 confirmado pela API: id <id>, status scheduled; ATENÇÃO: 1 possível(is) exame(s) do pedido sem decisão do
-agente, confira os avisos acima`. O código de saída continua 0, porque o agendamento existe.
+agente, confira os avisos acima`. O agendamento existe: o código de saída é 0 quando a pessoa confirmou a lista
+e 3 com `--yes`, para a automação perceber.
 
 **A confirmação final.** Antes da API, o callback confere o pedido inteiro e pede a confirmação nativa
 do ADK com o que a página tem além da lista (uma vez, no topo), a lista inteira (cada exame com código e
@@ -358,27 +359,11 @@ console do `adk run` e a página do `adk web` mostram o mesmo texto. Só um "sim
 chamada, agenda; com `--yes` (só na CLI), não há pergunta e só agenda o que tem ≥ 0,90 numa página que é
 só a lista ([como funciona](transpilador.md#a-confirmação-da-lista-confirmação-nativa-do-adk)).
 
-| Estado de cada exame do pedido | Saída da CLI |
-|---|---|
-| agendado | linha da tabela de exames |
-| na lista com aviso, agendado depois do "sim" | `incluído com a sua confirmação: ...` |
-| na lista com aviso, com `--yes` | `não agendado sem confirmação: ...` |
-| lista recusada (ou sem terminal) | nada é agendado: `agendamento bloqueado antes de chamar a API: você não confirmou a lista de exames` |
-| abaixo de `ask_from` | `baixa confiança: ...; confira o pedido` |
-| trecho já usado por outro exame | `não agendado: '<linha>' → <exame> <código>; o mesmo trecho da linha já foi usado por <outro exame>; confira o pedido` |
-| numa linha que diz para não fazê-lo, ou que ele já foi feito | `não agendado: '<linha>' → <exame> <código>; o pedido diz para não realizar` (ou `que já foi realizado`); não conta como exame sem decisão |
-| só numa linha de preparo | `não agendado: ...; a linha é uma orientação de preparo, não um pedido`, sem contar como exame sem decisão |
-| numa linha com outras palavras além do exame | na lista com aviso: `- <exame> (<código>): lido "<linha>", confiança 0,89; o pedido tem outras palavras além do exame; confira`; com `--yes`, `não agendado sem confirmação: ...; o pedido tem outras palavras além do exame, confirme` |
-| item da lista que não parece exame do catálogo | `lido mas não reconhecido no catálogo: linha N; confira o pedido` (só o número: o texto não sai do OCR) |
-| achado por uma busca, fora da chamada do modelo | `não incluído pelo agente: ...; confira o pedido` |
-| nunca buscado pelo modelo | `não buscado pelo agente: ...; confira o pedido` |
+Cada estado de um exame, a mensagem que a CLI mostra e o código que a produz estão numa tabela só, no
+[guia do desenvolvedor](guia-dev.md#depurar-um-pedido-que-falhou-ou-foi-perguntado).
 
 Se não sobra nenhum, nada é agendado. O código gerado, sem Docker: [`docs/exemplo-agent.py`](exemplo-agent.py),
 a saída exata do `transpile` para `specs/agent.json` (um teste falha se ela ficar desatualizada).
-
-## Decisões técnicas em detalhe
-
-Cada escolha, com o porquê e o custo, está em [decisoes.md](decisoes.md).
 
 ## Tratamento de erros
 
@@ -424,7 +409,7 @@ As mensagens são as que o usuário vê; nenhuma mostra stack trace.
 | Sem terminal (`-T`, pipe, `CI`) e sem `--yes` | `cli run` | mostra a lista e sai com `agendamento bloqueado antes de chamar a API: sem terminal para confirmar a lista de exames: rode num terminal ou com --yes; nada foi agendado` (código 2) |
 | Exame com confiança < 0,70 | `before_tool_callback` do `schedule` | sai do agendamento: `baixa confiança: '<linha lida>' → <nome> <código> (confiança 0,60); confira o pedido`; os demais são agendados |
 | Exame achado pela busca que o modelo deixou fora (ex.: "TSHe T4 livre", e o modelo propôs só T4 livre) | `before_tool_callback` do `schedule` | `não incluído pelo agente: '<linha lida>' → <nome> <código> (confiança 0,86); confira o pedido`, uma vez por trecho |
-| Exame que o modelo nunca buscou | `cli run`, depois da execução ([`runtime/reconcilia.py`](../runtime/reconcilia.py)) | `não buscado pelo agente: ...; confira o pedido`, e a linha final ganha `; ATENÇÃO: 1 possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima` (código 0) |
+| Exame que o modelo nunca buscou | `cli run`, depois da execução ([`runtime/reconcilia.py`](../runtime/reconcilia.py)) | `não buscado pelo agente: ...; confira o pedido`, e a linha final ganha `; ATENÇÃO: 1 possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima` (código 0; 3 com `--yes`) |
 | Exame sem trecho próprio | `before_tool_callback` do `schedule` | `não agendado: '<linha>' → <exame> <código>; o mesmo trecho da linha já foi usado por <outro exame>; confira o pedido` |
 | Exame numa linha que nega, que diz já feito ou de preparo | `before_tool_callback` do `schedule` | sai do agendamento, mesmo com confiança 1,00: `não agendado: '<linha>' → <exame> <código>; o pedido diz para não realizar` (ou `que já foi realizado`, ou `a linha é uma orientação de preparo, não um pedido`) |
 | Resposta do OCR sem `line_intent` | `after_tool_callback` do OCR | falha fechado: toda linha conta como dúvida, e nada é agendado sem um sim |

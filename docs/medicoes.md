@@ -28,7 +28,7 @@ docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga ru
 | Entradas faltando ou quebradas, pelo caminho real | 602 casos em 4 grupos | 312 ok, 290 recusas com mensagem clara, **0 falhas** (0 erros 500, 0 tracebacks, 0 PII, 0 exames fora da imagem) | `tests.load.robustez --variantes 12` |
 | Cifra no banco | 6 propriedades, 4 chaves inválidas | nenhum `FICT` nem nome de exame nos bytes; toda alteração dá o mesmo 500 fixo; sem chave válida a API não sobe | `pytest tests/test_crypto.py` |
 | Fotos de celular de pedidos impressos | 30 fotos, 97 exames, 3 níveis | 89 agendados sem perguntar (92%), **0 errados**, 0 PII | `tests.load.manuscritos --origem samples/fotos-celular` |
-| Modelo que alucina | 14 cenários e 1 de controle (21 casos), serviços reais | nada errado agendado nem gravado ([tabela](#modelo-que-alucina)) | `pytest tests/test_alucinacao.py` |
+| Modelo que alucina | 17 testes (22 casos), serviços reais | nada errado agendado nem gravado ([tabela](#modelo-que-alucina)) | `pytest tests/test_alucinacao.py` |
 | Qualidade da foto, antes do OCR | 24 pedidos degradados passo a passo; 120 manuscritas, 200 da carga e as amostras | recusa só onde o OCR lê ~0%, com uma dica; **0** imagens reais recusadas | `pytest tests/test_qualidade.py` |
 | Pedido que cancela, adia ou anota um exame | 69 linhas que não pedem o exame; 31 páginas de ataque em imagem | **0 agendados sozinhos** ([linha](#negação-histórico-e-observações), [página](#lista-branca-por-página)) | `pytest tests/test_negacao.py` (as 69 linhas) |
 
@@ -76,7 +76,7 @@ Por nível: leve 38 de 38, média 31 de 32, forte 20 de 27. Na foto forte, 2 tro
 
 `tests/test_alucinacao.py` troca só o modelo por um roteirizado e roda o resto de verdade (`cli run`, ADK, OCR e RAG
 via SSE, API com banco cifrado), conferindo saída e o que a API gravou. Pedido: `pedido.png` (Hemograma completo,
-Glicemia de jejum e Creatinina); 16 testes, 21 casos.
+Glicemia de jejum e Creatinina); 17 testes, 22 casos.
 
 | O modelo… | Resultado |
 |---|---|

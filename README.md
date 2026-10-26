@@ -6,7 +6,7 @@ Do pedido médico em foto ao agendamento confirmado. Um JSON descreve o agente, 
 
 [![CI](https://github.com/Cabraiz/rag-local-app/actions/workflows/ci.yml/badge.svg)](https://github.com/Cabraiz/rag-local-app/actions/workflows/ci.yml) ![Python 3.12](https://img.shields.io/badge/python-3.12-blue) ![Google ADK 2.10](https://img.shields.io/badge/Google%20ADK-2.10-4285F4) ![MCP SSE](https://img.shields.io/badge/MCP-SSE-6E56CF) ![Docker Compose](https://img.shields.io/badge/docker-compose-2496ED)
 
-### Rodar em 4 comandos
+## Rodar em 4 comandos
 **Requer** Docker com Compose ≥ 2.1.1 e uma [chave Gemini](https://aistudio.google.com/apikey) (a gratuita serve: os dados são fictícios). Rode dentro do clone (`git clone https://github.com/Cabraiz/rag-local-app`), em PowerShell ou Git Bash. A API usa a porta 8765. Se algo falhar: [guia completo](docs/como-rodar.md#quando-algo-falha).
 
 ```bash
@@ -14,6 +14,24 @@ cp .env.example .env                                                     # preen
 docker compose up -d --wait                                              # ocr, rag e api saudáveis (1º build, sem cache: 10 a 20 min)
 docker compose run --rm agent python -m cli transpile specs/agent.json   # JSON → generated/agent.py, no volume Docker (1º build do agent, sem cache: 2 a 6 min)
 docker compose run --rm agent python -m cli run --image pedido.png       # imagem de samples/, só pelo nome; OCR → RAG → agendamento (segundos a minutos, conforme a fila do Gemini)
+```
+
+Saída esperada do último comando (trecho do [log real](docs/evidencias/log-run-pedido.txt)):
+
+```text
+Exames para agendar:
+- Hemograma completo (FICT-001)
+- Glicemia de jejum (FICT-002)
+- Creatinina (FICT-005)
+Agendar estes 3 exames? [s/N] s
+
+PII reconhecida e mascarada pelo OCR: NOME x2, CPF x1, EMAIL x1, TELEFONE x1
+| Exame              | Código   |
+|--------------------|----------|
+| Hemograma completo | FICT-001 |
+| Glicemia de jejum  | FICT-002 |
+| Creatinina         | FICT-005 |
+Agendamento confirmado pela API: id <uuid>, status scheduled
 ```
 
 Num terminal, a CLI mostra a lista e pergunta `Agendar estes N exames? [s/N]`. Para automação (sem terminal, CI), use `--yes`: sem pergunta, agenda só os exames bem lidos de um pedido que contém apenas a lista de exames ([detalhe](docs/como-rodar.md#3-executar-o-agente)).
@@ -26,7 +44,7 @@ https://github.com/user-attachments/assets/2bf4ca61-0f7f-42d9-a174-16b3377d8f16
 
 <sub>O fluxo completo em um vídeo, gravado numa execução real ([mp4](docs/gravacoes/00-visao-geral.mp4)).</sub>
 
-### O que o sistema cobre
+## O que o sistema cobre
 | Escopo do estudo | Onde | Prova |
 |---|---|---|
 | Transpilador: JSON → Python que instancia agentes só com o Google ADK (só classes do ADK; a política é um plugin do ADK) | [`transpiler/`](transpiler/), [`runtime/`](runtime/), [5 specs](specs/) | [vídeo 01](docs/videos.md#01-transpilador) · [testes](tests/test_transpiler.py) · [specs diferentes](tests/test_spec_generica.py) · [com `adk run`](tests/test_adk_run.py) · [doc](docs/transpilador.md) |
