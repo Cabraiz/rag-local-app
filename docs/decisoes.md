@@ -265,7 +265,7 @@ Receita estruturada primeiro.
   - A tabela guarda HMACs (derivados da chave do banco), nunca a chave nem o corpo, porque a chave vem do cliente e pode carregar dado pessoal.
   - Cada chave vale por `API_IDEMPOTENCY_TTL_HOURS` (padrão 24 h).
   - Num banco de versão anterior, a tabela com a chave em claro é apagada ao subir, com `secure_delete`.
-  - O agente manda só o `code` de cada exame e uma chave própria por execução (um uuid aleatório, nunca a do modelo), e o modelo reserva usa a mesma.
+  - O agente manda só o `code` de cada exame e uma chave própria, nunca a do modelo: um HMAC da sessão ([`runtime/pedido.py`](../runtime/pedido.py)). No `cli run`, cada execução é uma sessão nova; o modelo reserva usa a mesma chave.
   - Depois do 1º agendamento, o callback devolve esse mesmo agendamento a qualquer nova chamada da execução, sem chegar à API.
   - Sem a chave, dois POSTs iguais criam dois agendamentos.
 - **Log estruturado:** uma linha JSON por requisição, com `request_id` (sempre novo, devolvido no `X-Request-ID`; o do cliente pode ter dado pessoal), método, rota (o modelo, como `/appointments/{appointment_id}`), status e duração.

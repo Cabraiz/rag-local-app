@@ -342,7 +342,8 @@ a saída exata do `transpile` para `specs/agent.json` (um teste falha se ela fic
 
 ## Variáveis de ambiente
 
-Todas as que o código lê (um teste falha se faltar uma).
+Todas as que o código do produto lê (um teste falha se faltar uma). Fora delas, só `FONTS_DIR`, que o gerador de imagens
+`exemplos/gerar_manuscrito.py` lê ([licencas.md](licencas.md)).
 
 - As do `.env` chegam só ao serviço que as usa.
 - As outras já têm o valor certo nos containers. Só mudam fora do Docker, por exemplo no `pytest` local.
@@ -449,16 +450,16 @@ As mensagens são as que o usuário vê; nenhuma mostra stack trace.
 | Modelo principal sobrecarregado (`503`) ou sem cota (`429`) | agente gerado (`cli run`, `adk run`, `adk web`) | a mesma requisição vai na hora ao `fallback_model` (`FallbackModel` do ADK): `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite`; não agenda em dobro, porque se repete a chamada ao modelo, não uma ferramenta |
 | O principal e o reserva indisponíveis | agente gerado | `Gemini indisponível no momento (HTTP 503); tente novamente`, sem traceback; as etapas seguintes não chamam o modelo; o `cli run` mostra a mesma linha (código 2) |
 | Modelo descontinuado ou outra recusa do Gemini (ex.: `404`) | `cli run` | `o Gemini recusou a chamada (HTTP 404: ...)` (código 2); troque com `-e GEMINI_MODEL=<modelo>` |
-| Código que nenhuma busca no catálogo devolveu (inventado) | `before_tool_callback` do `schedule` | `agendamento bloqueado antes de chamar a API: código(s) que nenhuma busca no catálogo devolveu: ...; nada foi agendado` (código 2), sem `POST` |
-| Lista não confirmada (qualquer resposta além de `s`/`sim`, Enter incluído) | `before_tool_callback` do `schedule` | `agendamento bloqueado antes de chamar a API: você não confirmou a lista de exames; nada foi agendado` (código 2), sem `POST` |
+| Código que nenhuma busca no catálogo devolveu (inventado) | `BookingPlugin.before_tool` (`only_confident_codes`) | `agendamento bloqueado antes de chamar a API: código(s) que nenhuma busca no catálogo devolveu: ...; nada foi agendado` (código 2), sem `POST` |
+| Lista não confirmada (qualquer resposta além de `s`/`sim`, Enter incluído) | `BookingPlugin.before_tool` (`only_confident_codes`) | `agendamento bloqueado antes de chamar a API: você não confirmou a lista de exames; nada foi agendado` (código 2), sem `POST` |
 | Sem terminal (`-T`, pipe, `CI`) e sem `--yes` | `cli run`, `check_someone_answers` | para antes de ler o pedido e de chamar o modelo: `Erro: sem terminal para confirmar a lista de exames: rode num terminal ou com --yes; nada foi lido nem agendado (…)` |
-| Resposta do OCR sem `line_intent` | `after_tool_callback` do OCR | falha fechado: toda linha conta como dúvida, e nada é agendado sem um sim |
-| Resposta do OCR fora do contrato ([`leitura.py`](../leitura.py)) | `after_tool_callback` do OCR | não é lida: nada é agendado nem perguntado; a CLI diz `o OCR não devolveu o texto do pedido` |
-| Nenhum exame com confiança suficiente | `before_tool_callback` do `schedule` | `agendamento bloqueado antes de chamar a API: nenhum exame com confiança suficiente para agendar; nada foi agendado` (código 2) |
+| Resposta do OCR sem `line_intent` | `BookingPlugin.after_tool`, na resposta do OCR | falha fechado: toda linha conta como dúvida, e nada é agendado sem um sim |
+| Resposta do OCR fora do contrato ([`leitura.py`](../leitura.py)) | `BookingPlugin.after_tool`, na resposta do OCR | não é lida: nada é agendado nem perguntado; a CLI diz `o OCR não devolveu o texto do pedido` |
+| Nenhum exame com confiança suficiente | `BookingPlugin.before_tool` (`only_confident_codes`) | `agendamento bloqueado antes de chamar a API: nenhum exame com confiança suficiente para agendar; nada foi agendado` (código 2) |
 | Pedido sem nenhum exame | `cli run` | `Nenhum exame encontrado no pedido; nada foi agendado` (código 2) |
 | OCR recusou a imagem | `cli run` | `OCR recusou a imagem: <motivo do OCR>; nada foi agendado` (código 2) |
 | OCR não devolveu texto nem motivo | `cli run` | `o OCR não devolveu o texto do pedido (serviço indisponível?); nada foi agendado` (código 2) |
 | O modelo não chamou o OCR | `cli run` | `o agente não leu a imagem (não chamou o OCR); nada foi agendado` (código 2) |
 | O modelo tentou agendar sem buscar no catálogo | `cli run` | `a busca no catálogo não foi feita (o agente tentou agendar sem buscar os exames); nada foi agendado` (código 2) |
-| O modelo chama o agendamento 2 vezes na mesma execução | `before_tool_callback` do `schedule` | a 2ª chamada recebe o mesmo agendamento, sem chegar à API (uma `Idempotency-Key` por execução) |
+| O modelo chama o agendamento 2 vezes na mesma execução | `BookingPlugin.before_tool` (`only_confident_codes`) | a 2ª chamada recebe o mesmo agendamento, sem chegar à API (uma `Idempotency-Key` por sessão, derivada dela) |
 | Falha depois que a API foi chamada | `cli run` | a mensagem acrescenta `o agendamento <id> já foi criado, não repita` ou `a API já foi chamada, confira os agendamentos antes de repetir` |

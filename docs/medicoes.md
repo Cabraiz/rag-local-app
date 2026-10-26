@@ -218,7 +218,7 @@ confirmação**. A tabela abaixo mede só a regra de linha, sem as regras de pá
 | médico · foto ruim (77) | 0 | 0 | 1 | 76 | 0 |
 | **todas (497)** | **113 (23%)** | **37** (5 deles errados) | **98** | **249** | **0** |
 
-Com a [regra de página](#lista-branca-por-página), os agendados sozinhos caem de 113 para 24 (o estado atual), com 0 errados. Sem a busca por
+Com a [regra de página](#lista-branca-por-página), os agendados sozinhos caem de 113 para 32; com as [regras seguintes](#rodapé-formulário-nome-e-nome-mais-longo), para 24, o [estado atual](#estado-atual). Sempre com 0 errados. Sem a busca por
 pedaço (cada exame da linha buscado à parte, ":" como separador, como em "Solicito: PSA total"), seriam 103 e 41. **Os 5 errados perguntados** (comum-013, 028, 038, 042 e 048) são trocas de leitura que a pessoa vê: "TGP" lido
   "TAP" (Tempo de protrombina, 2 vezes), "Vitamina D" lido "Vitamina 2" (Vitamina B12) e 2 cálcios.
 - **0 PII sobrando;** sem a última etapa da máscara (só sai do OCR o que parece exame), sobravam 33 valores.

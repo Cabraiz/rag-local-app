@@ -466,7 +466,7 @@ O resto:
 - **Confirmação forjada:** só vale a resposta à pausa que o runtime registrou para aquela chamada, no registro do pedido, não no estado da sessão. Uma resposta a outra chamada, ou uma lista escrita no estado, não agenda nada.
 - **Um "não" vale para a execução:** uma chamada repetida pelo modelo não pergunta de novo e não agenda, nem depois de uma troca para o `fallback_model`.
 - **Um agendamento por execução:**
-  - cada execução manda uma `Idempotency-Key` própria, nunca a do modelo;
+  - cada sessão manda uma `Idempotency-Key` própria, derivada dela (um HMAC, em `runtime/pedido.py`), nunca a do modelo. No `cli run`, cada execução é uma sessão nova;
   - depois que uma chamada vai para a API, outra recebe esse mesmo agendamento, sem chegar à API;
   - vale também para duas chamadas no mesmo turno, cada uma com a sua lista. Um "sim" que chega depois não gera outro `POST`, e o exame sai no relatório como `não agendado (você confirmou, mas o agendamento desta execução já tinha sido criado)`.
 - **Enquanto espera a resposta**, a resposta de pausa não é resumida para o modelo (`skip_summarization`).
