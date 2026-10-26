@@ -86,21 +86,6 @@ só parte, e a varredura das siglas foi feita uma vez); a 21 testou o agente e n
   - Cada etapa grava sua saída numa chave de estado (`output_key`), que a seguinte lê por placeholder, e só enxerga as ferramentas que a spec lhe dá (`tool_filter`).
 - **Histórico:** o histórico publicado agrupa o trabalho por camada (API, RAG, PII, OCR, runtime, transpilador, CLI, Docker, testes e documentação), montado de uma vez antes da publicação; as datas de autor são as do trabalho. As correções abaixo não aparecem como commits separados: a tabela liga cada uma ao teste que a trava.
 
-## Como trabalhei
-
-- **Direção e critérios meus:** escopo, arquitetura (agente sequencial com Gemini, OCR e RAG como
-  servidores MCP via SSE, PII mascarada dentro do OCR), o contrato entre os módulos (nomes, portas,
-  ferramentas MCP, formato da API), escrito antes do código, e o critério de aceite de cada parte.
-  Também ficaram comigo o modelo, o limite de gasto, o que conta como dado pessoal e os segredos.
-- **Uma parte de cada vez:** transpilador, servidores MCP, API e PII, e documentação foram feitos
-  separadamente, todos seguindo o mesmo contrato entre os módulos. Cada parte só entrou depois de
-  revisão do diff e de testes verdes.
-- **Simplicidade como critério:** cada arquivo deve ser explicável em poucos minutos.
-- **Como validei:** `pytest` por módulo; cliente MCP real via SSE; execução ponta a ponta com o Gemini;
-  carga de 500 pedidos; 602 entradas quebradas; dois conjuntos de 79 imagens com formatos de dado pessoal
-  que o gerador da carga não produz; duas revisões independentes, em que um revisor de fora (uma pessoa ou uma
-  sessão de IA sem o histórico do projeto) clonou o repositório e o rodou do zero, seguindo só o README.
-
 ## Segunda versão: o que as avaliações apontaram
 
 Depois da primeira versão, avaliações independentes e revisões de código apontaram 7 pontos. 6 mudaram
@@ -128,4 +113,17 @@ seguindo só o README. Os dois esbarraram em pontos de uso, não de código:
 
 O README e `docs/como-rodar.md` passaram a cobrir cada um.
 
+## Como trabalhei
 
+- **Direção e critérios meus:** escopo, arquitetura (agente sequencial com Gemini, OCR e RAG como
+  servidores MCP via SSE, PII mascarada dentro do OCR), o contrato entre os módulos (nomes, portas,
+  ferramentas MCP, formato da API), escrito antes do código, e o critério de aceite de cada parte.
+  Também ficaram comigo o modelo, o limite de gasto, o que conta como dado pessoal e os segredos.
+- **Uma parte de cada vez:** transpilador, servidores MCP, API e PII, e documentação foram feitos
+  separadamente, todos seguindo o mesmo contrato entre os módulos. Cada parte só entrou depois de
+  revisão do diff e de testes verdes.
+- **Simplicidade como critério:** cada arquivo deve ser explicável em poucos minutos.
+- **Como validei:** `pytest` por módulo; cliente MCP real via SSE; execução ponta a ponta com o Gemini;
+  carga de 500 pedidos; 602 entradas quebradas; dois conjuntos de 79 imagens com formatos de dado pessoal
+  que o gerador da carga não produz; duas revisões independentes, em que um revisor de fora (uma pessoa ou uma
+  sessão de IA sem o histórico do projeto) clonou o repositório e o rodou do zero, seguindo só o README.

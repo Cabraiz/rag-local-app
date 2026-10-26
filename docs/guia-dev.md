@@ -60,7 +60,7 @@ primeiro estão em negrito):
    cifra a lista (`api/crypto.py`) e grava; a `Idempotency-Key` vem do registro do pedido.
 9. **Fechamento.** `BookingCallbacks.report` confere o pedido inteiro no RAG (`servidores.unreported_exams`,
    `reconcilia.unreported`) e escreve a mensagem final em código (`relatorio.report`); a CLI imprime em
-   `cli.print_result` e devolve o código de saída (0, 2 ou 3).
+   `cli.print_result` e devolve o [código de saída](referencia.md#códigos-de-saída) (0, 2 ou 3).
 
 O que cada passo faz e por quê: [arquitetura.md](arquitetura.md). O que fica na spec, no código gerado e no `runtime/`:
 [transpilador.md](transpilador.md#o-que-fica-onde).
@@ -75,7 +75,7 @@ Todos os comandos rodam na raiz do clone, com o ambiente de pé (`docker compose
 | Transpilador | `docker compose run --rm agent python -m cli transpile specs/agent.json` (`--output generated/outro/agent.py` para não trocar o `agent.py`) |
 | OCR sozinho | `docker compose run --rm agent python exemplos/mcp_call.py ocr extract_exam_text filename=pedido.png` |
 | RAG sozinho | `docker compose run --rm agent python exemplos/mcp_call.py rag search_exams query=Glicose top_k=3` |
-| API sozinha | `docker compose up -d api` e, em Git Bash, `curl -s -X POST http://127.0.0.1:8765/appointments -H 'Content-Type: application/json' -d '{"exams":[{"code":"FICT-001"}]}'`; o Swagger fica em `/docs` |
+| API sozinha | `docker compose up -d api` e um `POST`: no Git Bash, Linux ou macOS, `curl -s -X POST http://127.0.0.1:8765/appointments -H 'Content-Type: application/json' -d '{"exams":[{"code":"FICT-001"}]}'`; no PowerShell, `Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8765/appointments -ContentType 'application/json' -Body '{"exams":[{"code":"FICT-001"}]}'`; sem shell, o Swagger em `/docs` ("Try it out") |
 | Um servidor MCP fora do compose | `python -m mcp_servers.rag` (porta 8002) ou `python -m mcp_servers.ocr` (8001, precisa do Tesseract); o host da URL precisa estar em `ALLOWED_HOSTS` |
 | O agente, sem Gemini | não há: `tests/test_alucinacao.py` e `tests/test_adk_run.py` rodam o agente gerado com um modelo roteirizado, OCR, RAG e API reais |
 | O agente, com Gemini | `docker compose run --rm agent python -m cli run --image pedido.png` (`--verbose` mostra os logs das bibliotecas) |
@@ -115,7 +115,15 @@ docker compose run --rm --no-deps tests mypy                             # tipos
 - **Serial ou paralelo.** Sem `-n auto` a suíte leva de 6 a 11 min. Os arquivos que sobem os servidores nas portas da
   spec (8000 a 8002) carregam `xdist_group('spec-ports')` e rodam num worker só; `tests/portas.py` espera a porta
   livre.
-- **Quantos testes e quanto tempo:** a contagem atual e o tempo medido ficam em [como-rodar.md](como-rodar.md#testes).
+- **Resultado atual:** 615 funções de teste e 19.379 casos (`pytest --collect-only`), quase todos de corpus
+  parametrizado (linhas legítimas, PII gerada, ataques, termos do catálogo). 19.378 passam e 1 é pulado: o ponta a
+  ponta, que precisa da chave. Com `-n auto` e `--cov`, cerca de 3,5 min numa máquina de 12 núcleos (medido: 200 s e
+  205 s).
+- **O serviço `tests`** é a imagem do `agent` mais pytest, ruff, mypy, o Tesseract e os testes (estágio `test` do
+  `Dockerfile`). Nunca recebe a `GOOGLE_API_KEY`: nada chama o Gemini.
+- **O ponta a ponta real** (`tests-e2e`) roda [`tests/test_e2e.py`](../tests/test_e2e.py) com a chave. O `run` inteiro
+  com o Gemini sobre `pedido.png` precisa agendar exatamente `FICT-001`, `FICT-002` e `FICT-005`, e o `GET` do
+  agendamento precisa devolver os mesmos. Sem a chave, ele falha em vez de ser pulado.
 - **Onde cada tema é testado:**
 
 | Tema | Arquivos |
@@ -135,11 +143,22 @@ docker compose run --rm --no-deps tests mypy                             # tipos
 
 - **Cargas fora da suíte** (OCR, RAG e API reais, sem Gemini): `tests.load.carga`, `tests.load.manuscritos`,
   `tests.load.robustez`; os comandos e o que cada um mede estão em [medicoes.md](medicoes.md#resumo).
-- **O serviço `tests`, o ponta a ponta com o Gemini (`tests-e2e`), a CI e os avisos filtrados:** [como-rodar.md](como-rodar.md#testes), que é a referência desses pontos.
+- **A CI** ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) roda a suíte, o `ruff` e o `mypy`:
+  - `ruff`: pyflakes, pycodestyle, ordem dos imports e bugbear;
+  - `mypy`: sem `--strict`, com `ignore_missing_imports` e `check_untyped_defs` (config em
+    [`pyproject.toml`](../pyproject.toml));
+  - cobertura como relatório, sem limite que quebre o build: 98% das linhas de `api`, `catalogo`, `cli`, `guardrails`,
+    `mcp_servers`, `runtime` e `transpiler`, sem o `agent.py` gerado;
+  - `pip-audit` sobre `requirements.txt`, `requirements-dev.txt` e `constraints.txt`: falha numa vulnerabilidade que já
+    tem correção. O Dependabot abre os PRs de atualização toda semana.
+- **A cobertura, local:** `docker compose run --rm tests pytest -q -n auto --cov --cov-report=term`.
+- **Avisos filtrados:** o `pyproject.toml` filtra, cada um pelo nome, a depreciação do `SequentialAgent`
+  ([por quê](decisoes.md#sequentialagent-obsoleto-no-adk-210)) e os avisos `[EXPERIMENTAL]` do ADK sobre os recursos em
+  uso, que cada processo do `-n auto` repetiria. Um aviso novo continua aparecendo.
 
 ## Primeira mudança, passo a passo
 
-Um exercício de 10 minutos que passa por catálogo, teste, documentação e serviço: fazer o RAG reconhecer
+Um exercício de 10 minutos, com as imagens já construídas (rode antes `docker compose build tests rag`; sem cache, o 1º build leva de 10 a 20 min). Ele passa por catálogo, teste, documentação e serviço: fazer o RAG reconhecer
 a abreviação "Ur. serica" como Ureia (`FICT-004`). Os serviços `tests` e `rag` copiam o código na imagem, por isso o
 `build` antes de rodar.
 
@@ -279,7 +298,11 @@ em `line_intent` (passo 1) e procure-o no mapa [regras.md](regras.md).
   - a saída de exemplo contra `docs/evidencias/log-run-pedido.txt`
   - o `OK:` do `transpile` contra `specs/agent.json`
   - cada comando `docker compose` (serviço, perfil, módulo).
-  - Outros testes leem o `como-rodar.md`: `test_variaveis.py` (toda variável de ambiente que o código lê tem linha na tabela e entrada no `.env.example`), `test_adk_comandos.py` (os comandos `adk run` e `runtime.web` são executados como estão escritos), `test_confirmacao_nativa.py` (a pergunta `[s/N]` do exemplo) e `test_transpiler.py` (`docs/exemplo-agent.py` é a saída exata do `transpile`).
+  - Outros testes leem os docs:
+    - `test_variaveis.py`: toda variável de ambiente que o código lê tem linha na tabela de `referencia.md` e entrada no `.env.example`;
+    - `test_adk_comandos.py`: os comandos `adk run` e `runtime.web` do `como-rodar.md` são executados como estão escritos;
+    - `test_confirmacao_nativa.py`: a pergunta `[s/N]` do exemplo do `como-rodar.md`;
+    - `test_transpiler.py`: `docs/exemplo-agent.py` é a saída exata do `transpile`.
   - Quando mudar um número, uma saída ou um comando, o teste diz o arquivo e a linha.
 - **Docs.** Um fato, um lugar: a referência fica num documento e os outros apontam para ele. Texto novo no estilo dos
   vizinhos: o estado atual, sem história, com o comando ou o caminho.

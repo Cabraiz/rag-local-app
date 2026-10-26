@@ -1,13 +1,16 @@
 # Arquitetura
 
-**O que tem aqui / quando ler.** Como as partes se encaixam, em poucas telas: as etapas, o caminho de um pedido, onde a
-PII é mascarada, as camadas de segurança e como o agendamento é conferido. Leia antes de mexer no código. Os detalhes de
+**O que tem aqui / quando ler.** Como as partes se encaixam e por quê, em poucas telas: as etapas, o caminho de um
+pedido e o porquê dos servidores à parte, da máscara de PII, das camadas de segurança e do agendamento decidido em
+código. Leia antes de mexer no código. Os detalhes de
 cada parte (tabelas, limites, mensagens) estão em [referencia.md](referencia.md); o porquê de cada escolha, em
 [decisoes.md](decisoes.md); os comandos, em [como-rodar.md](como-rodar.md).
 
 **Índice:** [Visão geral](#visão-geral) · [Etapas](#etapas) · [O caminho de um pedido](#o-caminho-de-um-pedido) ·
-[Servidores MCP](#servidores-mcp) · [Onde a PII é mascarada](#onde-a-pii-é-mascarada) ·
-[Segurança em detalhe](#segurança-em-detalhe) · [Agendamento conferido em código](#agendamento-conferido-em-código) ·
+[Por que OCR e RAG são servidores à parte](#por-que-ocr-e-rag-são-servidores-à-parte) ·
+[Por que a PII não chega ao modelo](#por-que-a-pii-não-chega-ao-modelo) ·
+[Por que a segurança vem em camadas](#por-que-a-segurança-vem-em-camadas) ·
+[Por que o código decide o agendamento](#por-que-o-código-decide-o-agendamento) ·
 [Tratamento de erros](#tratamento-de-erros)
 
 ## Visão geral
@@ -67,37 +70,53 @@ sequenceDiagram
 Passo a passo, com as funções a ler primeiro: [guia-dev.md](guia-dev.md#o-caminho-de-um-pedido-no-código). Cada
 chamada, com o que entra e o que sai: [referencia.md](referencia.md#fluxo-de-dados-de-uma-execução).
 
-## Servidores MCP
+## Por que OCR e RAG são servidores à parte
 
-O OCR e o RAG são servidores MCP via SSE, cada um no seu container, numa rede interna sem internet e sem porta no host.
-O agente se conecta com `McpToolset(connection_params=SseConnectionParams(url=...))`, com as URLs da spec, e só aceita
-hosts de `ALLOWED_HOSTS`. Ferramentas, URLs, portas e como iniciar cada um: [referencia.md](referencia.md#servidores-mcp).
+O OCR e o RAG são servidores MCP via SSE, cada um no seu container. Ficar à parte do agente dá três coisas:
 
-## Onde a PII é mascarada
+- **O texto original fica preso.** O container do OCR não tem internet nem porta no host, e só devolve texto já
+  mascarado.
+- **O agente só fala com quem foi permitido.** Ele se conecta com `McpToolset(connection_params=SseConnectionParams(url=...))`,
+  com as URLs da spec, e só aceita hosts de `ALLOWED_HOSTS`, que quem implanta define.
+- **Cada etapa vê só as suas ferramentas.** Pelo `tool_filter` da spec, o `extract` vê só a leitura do OCR, o `search` só a busca e o `schedule` só o agendamento.
 
-Dentro do container do OCR, antes de qualquer modelo. O texto original não sai de lá. Na ordem: tira as ordens ao
-modelo, classifica o que cada linha pede, mascara os dados pessoais e deixa sair só o que parece exame ou estrutura do
-pedido. O Gemini recebe só as linhas de exame; as outras chegam como `[linha de texto livre omitida]`. A API grava só
-códigos e nomes do catálogo. As etapas da máscara, uma a uma: [referencia.md](referencia.md#onde-a-pii-é-mascarada).
+Ferramentas, URLs, portas e como iniciar cada servidor: [referencia.md](referencia.md#servidores-mcp).
 
-## Segurança em detalhe
+## Por que a PII não chega ao modelo
 
-As camadas, da imagem ao banco:
+A máscara roda dentro do container do OCR, antes de qualquer modelo. A ordem importa:
 
-- **Entrada:** a foto ruim é recusada antes do OCR; o nome do arquivo não chega ao modelo.
-- **Texto da imagem:** ordens ao modelo são tiradas; dado de ferramenta nunca vale como instrução.
-- **Modelo:** só propõe; o código aceita apenas códigos que uma busca devolveu, cada um num trecho próprio do pedido.
-- **Pessoa:** confirma a lista antes da API.
-- **Rede:** hosts permitidos conferidos na conexão; OCR e RAG sem internet; API só em `127.0.0.1`.
-- **API e banco:** só códigos do catálogo, `Idempotency-Key` do runtime, cifra por linha.
+1. Tira as ordens ao modelo escritas na imagem.
+2. Classifica o que cada linha pede (exame, negação, preparo…).
+3. Mascara os dados pessoais.
+4. Deixa sair só o que parece exame ou estrutura do pedido.
+
+O Gemini recebe só as linhas de exame; as outras chegam como `[linha de texto livre omitida]`. A API grava só códigos e
+nomes do catálogo. Assim, um dado pessoal que a máscara não reconheça ainda precisa parecer exame para sair. Cada etapa,
+com os números: [referencia.md](referencia.md#onde-a-pii-é-mascarada).
+
+## Por que a segurança vem em camadas
+
+Nenhuma camada sozinha é prova: o OCR erra, as regras não cobrem ataques novos e o modelo pode ser enganado. Por isso
+cada camada barra uma coisa diferente, da imagem ao banco:
+
+| Camada | O que barra |
+|---|---|
+| Entrada | Foto ruim, recusada antes do OCR; o nome do arquivo não chega ao modelo |
+| Texto da imagem | Ordens ao modelo; dado de ferramenta nunca vale como instrução |
+| Modelo | Nada: ele só propõe |
+| Código | Código que nenhuma busca devolveu; dois exames no mesmo trecho; leitura fraca |
+| Pessoa | A lista inteira, antes da API |
+| Rede | Hosts fora de `ALLOWED_HOSTS`; OCR e RAG sem internet; API só em `127.0.0.1` |
+| API e banco | Código fora do catálogo; agendamento em dobro (`Idempotency-Key`); dado em claro (cifra por linha) |
 
 Cada camada, com números e exemplos: [referencia.md](referencia.md#segurança-em-detalhe). Os limites de cada uma:
 [decisoes.md](decisoes.md#limites).
 
-## Agendamento conferido em código
+## Por que o código decide o agendamento
 
-O agendamento passa por um callback antes da API (`only_confident_codes`, em
-[`runtime/callbacks.py`](../runtime/callbacks.py)):
+Num pedido médico, a decisão precisa ser reprodutível. Por isso o modelo não chama a API direto: um callback
+(`only_confident_codes`, em [`runtime/callbacks.py`](../runtime/callbacks.py)) roda antes, e ele:
 
 1. Bloqueia código que nenhuma busca devolveu.
 2. Dá a cada exame um trecho próprio da linha lida.

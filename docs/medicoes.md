@@ -5,7 +5,7 @@ privacidade e na robustez. Comece pelo [Resumo](#resumo): cada linha leva ao det
 regras de linha e de página estão em [regras.md](regras.md); aqui, o efeito medido delas e os
 [limites conhecidos](#limites-conhecidos).
 
-Nada aqui chama o Gemini; tudo se repete, menos o marcado _medido fora do repositório, sem os dados aqui_. `pytest …`
+Nada aqui chama o Gemini. Tudo se repete com o clone, menos o marcado _medido fora do repositório, sem os dados aqui_; no Resumo, essas medições ficam numa tabela à parte. `pytest …`
 é `docker compose run --rm tests pytest -q …`; os scripts de `tests/load/` usam o compose da carga:
 
 ```bash
@@ -22,15 +22,22 @@ docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga ru
 | Dados sensíveis sob carga: OCR → RAG → API → SQLite | 500 pedidos, 6.000 campos sensíveis | **0 vazamentos** no texto do OCR; **0 valores em claro** nos bytes do SQLite e do WAL; 499 de 500 pedidos agendados, e o `GET` devolve os exames enviados nos 499 | `tests.load.carga --n 500 --concorrencia 8` |
 | Só as linhas de exame chegam ao modelo | 120 manuscritas, 30 fotos de celular, 200 pedidos da carga e `pedido.png` (5.028 linhas lidas) | 4.029 linhas de texto livre omitidas; **0 PII** no que o modelo recebe; os mesmos agendados e perguntados, **0 errados** ([detalhe](#texto-livre-fora-do-modelo)) | `pytest tests/test_texto_livre.py` |
 | A máscara não apaga exame | 1.445 linhas legítimas distintas (as 1.429 distintas de `tests/attacks/legit.txt` e 16 de `legit-pages.txt`); os 240 nomes e sinônimos do catálogo em MAIÚSCULAS, Title Case, com ". com jejum" e com 6 modificadores | 0 exames apagados | `pytest tests/test_pii.py` |
-| Formatos fora do gerador, em 2 conjuntos independentes de imagens: nome sem rótulo, com `'` ou `-`, em minúsculas ao lado do exame, CPF em 2 linhas, data por extenso | 79 + 79 imagens; 84 + 83 valores pessoais lidos | **0 de 84** e **0 de 83** não mascarados; 0 exames apagados (no 2º, 1 exame faltou porque o OCR leu "Vitamina B1l2") | cada caso virou teste em `tests/test_pii.py` (as imagens têm PII fictícia legível e ficam fora do repositório) |
 | Limiar de 0,90 para agendar | 631 consultas versionadas | 0 de 10 erros passam; 522 de 621 acertos ficam (84,1%). Só há 10 erros conhecidos: é uma checagem de piso, não uma taxa de erro | `pytest tests/test_calibration.py` |
-| Faixas de confiança com a leitura real do OCR | 120 manuscritas, 200 pedidos da carga e 240 de um banco de impressos e manuscritos (os 240: _medido fora do repositório, sem os dados aqui_) | **0 exames errados agendados sem confirmação** | `tests.load.manuscritos` e `tests.load.carga --n 200` |
+| Faixas de confiança com a leitura real do OCR | 120 manuscritas e 200 pedidos da carga | **0 exames errados agendados sem confirmação** | `tests.load.manuscritos` e `tests.load.carga --n 200` |
 | Entradas faltando ou quebradas, pelo caminho real | 602 casos em 4 grupos | 312 ok, 290 recusas com mensagem clara, **0 falhas** (0 erros 500, 0 tracebacks, 0 PII, 0 exames fora da imagem) | `tests.load.robustez --variantes 12` |
 | Cifra no banco | 6 propriedades, 4 chaves inválidas | nenhum `FICT` nem nome de exame nos bytes; toda alteração dá o mesmo 500 fixo; sem chave válida a API não sobe | `pytest tests/test_crypto.py` |
 | Fotos de celular de pedidos impressos | 30 fotos, 97 exames, 3 níveis | 89 agendados sem perguntar (92%), **0 errados**, 0 PII | `tests.load.manuscritos --origem samples/fotos-celular` |
 | Modelo que alucina | 17 testes (22 casos), serviços reais | nada errado agendado nem gravado ([tabela](#modelo-que-alucina)) | `pytest tests/test_alucinacao.py` |
 | Qualidade da foto, antes do OCR | 24 pedidos degradados passo a passo; 120 manuscritas, 200 da carga e as amostras | recusa só onde o OCR lê ~0%, com uma dica; **0** imagens reais recusadas | `pytest tests/test_qualidade.py` |
 | Pedido que cancela, adia ou anota um exame | 69 linhas que não pedem o exame; 31 páginas de ataque em imagem | **0 agendados sozinhos** ([linha](#negação-histórico-e-observações), [página](#lista-branca-por-página)) | `pytest tests/test_negacao.py` (as 69 linhas) |
+
+**Medições com dados fora do repositório.** Não dá para repeti-las com este clone; os casos que elas acharam viraram
+testes.
+
+| O que foi testado | Casos | Resultado | O que ficou no repositório |
+|---|---|---|---|
+| Formatos fora do gerador, em 2 conjuntos independentes de imagens: nome sem rótulo, com `'` ou `-`, em minúsculas ao lado do exame, CPF em 2 linhas, data por extenso | 79 + 79 imagens; 84 + 83 valores pessoais lidos | **0 de 84** e **0 de 83** não mascarados; 0 exames apagados (no 2º, 1 exame faltou porque o OCR leu "Vitamina B1l2") | cada caso virou teste em `tests/test_pii.py`; as imagens têm PII fictícia legível e ficam fora |
+| Faixas de confiança com a leitura real do OCR | 240 pedidos de um banco de impressos e manuscritos | **0 exames errados agendados sem confirmação** | nada: os dados não são do projeto |
 
 **Como ler.** **Agendado sozinho**, **perguntado** e **baixa confiança** seguem as [faixas de confiança](glossario.md#leitura-e-decisão-de-cada-exame).
 
@@ -141,10 +148,29 @@ exame, que agora vai ao modelo mascarado e fica para conferir.
 
 ## Pedidos manuscritos simulados
 
-`samples/manuscritos/` tem 120 pedidos (497 exames): 70 de letra comum e 50 de "letra de médico", em scan (27), foto
-(53) e foto ruim (40), com fontes de letra de mão, não escrita real
-([como-rodar.md](como-rodar.md#pedidos-manuscritos-simulados)). Medido com OCR por linha, busca, faixas de confiança e
-a [regra de linha](#lista-branca-só-agenda-sozinha-a-linha-que-é-só-exame).
+`samples/manuscritos/` tem 120 pedidos fictícios com aparência de letra de mão: 70 de letra comum e 50 de "letra de médico" (inclinada, abreviada, com carimbo e assinatura).
+
+- **São simulados com fontes de letra de mão do Windows** (Ink Free, Segoe Print, Segoe Script), não escrita real.
+- **Qualidade:** 93 das 120 (77%) imitam foto de celular: foto (53) e foto ruim (40). As outras 27 são scan limpo.
+- **Gabarito:** o `gabarito.json` diz os exames (497 no total), a PII e a degradação de cada imagem. O CPF tem o dígito
+  verificador errado de propósito.
+- **Na CI,** `tests/test_manuscritos.py` roda 10 das 120 e falha com um exame agendado errado sem confirmação ou com PII
+  sobrando.
+
+**Como repetir.** Para passar as 120 pelo OCR e pelo RAG, sem Gemini, com a regra real do agente:
+
+```bash
+docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga run --rm tests python -m tests.load.manuscritos
+```
+
+Para gerar as imagens de novo (no Windows, mesma semente):
+
+```bash
+python exemplos/gerar_manuscrito.py --saida samples/manuscritos --comum 70 --medico 50
+```
+
+Medido com OCR por linha, busca, faixas de confiança e a
+[regra de linha](#lista-branca-só-agenda-sozinha-a-linha-que-é-só-exame).
 
 **Estado atual:** com todas as regras de hoje, as 120 manuscritas têm **24 exames agendados sozinhos e 0 errados sem
 confirmação**. A tabela abaixo mede só a regra de linha, sem as regras de página: mostra o teto da leitura por estilo.
@@ -200,6 +226,15 @@ regra de agendamento do agente gerado → API), com um "modelo" adversário que 
 | RAG (vazia, só espaços, 5.000 caracteres, emoji, caractere de controle, SQL, JSON, tipo errado) | 96 | 45 | 51 | 0 |
 | OCR, argumento de tipo errado ou ausente | 12 | 0 | 12 | 0 |
 | API (corpo vazio, campos faltando, null, tipos trocados, > 20 exames, repetidos, > 16 KB, 50 POSTs ao mesmo tempo) | 170 | 50 | 120 | 0 |
+
+**Como repetir:**
+
+```bash
+docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga run --rm tests python -m tests.load.robustez --variantes 12
+```
+
+A saída mostra, por categoria, os casos ok, os recusados com mensagem clara e os que falharam (erro 500, traceback,
+PII, exame agendado fora da imagem, mensagem pouco clara). `--caso <id>` refaz um caso.
 
 Total: **312 ok, 290 recusas com mensagem clara e 0 falhas**, p95 de até 0,97 s por caso. Cada caso exige: nenhum
 erro 500, traceback, PII no texto do OCR ou exame agendado fora da imagem, e toda recusa com uma frase para o usuário.

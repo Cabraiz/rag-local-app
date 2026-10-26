@@ -21,7 +21,7 @@ RAG em ordem de score (`Glicose` → `FICT-002`, score 1,0) e, nas specs,
 
 `gerar_pedido_sem_exame.py` gera `samples/pedido-sem-exame.png`, o pedido sem nenhum exame do caso (b) de [`docs/evidencias/log-alucinacao.txt`](../docs/evidencias/log-alucinacao.txt), com o gerador da carga e semente fixa (as fontes DejaVu da imagem de testes desenham a mesma imagem; `tests/test_ocr.py` confere).
 
-`gerar_manuscrito.py` gera os 120 pedidos manuscritos simulados de `samples/manuscritos/` (com as fontes de letra de mão do Windows; em outro sistema, aponte `FONTS_DIR` para uma pasta com elas); ver "Pedidos manuscritos simulados" em [docs/como-rodar.md](../docs/como-rodar.md).
+`gerar_manuscrito.py` gera os 120 pedidos manuscritos simulados de `samples/manuscritos/` (com as fontes de letra de mão do Windows; em outro sistema, aponte `FONTS_DIR` para uma pasta com elas); os números e o comando que as mede estão em [docs/medicoes.md](../docs/medicoes.md#pedidos-manuscritos-simulados).
 
 ## Letra de médico: avaliar um leitor local (experimento)
 

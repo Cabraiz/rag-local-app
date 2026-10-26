@@ -2,11 +2,11 @@
 
 **O que tem aqui / quando ler.** O que se consulta, não o que se lê de ponta a ponta: cada componente e o que ele
 não faz, a rede, os servidores MCP, o caminho dos dados, onde a PII é mascarada, cada camada de segurança, como o
-agendamento é conferido em código e todas as mensagens e erros. A explicação de como as partes se encaixam está em
+agendamento é conferido em código, as variáveis de ambiente, os códigos de saída e todas as mensagens e erros. A explicação de como as partes se encaixam está em
 [arquitetura.md](arquitetura.md); as regras de linha e de página, em [regras.md](regras.md); os termos, no
 [glossário](glossario.md).
 
-**Índice:** [Como a busca corta uma linha](#como-a-busca-corta-uma-linha) · [Componentes](#componentes) · [Rede e processos](#rede-e-processos) · [Servidores MCP](#servidores-mcp) · [Fluxo de dados de uma execução](#fluxo-de-dados-de-uma-execução) · [Onde a PII é mascarada](#onde-a-pii-é-mascarada) · [Segurança em detalhe](#segurança-em-detalhe) · [Agendamento conferido em código](#agendamento-conferido-em-código) · [Mensagens e erros](#mensagens-e-erros)
+**Índice:** [Como a busca corta uma linha](#como-a-busca-corta-uma-linha) · [Componentes](#componentes) · [Rede e processos](#rede-e-processos) · [Servidores MCP](#servidores-mcp) · [Fluxo de dados de uma execução](#fluxo-de-dados-de-uma-execução) · [Onde a PII é mascarada](#onde-a-pii-é-mascarada) · [Segurança em detalhe](#segurança-em-detalhe) · [Agendamento conferido em código](#agendamento-conferido-em-código) · [Variáveis de ambiente](#variáveis-de-ambiente) · [Mensagens e erros](#mensagens-e-erros) ([códigos de saída](#códigos-de-saída))
 
 ## Como a busca corta uma linha
 
@@ -39,7 +39,7 @@ agendamento é conferido em código e todas as mensagens e erros. A explicação
 | `guardrails/injection.py` | Trocar por um marcador as linhas ou trechos escritos como ordem ao modelo (com acentos, homoglifos, leetspeak e palavras soletradas normalizados) e contá-las (`instructions_removed`) | Decidir o que é exame |
 | `api/main.py` | Criar e consultar agendamentos (FastAPI + SQLite), com `Idempotency-Key` opcional, cabeçalhos de segurança e uma linha de log JSON por requisição. Ao subir (lifespan), prepara a chave do banco, o catálogo e o banco, nessa ordem; importar o módulo não lê configuração | Aceitar código fora de `FICT-\d{3}` |
 | `api/crypto.py` | Cifrar a lista de exames de cada agendamento (AES-256-GCM, presa ao `id`, ao status e à data); criar a chave no volume `api-key` na 1ª subida | Guardar a chave no volume do banco |
-| `api/backup.py` | Copiar o banco com a API no ar (API de backup do SQLite, consistente com o WAL) e restaurar a cópia, só com a API parada, depois de decifrar cada agendamento com a chave atual ([passos](como-rodar.md#backup-e-restauração)) | Copiar a chave junto com o banco |
+| `api/backup.py` | Copiar o banco com a API no ar (API de backup do SQLite, consistente com o WAL) e restaurar a cópia, só com a API parada, depois de decifrar cada agendamento com a chave atual ([passos](backup.md)) | Copiar a chave junto com o banco |
 
 ### As regras que o `agent.py` importa
 
@@ -327,10 +327,48 @@ Cada estado de um exame, a mensagem que a CLI mostra e o código que a produz es
 Se não sobra nenhum, nada é agendado. O código gerado, sem Docker: [`docs/exemplo-agent.py`](exemplo-agent.py),
 a saída exata do `transpile` para `specs/agent.json` (um teste falha se ela ficar desatualizada).
 
+## Variáveis de ambiente
+
+Todas as que o código lê (um teste falha se faltar uma).
+
+- As do `.env` chegam só ao serviço que as usa.
+- As outras já têm o valor certo nos containers. Só mudam fora do Docker, por exemplo no `pytest` local.
+- Edite o `.env`; não use `export`, `$env:` nem `echo > .env`.
+
+| Variável | Padrão | Quem lê | O que faz |
+|---|---|---|---|
+| `GOOGLE_API_KEY` | vazia | `agent` (`cli run`) | Chave da Gemini API. Sem ela, o `run` para antes de chamar o modelo. |
+| `GEMINI_MODEL` | vazia: o modelo da spec | `agent` e `tests-e2e` | Outro modelo Gemini numa execução, sem editar a spec (a mesma regra de nome da spec vale para ela). |
+| `ALLOWED_HOSTS` | vazia: `ocr:8001,rag:8002,api:8000` | `agent` (`transpile`, `run`, `adk run` e `adk web`) | Hosts que os servidores de uma spec podem usar: `host` para qualquer porta, `host:porta` para uma. |
+| `DB_ENCRYPTION_KEY` | vazia: a `api` cria uma no volume `api-key` | `api` | Chave AES-256 que cifra as listas de exames no banco (`python -m api.crypto --gerar-chave` cria uma). |
+| `API_RATE_LIMIT_PER_MINUTE` | `1200` | `api` | Requisições por minuto por IP; acima disso, `429` com `Retry-After`. `0` desliga. |
+| `API_ALLOWED_HOSTS` | vazia: `127.0.0.1,localhost,api` | `api` | Nomes aceitos no cabeçalho `Host`, em qualquer porta; outro recebe `400` (contra DNS rebinding). Para chamar a API por outro nome (um proxy), inclua-o aqui. |
+| `API_IDEMPOTENCY_TTL_HOURS` | `24` | `api` | Horas que uma `Idempotency-Key` vale (guardada só como HMAC); depois, a mesma chave agenda de novo. |
+| `API_PORT` | `8765` | Compose | Porta da API no host, só em `127.0.0.1`. |
+| `DB_PATH` | `/state/appointments.db` | `api` | Arquivo SQLite (no volume `api-data`). |
+| `DB_KEY_FILE` | `/keys/db.key` | `api` | Onde fica a chave criada na 1ª subida (no volume `api-key`). |
+| `EXAMS_PATH` | `data/exams.json` | `api`, `rag`, `ocr` (`catalogo.py`) | Catálogo de exames. |
+| `SAMPLES_DIR` | `/data/samples` | `ocr` | Pasta das imagens que o OCR aceita (`samples/`, só leitura; a carga monta outra). |
+| `OMP_THREAD_LIMIT` | `1`, definida pelo `ocr` | Tesseract | Uma thread por leitura: com 8 leituras em paralelo, o Tesseract não disputa os núcleos. |
+| `CI` | vazia | `cli run` | Não vazia (como no GitHub Actions): nenhuma pergunta, como sem terminal; sem `--yes`, nada é agendado. O `--yes` chega ao agente pelo registro do pedido, não por variável. |
+
 ## Mensagens e erros
 
 Uma tabela por origem. Falhas de ambiente (Docker, chave, portas) e o que fazer com elas ficam em
 [como-rodar.md](como-rodar.md#quando-algo-falha).
+
+### Códigos de saída
+
+O que a CLI devolve ao shell; quem automatiza com `--yes` deve olhar o código, não só a última linha.
+
+| Código | Quando | Exemplo |
+|---|---|---|
+| `0` | O comando terminou: o `transpile` gerou o arquivo; o `run` agendou com a lista confirmada, ou listou os exames de uma spec sem ferramenta de agendar | `Agendamento confirmado pela API: id …` |
+| `2` | Qualquer erro, sempre numa linha `Erro: …`. Nada foi agendado, salvo quando o erro é a resposta da API depois do `POST` (a linha diz qual) | `Erro: …; nada foi agendado` |
+| `3` | Só com `--yes`: o agendamento existe, mas sobraram exames do pedido sem decisão do agente | `…status scheduled; ATENÇÃO: 1 possível(is) exame(s) do pedido sem decisão do agente…` |
+
+O `3` vem de `cli.UNDECIDED_WITH_YES`; o `2`, do `main` de [`cli.py`](../cli.py). Sem `--yes`, os mesmos avisos saem com
+código `0`, porque a pessoa viu a lista.
 
 ### Avisos sobre os exames de um pedido
 
@@ -368,7 +406,7 @@ As mensagens são as que o usuário vê; nenhuma mostra stack trace.
 |---|---|---|
 | Spec inválida (JSON, chave duplicada, campo extra, formato) | `transpiler/spec.py` | `Erro: campo: motivo`, uma linha por problema, código 2 ([exemplos](transpilador.md#validação-e-mensagens-de-erro)) |
 | `generated/agent.py` ausente | `cli run` | `generated/agent.py não existe: rode antes: docker compose run --rm agent python -m cli transpile specs/agent.json` |
-| `agent.py` diferente do que a spec gera hoje | `cli run` | `generated/agent.py não é o que specs/agent.json gera hoje (gerado de outra spec, antes de uma mudança ou editado à mão); gere de novo: docker compose run --rm agent python -m cli transpile specs/agent.json`, antes de qualquer serviço ou do Gemini |
+| `agent.py` diferente do que a spec gera hoje | `cli run` | `generated/agent.py não é o que specs/agent.json gera hoje (gerado de outra spec, antes de uma mudança ou editado à mão); gere de novo: docker compose run --rm agent python -m cli transpile specs/agent.json`, antes de qualquer serviço ou do Gemini. Se você gerou o agente de outra spec, não gere de novo: passe ao `run` a spec e o agente dela (`--spec specs/<sua-spec>.json --agent generated/<nome>/agent.py`) |
 | `agent.py` com um host fora de `ALLOWED_HOSTS` | importação fora do `cli run` (`runtime/adk.py`) | `generated/agent.py: o código gerado não pôde ser importado (ValueError: host "…" fora de ALLOWED_HOSTS (…); gere o agent.py de novo ou inclua o host em ALLOWED_HOSTS)` |
 | Chave Gemini ausente | `cli run` | `GOOGLE_API_KEY não definida: preencha GOOGLE_API_KEY= no .env (crie com "cp .env.example .env" se ele não existir)`, antes de qualquer chamada |
 | `DB_ENCRYPTION_KEY` vazia | `api` (`api/crypto.py`) | não é erro: na 1ª subida a API cria a chave no volume `api-key` e loga `chave do banco criada em /keys/db.key`, sem a chave; depois, reusa a mesma |

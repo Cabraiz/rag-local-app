@@ -16,7 +16,7 @@ docker compose run --rm agent python -m cli transpile specs/agent.json   # JSON 
 docker compose run --rm agent python -m cli run --image pedido.png       # imagem de samples/, só pelo nome; OCR → RAG → agendamento (segundos a minutos, conforme a fila do Gemini)
 ```
 
-Saída esperada do último comando (trecho do [log real](docs/evidencias/log-run-pedido.txt)):
+Saída esperada do último comando. É um trecho do [log real](docs/evidencias/log-run-pedido.txt): a saída completa também mostra o progresso de cada etapa (`[extract] chamando …`) e termina numa linha `Tempo:`.
 
 ```text
 Exames para agendar:
@@ -34,9 +34,14 @@ PII reconhecida e mascarada pelo OCR: NOME x2, CPF x1, EMAIL x1, TELEFONE x1
 Agendamento confirmado pela API: id <uuid>, status scheduled
 ```
 
-Num terminal, a CLI mostra a lista e pergunta `Agendar estes N exames? [s/N]`. Para automação (sem terminal, CI), use `--yes`: sem pergunta, agenda só os exames bem lidos de um pedido que contém apenas a lista de exames ([detalhe](docs/como-rodar.md#3-executar-o-agente)).
+Num terminal, a CLI mostra a lista e pergunta `Agendar estes N exames? [s/N]`. Para automação (sem terminal, CI), use `--yes`. Com ele não há pergunta, e só agendam os exames bem lidos de um pedido que é só a lista de exames ([detalhe](docs/como-rodar.md#3-executar-o-agente), [códigos de saída](docs/referencia.md#códigos-de-saída)).
 
-**Sua própria spec, sem rebuild:** salve-a em `specs/` e rode `docker compose run --rm agent python -m cli transpile specs/<sua-spec>.json`, que substitui o `generated/agent.py` (para manter os dois: `--output generated/<nome>/agent.py`) ([campos](docs/transpilador.md#campos-da-spec)). Um servidor fora do compose precisa estar em `ALLOWED_HOSTS`, como no [exemplo fora do domínio](specs/exemplo-generico.json): `-e ALLOWED_HOSTS=docs:8010`.
+**Sua própria spec, sem rebuild:** salve-a em `specs/`, gere o agente numa pasta própria e passe ao `run` a spec e o agente:
+
+- `docker compose run --rm agent python -m cli transpile specs/<sua-spec>.json --output generated/<nome>/agent.py`
+- `docker compose run --rm agent python -m cli run --image pedido.png --spec specs/<sua-spec>.json --agent generated/<nome>/agent.py`
+
+O `cli run` precisa de uma spec com o `BookingPlugin`; as outras rodam no `adk run` ([campos](docs/transpilador.md#campos-da-spec)). Um servidor fora do compose precisa estar em `ALLOWED_HOSTS`, como no [exemplo fora do domínio](specs/exemplo-generico.json): `-e ALLOWED_HOSTS=docs:8010`.
 
 **Sem a CLI, com o próprio ADK:** `docker compose run --rm agent adk run --in_memory generated` e digite `pedido.png`; o `adk web` roda por `python -m runtime.web` ([como](docs/como-rodar.md#4-rodar-com-adk-run-ou-adk-web), [vídeo 12](docs/videos.md#12-adk-sem-a-cli)).
 
@@ -45,17 +50,17 @@ https://github.com/user-attachments/assets/2bf4ca61-0f7f-42d9-a174-16b3377d8f16
 <sub>O fluxo completo em um vídeo, gravado numa execução real ([mp4](docs/gravacoes/00-visao-geral.mp4)).</sub>
 
 ## O que o sistema cobre
-| Escopo do estudo | Onde | Prova |
+| Componente | Código | Testes e demonstração |
 |---|---|---|
 | Transpilador: JSON → Python que instancia agentes só com o Google ADK (só classes do ADK; a política é um plugin do ADK) | [`transpiler/`](transpiler/), [`runtime/`](runtime/), [5 specs](specs/) | [vídeo 01](docs/videos.md#01-transpilador) · [testes](tests/test_transpiler.py) · [specs diferentes](tests/test_spec_generica.py) · [com `adk run`](tests/test_adk_run.py) · [doc](docs/transpilador.md) |
 | Valida inputs, erros claros, código gerado executável e nas boas práticas do ADK | [`transpiler/spec.py`](transpiler/spec.py), [`transpiler/live.py`](transpiler/live.py), [`transpiler/generator.py`](transpiler/generator.py) | [erros reais](docs/transpilador.md#validação-e-mensagens-de-erro) · [código gerado](docs/exemplo-agent.py) |
 | CLI de agendamento; entrada: imagem de pedido; JSON e imagem de exemplo | [`cli.py`](cli.py), [`specs/agent.json`](specs/agent.json), [`samples/pedido.png`](samples/pedido.png) | [log do `run`](docs/evidencias/log-run-pedido.txt) · [outra imagem](docs/como-rodar.md#testar-outra-imagem) |
-| OCR e RAG (≥ 100 exames) como servidores MCP só via SSE; como iniciar e como o agente se conecta | [`mcp_servers/ocr.py`](mcp_servers/ocr.py), [`mcp_servers/rag.py`](mcp_servers/rag.py), [`data/exams.json`](data/exams.json) (120) | vídeos [02](docs/videos.md#02-ocr-via-mcp-sse) e [03](docs/videos.md#03-rag-via-mcp-sse) · [SSE](tests/test_mcp_sse.py) · [OCR](tests/test_ocr.py) · [RAG](tests/test_rag.py) · [como iniciar e conectar](docs/arquitetura.md#servidores-mcp) |
+| OCR e RAG (≥ 100 exames) como servidores MCP só via SSE; como iniciar e como o agente se conecta | [`mcp_servers/ocr.py`](mcp_servers/ocr.py), [`mcp_servers/rag.py`](mcp_servers/rag.py), [`data/exams.json`](data/exams.json) (120) | vídeos [02](docs/videos.md#02-ocr-via-mcp-sse) e [03](docs/videos.md#03-rag-via-mcp-sse) · [SSE](tests/test_mcp_sse.py) · [OCR](tests/test_ocr.py) · [RAG](tests/test_rag.py) · [como iniciar e conectar](docs/referencia.md#servidores-mcp) |
 | Agendamento em FastAPI; Swagger (`/docs`) com o contrato que o agente consome | [`api/main.py`](api/main.py), [`api/crypto.py`](api/crypto.py) | [vídeo 04](docs/videos.md#04-api-e-swagger) · [API](tests/test_api.py) · [operações](docs/como-rodar.md#1-subir-o-ambiente-docker) |
 | Saída: exames com códigos e confirmação da API; antes, a pessoa confirma a lista | [`cli.py`](cli.py), [`runtime/confirmacao.py`](runtime/confirmacao.py) | [vídeo 05](docs/videos.md#05-ponta-a-ponta-com-gemini) · [captura](docs/evidencias/cli-run-pedido.png) |
 | Só dados fictícios | [`data/exams.json`](data/exams.json) (`FICT-xxx`), [`samples/`](samples/), [`tests/load/pedidos.py`](tests/load/pedidos.py) | e-mails `.invalid` (RFC 2606), CPFs com dígito verificador errado ([como](docs/medicoes.md#dados-sensíveis-como-contornamos)) |
-| PII mascarada antes do LLM (por regras: [o que ainda passa](docs/decisoes.md#pii-mascarada-na-origem-banco-sem-pii)) e da persistência | [`guardrails/pii.py`](guardrails/pii.py), [`guardrails/injection.py`](guardrails/injection.py), [`guardrails/intent.py`](guardrails/intent.py) | vídeos [06](docs/videos.md#06-pii) e [08](docs/videos.md#08-segurança) · [PII](tests/test_pii.py) · [negação](tests/test_negacao.py) · [onde](docs/arquitetura.md#onde-a-pii-é-mascarada) · [carga](docs/medicoes.md#carga-de-dados-sensíveis) |
-| Tudo em Docker, orquestrado por um `docker-compose.yml` | [`Dockerfile`](Dockerfile) (multi-stage), [`docker-compose.yml`](docker-compose.yml) | [vídeo 07](docs/videos.md#07-docker-e-testes) · [testes](docs/como-rodar.md#testes) |
+| PII mascarada antes do LLM (por regras: [o que ainda passa](docs/decisoes.md#pii-mascarada-na-origem-banco-sem-pii)) e da persistência | [`guardrails/pii.py`](guardrails/pii.py), [`guardrails/injection.py`](guardrails/injection.py), [`guardrails/intent.py`](guardrails/intent.py) | vídeos [06](docs/videos.md#06-pii) e [08](docs/videos.md#08-segurança) · [PII](tests/test_pii.py) · [negação](tests/test_negacao.py) · [onde](docs/referencia.md#onde-a-pii-é-mascarada) · [carga](docs/medicoes.md#carga-de-dados-sensíveis) |
+| Tudo em Docker, orquestrado por um `docker-compose.yml` | [`Dockerfile`](Dockerfile) (multi-stage), [`docker-compose.yml`](docker-compose.yml) | [vídeo 07](docs/videos.md#07-docker-e-testes) · [testes](docs/guia-dev.md#testes) |
 | README, evidências e uso de IA | este arquivo, [`docs/evidencias/`](docs/evidencias/), [`docs/gravacoes/`](docs/gravacoes/) | [guia completo](docs/como-rodar.md) · [Evidências](#evidências) · [Uso de IA](#uso-de-ia) |
 
 ## Para desenvolvedores
@@ -85,8 +90,8 @@ Versão longa: [docs/decisoes.md](docs/decisoes.md).
 - **O modelo propõe, o código decide, a pessoa confirma.** O Gemini lê as linhas de exame mascaradas, transforma a redação livre em buscas no catálogo e propõe os códigos; o código confere cada proposta contra o que foi lido e buscado e decide o que agenda, pergunta ou deixa de fora. Por quê: num pedido médico, a decisão precisa ser reprodutível e auditável ([detalhe](docs/decisoes.md#o-modelo-propõe-o-código-decide-a-pessoa-confirma)).
 - **Confirmação final da lista, nativa do ADK.** A pessoa vê os exames com código e aviso, e o que ficou de fora, e responde `Agendar estes N exames? [s/N]`. Custo: um passo a mais em todo pedido ([detalhe](docs/decisoes.md#a-confirmação-final-da-lista)).
 - **Uma camada de regras, porque a imagem não é confiável e o pedido é médico.** As regras dão o aviso de cada exame e, com `--yes`, só deixam agendar sozinha uma página que é só a lista; a confirmação da pessoa é a barreira final ([as 22 regras](docs/regras.md)).
-- **PII mascarada na origem, banco sem PII.** Nome, CPF, telefone, e-mail e mais 10 tipos viram `[NOME]`, `[CPF]`… dentro do OCR; a API grava só códigos do catálogo, cifrados. Custo: regras, válidas para os formatos testados ([camadas](docs/arquitetura.md#segurança-em-detalhe)).
-- **MCP só via SSE, rede interna, containers endurecidos.** OCR e RAG sem internet nem porta no host; containers sem root e somente leitura. Custo: o MCP trocou o SSE pelo Streamable HTTP ([detalhe](docs/decisoes.md#mcp-só-via-sse-rede-interna-containers-endurecidos)).
+- **PII mascarada na origem, banco sem PII.** Nome, CPF, telefone, e-mail e mais 10 tipos viram `[NOME]`, `[CPF]`… dentro do OCR; a API grava só códigos do catálogo, cifrados. Custo: regras, válidas para os formatos testados ([camadas](docs/referencia.md#segurança-em-detalhe)).
+- **MCP só via SSE, rede interna, containers endurecidos.** OCR e RAG sem internet nem porta no host; containers sem root e somente leitura. Custo: o SSE é transporte legado desde a especificação MCP 2025-03-26; migrar é trocar `SseConnectionParams` por `StreamableHTTPConnectionParams` no template e o `run` dos servidores ([detalhe](docs/decisoes.md#mcp-só-via-sse-rede-interna-containers-endurecidos)).
 - **Transpilador estrito e genérico.** Tipos estritos, valores por `repr()`, arquivo importado antes do OK; o domínio fica num plugin, e uma spec fora do domínio também transpila ([detalhe](docs/decisoes.md#transpilador-estrito-e-genérico)).
 - **`SequentialAgent`, obsoleto no ADK 2.10.** O `Workflow` ainda não é um `BaseAgent`. Custo: um aviso de depreciação e uma migração futura que mexe na CLI.
 
@@ -122,6 +127,6 @@ Execução real com `gemini-3.5-flash`. Vídeos 00 a 12: [miniaturas](docs/grava
 ## Mais documentação
 
 - [Índice: o que ler para cada tarefa](docs/README.md) · [Guia do desenvolvedor](docs/guia-dev.md)
-- [Como rodar](docs/como-rodar.md): passo a passo, variáveis, erros e testes · [Arquitetura](docs/arquitetura.md): etapas, rede, MCP, PII e erros · [Decisões e limites](docs/decisoes.md)
+- [Como rodar](docs/como-rodar.md): do clone ao pedido agendado, e o que fazer quando algo falha · [Referência](docs/referencia.md): componentes, variáveis, códigos de saída e mensagens · [Arquitetura](docs/arquitetura.md): etapas, rede, MCP, PII e erros · [Decisões e limites](docs/decisoes.md)
 - [Transpilador](docs/transpilador.md): spec, validação e código gerado · [Regras](docs/regras.md): as regras de página e de linha · [Números](docs/medicoes.md): medições e limites
 - [Revisão](docs/revisao.md): o que mudou e o teste que trava cada correção · [Vídeos](docs/videos.md) · [licenças e dados](docs/licencas.md) · licença [MIT](LICENSE)
