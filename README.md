@@ -16,7 +16,7 @@ docker compose run --rm agent python -m cli transpile specs/agent.json   # JSON 
 docker compose run --rm agent python -m cli run --image pedido.png       # imagem de samples/, só pelo nome; OCR → RAG → agendamento (segundos a minutos, conforme a fila do Gemini)
 ```
 
-Num terminal, a CLI mostra a lista e pergunta `Agendar estes N exames? [s/N]`. Para automação (sem terminal, CI), use `--yes`: sem pergunta, só agenda os exames bem lidos de páginas que as regras julgam limpas, só com a lista ([detalhe](docs/como-rodar.md#3-executar-o-agente)).
+Num terminal, a CLI mostra a lista e pergunta `Agendar estes N exames? [s/N]`. Para automação (sem terminal, CI), use `--yes`: sem pergunta, agenda só os exames bem lidos de um pedido que contém apenas a lista de exames ([detalhe](docs/como-rodar.md#3-executar-o-agente)).
 
 **Sua própria spec, sem rebuild:** salve-a em `specs/` e rode `docker compose run --rm agent python -m cli transpile specs/<sua-spec>.json` ([campos](docs/transpilador.md#campos-da-spec)). Um servidor fora do compose precisa estar em `ALLOWED_HOSTS`, como no [exemplo fora do domínio](specs/exemplo-generico.json): `-e ALLOWED_HOSTS=docs:8010`.
 
@@ -40,18 +40,11 @@ https://github.com/user-attachments/assets/2bf4ca61-0f7f-42d9-a174-16b3377d8f16
 | Tudo em Docker, orquestrado por um `docker-compose.yml` | [`Dockerfile`](Dockerfile) (multi-stage), [`docker-compose.yml`](docker-compose.yml) | [vídeo 07](docs/videos.md#07-docker-e-testes) · [testes](docs/como-rodar.md#testes) |
 | README, evidências e uso de IA | este arquivo, [`docs/evidencias/`](docs/evidencias/), [`docs/gravacoes/`](docs/gravacoes/) | [guia completo](docs/como-rodar.md) · [Evidências](#evidências) · [Uso de IA](#uso-de-ia) |
 
-## Limites conhecidos
+## Para desenvolvedores
 
-- **Busca lexical, não semântica.** Entende abreviações e erros de OCR nos 120 exames fictícios, não paráfrases; a semântica, medida, não agendou exame a mais ([medição](docs/medicoes.md#busca-semântica-avaliada-não-adotada)).
-- **Letra de médico quase ilegível para o Tesseract.** Nos manuscritos simulados, ele agenda sozinho 1 de 206 exames, sem erro; um leitor de visão local aceitou 24%, mas é lento na CPU e não está ligado ([medição](docs/medicoes.md#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão), [em produção](docs/decisoes.md#pedido-em-papel-em-produção)).
-- **Leitura fraca vira aviso.** Um exame lido certo numa linha que o OCR leu mal fica fora da pergunta; com uma imagem nova, o agendamento pode sair parcial ([exemplo](docs/decisoes.md#exame-lido-certo-mas-com-leitura-fraca-fica-fora-da-pergunta)).
-- **Com `--yes`, um exame injetado como linha comum é agendado.** Sem `--yes`, a pessoa confirma a lista; com ele, só as regras decidem, e um carimbo que o OCR não lê passa ([o que passa](docs/decisoes.md#com---yes-um-exame-injetado-como-linha-comum-é-agendado)).
-- **Filtros por regras não provam segurança contra ataques novos.** São testadas como regressão, em corpora do projeto; a barreira final é o callback, que só agenda códigos achados nas linhas lidas (um exame que o modelo associou mal ainda pode aparecer na lista, marcado `confira`) ([detalhe](docs/decisoes.md#filtros-determinísticos-não-são-prova-contra-ataques-novos)).
-- **O `agent.py` instancia só classes do ADK; a política vem de um plugin do ADK versionado em `runtime/`.** Agentes, `App`, modelo e toolsets são do ADK (os toolsets por subclasses finas que conferem o host). O limite: o pacote `runtime/` precisa estar na imagem ([detalhe](docs/decisoes.md#o-agentpy-usa-só-classes-do-adk-a-política-mora-num-plugin-versionado)).
-- **Sem autenticação na API nem entre serviços.** É um mock local: a API só publica porta em `127.0.0.1`; OCR e RAG não têm internet, mas o container da API tem, porque uma porta publicada exige uma rede não interna ([em produção](docs/decisoes.md#sem-autenticação-na-api-e-entre-serviços)).
-- **Cadeia de suprimentos, em parte.** Faltam `--require-hashes` e versões fixas no `apt`, e o Swagger UI vem de um CDN em versão flutuante (@5), sem SRI ([detalhe](docs/decisoes.md#cadeia-de-suprimentos-em-parte)).
-
-Versão longa: [decisões e limites](docs/decisoes.md#limites) · medidos: [medições](docs/medicoes.md#limites-conhecidos) · em aberto: [revisão](docs/revisao.md#ainda-em-aberto).
+- **Comece pelo [guia do desenvolvedor](docs/guia-dev.md):** mapa do repositório, o caminho de um pedido pelas funções, como rodar cada peça e os testes, receitas (ferramenta ou servidor MCP novo, spec nova, exame novo, regra, padrão de PII) e uma tabela que liga cada aviso do terminal ao código que o produz.
+- **Testes:** `docker compose run --rm tests pytest -q -n auto` (sem chave do Gemini); um arquivo: `docker compose run --rm tests pytest -q tests/test_pii.py`; o ponta a ponta real: `docker compose run --rm tests-e2e`.
+- **Onde mexer:** `transpiler/` (spec e código gerado), `runtime/` (a política que o `agent.py` importa), `mcp_servers/` (OCR e RAG), `guardrails/` (PII, injeção e regras de linha), `api/` (FastAPI). Índice de toda a documentação: [docs/README.md](docs/README.md).
 
 ## Arquitetura em 1 minuto
 
@@ -79,6 +72,19 @@ Versão longa: [docs/decisoes.md](docs/decisoes.md).
 - **Transpilador estrito e genérico.** Tipos estritos, valores por `repr()`, arquivo importado antes do OK; o domínio fica num plugin, e uma spec fora do domínio também transpila ([detalhe](docs/decisoes.md#transpilador-estrito-e-genérico)).
 - **`SequentialAgent`, obsoleto no ADK 2.10.** O `Workflow` ainda não é um `BaseAgent`. Custo: um aviso de depreciação e uma migração futura que mexe na CLI.
 
+## Limites conhecidos
+
+- **Busca lexical, não semântica.** Entende abreviações e erros de OCR nos 120 exames fictícios, não paráfrases; a semântica, medida, não agendou exame a mais ([medição](docs/medicoes.md#busca-semântica-avaliada-não-adotada)).
+- **Letra de médico quase ilegível para o Tesseract.** Nos manuscritos simulados, ele agenda sozinho 1 de 206 exames, sem erro; um leitor de visão local aceitou 24%, mas é lento na CPU e não está ligado ([medição](docs/medicoes.md#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão), [em produção](docs/decisoes.md#pedido-em-papel-em-produção)).
+- **Leitura fraca vira aviso.** Um exame lido certo numa linha que o OCR leu mal fica fora da pergunta; com uma imagem nova, o agendamento pode sair parcial ([exemplo](docs/decisoes.md#exame-lido-certo-mas-com-leitura-fraca-fica-fora-da-pergunta)).
+- **Com `--yes`, um exame injetado como linha comum é agendado.** Sem `--yes`, a pessoa confirma a lista; com ele, só as regras decidem, e um carimbo que o OCR não lê passa ([o que passa](docs/decisoes.md#com---yes-um-exame-injetado-como-linha-comum-é-agendado)).
+- **Filtros por regras não provam segurança contra ataques novos.** São testadas como regressão, em corpora do projeto; a barreira final é o callback, que só agenda códigos achados nas linhas lidas (um exame que o modelo associou mal ainda pode aparecer na lista, marcado `confira`) ([detalhe](docs/decisoes.md#filtros-determinísticos-não-são-prova-contra-ataques-novos)).
+- **O `agent.py` instancia só classes do ADK; a política vem de um plugin do ADK versionado em `runtime/`.** Agentes, `App`, modelo e toolsets são do ADK (os toolsets por subclasses finas que conferem o host). O limite: o pacote `runtime/` precisa estar na imagem ([detalhe](docs/decisoes.md#o-agentpy-usa-só-classes-do-adk-a-política-mora-num-plugin-versionado)).
+- **Sem autenticação na API nem entre serviços.** É um mock local: a API só publica porta em `127.0.0.1`; OCR e RAG não têm internet, mas o container da API tem, porque uma porta publicada exige uma rede não interna ([em produção](docs/decisoes.md#sem-autenticação-na-api-e-entre-serviços)).
+- **Cadeia de suprimentos, em parte.** Faltam `--require-hashes` e versões fixas no `apt`, e o Swagger UI vem de um CDN em versão flutuante (@5), sem SRI ([detalhe](docs/decisoes.md#cadeia-de-suprimentos-em-parte)).
+
+Versão longa: [decisões e limites](docs/decisoes.md#limites) · medidos: [medições](docs/medicoes.md#limites-conhecidos) · em aberto: [revisão](docs/revisao.md#ainda-em-aberto).
+
 ## Evidências
 
 Execução real com `gemini-3.5-flash`. Vídeos 00 a 12: [miniaturas](docs/gravacoes/README.md) · [players](docs/videos.md).
@@ -97,6 +103,7 @@ Execução real com `gemini-3.5-flash`. Vídeos 00 a 12: [miniaturas](docs/grava
 
 ## Mais documentação
 
+- [Índice: o que ler para cada tarefa](docs/README.md) · [Guia do desenvolvedor](docs/guia-dev.md)
 - [Como rodar](docs/como-rodar.md): passo a passo, variáveis, erros e testes · [Arquitetura](docs/arquitetura.md): etapas, rede, MCP, PII e erros · [Decisões e limites](docs/decisoes.md)
 - [Transpilador](docs/transpilador.md): spec, validação e código gerado · [Regras](docs/regras.md): as regras de página e de linha · [Números](docs/medicoes.md): medições e limites
 - [Revisão](docs/revisao.md): o que mudou e o teste que trava cada correção · [Vídeos](docs/videos.md) · [licenças e dados](docs/licencas.md) · licença [MIT](LICENSE)

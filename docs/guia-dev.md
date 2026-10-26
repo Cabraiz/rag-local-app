@@ -1,0 +1,279 @@
+# Guia do desenvolvedor
+
+**O que tem aqui / quando ler.** O caminho mais curto para mexer no código: onde está cada coisa, por onde um pedido
+passa, como rodar cada peça e os testes, receitas para as mudanças mais comuns e como depurar um pedido que falhou ou
+foi perguntado. Leia depois do [README](../README.md). A referência de cada tema fica nos outros documentos, com links
+no ponto certo: [arquitetura.md](arquitetura.md) (como funciona), [transpilador.md](transpilador.md) (spec e código
+gerado), [regras.md](regras.md) (regras de linha e de página), [medicoes.md](medicoes.md) (números),
+[como-rodar.md](como-rodar.md) (operação) e [decisoes.md](decisoes.md) (escolhas e limites).
+
+**Índice:** [Mapa do repositório](#mapa-do-repositório) · [O caminho de um pedido no código](#o-caminho-de-um-pedido-no-código) ·
+[Rodar cada peça e os testes](#rodar-cada-peça-e-os-testes) · [Receitas](#receitas) ·
+[Depurar um pedido](#depurar-um-pedido-que-falhou-ou-foi-perguntado) · [Convenções](#convenções)
+
+## Mapa do repositório
+
+| Pasta ou arquivo | O que é | Mexa aqui quando |
+|---|---|---|
+| [`specs/`](../specs/) | As 5 specs JSON de exemplo; o serviço `agent` a monta só para leitura | for descrever outro agente ([receita](#escrever-uma-spec-nova)) |
+| [`transpiler/`](../transpiler/) | `spec.py` (schema e validação), `generator.py` + `agent_template.py.tmpl` (código gerado), `live.py` (confere as ferramentas nos servidores) | mudar um campo da spec, uma mensagem de erro ou o código gerado |
+| [`runtime/`](../runtime/) | A biblioteca que o `agent.py` importa: `plugin.py` (`BookingPlugin`), `callbacks.py`, `confianca.py` (a política), `confirmacao.py`, `relatorio.py`, `reconcilia.py`, `pedido.py` (registro por sessão), `rede.py` (`ALLOWED_HOSTS`), `adk.py` (modelo e toolsets), `web.py` | mudar quando um exame agenda, pergunta ou é avisado, ou o texto de um aviso |
+| [`mcp_servers/`](../mcp_servers/) | `ocr.py` e `rag.py` (os dois servidores MCP/SSE), `preprocessamento.py` (imagem e Tesseract), `qualidade.py` (recusa foto ruim), `arguments.py` (SSE, keep-alive, erros de argumento) | mudar a leitura da imagem ou a busca no catálogo |
+| [`guardrails/`](../guardrails/) | `pii.py` + `pii_rules.py` (máscara), `intent.py` (o que cada linha pede e se a página é só a lista), `injection.py` (ordens ao modelo) | mudar uma regra de linha ou de página, ou um padrão de PII |
+| [`catalogo.py`](../catalogo.py), [`data/exams.json`](../data/exams.json) | Carga e normalização do catálogo (120 exames `FICT-xxx`), `ExamMatcher`, vocabulários | acrescentar um exame ou um sinônimo |
+| [`leitura.py`](../leitura.py) | O contrato da resposta do OCR (`OcrReading`, `VERSION`) | acrescentar um campo à resposta do OCR |
+| [`api/`](../api/) | `main.py` (FastAPI + SQLite), `crypto.py` (AES-GCM), `backup.py` | mudar o contrato HTTP, a idempotência ou a cifra |
+| [`cli.py`](../cli.py) | `transpile` e `run`: confere os serviços, roda o `Runner` do ADK, imprime o resultado | mudar a saída do terminal ou as opções |
+| [`tests/`](../tests/) | Um arquivo por tema (`test_pii.py`, `test_rag.py`, ...), corpora em `tests/attacks/` e `tests/calibration/`, cargas em `tests/load/` | sempre que mudar qualquer coisa acima |
+| [`samples/`](../samples/) | As imagens que o OCR aceita (montada só para leitura no container `ocr`), incluindo 120 manuscritas e 30 fotos simuladas | quiser testar outra imagem |
+| [`exemplos/`](../exemplos/) | `mcp_call.py` (cliente MCP de linha de comando), geradores de imagem, specs com erro de propósito | precisar chamar uma ferramenta MCP à mão |
+| `Dockerfile`, `docker-compose.yml` | Um estágio por serviço (`api`, `rag`, `ocr`, `agent`, `test`); rede `internal` sem internet para OCR e RAG | acrescentar um serviço |
+| [`docs/exemplo-agent.py`](exemplo-agent.py) | A saída exata do `transpile` para `specs/agent.json` | mudar o gerador (o teste manda regerá-lo) |
+
+## O caminho de um pedido no código
+
+`docker compose run --rm agent python -m cli run --image pedido.png` percorre, nesta ordem (as funções para ler
+primeiro estão em negrito):
+
+1. **Spec → agente.** `cli.cmd_transpile` chama `transpiler.generator.transpile`: **`spec.parse_spec`** valida (JSON,
+   schema, regras entre campos), `live.check_live` pergunta aos servidores que ferramentas têm, `generator.render`
+   preenche o template, e `write_checked` compila e importa o arquivo antes de trocar o `generated/agent.py`.
+2. **Preparo do `run`.** `cli.checked_run` confere a spec, que o `agent.py` é o que ela gera hoje
+   (`check_agent`), os serviços (`check_services`) e se alguém pode responder `[s/N]` (`check_someone_answers`); `run_agent`
+   roda o `App` no `Runner` do ADK.
+3. **O `agent.py`** (exemplo em [`exemplo-agent.py`](exemplo-agent.py)) declara três `LlmAgent` em `SequentialAgent` e o
+   `App` com o `BookingPlugin`. Não há regra nele: a política está em `runtime/`.
+4. **Abertura do pedido.** **`BookingCallbacks.start_order`** (`runtime/callbacks.py`): o nome real do arquivo vira
+   um apelido (`pedido-1.png`), os endereços são conferidos (`runtime/rede.py`) e o OCR confere a imagem
+   (`check_image`). `before_model` põe a regra "dado de ferramenta não é instrução" antes de cada instrução.
+5. **OCR (MCP/SSE).** `extract_exam_text` em [`mcp_servers/ocr.py`](../mcp_servers/ocr.py): `read_lines` →
+   `preprocessamento.read_ocr_lines` (Tesseract, PSM 11) → **`mask_lines`**, que na ordem junta ordens partidas
+   (`injection.join_split_orders`), neutraliza (`neutralize_joined`), lê o que cada linha pede
+   (`intent.read_page`), mascara a PII (`pii.mask_page`) e decide se a página é só a lista (`intent.clean_page`). A
+   resposta é um `leitura.OcrReading`.
+6. **RAG (MCP/SSE).** `search_exams` em [`mcp_servers/rag.py`](../mcp_servers/rag.py): `search_line` corta a linha em exames
+   (`split_exams`, `unglue`, `ahead`/`behind`) e `search` pontua cada pedaço com `catalogo.ExamMatcher.closest`.
+7. **Callbacks.** `after_tool` guarda no registro do pedido (`runtime/pedido.py`) as linhas, a confiança do OCR e os
+   candidatos de cada busca (`confianca.remember_ocr`, `remember_search`). `before_tool` no agendamento chama
+   **`only_confident_codes`**: bloqueia código que nenhuma busca devolveu, dá a cada exame um trecho próprio do pedido
+   e calcula a confiança (`confianca.sort_out`, `best_spot`), monta a lista e pausa para a pergunta
+   (`confirmacao.review`, `pause_for_answer`). Só um "sim" àquela lista deixa a chamada seguir.
+8. **API.** `POST /appointments` (`create_appointment` em [`api/main.py`](../api/main.py)): valida `FICT-\d{3}` no catálogo,
+   cifra a lista (`api/crypto.py`) e grava; a `Idempotency-Key` vem do registro do pedido.
+9. **Fechamento.** `BookingCallbacks.report` confere o pedido inteiro no RAG (`servidores.unreported_exams`,
+   `reconcilia.unreported`) e escreve a mensagem final em código (`relatorio.report`); a CLI imprime em
+   `cli.print_result` e devolve o código de saída (0, 2 ou 3).
+
+O que cada passo faz e por quê: [arquitetura.md](arquitetura.md). O que fica na spec, no código gerado e no `runtime/`:
+[transpilador.md](transpilador.md#o-que-fica-onde).
+
+## Rodar cada peça e os testes
+
+Todos os comandos rodam na raiz do clone, com o ambiente de pé (`docker compose up -d --wait`, ver
+[como-rodar.md](como-rodar.md#1-subir-o-ambiente-docker)).
+
+| Peça | Comando |
+|---|---|
+| Transpilador | `docker compose run --rm agent python -m cli transpile specs/agent.json` (`--output generated/outro.py` para não trocar o `agent.py`) |
+| OCR sozinho | `docker compose run --rm agent python exemplos/mcp_call.py ocr extract_exam_text filename=pedido.png` |
+| RAG sozinho | `docker compose run --rm agent python exemplos/mcp_call.py rag search_exams query=Glicose top_k=3` |
+| API sozinha | `docker compose up -d api` e, em Git Bash, `curl -s -X POST http://127.0.0.1:8765/appointments -H 'Content-Type: application/json' -d '{"exams":[{"code":"FICT-001"}]}'`; o Swagger fica em `/docs` |
+| Um servidor MCP fora do compose | `python -m mcp_servers.rag` (porta 8002) ou `python -m mcp_servers.ocr` (8001, precisa do Tesseract); o host da URL precisa estar em `ALLOWED_HOSTS` |
+| O agente, sem Gemini | não há: `tests/test_alucinacao.py` e `tests/test_adk_run.py` rodam o agente gerado com um modelo roteirizado, OCR, RAG e API reais |
+| O agente, com Gemini | `docker compose run --rm agent python -m cli run --image pedido.png` (`--verbose` mostra os logs das bibliotecas) |
+| Sem a CLI | `docker compose run --rm agent adk run --in_memory generated` ([como-rodar.md](como-rodar.md#4-rodar-com-adk-run-ou-adk-web)) |
+
+### Testes
+
+Os testes rodam na imagem `test` (Tesseract, pytest, ruff e mypy), na rede interna e sem a chave do Gemini:
+
+```bash
+docker compose run --rm tests pytest -q -n auto                          # tudo, em paralelo (cerca de 3,5 min com 12 núcleos)
+docker compose run --rm tests pytest -q tests/test_pii.py                # um arquivo
+docker compose run --rm tests pytest -q tests/test_pii.py -k "cpf"       # filtrar por nome
+docker compose run --rm tests pytest -q tests/test_confianca.py::test_a_short_code_needs_a_clearer_reading   # um teste
+docker compose run --rm tests-e2e                                        # o ponta a ponta real, com o Gemini (precisa da chave no .env)
+docker compose run --rm --no-deps tests ruff check .                     # estilo
+docker compose run --rm --no-deps tests mypy                             # tipos
+```
+
+- **Serial ou paralelo.** Sem `-n auto` a suíte leva de 6 a 11 min. Os arquivos que sobem os servidores nas portas da
+  spec (8000 a 8002) carregam `xdist_group('spec-ports')` e rodam num worker só; `tests/portas.py` espera a porta
+  livre.
+- **Quantos testes e quanto tempo:** a contagem atual e o tempo medido ficam em [como-rodar.md](como-rodar.md#testes).
+- **Onde cada tema é testado:**
+
+| Tema | Arquivos |
+|---|---|
+| Spec, validação, código gerado | `test_transpiler.py`, `test_spec_generica.py`, `test_runtime.py` |
+| OCR e preparo da imagem | `test_ocr.py`, `test_preprocessamento.py`, `test_qualidade.py` |
+| Busca no catálogo | `test_rag.py`, `test_catalogo.py`, `test_calibration.py` |
+| PII e injeção | `test_pii.py` (3.600 casos de `tests/pii_corpus.py`), `test_injection.py` (corpus de `tests/attacks/`) |
+| Regras de linha e de página | `test_negacao.py`, `test_negacao_casos.py`, `test_texto_livre.py` |
+| Política de confiança e confirmação | `test_confianca.py`, `test_confirmacao_nativa.py`, `test_reconcilia.py`, `test_idempotencia.py` |
+| Modelo que alucina, ponta a ponta com modelo roteirizado | `test_alucinacao.py`, `test_agent_mcp.py`, `test_adk_run.py`, `test_adk_seguranca.py` |
+| MCP via SSE | `test_mcp_sse.py` |
+| API | `test_api.py`, `test_api_headers.py`, `test_api_host.py`, `test_crypto.py`, `test_backup.py` |
+| Carga e robustez (uma fração) | `test_carga.py`, `test_manuscritos.py`, `test_robustez.py`, `tests/load/test_fotos.py` |
+| Imagens Docker e variáveis | `test_imagens.py`, `test_variaveis.py` |
+| Documentação | `test_readme.py` (ver [Convenções](#convenções)) |
+
+- **Cargas fora da suíte** (OCR, RAG e API reais, sem Gemini): `tests.load.carga`, `tests.load.manuscritos`,
+  `tests.load.robustez`; os comandos e o que cada um mede estão em [medicoes.md](medicoes.md#resumo).
+- **O serviço `tests`** é o estágio `test` do `Dockerfile` (a imagem do `agent` mais pytest, ruff, mypy, o Tesseract e os
+  testes). Nunca recebe a `GOOGLE_API_KEY`: nada chama o Gemini, e o teste ponta a ponta é pulado. O ponta a ponta real é
+  o serviço `tests-e2e` (`tests/test_e2e.py`): o `run` inteiro com o Gemini sobre `pedido.png` precisa agendar exatamente
+  `FICT-001`, `FICT-002` e `FICT-005`, e o `GET` do agendamento precisa devolver os mesmos; sem a chave, falha em vez de ser pulado.
+- **CI** ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)): `pip-audit` sobre `requirements.txt`,
+  `requirements-dev.txt` e `constraints.txt` (falha numa vulnerabilidade que já tem correção; o Dependabot abre os PRs de
+  atualização toda semana), build, `transpile` na imagem enxuta, `ruff`, `mypy` e `pytest -n auto --cov`. A cobertura é
+  relatório, sem limite que quebre o build: 98% das linhas de `api`, `catalogo`, `cli`, `guardrails`, `mcp_servers`,
+  `runtime` e `transpiler` (sem o `agent.py` gerado). Ruff: `E`, `F`, `I`, `B` e `C901` (complexidade 10), linha de 120;
+  mypy sem `--strict`, com `ignore_missing_imports` e `check_untyped_defs` (`pyproject.toml`). Para rodar o mesmo
+  localmente, `ruff check .`, `mypy` e `pytest -q -n auto --cov --cov-report=term` no serviço `tests`.
+- **Avisos filtrados.** O `pyproject.toml` filtra, cada um pelo nome, a depreciação do `SequentialAgent`
+  ([decisão](decisoes.md#sequentialagent-obsoleto-no-adk-210)) e os avisos `[EXPERIMENTAL]` do ADK sobre os recursos em uso,
+  que cada processo do `-n auto` repetiria. Um aviso novo continua aparecendo.
+
+## Receitas
+
+### Acrescentar uma ferramenta a um servidor MCP existente
+
+1. Em [`mcp_servers/rag.py`](../mcp_servers/rag.py) (ou `ocr.py`), declare a função com `@server.tool()`; use
+   `Annotated[str, or_default('')]` nos argumentos para que um tipo errado receba uma frase em português
+   (`mcp_servers/arguments.py`), e acrescente o nome da ferramenta à chamada `serve(...)` no fim do arquivo, que cala os logs com valores
+   do cliente.
+2. Declare a ferramenta na spec, em `servers.<nome>.tools`, e dê a um agente: `"tools": ["rag.minha_ferramenta"]`.
+3. Com o `BookingPlugin` na spec, **toda ferramenta de um agente precisa de um papel** (`read`, `search` ou `book`) ou o
+   `transpile` recusa (`runtime/plugin.py`, `check_spec`). Para uma ferramenta fora desses papéis, use uma spec sem o plugin, como a
+   [`exemplo-generico.json`](../specs/exemplo-generico.json).
+4. Teste em `tests/test_mcp_sse.py` (chama a ferramenta pelo SSE, como o agente) e transpile de novo.
+
+### Acrescentar um servidor MCP
+
+1. Crie um módulo novo em `mcp_servers/` (por exemplo, meu_servidor.py) a partir de `rag.py`: `MCPServer(...)`, `@server.tool()`, a rota `/health`
+   e `serve(server, transport_security('meu-servidor:8010'), 8010, '<ferramentas>')` (a porta, o `Host` aceito e o nome do serviço têm de
+   concordar).
+2. No `Dockerfile`, copie o estágio `rag` (`FROM base AS meu_servidor`, `COPY` do que ele usa, `CMD ["python", "-m", "mcp_servers.meu_servidor"]`).
+3. No `docker-compose.yml`, copie o serviço `rag`: `<<: *hardening`, `networks: [internal]` (sem internet) e o healthcheck em `/health`.
+4. Inclua `meu-servidor:8010` em `ALLOWED_HOSTS` (`.env`): sem isso, o `transpile` recusa a URL
+   ([por quê](transpilador.md#campos-da-spec)).
+5. Na spec: `"servers": {"meu": {"url": "http://meu-servidor:8010/sse", "tools": [...]}}`.
+
+### Escrever uma spec nova
+
+Copie [`specs/exemplo-generico.json`](../specs/exemplo-generico.json) (um agente e um servidor MCP, sem plugin) ou
+[`specs/listar-exames.json`](../specs/listar-exames.json) (OCR e RAG com o `BookingPlugin`, que lista sem agendar).
+Salve em `specs/` e transpile, sem rebuild:
+
+```bash
+docker compose run --rm -e ALLOWED_HOSTS=docs:8010 agent python -m cli transpile specs/exemplo-generico.json --output generated/docs.py
+docker compose run --rm agent adk run --in_memory generated    # um agente sem BookingPlugin roda com adk run / adk web, não com `cli run`
+```
+
+Os campos e cada erro de validação com a mensagem real: [transpilador.md](transpilador.md#campos-da-spec). Teste uma
+spec nova acrescentando-a às listas de `tests/test_transpiler.py` e `tests/test_spec_generica.py`.
+
+### Acrescentar um exame ao catálogo
+
+1. Edite [`data/exams.json`](../data/exams.json): `{"code": "FICT-121", "name": "...", "synonyms": [...]}`. O código segue
+   `FICT-\d{3}` (a API recusa outro formato), e é único.
+2. Conte os efeitos: `tests/test_rag.py::test_catalog_has_120_unique_fictional_codes` fixa 120; o número "120" aparece no
+   README e nos docs e é conferido por `tests/test_readme.py` (também os "240 termos", nomes mais sinônimos). Um sinônimo curto pode
+   fazer duas siglas ficarem a um caractere uma da outra: `test_rag.py::test_no_abbreviation_names_two_exams` e
+   `test_short_abbreviations_one_letter_from_others_are_not_catalog_names` pegam.
+3. Nomes aninhados ("Creatinina" dentro de "Clearance de creatinina") exigem atenção: `test_confianca.py` lista os 13 pares.
+4. Rode `tests/test_rag.py`, `test_calibration.py` (o limiar de 0,90 sobre as 631 consultas de `tests/calibration/queries.jsonl`) e
+   `test_pii.py::test_no_catalog_exam_is_masked`. Se você mudou os números, corrija os docs.
+
+### Mudar uma regra de página ou de linha
+
+| O que mudar | Onde mora | O teste que a trava |
+|---|---|---|
+| O que uma linha pede (`request`, `negated`, `history`, `uncertain`, `prep`, `table`, `form`) | `guardrails/intent.py`: `CUES`, `line_kind`, `read_page` | `tests/test_negacao.py` (linhas e exame), corpus honesto `tests/attacks/legit.txt` |
+| A página é só a lista (`page_clean`, `off_list`) | `guardrails/intent.py`: `clean_page`, `a_field`, `a_label_or_count` | `tests/test_negacao_casos.py` (páginas de ataque e honestas), `tests/attacks/legit-pages.txt` |
+| Piso de leitura do OCR e faixas de confiança | `runtime/confianca.py`: `BookingPolicy`, `sort_out` | `tests/test_confianca.py`, `tests/test_calibration.py` |
+| Como a linha vira exames | `mcp_servers/rag.py`: `split_exams`, `unglue`, `ahead`, `behind` | `tests/test_rag.py` |
+| O texto de um aviso | `runtime/relatorio.py` (`WHY`, `LEFT_OUT`, `REFUSED`) | `tests/test_confianca.py`, `tests/test_negacao.py`; o exemplo em [como-rodar.md](como-rodar.md#3-executar-o-agente) é conferido contra o log das evidências |
+
+Passos: (1) escreva o caso que falha, em `tests/test_negacao.py` ou `tests/test_negacao_casos.py`; (2) mude a regra; (3) rode
+`tests/test_negacao*.py`, `tests/test_texto_livre.py`, `tests/test_pii.py` e `tests/test_injection.py` (a regra não pode
+apagar exame nem deixar PII); (4) se o efeito nos conjuntos medidos mudar, rode as cargas e atualize [medicoes.md](medicoes.md); (5)
+acrescente a regra ao mapa [regras.md](regras.md) com o exemplo que a motivou. Uma regra nova falha para o lado de perguntar:
+"só agenda sozinho o que é só exame" é a escolha ([por quê](decisoes.md#por-que-existe-uma-camada-de-regras)). Um campo ou um tipo de linha novo na
+resposta do OCR pede uma versão nova do contrato (`leitura.VERSION`), nos dois lados.
+
+### Acrescentar um padrão de PII
+
+1. Em [`guardrails/pii_rules.py`](../guardrails/pii_rules.py), acrescente um item a `PATTERNS`: `('TIPO', r'''...''')` (regex verbose, grupos
+   `value*`; veja `EMAIL` e `ENDERECO` como modelo).
+2. Se o valor passar a ter formas livres de rótulo, confira também `guardrails/pii.py` (`mask`, `mask_page`) e a
+   lista de tipos contados (`COUNTED`).
+3. Teste: um caso em `tests/test_pii.py::test_each_pii_type_is_masked_and_counted` e um gerador em `tests/pii_corpus.py`
+   (`GENERATORS`, 300 casos por tipo, semente fixa); o corpus checa que nenhum valor sobra depois de `mask`. Rode também
+   `tests/test_pii.py::test_masking_never_removes_an_exam_from_a_legitimate_line`.
+4. Atualize os números: `tests/test_readme.py` confere "N tipos" e "N casos gerados" nos docs.
+
+## Depurar um pedido que falhou ou foi perguntado
+
+1. **Reproduza só o OCR**, para ver o que o servidor devolve de verdade (linhas já mascaradas, `line_intent`,
+   `page_clean`, `off_list`, `contested_exams`):
+   `docker compose run --rm agent python exemplos/mcp_call.py ocr extract_exam_text filename=<arquivo>`.
+2. **Reproduza a busca** de uma linha: `... mcp_call.py rag search_exams query="Colesterol total e Triglicerideos"`.
+3. **Rode com `--verbose`** (`cli run`): logs do ADK, do Gemini (novas tentativas) e do MCP no `stderr` e, numa falha
+   inesperada, o traceback, com a chave trocada por `[GOOGLE_API_KEY]`. Sem ele, toda falha é uma linha `Erro: ...`
+   com código 2.
+4. **Leia a saída como uma tabela de causas.** Cada linha vem de um ponto do código:
+
+| Saída da CLI | Significa | Vem de | O que fazer |
+|---|---|---|---|
+| `PII reconhecida e mascarada pelo OCR: NOME x2, CPF x1` | Dados pessoais mascarados, por tipo. É um piso: `nenhuma` não prova que não sobrou nenhum | `relatorio.reading_lines`; contagem de `pii.mask_page` | Nada |
+| `Trechos removidos pelo OCR (não pareciam exame): N` | O que o filtro final do OCR tirou; pode conter um nome não reconhecido | `text_removed`, `pii.only_what_may_leave` | Nada |
+| `Instruções neutralizadas no OCR: N` | Ordens ao modelo tiradas do texto (`[TEXTO_REMOVIDO]`) | `injection.neutralize_joined` | Conferir o papel |
+| `Atenção: o pedido tem texto além da lista de exames: linha N "..."` | A página não é só a lista: todo exame é perguntado; dito uma vez, com as linhas | `intent.clean_page` (`off_list`), `relatorio.WHY['page']` | Conferir o papel |
+| `- IgA (FICT-079): lido "- GA", confiança 0,80; confira` | Confiança de 0,70 a 0,90; com `--yes` sai como `não agendado sem confirmação` | `confianca.sort_out`, `BookingPolicy.ask_from`/`min_confidence` | Conferir a linha |
+| `...; o pedido tem outras palavras além do exame; confira` | Linha `uncertain` ("Ferritina - pedido por engano"): confiança de no máximo 0,89 | `intent.line_kind`, `relatorio.WHY` | Conferir a linha |
+| `...; o pedido está em tabela ou colunas` / `; formulário com marcas: só os marcados contam; confira` | Linhas `table` ou `form` | `intent.layout`, `intent.form` | Conferir a página |
+| `...; o nome escrito é de outro exame, mais longo` | O trecho está dentro de um nome maior ("Proteína C" em "Proteína C reativa") | `confianca.longer`, `OcrReading.exam_terms` | Conferir a linha |
+| `não agendado: '...' → Ferritina FICT-018; o pedido diz para não realizar` (ou `que já foi realizado`) | Linha `negated` ou `history` (inclusive caixa ou célula que diz não) | `intent.judge`, `relatorio.REFUSED` | Conferir |
+| `não agendado: ...; a linha é uma orientação de preparo, não um pedido` | Linha `prep` | `intent`, `relatorio.REFUSED['prep']` | Nada |
+| `baixa confiança: '<linha>' → <exame> <código> (confiança 0,68); confira o pedido` | Confiança abaixo de 0,70: o menor entre o score da busca, o apoio da linha e a leitura do OCR (pisos 75, 85, 95) | `confianca.reading_at`, `relatorio.LEFT_OUT['score']` | Ver a leitura do OCR (passo 1); se for letra, agendar à parte |
+| `não agendado: ...; o mesmo trecho da linha já foi usado por <outro exame>` | Cada exame precisa de um trecho próprio | `confianca.best_spot`, `REFUSED['line_used']` | Conferir |
+| `lido mas não reconhecido no catálogo: linha N; confira o pedido` | Item da lista que a máscara tirou inteiro e não parece exame; só o número sai | `ocr.unrecognized_request`, `relatorio.unrecognized` | Conferir a linha |
+| `não incluído pelo agente: ...; confira o pedido` | A busca achou o exame e o modelo o deixou de fora | `confianca.omitted`, `LEFT_OUT['omitted']` | Conferir; ler o que o modelo propôs com `--verbose` |
+| `não buscado pelo agente: ...; confira o pedido` | A conferência do pedido inteiro achou um exame que o modelo nem buscou | `runtime/reconcilia.py`, `servidores.unreported_exams` | Conferir |
+| `...status scheduled; ATENÇÃO: N possível(is) exame(s) do pedido sem decisão do agente` | Há `não incluído` ou `não buscado`; o agendamento existe. Código de saída 0 com confirmação da pessoa e 3 com `--yes` | `relatorio.report`, `cli.UNDECIDED_WITH_YES` | Ler os avisos acima |
+| `Aviso: o pedido não foi conferido por inteiro` | A conferência do pedido passou de 30 s (o RAG não respondeu) | `servidores.CHECK_SECONDS` | Conferir o pedido todo; ver `docker compose logs rag` |
+| `Erro: agendamento bloqueado antes de chamar a API: <motivo>; nada foi agendado` | O callback barrou: código que nenhuma busca devolveu, nenhum exame com confiança, campo fora do contrato ou lista não confirmada | `callbacks.only_confident_codes` → `blocked()` | O motivo diz qual; se foi "não confirmou", responder `s` |
+| `Erro: sem terminal para confirmar a lista de exames` | `run -T`, pipe ou `CI` sem `--yes` | `cli.check_someone_answers` | Rodar num terminal ou com `--yes` |
+| `Erro: OCR recusou a imagem: <motivo>; nada foi agendado` | Arquivo ausente, corrompido, grande, formato errado ou foto ruim | `ocr.resolve_sample`/`checked_image`, `mcp_servers/qualidade.py` | Corrigir o arquivo conforme o motivo |
+| `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite` | `429`/`503` no principal: a mesma requisição foi ao reserva | `runtime/adk.py`, `FallbackModel` | Nada |
+
+As demais mensagens de erro (API, Host, limite, cifra, hosts proibidos): a tabela completa em
+[arquitetura.md](arquitetura.md#tratamento-de-erros); o que fazer com cada falha de ambiente:
+[como-rodar.md](como-rodar.md#quando-algo-falha). Para saber **por que** uma linha foi para a pergunta, ache o tipo dela
+em `line_intent` (passo 1) e procure-o no mapa [regras.md](regras.md).
+
+## Convenções
+
+- **Estilo.** Python 3.12, linha de 120, `ruff` (`E`, `F`, `I`, `B`, `C901` com complexidade máxima 10: uma função com
+  mais ramos é dividida) e `mypy`. Identificadores e comentários em inglês; nomes de módulo e mensagens ao usuário em
+  português (`confianca`, `reconcilia`). Sem formatador automático. O CI roda `ruff` e `mypy`.
+- **Mensagens.** Toda falha esperada é uma linha `Erro: ...` em português, com o campo ou o motivo e, quando existe, o
+  que fazer; nunca um traceback. Texto que vem da imagem nunca vai a um log sem passar por máscara.
+- **Segurança por padrão.** Nada de dado pessoal no modelo, no log ou no banco; a política vive em `runtime/` e nenhuma
+  spec a afrouxa (os limiares da spec só podem endurecer); uma regra nova falha para o lado de perguntar.
+- **Testes que leem a documentação.** `tests/test_readme.py` confere, sem Docker nem rede: links e âncoras relativos de
+  `README.md` e `docs/*.md`; caminhos citados entre crases (têm de existir; os de fora do repositório entram em
+  `NOT_IN_REPO`); os números que o repositório sabe calcular (catálogo, corpora, funções e casos de teste); a saída de
+  exemplo contra `docs/evidencias/log-run-pedido.txt`; o `OK:` do `transpile` contra `specs/agent.json`; cada comando
+  `docker compose` (serviço, perfil, módulo). Outros testes leem o `como-rodar.md`: `test_variaveis.py` (toda variável de ambiente
+  que o código lê tem linha na tabela e entrada no `.env.example`), `test_adk_comandos.py` (os comandos `adk run` e `runtime.web` são executados
+  como estão escritos), `test_confirmacao_nativa.py` (a pergunta `[s/N]` do exemplo) e `test_transpiler.py`
+  (`docs/exemplo-agent.py` é a saída exata do `transpile`). Quando mudar um número, uma saída ou um comando, o teste
+  diz o arquivo e a linha.
+- **Docs.** Um fato, um lugar: a referência fica num documento e os outros apontam para ele. Texto novo no estilo dos
+  vizinhos: o estado atual, sem história, com o comando ou o caminho.
+- **Commits.** Conventional Commits (`feat(api): ...`, `fix(ocr): ...`, `docs: ...`, `test(...)`), uma mudança lógica
+  por commit, o teste junto da mudança. O histórico é agrupado por camada.
+- **Não versione** `.env`, `*.db`, `*.key`, `docker-compose.override.yml` (o `.gitignore` já cobre).
