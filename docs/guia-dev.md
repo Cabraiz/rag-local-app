@@ -120,20 +120,7 @@ docker compose run --rm --no-deps tests mypy                             # tipos
 
 - **Cargas fora da suíte** (OCR, RAG e API reais, sem Gemini): `tests.load.carga`, `tests.load.manuscritos`,
   `tests.load.robustez`; os comandos e o que cada um mede estão em [medicoes.md](medicoes.md#resumo).
-- **O serviço `tests`** é o estágio `test` do `Dockerfile` (a imagem do `agent` mais pytest, ruff, mypy, o Tesseract e os
-  testes). Nunca recebe a `GOOGLE_API_KEY`: nada chama o Gemini, e o teste ponta a ponta é pulado. O ponta a ponta real é
-  o serviço `tests-e2e` (`tests/test_e2e.py`): o `run` inteiro com o Gemini sobre `pedido.png` precisa agendar exatamente
-  `FICT-001`, `FICT-002` e `FICT-005`, e o `GET` do agendamento precisa devolver os mesmos; sem a chave, falha em vez de ser pulado.
-- **CI** ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)): `pip-audit` sobre `requirements.txt`,
-  `requirements-dev.txt` e `constraints.txt` (falha numa vulnerabilidade que já tem correção; o Dependabot abre os PRs de
-  atualização toda semana), build, `transpile` na imagem enxuta, `ruff`, `mypy` e `pytest -n auto --cov`. A cobertura é
-  relatório, sem limite que quebre o build: 98% das linhas de `api`, `catalogo`, `cli`, `guardrails`, `mcp_servers`,
-  `runtime` e `transpiler` (sem o `agent.py` gerado). Ruff: `E`, `F`, `I`, `B` e `C901` (complexidade 10), linha de 120;
-  mypy sem `--strict`, com `ignore_missing_imports` e `check_untyped_defs` (`pyproject.toml`). Para rodar o mesmo
-  localmente, `ruff check .`, `mypy` e `pytest -q -n auto --cov --cov-report=term` no serviço `tests`.
-- **Avisos filtrados.** O `pyproject.toml` filtra, cada um pelo nome, a depreciação do `SequentialAgent`
-  ([decisão](decisoes.md#sequentialagent-obsoleto-no-adk-210)) e os avisos `[EXPERIMENTAL]` do ADK sobre os recursos em uso,
-  que cada processo do `-n auto` repetiria. Um aviso novo continua aparecendo.
+- **O serviço `tests`, o ponta a ponta com o Gemini (`tests-e2e`), a CI e os avisos filtrados:** [como-rodar.md](como-rodar.md#testes), que é a referência desses pontos.
 
 ## Primeira mudança, passo a passo
 
