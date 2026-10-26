@@ -13,7 +13,30 @@ docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga --
 docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga run --rm tests python -m tests.load.<script> …
 ```
 
-**Índice:** [Resumo](#resumo) · [Calibração do limiar de 0,90](#calibração-do-limiar-de-090) · [Carga de dados sensíveis](#carga-de-dados-sensíveis) · [Fotos de celular de pedidos impressos](#fotos-de-celular-de-pedidos-impressos) · [Modelo que alucina](#modelo-que-alucina) · [Dados sensíveis: como contornamos](#dados-sensíveis-como-contornamos) · [Texto livre fora do modelo](#texto-livre-fora-do-modelo) · [Pedidos manuscritos simulados](#pedidos-manuscritos-simulados) · [Abreviações escritas no pedido](#abreviações-escritas-no-pedido) · [Robustez: entradas faltando ou quebradas](#robustez-entradas-faltando-ou-quebradas) · [Qualidade da foto](#qualidade-da-foto) · [OCR moderno (avaliado, não adotado)](#ocr-moderno-avaliado-não-adotado) · [Letra de médico: leitor local avaliado, não ligado por padrão](#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão) · [Linhas com vários exames e sorologias](#linhas-com-vários-exames-e-sorologias) · [Busca semântica: avaliada, não adotada](#busca-semântica-avaliada-não-adotada) · [Tamanho das imagens](#tamanho-das-imagens) · [Negação, histórico e observações](#negação-histórico-e-observações) · [Lista branca: só agenda sozinha a linha que é só exame](#lista-branca-só-agenda-sozinha-a-linha-que-é-só-exame) · [Lista branca por página](#lista-branca-por-página) · [Rodapé, formulário, nome e nome mais longo](#rodapé-formulário-nome-e-nome-mais-longo) · [Anotação, timbre e o contexto antes da pergunta](#anotação-timbre-e-o-contexto-antes-da-pergunta) · [Limites conhecidos](#limites-conhecidos)
+**Índice**
+
+- **Hoje:** [Estado atual](#estado-atual) · [Resumo](#resumo) · [Limites conhecidos](#limites-conhecidos)
+- **Privacidade e segurança:** [Calibração do limiar de 0,90](#calibração-do-limiar-de-090) · [Carga de dados sensíveis](#carga-de-dados-sensíveis) · [Dados sensíveis: como contornamos](#dados-sensíveis-como-contornamos) · [Texto livre fora do modelo](#texto-livre-fora-do-modelo) · [Modelo que alucina](#modelo-que-alucina) · [Robustez: entradas faltando ou quebradas](#robustez-entradas-faltando-ou-quebradas)
+- **Leitura do pedido:** [Fotos de celular de pedidos impressos](#fotos-de-celular-de-pedidos-impressos) · [Pedidos manuscritos simulados](#pedidos-manuscritos-simulados) · [Abreviações escritas no pedido](#abreviações-escritas-no-pedido) · [Qualidade da foto](#qualidade-da-foto) · [Tamanho das imagens](#tamanho-das-imagens) · [Linhas com vários exames e sorologias](#linhas-com-vários-exames-e-sorologias)
+- **Avaliados e não adotados:** [OCR moderno (avaliado, não adotado)](#ocr-moderno-avaliado-não-adotado) · [Letra de médico: leitor local avaliado, não ligado por padrão](#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão) · [Busca semântica: avaliada, não adotada](#busca-semântica-avaliada-não-adotada)
+- **Histórico das regras de linha e de página:** [Negação, histórico e observações](#negação-histórico-e-observações) · [Lista branca: só agenda sozinha a linha que é só exame](#lista-branca-só-agenda-sozinha-a-linha-que-é-só-exame) · [Lista branca por página](#lista-branca-por-página) · [Rodapé, formulário, nome e nome mais longo](#rodapé-formulário-nome-e-nome-mais-longo) · [Anotação, timbre e o contexto antes da pergunta](#anotação-timbre-e-o-contexto-antes-da-pergunta)
+
+## Estado atual
+
+Os números que valem hoje, medidos depois da última regra
+([Anotação, timbre e o contexto antes da pergunta](#anotação-timbre-e-o-contexto-antes-da-pergunta)), com OCR, busca e
+callbacks reais e um modelo simulado que busca o nome de cada exame e cada linha. Ninguém responde à pergunta: conta o
+que agenda sozinho. As seções depois do Resumo guardam os números de quando cada regra entrou; valem como histórico.
+
+| Conjunto | Exames | Agendados sozinhos | Perguntados | Errados sem confirmação | Páginas que são só a lista |
+|---|---|---|---|---|---|
+| 120 pedidos manuscritos simulados | 497 | 24 | 126 | **0** | 8 |
+| 30 fotos de celular de pedidos impressos | 97 | 85 | 6 | **0** | 27 |
+| 200 pedidos da carga | 618 | 602 | 12 | **0** | 199 |
+| `pedido.png` | 3 | 3 | 0 | **0** | sim |
+
+Como repetir: `tests.load.manuscritos`, `tests.load.manuscritos --origem samples/fotos-celular` e
+`tests.load.carga --n 200`, com o compose da carga (acima).
 
 ## Resumo
 
@@ -26,7 +49,7 @@ docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga ru
 | Faixas de confiança com a leitura real do OCR | 120 manuscritas e 200 pedidos da carga | **0 exames errados agendados sem confirmação** | `tests.load.manuscritos` e `tests.load.carga --n 200` |
 | Entradas faltando ou quebradas, pelo caminho real | 602 casos em 4 grupos | 312 ok, 290 recusas com mensagem clara, **0 falhas** (0 erros 500, 0 tracebacks, 0 PII, 0 exames fora da imagem) | `tests.load.robustez --variantes 12` |
 | Cifra no banco | 6 propriedades, 4 chaves inválidas | nenhum `FICT` nem nome de exame nos bytes; toda alteração dá o mesmo 500 fixo; sem chave válida a API não sobe | `pytest tests/test_crypto.py` |
-| Fotos de celular de pedidos impressos | 30 fotos, 97 exames, 3 níveis | 89 agendados sem perguntar (92%), **0 errados**, 0 PII | `tests.load.manuscritos --origem samples/fotos-celular` |
+| Fotos de celular de pedidos impressos | 30 fotos, 97 exames, 3 níveis | 85 agendados sem perguntar (88%), **0 errados**, 0 PII ([estado atual](#estado-atual)) | `tests.load.manuscritos --origem samples/fotos-celular` |
 | Modelo que alucina | 17 testes (22 casos), serviços reais | nada errado agendado nem gravado ([tabela](#modelo-que-alucina)) | `pytest tests/test_alucinacao.py` |
 | Qualidade da foto, antes do OCR | 24 pedidos degradados passo a passo; 120 manuscritas, 200 da carga e as amostras | recusa só onde o OCR lê ~0%, com uma dica; **0** imagens reais recusadas | `pytest tests/test_qualidade.py` |
 | Pedido que cancela, adia ou anota um exame | 69 linhas que não pedem o exame; 31 páginas de ataque em imagem | **0 agendados sozinhos** ([linha](#negação-histórico-e-observações), [página](#lista-branca-por-página)) | `pytest tests/test_negacao.py` (as 69 linhas) |
@@ -53,7 +76,7 @@ O limiar de 0,90 foi calibrado em 631 consultas versionadas em [`tests/calibrati
 - Com só 10 erros conhecidos, é uma checagem de piso, não uma taxa de erro; [`test_calibration.py`](../tests/test_calibration.py) recalcula os números com o RAG atual.
 - Os erros de score alto eram consultas curtas, como um "IGF-1" manuscrito lido "GA" e tomado por IgA (0,80).
 - O corte de 0,6 do RAG só decide o que vira candidato.
-- **Com a leitura real do OCR** e os pisos de leitura: nas 120 manuscritas ([`tests/load/manuscritos.py`](../tests/load/manuscritos.py)), nenhum exame errado é agendado sem confirmação (5 erros de leitura viram pergunta); com 200 pedidos da carga, 605 dos 618 exames são agendados sozinhos e 9 são perguntados.
+- **Com a leitura real do OCR** e os pisos de leitura: nas 120 manuscritas ([`tests/load/manuscritos.py`](../tests/load/manuscritos.py)), nenhum exame errado é agendado sem confirmação (5 erros de leitura viram pergunta); com 200 pedidos da carga, 602 dos 618 exames são agendados sozinhos e 12 são perguntados ([estado atual](#estado-atual)).
 
 ## Carga de dados sensíveis
 
@@ -85,7 +108,7 @@ ruído e JPEG, em 3 níveis, pelo OCR, pelo RAG e pela regra real. Na CI, `tests
 | receituário | 11 / 12 / 9 | 11 / 12 / 7 | 0 / 0 / 1 | 0 / 0 / 1 | 0 | 0 |
 | **todas (97)** | | **89 (92%)** | **5** | **3** | **0** | **0** |
 
-Por nível: leve 38 de 38, média 31 de 32, forte 20 de 27. Na foto forte, 2 trocas de leitura ("T4 total" lido
+Esta tabela é de antes da [regra por página](#lista-branca-por-página); hoje são 85 agendados sozinhos e 6 perguntados ([estado atual](#estado-atual)). Por nível, na época: leve 38 de 38, média 31 de 32, forte 20 de 27. Na foto forte, 2 trocas de leitura ("T4 total" lido
 `Tá total`, "Anti HCV" lido `Anti Hev`) dão 0,88 num exame fora do pedido: perguntado, nunca agendado sozinho.
 
 ## Modelo que alucina
@@ -276,8 +299,8 @@ passo a passo (ruído de sensor, JPEG 70, preparo do OCR; exame achado com score
 - E nenhuma medida separa manuscrita ilegível de legível: uma foto ruim de letra comum que rende 3 de 4 exames tem foco mais baixo que um impresso com desfoque de 4 px.
 
 `pytest tests/test_qualidade.py` confere os 4 motivos em imagens geradas, que uma faixa de cabeçalho e um pedido
-pequeno numa foto de 4500×4500 passam e que nenhuma das 7 amostras PNG da raiz de `samples/` é recusada. O comando
-abaixo confere as 158 imagens de `samples/` (8 da raiz, 120 manuscritas, 30 fotos): `158 imagens; 0 recusadas`.
+pequeno numa foto de 4500×4500 passam e que nenhuma das 8 amostras PNG da raiz de `samples/` é recusada. O comando
+abaixo confere as 159 imagens de `samples/` (9 da raiz, 120 manuscritas, 30 fotos): `159 imagens; 0 recusadas`.
 
 ```bash
 docker compose run --rm --no-deps tests python -c "from pathlib import Path; from PIL import Image; from mcp_servers.qualidade import quality_problem; fotos = [p for p in Path('samples').rglob('*') if p.suffix in ('.png', '.jpg')]; print(len(fotos), 'imagens;', sum(quality_problem(Image.open(p)) is not None for p in fotos), 'recusadas')"
@@ -385,7 +408,7 @@ nas linhas do OCR). Melhor resultado de cada consulta:
 ¹ Leituras erradas do OCR que batem com outro exame ("TGP" lido "TAP"), iguais nas duas buscas; o piso de leitura do
 OCR não as agenda sozinhas.
 
-- **Ganho:** nenhum agendamento a mais; 15 paráfrases e 15 linhas do OCR viram perguntas, com 4 e 2 erradas a mais.
+- **Ganho:** nenhum agendamento a mais. As perguntas certas sobem 15 nas paráfrases (0 erradas a mais), 15 nas linhas do OCR (2 erradas a mais) e 1 na calibração (4 erradas a mais).
 - **Limite:** a última etapa da máscara (a "rede de segurança", que tira da linha o que não parece exame) barra 56 das
   104 paráfrases antes do RAG; afrouxá-la enfraqueceria a privacidade.
 - **Custo:** a imagem `rag` iria de 235 MB para 697 MB e a `agent` de então (662 MB, antes de ficar enxuta) para
@@ -439,7 +462,7 @@ Uma linha só agenda sozinha se, tirados marcador, rótulo e conectivos, sobram 
 | "=Creatinina" lido com 75 (um traço sobre o nome) | agendado | perguntado; "Creatinina" limpo lido com 76 continua agendado | `pytest tests/test_negacao_casos.py` |
 | Os 77 casos do 2º conjunto de ataques | 0 cancelados agendados, 0 em silêncio; 12 pedidos perguntados | 0 e 0; **41 pedidos perguntados** | _medido fora do repositório, sem os dados aqui_ |
 
-**Conjuntos honestos** com as regras de negação (iguais a sem regras, salvo onde dito) e também com esta:
+**Conjuntos honestos** com as regras de negação (iguais a sem regras, salvo onde dito) e também com esta. São números da época desta regra; os de hoje estão no [estado atual](#estado-atual):
 
 | Conjunto | Com negação | Também com esta regra |
 |---|---|---|
@@ -495,7 +518,7 @@ Medido com OCR, busca e callbacks reais, modelos cuidadoso e guloso; contam só 
 | Corpus | Sem estas regras | Com estas regras |
 |---|---|---|
 | 37 pedidos adversariais (imagens): pedidos com algum exame errado agendado sozinho (exames errados) | 14 (20) | **5 (5)**, iguais nos dois modelos |
-| 120 manuscritas (497 exames): agendados sozinhos, perguntados, errados | 32, 124, 0 | 24, 131, 0 |
+| 120 manuscritas (497 exames): agendados sozinhos, perguntados, errados | 32, 124, 0 | 24, 131, 0 (hoje 24, 126, 0: [estado atual](#estado-atual)) |
 | 84 pedidos de uma pré-checagem independente (64 adversariais, 20 honestos): adversariais com exame errado agendado sozinho; exames honestos perguntados | 2; 46 de 82 (56%) | **0**; 24 de 82 (29%) |
 
 Sem mudança (agendados sozinhos, perguntados, errados): 16 honestos (62 exames: 45, 12, 0), 30 fotos (85, 4, 0), 200

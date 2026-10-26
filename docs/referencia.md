@@ -192,7 +192,7 @@ quatro etapas, nesta ordem:
      - uma palavra com maiúscula depois de um nome mascarado ou de uma inicial é do nome: "Érica Ferro" e "E. Ferro" viram `[NOME]`;
      - depois do nome do exame, sai um número ou uma palavra com maiúscula que não é do catálogo nem qualificador: "Glicemia 1234567 mg/dl", "TSH Franco";
      - ficam "25(OH)D", "Vitamina B12" e "jejum de 8h".
-   - Um nome manuscrito sozinho na linha ou um carimbo deformado para aqui.
+   - Um nome manuscrito sozinho na linha ou um carimbo deformado não passa desta etapa.
    - Um item da lista ("4) Ressonância magnética de crânio") que sai inteiro como `[TEXTO_REMOVIDO]` é marcado `unrecognized`, e a CLI avisa só o número da linha.
 
 Consequências:
@@ -362,7 +362,7 @@ Todas as que o código lê (um teste falha se faltar uma).
 | `DB_KEY_FILE` | `/keys/db.key` | `api` | Onde fica a chave criada na 1ª subida (no volume `api-key`). |
 | `EXAMS_PATH` | `data/exams.json` | `api`, `rag`, `ocr` (`catalogo.py`) | Catálogo de exames. |
 | `SAMPLES_DIR` | `/data/samples` | `ocr` | Pasta das imagens que o OCR aceita (`samples/`, só leitura; a carga monta outra). |
-| `OMP_THREAD_LIMIT` | `1`, definida pelo `ocr` | Tesseract | Uma thread por leitura: com 8 leituras em paralelo, o Tesseract não disputa os núcleos. |
+| `OMP_THREAD_LIMIT` | `1`, definida pelo `ocr` | Tesseract | Uma thread por leitura: com várias leituras em paralelo (3 no compose, 8 na carga), o Tesseract não disputa os núcleos. |
 | `CI` | vazia | `cli run` | Não vazia (como no GitHub Actions): nenhuma pergunta, como sem terminal; sem `--yes`, nada é agendado. O `--yes` chega ao agente pelo registro do pedido, não por variável. |
 
 ## Mensagens e erros

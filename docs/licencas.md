@@ -9,7 +9,7 @@ O código deste repositório está sob a licença [MIT](../LICENSE).
 
 Licenças conferidas nos metadados instalados nas imagens Docker (`importlib.metadata` para os
 pacotes Python e `/usr/share/doc/<pacote>/copyright` para os do Debian). O `agent` leva o ADK, o
-cliente da Gemini API, o MCP e o httpx; pillow, pytesseract, o Tesseract e as fontes ficam nas imagens
+cliente da Gemini API, o MCP, o httpx e o httpx2; pillow, pytesseract, o Tesseract e as fontes ficam nas imagens
 do `ocr` e de testes (`test`), e o pytest só na de testes.
 
 | Pacote | Versão | Licença | Uso |
@@ -22,9 +22,12 @@ do `ocr` e de testes (`test`), e o pytest só na de testes.
 | pydantic | 2.13.5 | MIT | Validação da spec e dos contratos |
 | cryptography | 50.0.2 | Apache-2.0 ou BSD-3-Clause | Cifra AES-GCM do banco |
 | httpx | 0.28.1 | BSD-3-Clause | Cliente HTTP (CLI e testes) |
+| httpx2 | 2.13.1 | BSD-3-Clause | O cliente HTTP do SDK MCP; o runtime fixa nele os endereços conferidos (`runtime/rede.py`) |
 | pillow | 12.3.0 | MIT-CMU | Leitura de imagens para o OCR |
 | pytesseract | 0.3.13 | Apache-2.0 | Ponte Python para o Tesseract |
 | pytest | 9.0.3 | MIT | Testes |
+| pytest-xdist 3.8.0, pytest-cov 7.1.0, ruff 0.16.10, mypy 2.4.0 | | MIT | Testes em paralelo, cobertura, estilo e tipos (só na imagem `test`) |
+| coverage | 7.16.2 | Apache-2.0 | Medição de cobertura (só na imagem `test`) |
 | tesseract-ocr, libtesseract5 (Debian) | 5.5.0 | Apache-2.0 | Motor de OCR |
 | tesseract-ocr-por, -eng, -osd (Debian) | 4.1.0 | Apache-2.0 | Dados de idioma do OCR |
 | libleptonica6 (Debian) | 1.84.1 | BSD-2-Clause | Processamento de imagem do Tesseract |
@@ -51,7 +54,7 @@ Os pedidos de `samples/manuscritos/` (e as cópias `samples/pedido-manuscrito*.p
 - Nenhuma fonte está no repositório nem é redistribuída: só as imagens resultantes estão versionadas.
 - O gerador procura as fontes na pasta de `FONTS_DIR` ou, sem ela, nas pastas de fontes do sistema (Windows, Linux ou macOS).
 - Para gerar as mesmas imagens é preciso ter essas fontes: fora do Windows, copie-as para uma pasta e aponte `FONTS_DIR` para ela.
-- Uma fonte que falta para o gerador com uma mensagem que diz qual é e onde procurou.
+- Se falta uma fonte, o gerador para com uma mensagem que diz qual é e onde procurou.
 - Todos os nomes, CPFs (com dígito verificador errado de propósito), CRMs, datas e clínicas são fictícios.
 
 Os pedidos digitados do teste de carga (`tests/load/pedidos.py`) são outra coisa: são gerados em

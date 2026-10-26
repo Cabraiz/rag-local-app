@@ -16,7 +16,10 @@ vocabulários ficam em [`catalogo.py`](../catalogo.py) (os que toda imagem usa, 
 - Com `--yes`, elas são a única barreira, então falham para o lado de perguntar: um exame só agenda sozinho se a página inteira for só a lista de exames (com rótulos, campos e o cabeçalho da clínica), em vez de procurar palavras de negação, uma lista que crescia a cada revisão.
 - As regras que valem sempre (negação, histórico, preparo, o que o modelo lê) são poucas e diretas; a maior parte da tabela existe para o `--yes` não agendar o que uma pessoa não viu.
 
-"Sempre" vale com e sem `--yes`; "`--yes`" quer dizer que, sem `--yes`, a regra só muda o aviso na confirmação.
+A coluna "Importa" diz quando a regra decide:
+
+- **sempre:** vale com e sem `--yes`;
+- **`--yes`:** decide sozinha só com `--yes`; sem ele, só muda o aviso ao lado do exame na confirmação.
 
 | Regra | O que pega (o exemplo que a motivou) | O que acontece | Importa |
 |---|---|---|---|

@@ -6,6 +6,12 @@ mostra. O que cada tela prova, em detalhe, com miniatura e duração: [`docs/gra
 Gravados no commit `828ac9c`, com `API_PORT=18905` (o padrão é 8765). O histórico de `main` foi compactado depois; esse commit está na tag `backup/main-antes-compacta-f16f26c`. Em cada execução que agenda, a CLI pergunta
 `Agendar estes N exames? [s/N]` e a gravação responde "s"; no 12, o console do ADK pede "yes".
 
+### 00. Visão geral
+
+O fluxo completo em um vídeo: os 12 abaixo numa sequência só, numa execução real ([mp4](gravacoes/00-visao-geral.mp4), [o que a tela mostra](gravacoes/README.md)).
+
+https://github.com/user-attachments/assets/2bf4ca61-0f7f-42d9-a174-16b3377d8f16
+
 ### 01. Transpilador
 
 JSON válido → `agent.py`; campo extra e chave duplicada recebem erro claro. ([mp4](gravacoes/01-transpilador.mp4), [o que a tela mostra](gravacoes/README.md))

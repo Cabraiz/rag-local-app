@@ -145,15 +145,14 @@ testado pode chegar ao modelo ([camadas](referencia.md#segurança-em-detalhe)).
 - A chave é gerada na 1ª subida da API, num volume próprio (`api-key`), fora do git e fora do volume do banco (`api-data`): uma cópia do banco sozinha não revela os exames, e o início rápido não tem passo manual de chave.
 - Em uso real, a chave viria de um gerenciador de segredos, por `DB_ENCRYPTION_KEY` (que tem precedência; `python -m api.crypto --gerar-chave` cria uma).
 - Custos e limites:
-
-- quem tem os dois volumes (ou o host do Docker) lê tudo; a API decifra para responder ao `GET`;
-- `id`, status e datas ficam em claro; rotação de chave está fora do escopo;
-- `docker compose down -v` apaga a chave e o banco juntos, e uma cópia antiga do banco fica ilegível sem
-  aquela chave;
-- uma chave errada só aparece na primeira leitura de um agendamento (500), não ao subir a API: não há
-  registro-canário, por simplicidade;
-- o tamanho do valor cifrado acompanha o texto, então revela aproximadamente quantos exames o
-  agendamento tem.
+  - quem tem os dois volumes (ou o host do Docker) lê tudo; a API decifra para responder ao `GET`;
+  - `id`, status e datas ficam em claro; rotação de chave está fora do escopo;
+  - `docker compose down -v` apaga a chave e o banco juntos, e uma cópia antiga do banco fica ilegível sem
+    aquela chave;
+  - uma chave errada só aparece na primeira leitura de um agendamento (500), não ao subir a API: não há
+    registro-canário, por simplicidade;
+  - o tamanho do valor cifrado acompanha o texto, então revela aproximadamente quantos exames o
+    agendamento tem.
 
 ### Busca lexical, sem embeddings
 
@@ -362,8 +361,8 @@ A máscara de PII e a remoção de injeção são regras, testadas em corpora do
 
 A API é o mock local do estudo: a porta publicada fica só em `127.0.0.1`, com limite de requisições por IP; em produção, entraria OAuth2 ou uma chave de API.
 
-- OCR, RAG, API e agente dividem uma rede interna sem internet, e qualquer um deles chama os outros sem credencial.
-- A API também está na rede padrão, que tem saída para a internet, porque uma porta publicada no host exige uma rede não interna; o código dela não chama nada fora.
+- OCR, RAG, API e agente dividem a rede interna, e qualquer um deles chama os outros sem credencial. OCR e RAG ficam só nela, sem internet.
+- A API e o agente também estão na rede padrão, que tem saída para a internet: a API porque uma porta publicada no host exige uma rede não interna (o código dela não chama nada fora), o agente para chamar o Gemini.
 - Um OCR comprometido por uma imagem hostil poderia agendar na API.
 - Em produção, uma rede por par (agente↔OCR, agente↔RAG, agente↔API) e um token por serviço.
 
