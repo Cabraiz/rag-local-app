@@ -50,7 +50,7 @@ confiável, tem dados privados e pode mandar dados para fora. Aqui:
 Por isso o risco principal aqui é a integridade do agendamento, mais do que o vazamento.
 
 **As faixas de confiança** ([o que são](glossario.md#leitura-e-decisão-de-cada-exame)). Custo: um exame mal lido não
-agenda sozinho ([detalhe](arquitetura.md#agendamento-conferido-em-código)).
+agenda sozinho ([detalhe](referencia.md#agendamento-conferido-em-código)).
 
 ### A confirmação final da lista
 
@@ -111,7 +111,7 @@ aceita código e nome de exame, grava o nome do catálogo e cifra a lista com AE
 **Por quê.** O LLM recebe o texto já mascarado, nunca a imagem, e o banco não depende da máscara.
 
 **Custo.** A detecção é por regras e vale para os formatos testados: um nome escrito de um jeito não
-testado pode chegar ao modelo ([camadas](arquitetura.md#segurança-em-detalhe)).
+testado pode chegar ao modelo ([camadas](referencia.md#segurança-em-detalhe)).
 
 **A cifra.** Cada lista recebe um nonce aleatório e fica presa ao `id`, ao status e à data do agendamento (dado associado do GCM).
 

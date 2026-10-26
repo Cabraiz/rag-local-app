@@ -118,7 +118,7 @@ dizer: olhe o pedido em papel (a saída mostra as linhas já mascaradas) e, se e
 Cada aviso, o que significa, de onde vem no código e o que fazer: a tabela fica num lugar só, no
 [guia do desenvolvedor](guia-dev.md#depurar-um-pedido-que-falhou-ou-foi-perguntado).
 
-Todos os estados de um exame e a regra de cada um: [arquitetura.md](arquitetura.md#agendamento-conferido-em-código).
+Todos os estados de um exame e a regra de cada um: [arquitetura.md](referencia.md#agendamento-conferido-em-código).
 Exemplos de linhas (negação, caixas, preparo, vários exames numa linha como "TSH, T4 livre" ou "Toxoplasmose IgG e IgM") e os limites: [regras.md](regras.md) e [medicoes.md](medicoes.md#limites-conhecidos).
 
 **A linha `Tempo:`** traz cada etapa (buscas em paralelo contam uma vez), o total e o modelo que respondeu por último;
@@ -151,7 +151,7 @@ Exemplos em `samples/`:
 - **`pedido-realista.png`:** cabeçalho de clínica, CPF, telefone, CID, convênio, data, CRM e 4 exames numa fonte que imita letra de mão. Glicemia e TSH são agendados; Colesterol total e Hemoglobina glicada saem em `baixa confiança` (`(confiança 0,68)`), porque o OCR leu essas linhas com 68 e 60, abaixo do piso de 75. É o esperado: o que não foi lido com segurança vai para conferência humana.
 - **`pedido-sem-exame.png`:** nenhum exame, o caso (b) do [teste de alucinação](evidencias/log-alucinacao.txt): nada é agendado (na execução do teste, `Erro: a busca no catálogo não foi feita (o agente tentou agendar sem buscar os exames); nada foi agendado`). Gerado por `exemplos/gerar_pedido_sem_exame.py`, com semente fixa.
 - **`pedido-variacao.png`:** nome sem rótulo, marcadores, sinônimo `Glicose`, telefone sem rótulo, data e CRM.
-- **`ataque-injecao.png` e `ataque-exame-disfarcado.png`:** instruções escondidas; só os exames legítimos são agendados ([Segurança em detalhe](arquitetura.md#segurança-em-detalhe)).
+- **`ataque-injecao.png` e `ataque-exame-disfarcado.png`:** instruções escondidas; só os exames legítimos são agendados ([Segurança em detalhe](referencia.md#segurança-em-detalhe)).
 - **`pedido-manuscrito.png` e `pedido-manuscrito-dificil.png`:** letra de mão e foto de celular, simuladas. No primeiro, o OCR lê os 5 exames; no segundo ("letra de médico"), quase nada, e nada é agendado sem confirmação.
 
 ### Pedidos manuscritos simulados
@@ -216,7 +216,7 @@ ocupada, troque só o primeiro número (ex.: `127.0.0.1:8090:8000`).
 - **Fora do Docker:** rode `adk telemetry disable` (a imagem já responde "não" à pergunta de telemetria, em que Enter diria sim) e defina `GOOGLE_API_USE_CLIENT_CERTIFICATE=false`, como o `docker-compose.yml` faz em `agent`, `tests` e `tests-e2e`: sem ela, o cliente MCP do ADK 2.10 procura credenciais do Google a cada conexão (inclusive em `169.254.169.254`).
 - **Testes:** [`tests/test_adk_run.py`](../tests/test_adk_run.py) (o `adk run` e o `adk web` com modelos roteirizados, MCP e API reais), [`tests/test_adk_seguranca.py`](../tests/test_adk_seguranca.py) (um cliente que tenta forjar estado e confirmação) e [`tests/test_adk_comandos.py`](../tests/test_adk_comandos.py) (as linhas deste guia, como estão escritas).
 
-O porquê de cada defesa, e os limites do registro por sessão: [Segurança em detalhe](arquitetura.md#segurança-em-detalhe).
+O porquê de cada defesa, e os limites do registro por sessão: [Segurança em detalhe](referencia.md#segurança-em-detalhe).
 
 ## Variáveis de ambiente
 
@@ -276,10 +276,10 @@ num cofre de senhas): quem tem as duas lê os dados, e a restauração precisa d
 
 **Escopo desta tabela:** falhas de ambiente e de execução (Docker, chave, portas, serviços). Os avisos sobre cada exame
 estão no [guia do desenvolvedor](guia-dev.md#depurar-um-pedido-que-falhou-ou-foi-perguntado); onde cada erro nasce no
-código, em [arquitetura.md](arquitetura.md#tratamento-de-erros).
+código, em [arquitetura.md](referencia.md#mensagens-e-erros).
 
 Erros saem como uma linha `Erro: ...`, com código 2. Para ver o que houve por trás, rode de novo com `--verbose`.
-Tabela completa em [arquitetura.md](arquitetura.md#tratamento-de-erros).
+Tabela completa em [arquitetura.md](referencia.md#mensagens-e-erros).
 
 | Sintoma | O que fazer |
 |---|---|

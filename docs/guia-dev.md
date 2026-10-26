@@ -146,7 +146,7 @@ a abreviação "Ur. serica" como Ureia (`FICT-004`). Os serviços `tests` e `rag
 1. **Veja como está hoje:**
    `docker compose run --rm agent python exemplos/mcp_call.py rag search_exams query="Ur. serica" top_k=3`.
    `FICT-004` vem em primeiro com score 0,86: abaixo de 0,90, o exame só entra na lista com aviso
-   ([por quê](arquitetura.md#agendamento-conferido-em-código)).
+   ([por quê](referencia.md#agendamento-conferido-em-código)).
 2. **Escreva o teste primeiro**, em `tests/test_rag.py`, no estilo dos vizinhos: a busca por "Ur. serica" devolve
    `FICT-004` em primeiro, com score de pelo menos 0,90. Rode e veja falhar:
    `docker compose build tests` e depois `docker compose run --rm tests pytest -q tests/test_rag.py`.
@@ -256,32 +256,11 @@ portas): [como-rodar.md](como-rodar.md#quando-algo-falha).
    inesperada, o traceback, com a chave trocada por `[GOOGLE_API_KEY]`. Sem ele, toda falha é uma linha `Erro: ...`
    com código 2. 4. **Leia a saída como uma tabela de causas.** Cada linha vem de um ponto do código:
 
-| Saída da CLI | Significa | Vem de | O que fazer |
-|---|---|---|---|
-| `PII reconhecida e mascarada pelo OCR: NOME x2, CPF x1` | Dados pessoais mascarados, por tipo. É um piso: `nenhuma` não prova que não sobrou nenhum | `relatorio.reading_lines`; contagem de `pii.mask_page` | Nada |
-| `Trechos removidos pelo OCR (não pareciam exame): N` | O que o filtro final do OCR tirou; pode conter um nome não reconhecido | `text_removed`, `pii.only_what_may_leave` | Nada |
-| `Instruções neutralizadas no OCR: N` | Ordens ao modelo tiradas do texto (`[TEXTO_REMOVIDO]`) | `injection.neutralize_joined` | Conferir o papel |
-| `Atenção: o pedido tem texto além da lista de exames: linha N "..."` | A página não é só a lista: todo exame é perguntado; dito uma vez, com as linhas | `intent.clean_page` (`off_list`), `relatorio.WHY['page']` | Conferir o papel |
-| `- IgA (FICT-079): lido "- GA", confiança 0,80; confira` | Confiança de 0,70 a 0,90; com `--yes` sai como `não agendado sem confirmação` | `confianca.sort_out`, `BookingPolicy.ask_from`/`min_confidence` | Conferir a linha |
-| `...; o pedido tem outras palavras além do exame; confira` | Linha `uncertain` ("Ferritina - pedido por engano"): confiança de no máximo 0,89 | `intent.line_kind`, `relatorio.WHY` | Conferir a linha |
-| `...; o pedido está em tabela ou colunas` / `; formulário com marcas: só os marcados contam; confira` | Linhas `table` ou `form` | `intent.layout`, `intent.form` | Conferir a página |
-| `...; o nome escrito é de outro exame, mais longo` | O trecho está dentro de um nome maior ("Proteína C" em "Proteína C reativa") | `confianca.longer`, `OcrReading.exam_terms` | Conferir a linha |
-| `não agendado: '...' → Ferritina FICT-018; o pedido diz para não realizar` (ou `que já foi realizado`) | Linha `negated` ou `history` (inclusive caixa ou célula que diz não) | `intent.judge`, `relatorio.REFUSED` | Conferir |
-| `não agendado: ...; a linha é uma orientação de preparo, não um pedido` | Linha `prep` | `intent`, `relatorio.REFUSED['prep']` | Nada |
-| `baixa confiança: '<linha>' → <exame> <código> (confiança 0,68); confira o pedido` | Confiança abaixo de 0,70: o menor entre o score da busca, o apoio da linha e a leitura do OCR (pisos 75, 85, 95) | `confianca.reading_at`, `relatorio.LEFT_OUT['score']` | Ver a leitura do OCR (passo 1); se for letra, agendar à parte |
-| `não agendado: ...; o mesmo trecho da linha já foi usado por <outro exame>` | Cada exame precisa de um trecho próprio | `confianca.best_spot`, `REFUSED['line_used']` | Conferir |
-| `lido mas não reconhecido no catálogo: linha N; confira o pedido` | Item da lista que a máscara tirou inteiro e não parece exame; só o número sai | `ocr.unrecognized_request`, `relatorio.unrecognized` | Conferir a linha |
-| `não incluído pelo agente: ...; confira o pedido` | A busca achou o exame e o modelo o deixou de fora | `confianca.omitted`, `LEFT_OUT['omitted']` | Conferir; ler o que o modelo propôs com `--verbose` |
-| `não buscado pelo agente: ...; confira o pedido` | A conferência do pedido inteiro achou um exame que o modelo nem buscou | `runtime/reconcilia.py`, `servidores.unreported_exams` | Conferir |
-| `...status scheduled; ATENÇÃO: N possível(is) exame(s) do pedido sem decisão do agente` | Há `não incluído` ou `não buscado`; o agendamento existe. Código de saída 0 com confirmação da pessoa e 3 com `--yes` | `relatorio.report`, `cli.UNDECIDED_WITH_YES` | Ler os avisos acima |
-| `Aviso: o pedido não foi conferido por inteiro` | A conferência do pedido passou de 30 s (o RAG não respondeu) | `servidores.CHECK_SECONDS` | Conferir o pedido todo; ver `docker compose logs rag` |
-| `Erro: agendamento bloqueado antes de chamar a API: <motivo>; nada foi agendado` | O callback barrou: código que nenhuma busca devolveu, nenhum exame com confiança, campo fora do contrato ou lista não confirmada | `callbacks.only_confident_codes` → `blocked()` | O motivo diz qual; se foi "não confirmou", responder `s` |
-| `Erro: sem terminal para confirmar a lista de exames` | `run -T`, pipe ou `CI` sem `--yes` | `cli.check_someone_answers` | Rodar num terminal ou com `--yes` |
-| `Erro: OCR recusou a imagem: <motivo>; nada foi agendado` | Arquivo ausente, corrompido, grande, formato errado ou foto ruim | `ocr.resolve_sample`/`checked_image`, `mcp_servers/qualidade.py` | Corrigir o arquivo conforme o motivo |
-| `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite` | `429`/`503` no principal: a mesma requisição foi ao reserva | `runtime/adk.py`, `FallbackModel` | Nada |
+A tabela de cada aviso (o que significa, de onde vem no código e o que fazer) está em
+[referencia.md](referencia.md#avisos-sobre-os-exames-de-um-pedido).
 
 As demais mensagens de erro (API, Host, limite, cifra, hosts proibidos): a tabela completa em
-[arquitetura.md](arquitetura.md#tratamento-de-erros); o que fazer com cada falha de ambiente:
+[arquitetura.md](referencia.md#mensagens-e-erros); o que fazer com cada falha de ambiente:
 [como-rodar.md](como-rodar.md#quando-algo-falha). Para saber **por que** uma linha foi para a pergunta, ache o tipo dela
 em `line_intent` (passo 1) e procure-o no mapa [regras.md](regras.md).
 

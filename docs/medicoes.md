@@ -362,7 +362,7 @@ Tesseract, e que a `test` parte dela.
 
 ## Negação, histórico e observações
 
-O OCR lê o que cada linha pede antes da máscara ([arquitetura](arquitetura.md#onde-a-pii-é-mascarada)): negação clara não agenda e avisa; outra pista pergunta; texto tirado antes do exame faz da linha uma observação; exame contestado numa linha não agenda em nenhuma; página em tabela pergunta tudo ([regras.md](regras.md)).
+O OCR lê o que cada linha pede antes da máscara ([arquitetura](referencia.md#onde-a-pii-é-mascarada)): negação clara não agenda e avisa; outra pista pergunta; texto tirado antes do exame faz da linha uma observação; exame contestado numa linha não agenda em nenhuma; página em tabela pergunta tudo ([regras.md](regras.md)).
 
 - Exemplo: a última linha de [Modelo que alucina](#modelo-que-alucina), que o Gemini real agendava inteira sem estas regras.
 - Os ataques escritos de fora (45 e 61 casos, com 60 e 23 linhas honestas, e um 3º em outras línguas) estão em [`tests/test_negacao_casos.py`](../tests/test_negacao_casos.py); o efeito nos honestos, na [seção seguinte](#lista-branca-só-agenda-sozinha-a-linha-que-é-só-exame).
