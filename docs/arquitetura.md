@@ -12,12 +12,19 @@ tabela de erros. O porquê de cada escolha está em [decisoes.md](decisoes.md); 
 
 - **Transpilar** ([`transpiler/`](../transpiler/)): valida a spec (Pydantic, campos extras proibidos) e gera `generated/agent.py`, que é compilado e importado antes do OK.
 - **Extrair** ([`mcp_servers/ocr.py`](../mcp_servers/ocr.py)): a imagem é preparada (luz, contraste, endireitamento) e o Tesseract a lê no modo de texto esparso (PSM 11), com a confiança de cada linha (`line_confidence`). Cada linha passa pelo detector de injeção ([`guardrails/injection.py`](../guardrails/injection.py)) e pela máscara de PII ([`guardrails/pii.py`](../guardrails/pii.py)); só sai do container `ocr` o que parece exame ou estrutura do pedido.
-- **Buscar** ([`mcp_servers/rag.py`](../mcp_servers/rag.py)): `search_exams` devolve até 3 códigos do catálogo por padrão (`top_k` até 10), com score de 0 a 1 (mínimo 0,6). Como uma linha é cortada em exames:
-  - **vários exames numa linha** ("Colesterol total e Triglicerideos", "TSH, T4 livre") são separados em " e ", ",", "+", ";" e "/", menos dentro de um nome do catálogo ("HIV antigeno e anticorpos"). Cada pedaço tem o seu `top_k`, e cada resultado traz o `piece` que o achou;
-  - **o "e" grudado pelo OCR** ("TSHe T4 livre", "Ureiae Creatinina") também separa, quando a palavra não é do catálogo, o lado sem o "e" é um nome do catálogo (de 0,90 e melhor que com o "e") e o outro lado é um exame (de 0,80). "Lipase", "Sangue oculto" e "Estradiol" nunca são cortados. O pedaço guarda o texto lido: "TSHe" é TSH com 0,86 e vai para a pergunta;
-  - **pedaço completado pelo vizinho:** pelo anterior, quando o começo dele mais o pedaço é um nome do catálogo ("Toxoplasmose IgG e IgM" → Toxoplasmose IgM, "PSA total e livre" → PSA livre, "Vitamina B12 e D" → Vitamina D; um pedaço abaixo de 0,80 aceita um completado de 0,90, como "Bilirrubinas total e direta"); pelo seguinte, quando as palavras dos dois formam exatamente um nome ("IgG e IgM para toxoplasmose" → Toxoplasmose IgG);
-  - **amostra ou tempo** ("urina 24h", "sangue", "em jejum") depois de um exame não vira busca própria; antes dos exames ("Urina 24h: proteinuria e clearance de creatinina") também não vira pergunta sobre Urina tipo I;
-  - **resultados só avisados** (marcados `partial`, nem agendados nem perguntados, porque uma pergunta `[s/N]` sobre um exame que o pedido não nomeia convida um "s" errado): só parte de um exame da linha ("Chagas IgG e IgM": não há Chagas IgM, então a IgM genérica só é avisada); uma classe de anticorpo (IgA, IgG, IgM, IgE) numa linha que nomeia uma doença ("Anti HAV IgG e IgM") ou que o pedido não escreve ("Toxoplasmose" sozinho não presume a IgG); abaixo de 0,80, um resultado sem nenhuma palavra em comum com o lido ("Anti HAV" não vira "Anti HCV", 0,70); e um empate no topo entre exames sem palavra em comum com o lido ("Anti HAV": HIV e Anti HCV, ambos 0,88). Um empate que divide a palavra lida continua perguntado ("T3": T3 livre ou T3 total), e numa linha só de exames completos ("Hemograma, IgG, IgM") as dosagens genéricas agendam.
+- **Buscar** ([`mcp_servers/rag.py`](../mcp_servers/rag.py)): `search_exams` corta a linha em pedaços, um por exame, e
+  devolve para cada pedaço até 3 códigos do catálogo (`top_k` até 10), com score de 0 a 1 (mínimo 0,6) e o `piece` que
+  o achou. Como a linha é cortada:
+
+  | Caso | O que acontece | Exemplo |
+  |---|---|---|
+  | Vários exames numa linha | Separa em " e ", ",", "+", ";" e "/", menos dentro de um nome do catálogo | "TSH, T4 livre" → 2 buscas; "HIV antigeno e anticorpos" → 1 |
+  | "e" grudado pelo OCR | Separa quando um lado é nome do catálogo (≥ 0,90) e o outro é exame (≥ 0,80); o pedaço guarda o texto lido | "TSHe T4 livre" → TSH (0,86, vai para a pergunta) e T4 livre; "Lipase" nunca é cortado |
+  | Pedaço completado pelo vizinho | Usa o começo do anterior, ou as palavras do seguinte, quando juntos formam um nome do catálogo | "PSA total e livre" → PSA livre; "IgG e IgM para toxoplasmose" → Toxoplasmose IgG |
+  | Amostra ou tempo | "urina 24h", "sangue", "em jejum" junto de um exame não viram busca própria | "Clearance de creatinina, urina 24h" → 1 exame |
+  | Resultado só avisado (`partial`) | Nem agendado nem perguntado, para a pergunta não convidar um "s" errado: só parte de um exame, classe de anticorpo sem a doença escrita, resultado abaixo de 0,80 sem palavra em comum, empate no topo sem palavra em comum | "Chagas IgG e IgM" → a IgM genérica só é avisada; "Anti HAV" não vira "Anti HCV" |
+  | Empate que divide a palavra lida | Continua perguntado | "T3" → T3 livre ou T3 total |
+
 - **Agendar** ([`api/main.py`](../api/main.py)): o ADK monta a ferramenta `create_appointment` a partir do `/openapi.json`, e a API valida cada código no catálogo. A confiança de cada exame decide entre agendar, ir para a lista com aviso ou só avisar ([abaixo](#agendamento-conferido-em-código)); a pessoa confirma a lista com `Agendar estes N exames? [s/N]`. A CLI ([`cli.py`](../cli.py)) imprime o que o OCR mascarou ou neutralizou, a tabela exame → código (nomes do catálogo) e a confirmação da API.
 
 ## Componentes
