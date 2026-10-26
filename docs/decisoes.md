@@ -74,12 +74,8 @@ confiável, tem dados privados e pode mandar dados para fora. Aqui:
 
 Por isso o risco principal aqui é a integridade do agendamento, mais do que o vazamento.
 
-**As faixas de confiança.** O código, não o modelo, decide pela confiança de cada exame
-([o que são](glossario.md#leitura-e-decisão-de-cada-exame)):
-
-- 0,90 ou mais: entra na lista sem aviso;
-- de 0,70 até menos de 0,90: entra com aviso;
-- abaixo de 0,70: fica de fora.
+**As faixas de confiança.** O código, não o modelo, decide pela confiança de cada exame, em três faixas: entra na
+lista sem aviso, entra com aviso ou fica de fora ([os limites de cada uma](glossario.md#leitura-e-decisão-de-cada-exame)).
 
 Custo: um exame mal lido não agenda sozinho ([detalhe](referencia.md#agendamento-conferido-em-código)).
 

@@ -181,25 +181,9 @@ serviço local).
 - Outro ambiente não exige mudar o código: basta `ALLOWED_HOSTS=ocr:8001,rag:8002,api:8000,clinica.interna:8443` no
   `.env`.
 
-**Onde é conferida:**
-
-1. No `transpile`.
-2. No `cli run`, que lê a spec de novo.
-3. Na importação do `agent.py`. Os toolsets do runtime (`McpToolset`, `LiveOpenAPIToolset`) recusam um host fora da
-   lista, então um `agent.py` gerado antes de uma mudança na variável, ou editado à mão, não importa.
-
-O `cli run` também confere que o `agent.py` é exatamente o que a spec gera hoje, e para se não for.
-
-**Nomes e endereços.** `ALLOWED_HOSTS` compara nomes, não endereços. Por isso o `cli run` resolve cada nome uma vez,
-antes da primeira requisição:
-
-- um nome que aponta para um endereço local ou de metadados (`127.0.0.1`, `169.254.169.254`, `fd00:ec2::254`…) para a
-  execução;
-- os endereços conferidos ficam fixos até o fim da execução, nos clientes `httpx` que o runtime entrega ao
-  `McpToolset`, ao `OpenAPIToolset` do ADK e às suas próprias consultas;
-- um nome que não resolveu fica sem endereço nenhum.
-
-As faixas recusadas e os limites: [referencia.md](referencia.md#segurança-em-detalhe).
+**Onde e como é conferida:** no `transpile`, no `cli run` e na importação do `agent.py`; fora da CLI, em cada toolset e
+em cada pedido. O `cli run` também resolve cada nome uma vez e fixa os endereços conferidos. Cada ponto, as faixas de
+endereço recusadas e os limites ficam num lugar só: [Hosts permitidos](referencia.md#hosts-permitidos).
 
 ### Ferramentas conferidas nos servidores
 
@@ -471,7 +455,7 @@ Nada é agendado sem a pessoa confirmar a lista. A pergunta usa a confirmação 
 
 1. O `before_tool` do agendamento monta a lista ([`runtime/confirmacao.py`](../runtime/confirmacao.py)):
    - no topo, uma vez, o que a página tem além da lista;
-   - cada exame com código, e o aviso dos que têm confiança de 0,70 a 0,90;
+   - cada exame com código, e o aviso dos que entram na [faixa com aviso](glossario.md#leitura-e-decisão-de-cada-exame);
    - os não agendados, inclusive os que a conferência do pedido inteiro acha e o agente não buscou. Essa conferência
      espera a busca, até 30 s, no próprio laço de eventos da execução.
 
@@ -483,7 +467,7 @@ Nada é agendado sem a pessoa confirmar a lista. A pergunta usa a confirmação 
 
 O resto:
 
-- **`--yes`** (só na CLI): o callback nem pede confirmação, e o que tem de 0,70 a 0,90 fica de fora. Chega ao agente pelo registro do pedido que a CLI abre (`orders.start`), não por variável de ambiente. Sem TTY e sem `--yes`, a CLI para antes de ler o pedido e de chamar o modelo (`cli.check_someone_answers`).
+- **`--yes`** (só na CLI): o callback nem pede confirmação, e o que entraria com aviso fica de fora. Chega ao agente pelo registro do pedido que a CLI abre (`orders.start`), não por variável de ambiente. Sem TTY e sem `--yes`, a CLI para antes de ler o pedido e de chamar o modelo (`cli.check_someone_answers`).
 - **Confirmação forjada:** só vale a resposta à pausa que o runtime registrou para aquela chamada, no registro do pedido, não no estado da sessão. Uma resposta a outra chamada, ou uma lista escrita no estado, não agenda nada.
 - **Um "não" vale para a execução:** uma chamada repetida pelo modelo não pergunta de novo e não agenda, nem depois de uma troca para o `fallback_model`.
 - **Um agendamento por execução:**

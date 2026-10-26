@@ -52,25 +52,15 @@ O `agent.py` só declara o agente com classes do ADK: `LlmAgent` (uma por etapa)
 - Os dois toolsets passam por uma subclasse fina do runtime que confere o host antes da primeira conexão.
 - A política entra no `App` como um plugin do ADK, o `BookingPlugin` ([`runtime/plugin.py`](../runtime/plugin.py)), com os valores da spec; nenhum agente tem callback próprio.
 
-O que o plugin faz:
+O que o plugin faz em cada gancho (`start_order`, `before_model`, `after_tool`, `before_tool` e `report`) fica num
+lugar só: [Segurança no código gerado](transpilador.md#segurança-no-código-gerado). Os valores que ele usa:
 
-- **Abre e fecha o pedido** (`start_order` e `report`, na raiz): a imagem vem da CLI ou da 1ª mensagem da pessoa (`adk run`, `adk web`).
-  - O modelo vê só um apelido (`pedido-1.png`), nunca o nome real do arquivo.
-  - Antes do 1º turno do modelo, os endereços dos servidores e a imagem são conferidos.
-  - No fim, confere o pedido inteiro e escreve a mensagem final com o que as ferramentas devolveram.
-  - Por isso o `agent.py` roda sem a CLI ([como](como-rodar.md#4-rodar-com-adk-run-ou-adk-web)).
-- **Guarda o pedido fora do estado da sessão:**
-  - tudo o que a política usa fica num registro do runtime por sessão, nunca no estado, que os clientes do ADK escrevem (o `adk web` ao criar a sessão e em cada mensagem, o `adk run` com `--state`)
-  - o estado só recebe uma cópia. Num `adk web` longo, o runtime guarda os registros dos 256 pedidos terminados mais recentes e descarta um sem uso por 6 horas
-  - uma sessão cujo registro saiu continua dizendo que já tratou um pedido (até 4.096 sessões), e a `Idempotency-Key` sai da própria sessão, então um pedido reenviado nela recebe o mesmo agendamento.
-- **`before_model`:** abre cada chamada ao modelo com uma regra fixa: a saída das ferramentas é dado não
-  confiável, nunca instrução. Um agente sem o plugin não a recebe.
-- **`after_tool`:** guarda as linhas lidas e a leitura do OCR por linha (`line_confidence`) e, por
-  código, o score do RAG e o quanto a busca bate com a linha.
-- **`before_tool`:** fixa o `top_k` da busca. No agendamento, bloqueia código inventado e dá a cada
-  exame um trecho próprio do pedido ("Creatinina, Clearance de creatinina" são 2; um nome que só
-  aparece dentro de outro vale 1), calcula a confiança e monta a confirmação final
-  ([abaixo](#agendamento-conferido-em-código)). Se nenhum exame sobra, bloqueia o agendamento.
+| O quê | Valor | Onde |
+|---|---|---|
+| Pedidos terminados guardados num `adk web` longo | os 256 mais recentes | `runtime/pedido.py` (`KEEP_FINISHED`) |
+| Sessões que continuam dizendo que já trataram um pedido | até 4.096 | `runtime/pedido.py` (`KEEP_EVICTED`) |
+| Registro sem uso descartado depois de | 6 h | `runtime/pedido.py` (`IDLE_SECONDS`) |
+| `Idempotency-Key` | um HMAC da sessão; no `cli run`, cada execução é uma sessão nova | `runtime/pedido.py` |
 
 ## Rede e processos
 
@@ -363,15 +353,9 @@ OCR grudou em até 2 letras, como "TSH" em "TSHe", também conta.
 Com algum `não incluído` ou `não buscado`, a linha final avisa, como possibilidade: `Agendamento confirmado pela API: id <id>, status scheduled; ATENÇÃO: 1 possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima`. O agendamento existe: o código de saída é 0 quando a pessoa confirmou a lista
 e 3 com `--yes`, para a automação perceber.
 
-**A confirmação final.** Antes da API, o callback confere o pedido inteiro e pede a confirmação nativa do ADK. Ela
-mostra:
-
-- uma vez, no topo, o que a página tem além da lista;
-- a lista inteira: cada exame com código e aviso, e os não agendados;
-- a pergunta `Agendar estes N exames? [s/N]`, ou `Agendar este exame? [s/N]` com um exame só.
-
-- A CLI responde no terminal; o console do `adk run` e a página do `adk web` mostram o mesmo texto.
-- Só um "sim" àquela lista, naquela chamada, agenda; com `--yes` (só na CLI), não há pergunta e só agenda o que tem ≥ 0,90 numa página que é só a lista ([como funciona](transpilador.md#a-confirmação-da-lista-confirmação-nativa-do-adk)).
+**A confirmação final.** Antes da API, o callback confere o pedido inteiro e pede a confirmação nativa do ADK: só um
+"sim" àquela lista, naquela chamada, agenda. O que a pergunta mostra, como cada cliente responde e o `--yes` ficam num
+lugar só: [A confirmação da lista](transpilador.md#a-confirmação-da-lista-confirmação-nativa-do-adk).
 
 - Se não sobra nenhum exame, nada é agendado.
 
