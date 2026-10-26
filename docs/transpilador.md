@@ -28,8 +28,11 @@ reconstruir a imagem, e uma edição vale no próximo `transpile`
 ([como rodar](como-rodar.md#2-rodar-o-transpilador)):
 
 ```bash
-docker compose run --rm agent python -m cli transpile specs/<sua-spec>.json --output generated/<seu-agente>.py
+docker compose run --rm agent python -m cli transpile specs/<sua-spec>.json --output generated/<seu-agente>/agent.py
 ```
+
+Cada agente vai na sua pasta (`agent.py` mais o `__init__.py` que o `transpile` escreve) e roda com
+`docker compose run --rm agent adk run --in_memory generated/<seu-agente>`.
 
 O arquivo só é trocado depois que o novo importa: ele é escrito ao lado, importado e então movido
 por cima do anterior. Se falhar, o anterior fica como estava.

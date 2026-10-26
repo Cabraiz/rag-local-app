@@ -36,7 +36,7 @@ Agendamento confirmado pela API: id <uuid>, status scheduled
 
 Num terminal, a CLI mostra a lista e pergunta `Agendar estes N exames? [s/N]`. Para automação (sem terminal, CI), use `--yes`: sem pergunta, agenda só os exames bem lidos de um pedido que contém apenas a lista de exames ([detalhe](docs/como-rodar.md#3-executar-o-agente)).
 
-**Sua própria spec, sem rebuild:** salve-a em `specs/` e rode `docker compose run --rm agent python -m cli transpile specs/<sua-spec>.json` ([campos](docs/transpilador.md#campos-da-spec)). Um servidor fora do compose precisa estar em `ALLOWED_HOSTS`, como no [exemplo fora do domínio](specs/exemplo-generico.json): `-e ALLOWED_HOSTS=docs:8010`.
+**Sua própria spec, sem rebuild:** salve-a em `specs/` e rode `docker compose run --rm agent python -m cli transpile specs/<sua-spec>.json`, que substitui o `generated/agent.py` (para manter os dois: `--output generated/<nome>/agent.py`) ([campos](docs/transpilador.md#campos-da-spec)). Um servidor fora do compose precisa estar em `ALLOWED_HOSTS`, como no [exemplo fora do domínio](specs/exemplo-generico.json): `-e ALLOWED_HOSTS=docs:8010`.
 
 **Sem a CLI, com o próprio ADK:** `docker compose run --rm agent adk run --in_memory generated` e digite `pedido.png`; o `adk web` roda por `python -m runtime.web` ([como](docs/como-rodar.md#4-rodar-com-adk-run-ou-adk-web), [vídeo 12](docs/videos.md#12-adk-sem-a-cli)).
 
@@ -62,7 +62,7 @@ https://github.com/user-attachments/assets/2bf4ca61-0f7f-42d9-a174-16b3377d8f16
 
 - **Comece pelo [guia do desenvolvedor](docs/guia-dev.md):** mapa do repositório, o caminho de um pedido pelas funções, como rodar cada peça e os testes, receitas (ferramenta ou servidor MCP novo, spec nova, exame novo, regra, padrão de PII) e uma tabela que liga cada aviso do terminal ao código que o produz.
 - **Testes:** `docker compose run --rm tests pytest -q -n auto` (sem chave do Gemini); um arquivo: `docker compose run --rm tests pytest -q tests/test_pii.py`; o ponta a ponta real: `docker compose run --rm tests-e2e`.
-- **Onde mexer:** `transpiler/` (spec e código gerado), `runtime/` (a política que o `agent.py` importa), `mcp_servers/` (OCR e RAG), `guardrails/` (PII, injeção e regras de linha), `api/` (FastAPI). Índice de toda a documentação: [docs/README.md](docs/README.md).
+- **Onde mexer:** `transpiler/` (spec e código gerado), `runtime/` (a política que o `agent.py` importa), `mcp_servers/` (OCR e RAG), `guardrails/` (PII, injeção e regras de linha), `api/` (FastAPI). Índice de toda a documentação: [docs/README.md](docs/README.md); termos como `page_clean`, `confira` e as faixas de confiança: [glossário](docs/glossario.md).
 
 ## Arquitetura em 1 minuto
 
@@ -92,14 +92,14 @@ Versão longa: [docs/decisoes.md](docs/decisoes.md).
 
 ## Limites conhecidos
 
-- **Busca lexical, não semântica.** Entende abreviações e erros de OCR nos 120 exames fictícios, não paráfrases; a semântica, medida, não agendou exame a mais ([medição](docs/medicoes.md#busca-semântica-avaliada-não-adotada)).
-- **Letra de médico quase ilegível para o Tesseract.** Nos manuscritos simulados, ele agenda sozinho 1 de 206 exames, sem erro; um leitor de visão local aceitou 24%, mas é lento na CPU e não está ligado ([medição](docs/medicoes.md#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão), [em produção](docs/decisoes.md#pedido-em-papel-em-produção)).
-- **Leitura fraca vira aviso.** Um exame lido certo numa linha que o OCR leu mal fica fora da pergunta; com uma imagem nova, o agendamento pode sair parcial ([exemplo](docs/decisoes.md#exame-lido-certo-mas-com-leitura-fraca-fica-fora-da-pergunta)).
-- **Com `--yes`, um exame injetado como linha comum é agendado.** Sem `--yes`, a pessoa confirma a lista; com ele, só as regras decidem, e um carimbo que o OCR não lê passa ([o que passa](docs/decisoes.md#com---yes-um-exame-injetado-como-linha-comum-é-agendado)).
-- **Filtros por regras não provam segurança contra ataques novos.** São testadas como regressão, em corpora do projeto; a barreira final é o callback, que só agenda códigos achados nas linhas lidas (um exame que o modelo associou mal ainda pode aparecer na lista, marcado `confira`) ([detalhe](docs/decisoes.md#filtros-determinísticos-não-são-prova-contra-ataques-novos)).
-- **O `agent.py` instancia só classes do ADK; a política vem de um plugin do ADK versionado em `runtime/`.** Agentes, `App`, modelo e toolsets são do ADK (os toolsets por subclasses finas que conferem o host). O limite: o pacote `runtime/` precisa estar na imagem ([detalhe](docs/decisoes.md#o-agentpy-usa-só-classes-do-adk-a-política-mora-num-plugin-versionado)).
-- **Sem autenticação na API nem entre serviços.** É um mock local: a API só publica porta em `127.0.0.1`; OCR e RAG não têm internet, mas o container da API tem, porque uma porta publicada exige uma rede não interna ([em produção](docs/decisoes.md#sem-autenticação-na-api-e-entre-serviços)).
-- **Cadeia de suprimentos, em parte.** Faltam `--require-hashes` e versões fixas no `apt`, e o Swagger UI vem de um CDN em versão flutuante (@5), sem SRI ([detalhe](docs/decisoes.md#cadeia-de-suprimentos-em-parte)).
+- **Busca lexical, não semântica.** Ela entende abreviações e erros de OCR nos 120 exames fictícios. Ela não entende paráfrases. A busca semântica foi medida e não agendou nenhum exame a mais ([medição](docs/medicoes.md#busca-semântica-avaliada-não-adotada)).
+- **Letra de médico é quase ilegível para o Tesseract.** Nos manuscritos simulados, ele agenda sozinho 1 de 206 exames, sem erro. Um leitor de visão local aceitou 24%, mas é lento na CPU e não está ligado ([medição](docs/medicoes.md#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão), [em produção](docs/decisoes.md#pedido-em-papel-em-produção)).
+- **Leitura fraca vira aviso.** Um exame numa linha que o OCR leu mal fica fora da pergunta. Com uma imagem nova, o agendamento pode sair parcial ([exemplo](docs/decisoes.md#exame-lido-certo-mas-com-leitura-fraca-fica-fora-da-pergunta)).
+- **Com `--yes`, só as regras decidem.** Um exame injetado como linha comum da lista é agendado, e um carimbo que o OCR não lê não é visto. Sem `--yes`, a pessoa confirma a lista ([o que passa](docs/decisoes.md#com---yes-um-exame-injetado-como-linha-comum-é-agendado)).
+- **Regras não provam segurança contra ataques novos.** Elas são testadas como regressão, nos corpora do projeto. A barreira final é o callback: ele só agenda códigos achados nas linhas lidas. Um exame que o modelo associou mal ainda pode aparecer na lista, marcado `confira` ([detalhe](docs/decisoes.md#filtros-determinísticos-não-são-prova-contra-ataques-novos)).
+- **O `agent.py` usa só classes do ADK; a política é um plugin do ADK em `runtime/`.** Por isso o pacote `runtime/` precisa estar na imagem ([detalhe](docs/decisoes.md#o-agentpy-usa-só-classes-do-adk-a-política-mora-num-plugin-versionado)).
+- **Sem autenticação na API nem entre serviços.** É um mock local. A API só publica porta em `127.0.0.1`. OCR e RAG não têm internet; o container da API tem, porque uma porta publicada exige uma rede não interna ([em produção](docs/decisoes.md#sem-autenticação-na-api-e-entre-serviços)).
+- **Cadeia de suprimentos, em parte.** Faltam `--require-hashes` e versões fixas no `apt`. O Swagger UI vem de um CDN em versão flutuante (@5), sem SRI ([detalhe](docs/decisoes.md#cadeia-de-suprimentos-em-parte)).
 
 Versão longa: [decisões e limites](docs/decisoes.md#limites) · medidos: [medições](docs/medicoes.md#limites-conhecidos) · em aberto: [revisão](docs/revisao.md#ainda-em-aberto).
 

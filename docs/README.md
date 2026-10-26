@@ -13,6 +13,7 @@ Por onde começar, conforme o que você quer fazer. Cada documento abre dizendo 
 | Ver **os números**: acertos, erros, custo e como repetir cada medição | [medicoes.md](medicoes.md) |
 | Ver **o que a revisão mudou** e o teste que trava cada correção | [revisao.md](revisao.md) |
 | Ver **os vídeos** de cada parte | [videos.md](videos.md) · [miniaturas](gravacoes/README.md) |
+| Entender **um termo** (`page_clean`, `confira`, faixas de confiança, `--yes`) | [glossario.md](glossario.md) |
 | Licenças e origem dos dados | [licencas.md](licencas.md) |
 
 O código gerado para a spec de exemplo, linha a linha: [exemplo-agent.py](exemplo-agent.py).

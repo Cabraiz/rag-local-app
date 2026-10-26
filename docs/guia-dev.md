@@ -83,6 +83,23 @@ Todos os comandos rodam na raiz do clone, com o ambiente de pé (`docker compose
 | O agente, com Gemini | `docker compose run --rm agent python -m cli run --image pedido.png` (`--verbose` mostra os logs das bibliotecas) |
 | Sem a CLI | `docker compose run --rm agent adk run --in_memory generated` ([como-rodar.md](como-rodar.md#4-rodar-com-adk-run-ou-adk-web)) |
 
+### Ambiente local, sem Docker
+
+O caminho suportado é o Docker: as imagens fixam o Python, o Tesseract e cada versão. Para depurar uma peça na sua
+máquina:
+
+```bash
+python3.12 -m venv .venv && . .venv/bin/activate          # no Windows: .venv\Scripts\activate
+pip install -r requirements.txt -r requirements-dev.txt -c constraints.txt
+```
+
+- O OCR e os testes de imagem precisam do Tesseract com o idioma português no `PATH` (`tesseract-ocr` e
+  `tesseract-ocr-por` no Debian/Ubuntu; o mesmo pacote que o `Dockerfile` instala).
+- Fora do compose, os hosts dos servidores mudam: inclua os seus em `ALLOWED_HOSTS` (por exemplo,
+  `localhost:8001,localhost:8002,localhost:8000`) e use URLs com esses hosts na spec.
+- `pytest -q tests/test_rag.py tests/test_pii.py` roda sem servidores; os testes de ponta a ponta sobem os servidores
+  nas portas da spec e precisam delas livres.
+
 ### Testes
 
 Os testes rodam na imagem `test` (Tesseract, pytest, ruff e mypy), na rede interna e sem a chave do Gemini:
@@ -177,9 +194,13 @@ Copie [`specs/exemplo-generico.json`](../specs/exemplo-generico.json) (um agente
 Salve em `specs/` e transpile, sem rebuild:
 
 ```bash
-docker compose run --rm -e ALLOWED_HOSTS=docs:8010 agent python -m cli transpile specs/exemplo-generico.json --output generated/docs.py
-docker compose run --rm agent adk run --in_memory generated    # um agente sem BookingPlugin roda com adk run / adk web, não com `cli run`
+docker compose run --rm -e ALLOWED_HOSTS=docs:8010 agent python -m cli transpile specs/exemplo-generico.json --output generated/docs/agent.py
+docker compose run --rm agent adk run --in_memory generated/docs    # roda com adk run / adk web, não com `cli run`
 ```
+
+O ADK carrega uma pasta com `agent.py` e `__init__.py`; o `transpile` só escreve o `__init__.py` quando o arquivo se chama
+`agent.py`, por isso cada agente vai na sua pasta. O exemplo fala com um servidor MCP em `docs:8010`: para executá-lo,
+esse servidor precisa existir (transpilar não precisa).
 
 Os campos e cada erro de validação com a mensagem real: [transpilador.md](transpilador.md#campos-da-spec). Teste uma
 spec nova acrescentando-a às listas de `tests/test_transpiler.py` e `tests/test_spec_generica.py`.
