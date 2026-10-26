@@ -6,6 +6,8 @@ execução, onde a PII é mascarada, as camadas de segurança, como o agendament
 tabela de erros. O porquê de cada escolha está em [decisoes.md](decisoes.md); os comandos, em
 [como-rodar.md](como-rodar.md).
 
+**Índice:** [Etapas](#etapas) · [Componentes](#componentes) · [Rede e processos](#rede-e-processos) · [Servidores MCP](#servidores-mcp) · [Fluxo de dados de uma execução](#fluxo-de-dados-de-uma-execução) · [Onde a PII é mascarada](#onde-a-pii-é-mascarada) · [Segurança em detalhe](#segurança-em-detalhe) · [Agendamento conferido em código](#agendamento-conferido-em-código) · [Decisões técnicas em detalhe](#decisões-técnicas-em-detalhe) · [Tratamento de erros](#tratamento-de-erros)
+
 ## Etapas
 
 - **Transpilar** ([`transpiler/`](../transpiler/)): valida a spec (Pydantic, campos extras proibidos) e gera `generated/agent.py`, que é compilado e importado antes do OK.

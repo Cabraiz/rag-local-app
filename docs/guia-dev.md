@@ -8,7 +8,7 @@ gerado), [regras.md](regras.md) (regras de linha e de página), [medicoes.md](me
 [como-rodar.md](como-rodar.md) (operação) e [decisoes.md](decisoes.md) (escolhas e limites).
 
 **Índice:** [Mapa do repositório](#mapa-do-repositório) · [O caminho de um pedido no código](#o-caminho-de-um-pedido-no-código) ·
-[Rodar cada peça e os testes](#rodar-cada-peça-e-os-testes) · [Receitas](#receitas) ·
+[Rodar cada peça e os testes](#rodar-cada-peça-e-os-testes) · [Primeira mudança](#primeira-mudança-passo-a-passo) · [Receitas](#receitas) ·
 [Depurar um pedido](#depurar-um-pedido-que-falhou-ou-foi-perguntado) · [Convenções](#convenções)
 
 ## Mapa do repositório
@@ -134,6 +134,29 @@ docker compose run --rm --no-deps tests mypy                             # tipos
 - **Avisos filtrados.** O `pyproject.toml` filtra, cada um pelo nome, a depreciação do `SequentialAgent`
   ([decisão](decisoes.md#sequentialagent-obsoleto-no-adk-210)) e os avisos `[EXPERIMENTAL]` do ADK sobre os recursos em uso,
   que cada processo do `-n auto` repetiria. Um aviso novo continua aparecendo.
+
+## Primeira mudança, passo a passo
+
+Um exercício de 10 minutos que passa por catálogo, teste, documentação e serviço: fazer o RAG reconhecer
+a abreviação "Ur. serica" como Ureia (`FICT-004`). Os serviços `tests` e `rag` copiam o código na imagem, por isso o
+`build` antes de rodar.
+
+1. **Veja como está hoje:**
+   `docker compose run --rm agent python exemplos/mcp_call.py rag search_exams query="Ur. serica" top_k=3`.
+   `FICT-004` vem em primeiro com score 0,86: abaixo de 0,90, o exame só entra na lista com aviso
+   ([por quê](arquitetura.md#agendamento-conferido-em-código)).
+2. **Escreva o teste primeiro**, em `tests/test_rag.py`, no estilo dos vizinhos: a busca por "Ur. serica" devolve
+   `FICT-004` em primeiro, com score de pelo menos 0,90. Rode e veja falhar:
+   `docker compose build tests` e depois `docker compose run --rm tests pytest -q tests/test_rag.py`.
+3. **Mude o catálogo:** em `data/exams.json`, acrescente `"Ur. serica"` aos `synonyms` de `FICT-004`.
+4. **Rode o que o catálogo afeta:**
+   `docker compose build tests` e depois
+   `docker compose run --rm tests pytest -q tests/test_rag.py tests/test_calibration.py tests/test_pii.py tests/test_readme.py`.
+   O `test_readme.py` vai apontar o arquivo e a linha dos docs que citam a contagem de nomes e sinônimos do
+   catálogo; corrija o número ali. É assim que a documentação fica honesta.
+5. **Veja no serviço:** `docker compose up -d --build rag` e repita o passo 1: o score passa a 1,00.
+
+Para desfazer: `git checkout -- data/exams.json tests/test_rag.py docs/` e `docker compose up -d --build rag`.
 
 ## Receitas
 

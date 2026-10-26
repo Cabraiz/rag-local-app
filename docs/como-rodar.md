@@ -5,6 +5,8 @@
 ambiente, backup do banco e testes. Leia depois do [README](../README.md#rodar-em-4-comandos), que resume tudo em 4
 comandos. O porquê de cada regra está em [arquitetura.md](arquitetura.md); os números, em [medicoes.md](medicoes.md).
 
+**Índice:** [Pré-requisitos](#pré-requisitos) · [1. Subir o ambiente Docker](#1-subir-o-ambiente-docker) · [2. Rodar o transpilador](#2-rodar-o-transpilador) · [3. Executar o agente](#3-executar-o-agente) · [4. Rodar com `adk run` ou `adk web`](#4-rodar-com-adk-run-ou-adk-web) · [Variáveis de ambiente](#variáveis-de-ambiente) · [Backup e restauração](#backup-e-restauração) · [Quando algo falha](#quando-algo-falha) · [Testes](#testes)
+
 ## Pré-requisitos
 
 - Docker com Compose ≥ 2.1.1 (`up --wait`). Não é preciso Python no host.

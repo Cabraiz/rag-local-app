@@ -37,6 +37,8 @@ por cima do anterior. Se falhar, o anterior fica como estava.
 Para ver o código gerado sem rodar nada, abra [`exemplo-agent.py`](exemplo-agent.py): é a saída
 exata do `transpile` para `specs/agent.json`, e um teste falha se ela ficar desatualizada.
 
+**Índice:** [O que fica onde](#o-que-fica-onde) · [Campos da spec](#campos-da-spec) · [Validação e mensagens de erro](#validação-e-mensagens-de-erro) · [Geração](#geração) · [Segurança no código gerado](#segurança-no-código-gerado)
+
 ## O que fica onde
 
 - **A spec** diz o que varia: os servidores, os agentes (instrução, ferramentas, `output_key`,
