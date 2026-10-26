@@ -134,6 +134,33 @@ def test_every_quoted_repository_path_exists():
     assert not stale, '\n'.join(stale)
 
 
+
+TEST_ID = re.compile(r'(test_\w+\.py)::(?:Test\w+::)?(test_\w+)')
+
+
+def test_every_quoted_test_id_exists():
+    """`test_x.py::test_y` in the docs names a test that pytest would find: a reader pastes it into pytest."""
+    files = {path.name: path for path in (ROOT / 'tests').rglob('test_*.py')}
+    stale, found = [], 0
+    for doc in DOCS:
+        for number, line, _ in lines_of(doc):
+            for match in TEST_ID.finditer(line):
+                found += 1
+                file, name = match.groups()
+                source = files[file].read_text(encoding='utf-8') if file in files else ''
+                if not re.search(rf'^\s*(?:async )?def {name}\(', source, re.M):
+                    stale.append(f'{rel(doc)}:{number}: `{match.group(0)}` is not a test in tests/')
+    assert found, 'no `file::test` id found in the docs'
+    assert not stale, '\n'.join(stale)
+
+
+def test_every_test_file_is_in_the_developer_guide_map():
+    guide = (ROOT / 'docs' / 'guia-dev.md').read_text(encoding='utf-8')
+    table = guide.split('Onde cada tema é testado', 1)[1].split('\n\n- ', 1)[0]
+    missing = [rel(path) for path in sorted((ROOT / 'tests').rglob('test_*.py')) if path.name not in table]
+    assert not missing, 'missing from the table "Onde cada tema é testado" of docs/guia-dev.md: ' + ', '.join(missing)
+
+
 # --- 3. Numbers the docs quote that can be computed offline --------------------------------------
 
 def read_json(path):

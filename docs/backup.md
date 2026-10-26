@@ -56,19 +56,25 @@ Por que os comandos são assim:
 
 ## Restaurar
 
-Com a chave no lugar e a API parada:
+Com a chave no lugar. Os comandos param a API antes de gravar e a sobem de novo no fim:
 
 1. **A chave primeiro.** Com o volume `api-key` intacto, não há nada a fazer. Numa máquina nova, ponha a chave em
    `DB_ENCRYPTION_KEY=` no `.env`.
-2. **Restaure:**
+2. **Ponha a cópia no volume da API**, ainda com ela no ar:
    ```bash
    docker compose cp ./backup/appointments.db api:/state/restore.db
+   ```
+3. **Pare a API e restaure:**
+   ```bash
    docker compose stop api
    docker compose run --rm --no-deps api python -m api.backup --entrada restore.db
+   ```
+4. **Suba a API e apague a cópia do volume:**
+   ```bash
    docker compose up -d --wait
    docker compose exec api sh -c "rm /state/restore.db"
    ```
-3. **Confira a saída** do `--entrada`:
+5. **Confira a saída** do `--entrada` (passo 3):
    ```text
    banco restaurado em /state/appointments.db: 3 agendamento(s), todos decifrados com a chave atual
    ```

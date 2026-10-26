@@ -58,6 +58,7 @@ sequenceDiagram
     G-->>A: buscas propostas
     A->>R: search_exams
     R-->>A: códigos e scores
+    A->>G: resultados da busca
     G-->>A: códigos propostos para agendar
     A->>A: confere cada código contra o que foi lido e buscado
     A->>P: Agendar estes N exames? [s/N]

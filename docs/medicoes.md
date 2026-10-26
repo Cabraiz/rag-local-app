@@ -13,7 +13,7 @@ docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga --
 docker compose -f docker-compose.yml -f tests/load/compose.carga.yml -p carga run --rm tests python -m tests.load.<script> …
 ```
 
-**Índice:** [Resumo](#resumo) · [Carga de dados sensíveis](#carga-de-dados-sensíveis) · [Fotos de celular de pedidos impressos](#fotos-de-celular-de-pedidos-impressos) · [Modelo que alucina](#modelo-que-alucina) · [Dados sensíveis: como contornamos](#dados-sensíveis-como-contornamos) · [Texto livre fora do modelo](#texto-livre-fora-do-modelo) · [Pedidos manuscritos simulados](#pedidos-manuscritos-simulados) · [Abreviações escritas no pedido](#abreviações-escritas-no-pedido) · [Robustez: entradas faltando ou quebradas](#robustez-entradas-faltando-ou-quebradas) · [Qualidade da foto](#qualidade-da-foto) · [OCR moderno (avaliado, não adotado)](#ocr-moderno-avaliado-não-adotado) · [Letra de médico: leitor local avaliado, não ligado por padrão](#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão) · [Linhas com vários exames e sorologias](#linhas-com-vários-exames-e-sorologias) · [Busca semântica: avaliada, não adotada](#busca-semântica-avaliada-não-adotada) · [Tamanho das imagens](#tamanho-das-imagens) · [Negação, histórico e observações](#negação-histórico-e-observações) · [Lista branca: só agenda sozinha a linha que é só exame](#lista-branca-só-agenda-sozinha-a-linha-que-é-só-exame) · [Lista branca por página](#lista-branca-por-página) · [Rodapé, formulário, nome e nome mais longo](#rodapé-formulário-nome-e-nome-mais-longo) · [Anotação, timbre e o contexto antes da pergunta](#anotação-timbre-e-o-contexto-antes-da-pergunta) · [Limites conhecidos](#limites-conhecidos)
+**Índice:** [Resumo](#resumo) · [Calibração do limiar de 0,90](#calibração-do-limiar-de-090) · [Carga de dados sensíveis](#carga-de-dados-sensíveis) · [Fotos de celular de pedidos impressos](#fotos-de-celular-de-pedidos-impressos) · [Modelo que alucina](#modelo-que-alucina) · [Dados sensíveis: como contornamos](#dados-sensíveis-como-contornamos) · [Texto livre fora do modelo](#texto-livre-fora-do-modelo) · [Pedidos manuscritos simulados](#pedidos-manuscritos-simulados) · [Abreviações escritas no pedido](#abreviações-escritas-no-pedido) · [Robustez: entradas faltando ou quebradas](#robustez-entradas-faltando-ou-quebradas) · [Qualidade da foto](#qualidade-da-foto) · [OCR moderno (avaliado, não adotado)](#ocr-moderno-avaliado-não-adotado) · [Letra de médico: leitor local avaliado, não ligado por padrão](#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão) · [Linhas com vários exames e sorologias](#linhas-com-vários-exames-e-sorologias) · [Busca semântica: avaliada, não adotada](#busca-semântica-avaliada-não-adotada) · [Tamanho das imagens](#tamanho-das-imagens) · [Negação, histórico e observações](#negação-histórico-e-observações) · [Lista branca: só agenda sozinha a linha que é só exame](#lista-branca-só-agenda-sozinha-a-linha-que-é-só-exame) · [Lista branca por página](#lista-branca-por-página) · [Rodapé, formulário, nome e nome mais longo](#rodapé-formulário-nome-e-nome-mais-longo) · [Anotação, timbre e o contexto antes da pergunta](#anotação-timbre-e-o-contexto-antes-da-pergunta) · [Limites conhecidos](#limites-conhecidos)
 
 ## Resumo
 
@@ -44,6 +44,16 @@ testes.
 - **Sem estado**: nenhum dos três;
 - **errado**: exame que o pedido não pediu.
 - Nas medições das regras ninguém responde, e o modelo simulado é **cuidadoso** (busca o nome de cada exame), **preguiçoso** (cada linha como lida) ou **guloso** (propõe tudo).
+
+## Calibração do limiar de 0,90
+
+O limiar de 0,90 foi calibrado em 631 consultas versionadas em [`tests/calibration/queries.jsonl`](../tests/calibration/queries.jsonl): 103 linhas de OCR de 40 pedidos fictícios, já mascaradas, e 528 consultas sintéticas (621 acertos e 10 erros).
+
+- Com 0,90, nenhum dos 10 erros passa e 522 dos 621 acertos ficam (84%).
+- Com só 10 erros conhecidos, é uma checagem de piso, não uma taxa de erro; [`test_calibration.py`](../tests/test_calibration.py) recalcula os números com o RAG atual.
+- Os erros de score alto eram consultas curtas, como um "IGF-1" manuscrito lido "GA" e tomado por IgA (0,80).
+- O corte de 0,6 do RAG só decide o que vira candidato.
+- **Com a leitura real do OCR** e os pisos de leitura: nas 120 manuscritas ([`tests/load/manuscritos.py`](../tests/load/manuscritos.py)), nenhum exame errado é agendado sem confirmação (5 erros de leitura viram pergunta); com 200 pedidos da carga, 605 dos 618 exames são agendados sozinhos e 9 são perguntados.
 
 ## Carga de dados sensíveis
 

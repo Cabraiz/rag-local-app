@@ -115,8 +115,8 @@ docker compose run --rm --no-deps tests mypy                             # tipos
 - **Serial ou paralelo.** Sem `-n auto` a suíte leva de 6 a 11 min. Os arquivos que sobem os servidores nas portas da
   spec (8000 a 8002) carregam `xdist_group('spec-ports')` e rodam num worker só; `tests/portas.py` espera a porta
   livre.
-- **Resultado atual:** 615 funções de teste e 19.379 casos (`pytest --collect-only`), quase todos de corpus
-  parametrizado (linhas legítimas, PII gerada, ataques, termos do catálogo). 19.378 passam e 1 é pulado: o ponta a
+- **Resultado atual:** 617 funções de teste e 19.381 casos (`pytest --collect-only`), quase todos de corpus
+  parametrizado (linhas legítimas, PII gerada, ataques, termos do catálogo). 19.380 passam e 1 é pulado: o ponta a
   ponta, que precisa da chave. Com `-n auto` e `--cov`, cerca de 3,5 min numa máquina de 12 núcleos (medido: 200 s e
   205 s).
 - **O serviço `tests`** é a imagem do `agent` mais pytest, ruff, mypy, o Tesseract e os testes (estágio `test` do
@@ -128,18 +128,21 @@ docker compose run --rm --no-deps tests mypy                             # tipos
 
 | Tema | Arquivos |
 |---|---|
-| Spec, validação, código gerado | `test_transpiler.py`, `test_spec_generica.py`, `test_runtime.py` |
+| Spec, validação, código gerado | `test_transpiler.py`, `test_spec_generica.py`, `test_runtime.py`, `test_app_unico.py` (o que `cli run` e `adk run` compartilham) |
 | OCR e preparo da imagem | `test_ocr.py`, `test_preprocessamento.py`, `test_qualidade.py` |
-| Busca no catálogo | `test_rag.py`, `test_catalogo.py`, `test_calibration.py` |
+| Busca no catálogo e comparação de textos | `test_rag.py`, `test_catalogo.py`, `test_calibration.py`, `test_normalizacao.py` |
 | PII e injeção | `test_pii.py` (3.600 casos de `tests/pii_corpus.py`), `test_injection.py` (corpus de `tests/attacks/`) |
-| Regras de linha e de página | `test_negacao.py`, `test_negacao_casos.py`, `test_texto_livre.py` |
-| Política de confiança e confirmação | `test_confianca.py`, `test_confirmacao_nativa.py`, `test_reconcilia.py`, `test_idempotencia.py` |
+| Regras de linha e de página | `test_negacao.py`, `test_negacao_casos.py`, `test_texto_livre.py`, `test_reconcilia.py` (o pedido inteiro conferido) |
+| Política de confiança e confirmação | `test_confianca.py`, `test_confirmacao_nativa.py`, `test_idempotencia.py` |
 | Modelo que alucina, ponta a ponta com modelo roteirizado | `test_alucinacao.py`, `test_agent_mcp.py`, `test_adk_run.py`, `test_adk_seguranca.py` |
+| `adk run` e `adk web` sob carga e com o modelo reserva | `test_adk_concorrencia.py`, `test_adk_reserva.py`, `test_adk_comandos.py` (as linhas do `como-rodar.md`) |
+| Rede, `ALLOWED_HOSTS` e endurecimento | `test_enderecos.py`, `test_endurecimento.py` |
+| Ponta a ponta com o Gemini (só no `tests-e2e`) | `test_e2e.py` |
 | MCP via SSE | `test_mcp_sse.py` |
 | API | `test_api.py`, `test_api_headers.py`, `test_api_host.py`, `test_crypto.py`, `test_backup.py` |
 | Carga e robustez (uma fração) | `test_carga.py`, `test_manuscritos.py`, `test_robustez.py`, `tests/load/test_fotos.py` |
-| Imagens Docker e variáveis | `test_imagens.py`, `test_variaveis.py` |
-| Documentação | `test_readme.py` (ver [Convenções](#convenções)) |
+| Imagens Docker, variáveis e a própria suíte | `test_imagens.py`, `test_variaveis.py`, `test_portas.py` (porta presa falha, não pula), `test_versionados.py` (a lista fixa de arquivos) |
+| Documentação | `test_readme.py` (ver [Convenções](#convenções)); ele também exige que todo `tests/test_*.py` esteja nesta tabela |
 
 - **Cargas fora da suíte** (OCR, RAG e API reais, sem Gemini): `tests.load.carga`, `tests.load.manuscritos`,
   `tests.load.robustez`; os comandos e o que cada um mede estão em [medicoes.md](medicoes.md#resumo).
