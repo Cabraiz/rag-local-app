@@ -28,7 +28,12 @@ docker compose up -d --wait   # sobe ocr, rag e api; na 1ª vez a api cria a cha
 
 - **Tempo:** o 1º build, sem cache, leva de 10 a 20 minutos (por causa do Tesseract); os seguintes usam cache.
 - **Saída esperada:** `ocr`, `rag` e `api` como `Healthy`.
-- **Swagger:** `http://127.0.0.1:<API_PORT>/docs` (padrão 8765; a porta real sai de `docker compose port api 8000`). A página certa se chama "API de agendamento de exames (fictícia)"; o `/openapi.json` dela é o que o agente consome. Operações: `create_appointment` (`POST /appointments`), `get_appointment` (`GET /appointments/{appointment_id}`) e `health` (`GET /health`). Corpo de exemplo: `{"exams": [{"code": "FICT-001"}]}` (o `name` é opcional; a API grava e devolve o nome do catálogo). Outro `Host` que não `127.0.0.1`, `localhost` ou `api` recebe `400`. As capturas em [`docs/evidencias/`](evidencias/) mostram a porta 18905, a da gravação.
+- **Swagger:** `http://127.0.0.1:<API_PORT>/docs` (padrão 8765; a porta real sai de `docker compose port api 8000`).
+  - A página se chama "API de agendamento de exames (fictícia)". O `/openapi.json` dela é o contrato que o agente consome.
+  - Operações: `create_appointment` (`POST /appointments`), `get_appointment` (`GET /appointments/{appointment_id}`) e `health` (`GET /health`).
+  - Corpo de exemplo: `{"exams": [{"code": "FICT-001"}]}`. O `name` é opcional: a API grava e devolve o nome do catálogo.
+  - Um `Host` diferente de `127.0.0.1`, `localhost` ou `api` recebe `400`.
+  - As capturas em [`docs/evidencias/`](evidencias/) mostram a porta 18905, a da gravação.
 - **Porta:** a API escuta só em `127.0.0.1`, na porta `API_PORT`. Confira antes se está livre (`netstat -ano | findstr :8765`); se não, ponha outra no `.env` (ex.: `API_PORT=8766`). No Windows, o Docker pode não acusar o conflito.
 - **Chave do banco:** com `DB_ENCRYPTION_KEY` vazia, a API cria a chave na 1ª subida, no volume `api-key` (o log mostra `chave do banco criada em /keys/db.key`, nunca a chave). Para usar a sua, gere com `docker compose run --rm --no-deps api python -m api.crypto --gerar-chave` e ponha em `DB_ENCRYPTION_KEY=` antes do 1º `up`; definida, ela vale no lugar da do volume.
 - **Pasta:** rode tudo dentro de `rag-local-app`. Fora dela: `no configuration file provided: not found`.
@@ -107,10 +112,8 @@ Tempo: OCR 2,1 s · busca 2,4 s · agendamento 1,6 s · total 13 s (modelo gemin
 - **`--yes`** pula a pergunta, para automação, por conta e risco de quem opera: só as regras decidem, e os exames que viriam com aviso ficam de fora (`não agendado sem confirmação`). Valem por inteiro os [limites conhecidos](../README.md#limites-conhecidos).
 - O pedido inteiro é conferido antes da pergunta: os avisos vêm acima da lista; os exames que não serão agendados, em `Não agendados:`, com o motivo.
 
-**Avisos da saída.** A "confiança" de um exame é o menor valor entre a nota da busca no catálogo, o quanto a busca
-bate com a linha e a leitura que o OCR deu à linha: de 0,90 para cima, o exame entra na lista; de 0,70 a 0,90, entra
-com aviso; abaixo, não é agendado. "Conferir" quer dizer: olhe o pedido em papel (a saída mostra as linhas já
-mascaradas) e, se ele pede o exame, agende-o à parte.
+**Avisos da saída.** As faixas de confiança e o que é `confira` estão no [glossário](glossario.md). "Conferir" quer
+dizer: olhe o pedido em papel (a saída mostra as linhas já mascaradas) e, se ele pede o exame, agende-o à parte.
 
 Cada aviso, o que significa, de onde vem no código e o que fazer: a tabela fica num lugar só, no
 [guia do desenvolvedor](guia-dev.md#depurar-um-pedido-que-falhou-ou-foi-perguntado).
