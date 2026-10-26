@@ -189,7 +189,7 @@ callbacks com respostas simuladas do OCR e da busca.
 `adk run generated` na raiz do projeto os encontra, e no container `PYTHONPATH=/app` também. Não é um
 pacote instalável pelo pip. Uma spec sem o plugin ([exemplo fora do domínio](../specs/exemplo-generico.json))
 importa só os toolsets e o modelo; o servidor dela não é do compose, então o `transpile` pede
-`-e ALLOWED_HOSTS=docs:8010` ([comando](transpilador.md#campos-da-spec)).
+`-e ALLOWED_HOSTS=docs:8010` ([comando](transpilador.md#um-agente-fora-do-domínio)).
 
 **O que fica só na CLI.** O modelo reserva vale nos três modos (por requisição no `adk run` e no
 `adk web`). A linha `Tempo:` e a checagem de que o `agent.py` é o que a spec gera hoje ficam só na CLI

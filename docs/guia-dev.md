@@ -184,7 +184,7 @@ Para desfazer: `git checkout -- data/exams.json tests/test_rag.py docs/` e `dock
 2. No `Dockerfile`, copie o estágio `rag` (`FROM base AS meu_servidor`, `COPY` do que ele usa, `CMD ["python", "-m", "mcp_servers.meu_servidor"]`).
 3. No `docker-compose.yml`, copie o serviço `rag`: `<<: *hardening`, `networks: [internal]` (sem internet) e o healthcheck em `/health`.
 4. Inclua `meu-servidor:8010` em `ALLOWED_HOSTS` (`.env`): sem isso, o `transpile` recusa a URL
-   ([por quê](transpilador.md#campos-da-spec)).
+   ([por quê](transpilador.md#hosts-permitidos-quem-decide-é-quem-implanta-não-a-spec)).
 5. Na spec: `"servers": {"meu": {"url": "http://meu-servidor:8010/sse", "tools": [...]}}`.
 
 ### Escrever uma spec nova
@@ -246,6 +246,9 @@ resposta do OCR pede uma versão nova do contrato (`leitura.VERSION`), nos dois 
 4. Atualize os números: `tests/test_readme.py` confere "N tipos" e "N casos gerados" nos docs.
 
 ## Depurar um pedido que falhou ou foi perguntado
+
+**Escopo:** os avisos e erros que a CLI mostra sobre um pedido e os exames dele. Falhas de ambiente (Docker, chave,
+portas): [como-rodar.md](como-rodar.md#quando-algo-falha).
 
 1. **Reproduza só o OCR**, para ver o que o servidor devolve de verdade (linhas já mascaradas, `line_intent`,
    `page_clean`, `off_list`, `contested_exams`):

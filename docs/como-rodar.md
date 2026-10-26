@@ -277,6 +277,10 @@ num cofre de senhas): quem tem as duas lê os dados, e a restauração precisa d
 
 ## Quando algo falha
 
+**Escopo desta tabela:** falhas de ambiente e de execução (Docker, chave, portas, serviços). Os avisos sobre cada exame
+estão no [guia do desenvolvedor](guia-dev.md#depurar-um-pedido-que-falhou-ou-foi-perguntado); onde cada erro nasce no
+código, em [arquitetura.md](arquitetura.md#tratamento-de-erros).
+
 Erros saem como uma linha `Erro: ...`, com código 2. Para ver o que houve por trás, rode de novo com `--verbose`.
 Tabela completa em [arquitetura.md](arquitetura.md#tratamento-de-erros).
 

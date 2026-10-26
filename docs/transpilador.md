@@ -143,12 +143,14 @@ Qualquer campo fora dessa lista é rejeitado (`extra="forbid"`). Os pacotes de o
 uma classe (plugin ou `output_schema`) são uma lista no código ([`spec.py`](../transpiler/spec.py)): uma
 spec nunca faz o transpilador importar outro módulo.
 
-**Um agente fora do domínio.** [`exemplo-generico.json`](../specs/exemplo-generico.json) é um
+### Um agente fora do domínio
+
+[`exemplo-generico.json`](../specs/exemplo-generico.json) é um
 assistente de documentação: um `LlmAgent` só (`"workflow": null`), com um servidor MCP `docs` e
 nenhum plugin. O servidor não é do compose, então o `transpile` só passa com ele em `ALLOWED_HOSTS`:
 
 ```bash
-docker compose run --rm -e ALLOWED_HOSTS=docs:8010 agent python -m cli transpile specs/exemplo-generico.json --output generated/docs.py
+docker compose run --rm -e ALLOWED_HOSTS=docs:8010 agent python -m cli transpile specs/exemplo-generico.json --output generated/docs/agent.py
 ```
 
 O arquivo gerado não tem nenhum callback, plugin ou palavra do domínio de agendamento, e nenhuma regra
@@ -157,7 +159,9 @@ entra antes da instrução. Transpilar a spec ou importar o gerado carrega do `r
 [`test_spec_generica.py`](../tests/test_spec_generica.py)). O `cli run` lê um pedido em imagem e
 precisa do `BookingPlugin`; este agente roda com `adk run` e `adk web`.
 
-**Hosts permitidos: quem decide é quem implanta, não a spec.** A spec escolhe os servidores, mas o
+### Hosts permitidos: quem decide é quem implanta, não a spec
+
+A spec escolhe os servidores, mas o
 host de cada URL precisa estar em `ALLOWED_HOSTS`, uma variável de ambiente (lista separada por
 vírgula). Sem ela (ou vazia, ou só com vírgulas), valem exatamente os três serviços do compose, cada
 um na sua porta: `ocr:8001,rag:8002,api:8000`; `localhost`, `127.0.0.1` e outras portas ficam de fora
@@ -177,7 +181,9 @@ fim dela nos clientes que o runtime cria (o `McpToolset`, o `OpenAPIToolset` do 
 próprio runtime recebem um cliente `httpx` que conecta só a eles), e um nome que não resolveu fica sem nenhum
 ([regra e limites](arquitetura.md#segurança-em-detalhe)).
 
-**Ferramentas conferidas nos servidores.** No `transpile`, cada servidor que responde em até 3 s é
+### Ferramentas conferidas nos servidores
+
+No `transpile`, cada servidor que responde em até 3 s é
 consultado: o MCP pelo `list_tools`, a API pelo `/openapi.json`. Uma ferramenta que ele não tem é
 um erro já no `transpile`, e o `OK` ganha a linha `Ferramentas conferidas nos servidores: ocr, rag, api`.
 Um servidor fora do ar (um `transpile` offline, a CI) fica com a lista declarada na spec, sem linha
@@ -189,9 +195,13 @@ para a execução com `servers.<nome>: <url> respondeu, mas não listou as ferra
 do `BookingPlugin` confere que a ferramenta de `read` recebe `filename`, a de `search` recebe `query`
 e `top_k`, e o contrato da operação de `book` (abaixo).
 
-**`fallback_model`, por requisição.** No código gerado, o modelo é o `FallbackModel` do ADK: uma requisição que o principal recusa com `429`/`503` vai, igual, ao reserva, no `cli run`, no `adk run` e no `adk web`, que rodam o mesmo `app` sem mudança. Não agenda em dobro nem pergunta de novo: a chamada que se repete é ao modelo, e uma chamada ao modelo que falhou não rodou nenhuma ferramenta; as respostas e a `Idempotency-Key` seguem no registro do pedido. Com ele na spec, o principal não repete `429` nem `503` (só `500`): a troca para o reserva é imediata, em vez de esperar cerca de 1 minuto de tentativas.
+### `fallback_model`, por requisição
 
-**O `BookingPlugin`: quem lê, quem busca e quem agenda.** A política de agendamento
+No código gerado, o modelo é o `FallbackModel` do ADK: uma requisição que o principal recusa com `429`/`503` vai, igual, ao reserva, no `cli run`, no `adk run` e no `adk web`, que rodam o mesmo `app` sem mudança. Não agenda em dobro nem pergunta de novo: a chamada que se repete é ao modelo, e uma chamada ao modelo que falhou não rodou nenhuma ferramenta; as respostas e a `Idempotency-Key` seguem no registro do pedido. Com ele na spec, o principal não repete `429` nem `503` (só `500`): a troca para o reserva é imediata, em vez de esperar cerca de 1 minuto de tentativas.
+
+### O `BookingPlugin`: quem lê, quem busca e quem agenda
+
+A política de agendamento
 ([`runtime/`](../runtime/)) não conhece nomes de servidor nem de ferramenta: os `kwargs` do plugin
 dizem qual ferramenta faz cada papel, como `servidor.ferramenta`.
 
@@ -229,7 +239,9 @@ As regras abaixo são do plugin (`check_spec`), chamadas pelo `transpile` com as
 - **Os `kwargs` são conferidos de novo ao criar o plugin:** um `agent.py` editado à mão também não
   afrouxa a política.
 
-**O que o `cli run` roda.** Specs com o `BookingPlugin` com `read` e `search`: com `book`, agenda; sem
+### O que o `cli run` roda
+
+Specs com o `BookingPlugin` com `read` e `search`: com `book`, agenda; sem
 `book`, lista. Uma spec sem eles (um pipeline que não lê um pedido em imagem, como o exemplo genérico)
 transpila e importa, roda com `adk run` e `adk web`, e o `cli run` diz que não a roda:
 
@@ -238,7 +250,9 @@ docker compose run --rm agent python -m cli transpile specs/listar-exames.json -
 docker compose run --rm agent python -m cli run --image pedido.png --spec specs/listar-exames.json --agent generated/listar.py
 ```
 
-**As garantias medidas valem para a política padrão.** "Nenhum exame errado agendado sem confirmação"
+### As garantias medidas valem para a política padrão
+
+"Nenhum exame errado agendado sem confirmação"
 foi medido com 0,90 / 0,70 / 75-85-95, e por isso esses valores são também os pisos: uma spec pode deixar a
 política mais rígida (subir um valor, ou `"ask_from": null`), nunca mais frouxa. Abaixo de um piso, o
 `transpile` para e nomeia o campo e o mínimo, por exemplo `plugins.0.kwargs.min_confidence: deve ser no mínimo 0,9,
