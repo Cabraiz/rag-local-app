@@ -58,10 +58,10 @@ exata do `transpile` para `specs/agent.json`, e um teste falha se ela ficar desa
 - **As checagens de um plugin:** um plugin pode ter `Config` (um modelo pydantic dos seus `kwargs`), `check_spec` e
   `check_live`. O transpilador chama essas checagens, com as mesmas mensagens `campo: motivo`. As chaves de estado que
   o `BookingPlugin` reserva são dele.
-- **O código gerado** instancia só classes do Google ADK: `LlmAgent`, `SequentialAgent`, `McpToolset`,
-  `OpenAPIToolset`, `Gemini`/`FallbackModel` e `App`.
-  - Os toolsets e o plugin vêm da biblioteca versionada `runtime/` (abaixo): subclasses finas de classes do ADK e um
-    `BasePlugin`.
+- **O código gerado** instancia classes do Google ADK (`LlmAgent`, `SequentialAgent`, `SseConnectionParams`, `App`) e
+  subclasses finas delas que vêm da biblioteca versionada `runtime/` (abaixo).
+  - De `runtime/` vêm os toolsets (`McpToolset`, `LiveOpenAPIToolset`), o modelo (`gemini(...)`, que devolve um
+    `Gemini` ou um `FallbackModel`) e o plugin, um `BasePlugin`.
   - Ele só declara o agente, em cerca de 110 linhas, nenhuma com mais de 120 colunas:
     - o modelo Gemini;
     - cada `LlmAgent`, com a sua instrução, as suas ferramentas e o `output_key`;
@@ -291,9 +291,10 @@ As regras abaixo são do plugin (`check_spec`), chamadas pelo `transpile` com as
 
 ### O que o `cli run` roda
 
-Specs com o `BookingPlugin` com `read` e `search`: com `book`, agenda; sem
-`book`, lista. Uma spec sem eles (um pipeline que não lê um pedido em imagem, como o exemplo genérico)
-transpila e importa, roda com `adk run` e `adk web`, e o `cli run` diz que não a roda:
+O `cli run` roda specs com o `BookingPlugin` com `read` e `search`. Com `book`, agenda; sem `book`, lista.
+
+Uma spec sem eles é um pipeline que não lê um pedido em imagem, como o exemplo genérico. Ela transpila, importa e roda
+com `adk run` e `adk web`, e o `cli run` diz que não a roda:
 
 ```bash
 docker compose run --rm agent python -m cli transpile specs/listar-exames.json --output generated/listar/agent.py
@@ -312,9 +313,9 @@ frouxa.
 - Baixar um piso pede uma nova medição, com `tests/load/manuscritos.py`, e uma mudança no código, não na spec.
 
 Uma 2ª spec de exemplo, [`specs/agent-sem-confirmacao.json`](../specs/agent-sem-confirmacao.json),
-usa `"ask_from": null` e outra instrução de agendamento: o que fica abaixo de 0,90 só é avisado,
-nunca vai para a lista (a confirmação final continua). Ela transpila e roda no runner real do ADK, com um modelo roteirizado no lugar do Gemini
-([`test_confirmacao_nativa.py`](../tests/test_confirmacao_nativa.py)).
+usa `"ask_from": null` e outra instrução de agendamento. O que fica abaixo de 0,90 só é avisado e nunca vai para a
+lista; a confirmação final continua. Ela transpila e roda no runner real do ADK, com um modelo roteirizado no lugar do
+Gemini ([`test_confirmacao_nativa.py`](../tests/test_confirmacao_nativa.py)).
 
 ## Validação e mensagens de erro
 
@@ -522,7 +523,9 @@ O resto:
 - **`--yes`** (só na CLI): o callback nem pede confirmação, e o que entraria com aviso fica de fora.
   - Ele chega ao agente pelo registro do pedido que a CLI abre (`orders.start`), não por variável de ambiente.
   - Sem TTY e sem `--yes`, a CLI para antes de ler o pedido e de chamar o modelo (`cli.check_someone_answers`).
-- **Confirmação forjada:** só vale a resposta à pausa que o runtime registrou para aquela chamada, no registro do pedido, não no estado da sessão. Uma resposta a outra chamada, ou uma lista escrita no estado, não agenda nada.
+- **Confirmação forjada:** só vale a resposta à pausa que o runtime registrou para aquela chamada. Essa pausa fica no
+  registro do pedido, não no estado da sessão. Uma resposta a outra chamada, ou uma lista escrita no estado, não
+  agenda nada.
 - **Um "não" vale para a execução:** uma chamada repetida pelo modelo não pergunta de novo e não agenda, nem depois de uma troca para o `fallback_model`.
 - **Um agendamento por execução:**
   - cada sessão manda uma `Idempotency-Key` própria, nunca a do modelo

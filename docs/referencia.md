@@ -65,8 +65,6 @@ Detalhes dos componentes:
   e imprime o resultado.
 - **`mcp_servers/arguments.py`:** o schema publicado continua `string`/`integer` com `required`.
 - **`leitura.py`:** o OCR monta a resposta e o runtime a valida. Os dois containers copiam o mesmo arquivo.
-- **`mcp_servers/ocr.py`:** junta uma vez por página a ordem partida em várias linhas (`join_split_orders`), neutraliza
-  a injeção (`neutralize_joined`), mascara (`mask_page`) e devolve a confiança de cada linha.
 - **`guardrails/injection.py`:** normaliza acentos, homoglifos, leetspeak e palavras soletradas antes de procurar a
   ordem.
 - **`catalogo.py`:** as funções de texto são `fold`, `plain`, `words` e `normalize`. O `ExamMatcher` guarda nomes,
@@ -74,10 +72,6 @@ Detalhes dos componentes:
   tolerância estão no código.
 - **`api/main.py`:** ao subir (lifespan), prepara a chave do banco, o catálogo e o banco, nessa ordem. Importar o
   módulo não lê configuração.
-- **`api/crypto.py`:** a lista fica presa ao `id`, ao status e à data. A chave é criada no volume `api-key` na 1ª
-  subida.
-- **`api/backup.py`:** a cópia usa a API de backup do SQLite, consistente com o WAL. A restauração exige a API parada e
-  decifra cada agendamento com a chave atual antes de gravar.
 
 ### O preparo da imagem
 
@@ -90,7 +84,7 @@ Detalhes dos componentes:
 
 ### As regras que o `agent.py` importa
 
-O `agent.py` só declara o agente com classes do ADK: `LlmAgent` (uma por etapa), `SequentialAgent` (a ordem), `McpToolset` (OCR e RAG), `OpenAPIToolset` (a API) e `App` (retomável, o que o `adk run` e o `adk web` carregam).
+O `agent.py` só declara o agente, com classes do ADK ([quais](transpilador.md#o-que-fica-onde)).
 
 - Os dois toolsets passam por uma subclasse fina do runtime que confere o host antes da primeira conexão.
 - A política entra no `App` como um plugin do ADK, o `BookingPlugin` ([`runtime/plugin.py`](../runtime/plugin.py)), com os valores da spec; nenhum agente tem callback próprio.
@@ -191,20 +185,15 @@ O contrato completo é o `OcrReading`, em [`leitura.py`](../leitura.py). Um exem
 
 O RAG entende abreviações de pedido médico (`Hemogr.`, `Glicemia jej.`, `Vit D`, `25(OH)D`, `T4L`, `β-HCG`, `TGO`).
 
-- Siglas de 2 letras que viram outra com 1 caractere errado no OCR (TG, CT, Cr, Ur, BT/BD/BI, FR) ficaram de fora.
+- Siglas que viram outra com 1 caractere errado no OCR (TG, CT, Cr, Ur, U1, BT, BD, BI, FR, GJ e HMG) ficaram de fora.
   Lidas sozinhas, caem em baixa confiança em vez de agendar o exame errado.
 - Risco aceito: `GH`↔`LH`, `HDL`↔`LDL` e `T3L`↔`T4L` diferem em 1 caractere, mas são as formas usadas nos pedidos.
 
 [`tests/test_mcp_sse.py`](../tests/test_mcp_sse.py) chama as ferramentas com `mcp.client.sse`, o mesmo transporte do
 agente, sem chave do Gemini.
 
-Como o agente chega a cada servidor:
-
-- **Hosts permitidos:** o host e a porta de cada URL da spec precisam estar em `ALLOWED_HOSTS`, definido por quem implanta. O padrão é `ocr:8001,rag:8002,api:8000`; `localhost` e `127.0.0.1` só entram se forem listados.
-- **No `transpile`:** cada servidor que responde diz quais ferramentas tem, e uma que ele não tem é recusada; se ele não responder, vale a lista da spec ([por quê](transpilador.md#ferramentas-conferidas-nos-servidores)).
-- **No `run`:** todos os servidores precisam responder e listar as ferramentas, e o `agent.py` precisa ser o que a spec gera hoje.
-- **No `adk run` e no `adk web`:** os toolsets conferem e fixam o endereço de cada servidor antes da primeira conexão ([o que fica só na CLI](como-rodar.md#4-rodar-com-adk-run-ou-adk-web)).
-- **Na importação do `agent.py`:** os toolsets conferem `ALLOWED_HOSTS` de novo ([regra e limites](#hosts-permitidos)).
+Onde cada servidor é conferido: [Hosts permitidos](#hosts-permitidos) e
+[Ferramentas conferidas nos servidores](transpilador.md#ferramentas-conferidas-nos-servidores).
 
 ## Fluxo de dados de uma execução
 
@@ -236,13 +225,10 @@ sequenceDiagram
 1. O `cli run` confere se OCR, RAG e API respondem, cria o `Runner` do ADK com o `root_agent` e envia um
    apelido da imagem (`pedido-1.png`). Nem a imagem nem o nome do arquivo, que pode carregar o nome do
    paciente, passam pelo LLM.
-2. O **extract** chama o OCR. O servidor lê `/data/samples/<arquivo>`, só nessa pasta e sem URL. Ele prepara a imagem,
-   roda o Tesseract (`por`, PSM 11) e, em cada linha, tira ordens ao modelo, mascara a PII e deixa sair só o que parece
-   exame, com a confiança de cada linha.
+2. O **extract** chama o OCR, que lê só `/data/samples/<arquivo>` ([a máscara](#onde-a-pii-é-mascarada)).
 3. O **search** consulta o RAG para cada nome e escolhe o código de maior `score`.
-4. O **schedule** chama `POST /appointments` pela ferramenta gerada do OpenAPI.
-   - Antes, o callback separa os exames por confiança, e a pessoa confirma a lista. Só o "sim" chega à API.
-   - A API valida os códigos e grava, cifrados, o código e o nome do catálogo de cada exame.
+4. O **schedule** chama `POST /appointments` pela ferramenta gerada do OpenAPI, depois da
+   [confirmação](transpilador.md#a-confirmação-da-lista-confirmação-nativa-do-adk).
 5. O `cli` imprime a contagem de PII mascarada, a tabela exame → código e o id e o status devolvidos pela
    API.
 
@@ -352,7 +338,8 @@ Cada camada com os números e os exemplos.
   - A lista de exames vai cifrada com AES-256-GCM; no arquivo SQLite não há código `FICT` nem nome de exame em claro.
   - Chave errada ou registro alterado geram erro, nunca dado errado.
   - Na 1ª subida, a API cria a chave no volume `api-key`, separado do banco (`api-data`).
-  - Uma chave ausente ou inválida faz a API não subir, com uma linha que não mostra a chave: `A API não subiu: <motivo>`
+  - Sem chave, a API cria uma na 1ª subida. Uma chave inválida faz a API não subir, com uma linha que não mostra a
+    chave: `A API não subiu: <motivo>`
     ([por que AES-GCM e os limites](decisoes.md#pii-mascarada-na-origem-banco-sem-pii)).
 - **Segredo:**
   - a chave do Gemini fica só no `.env`, fora do git, e só os serviços `agent` e `tests-e2e` a recebem;
@@ -532,14 +519,14 @@ Todas as que o código do produto lê (um teste falha se faltar uma). Fora delas
 | `GEMINI_MODEL` | vazia: o modelo da spec | `agent` e `tests-e2e` | Outro modelo Gemini numa execução, sem editar a spec. |
 | `ALLOWED_HOSTS` | vazia: `ocr:8001,rag:8002,api:8000` | `agent` (`transpile`, `run`, `adk run` e `adk web`) | Hosts que os servidores de uma spec podem usar ([o formato](transpilador.md#hosts-permitidos-quem-decide-é-quem-implanta-não-a-spec)). |
 | `DB_ENCRYPTION_KEY` | vazia: a `api` cria uma no volume `api-key` | `api` | Chave AES-256 que cifra as listas de exames no banco. |
-| `API_RATE_LIMIT_PER_MINUTE` | `1200` | `api` | Requisições por minuto por IP ([a defesa](#a-api-idempotência-host-limite-cabeçalhos-e-log)); `0` desliga. |
+| `API_RATE_LIMIT_PER_MINUTE` | `1200` | `api` | Requisições por minuto por IP ([a defesa](#a-api-idempotência-host-limite-cabeçalhos-e-log)). |
 | `API_ALLOWED_HOSTS` | vazia: `127.0.0.1,localhost,api` | `api` | Nomes aceitos no cabeçalho `Host`, em qualquer porta ([a defesa](#a-api-idempotência-host-limite-cabeçalhos-e-log)). |
-| `API_IDEMPOTENCY_TTL_HOURS` | `24` | `api` | Horas que uma `Idempotency-Key` vale (guardada só como HMAC); depois, a mesma chave agenda de novo. |
+| `API_IDEMPOTENCY_TTL_HOURS` | `24` | `api` | Horas que uma `Idempotency-Key` vale. |
 | `API_PORT` | `8765` | Compose | Porta da API no host, só em `127.0.0.1`. |
 | `DB_PATH` | `/state/appointments.db` | `api` | Arquivo SQLite (no volume `api-data`). |
 | `DB_KEY_FILE` | `/keys/db.key` | `api` | Onde fica a chave criada na 1ª subida (no volume `api-key`). |
 | `EXAMS_PATH` | `data/exams.json` | `api`, `rag`, `ocr` (`catalogo.py`) | Catálogo de exames. |
-| `SAMPLES_DIR` | `/data/samples` | `ocr` | Pasta das imagens que o OCR aceita (`samples/`, só leitura; a carga monta outra). |
+| `SAMPLES_DIR` | `/data/samples` | `ocr` | Pasta das imagens que o OCR aceita. |
 | `OMP_THREAD_LIMIT` | `1`, definida pelo `ocr` | Tesseract | Uma thread por leitura. |
 | `CI` | vazia | `cli run` | Não vazia (como no GitHub Actions), a CLI se comporta como sem terminal: não pergunta. |
 
@@ -547,7 +534,10 @@ Notas da tabela:
 
 - **`GOOGLE_API_KEY`:** sem ela, o `run` para antes de chamar o modelo.
 - **`GEMINI_MODEL`:** a mesma regra de nome da spec vale para ela.
-- **`DB_ENCRYPTION_KEY`:** `python -m api.crypto --gerar-chave` cria uma.
+- **`DB_ENCRYPTION_KEY`:** `docker compose run --rm --no-deps api python -m api.crypto --gerar-chave` cria uma.
+- **`API_RATE_LIMIT_PER_MINUTE`:** `0` desliga o limite.
+- **`API_IDEMPOTENCY_TTL_HOURS`:** depois desse prazo, a mesma chave agenda de novo.
+- **`SAMPLES_DIR`:** no compose, é `samples/`, montada só para leitura. A carga monta outra pasta.
 - **`API_ALLOWED_HOSTS`:** para chamar a API por outro nome, como o de um proxy, inclua-o aqui.
 - **`OMP_THREAD_LIMIT`:** com várias leituras em paralelo (3 no compose, 8 na carga), o Tesseract não disputa os
   núcleos.
@@ -582,19 +572,20 @@ O que a CLI mostra sobre cada exame, de onde vem no código e o que fazer.
 
 | Saída da CLI | Significa | Vem de | O que fazer |
 |---|---|---|---|
-| `PII reconhecida e mascarada pelo OCR: NOME x2, CPF x1` | Dados pessoais mascarados, por tipo. É um piso: `nenhuma` não prova que não sobrou nenhum | `relatorio.reading_lines`; contagem de `pii.mask_page` | Nada |
+| `PII reconhecida e mascarada pelo OCR: NOME x2, CPF x1` | Dados pessoais mascarados, por tipo (nota 1) | `relatorio.reading_lines`; contagem de `pii.mask_page` | Nada |
 | `Trechos removidos pelo OCR (não pareciam exame): N` | O que o filtro final do OCR tirou; pode conter um nome não reconhecido | `text_removed`, `pii.only_what_may_leave` | Nada |
 | `Instruções neutralizadas no OCR: N` | Ordens ao modelo tiradas do texto (`[TEXTO_REMOVIDO]`) | `injection.neutralize_joined` | Conferir o papel |
 | `Atenção: o pedido tem texto além da lista de exames: linha N "..."` | A página não é só a lista: todo exame é perguntado. É dito uma vez, no topo, com as linhas | `intent.clean_page` (`off_list`) | Conferir o papel |
 | `...; o pedido tem texto além da lista de exames, confirme` | No relatório final, um exame deixado de fora porque a página não é só a lista | `relatorio.WHY['page']` | Conferir o papel |
-| `- IgA (FICT-079): lido "- GA", confiança 0,80; confira` | Confiança de 0,70 a menos de 0,90; com `--yes` sai como `não agendado sem confirmação` | `confianca.sort_out`, `BookingPolicy.ask_from`/`min_confidence` | Conferir a linha |
+| `- IgA (FICT-079): lido "- GA", confiança 0,80; confira` | Confiança de 0,70 a menos de 0,90 (nota 2) | `confianca.sort_out`, `BookingPolicy.ask_from`/`min_confidence` | Conferir a linha |
 | `...; o pedido tem outras palavras além do exame; confira` | Linha `uncertain` ("Ferritina - pedido por engano"): confiança de no máximo 0,89 | `intent.line_kind`, `relatorio.WHY` | Conferir a linha |
-| `...; o pedido está em tabela ou colunas` / `; formulário com marcas: só os marcados contam; confira` | Linhas `table` ou `form` | `intent.layout`, `intent.form` | Conferir a página |
+| `...; o pedido está em tabela ou colunas` | Linhas `table` | `intent.layout` | Conferir a página |
+| `...; formulário com marcas: só os marcados contam; confira` | Linhas `form` | `intent.form` | Conferir a página |
 | `...; o pedido tem uma instrução sobre este exame` | Uma ordem ao modelo foi tirada da linha do exame: no máximo perguntado | `relatorio.WHY['instruction']` | Conferir a linha |
 | `...; o nome escrito é de outro exame, mais longo` | O trecho está dentro de um nome maior ("Proteína C" em "Proteína C reativa") | `confianca.longer`, `OcrReading.exam_terms` | Conferir a linha |
 | `não agendado: '...' → Ferritina FICT-018; o pedido diz para não realizar` ou `...; o pedido diz que já foi realizado` | Linha `negated` ou `history` (inclusive caixa ou célula que diz não) | `intent.judge`, `relatorio.REFUSED` | Conferir |
 | `não agendado: ...; a linha é uma orientação de preparo, não um pedido` | Linha `prep` | `intent`, `relatorio.REFUSED['prep']` | Nada |
-| `baixa confiança: '<linha>' → <exame> <código> (confiança 0,68); confira o pedido` | Confiança abaixo de 0,70: o menor entre o score da busca, o apoio da linha e a leitura do OCR (pisos 75, 85, 95) | `confianca.reading_at`, `relatorio.LEFT_OUT['score']` | Ver a leitura do OCR ([passo 1 da depuração](guia-dev.md#depurar-um-pedido-que-falhou-ou-foi-perguntado)); se for letra, agendar à parte |
+| `baixa confiança: '<linha>' → <exame> <código> (confiança 0,68); confira o pedido` | Confiança abaixo de 0,70: o menor entre o score da busca, o apoio da linha e a leitura do OCR (pisos 75, 85, 95) | `confianca.reading_at`, `relatorio.LEFT_OUT['score']` | Ver a leitura do OCR ([passo 1 da depuração](guia-dev.md#depurar-um-pedido-que-falhou-ou-foi-perguntado)) (nota 3) |
 | `não agendado: ...; o mesmo trecho da linha já foi usado por <outro exame>` | Cada exame precisa de um trecho próprio | `confianca.best_spot`, `REFUSED['line_used']` | Conferir |
 | `lido mas não reconhecido no catálogo: linha N; confira o pedido` | Item da lista que a máscara tirou inteiro e não parece exame; só o número sai | `ocr.unrecognized_request`, `relatorio.unrecognized` | Conferir a linha |
 | `não agendado sem confirmação: ...; rode num terminal, sem --yes, para responder` | Com `--yes`, um exame que pediria confirmação | `relatorio.LEFT_OUT['needs_confirmation']` | Rodar sem `--yes` e responder |
@@ -604,6 +595,12 @@ O que a CLI mostra sobre cada exame, de onde vem no código e o que fazer.
 | `não buscado pelo agente: ...; confira o pedido` | A conferência do pedido inteiro achou um exame que o modelo nem buscou | `runtime/reconcilia.py`, `servidores.unreported_exams` | Conferir |
 | `...status scheduled; ATENÇÃO: N possível(is) exame(s) do pedido sem decisão do agente` | Há `não incluído` ou `não buscado`, e o agendamento existe ([código de saída](#códigos-de-saída)) | `relatorio.report`, `cli.UNDECIDED_WITH_YES` | Ler os avisos acima |
 | `Aviso: o pedido não foi conferido por inteiro` | A conferência do pedido passou de 30 s (o RAG não respondeu) | `servidores.CHECK_SECONDS` | Conferir o pedido todo; ver `docker compose logs rag` |
+
+Notas da tabela:
+
+1. A contagem de PII é um piso: `nenhuma` não prova que não sobrou nenhum dado pessoal.
+2. Com `--yes`, um exame dessa faixa sai como `não agendado sem confirmação`.
+3. Se a leitura fraca for da letra, agende o exame à parte.
 
 ### Erros por camada
 
@@ -643,7 +640,7 @@ CLI antes do modelo, OCR, RAG, API, o agente gerado e, por fim, o fim da execuç
 | `DB_ENCRYPTION_KEY` ou arquivo de chave inválido | `api` (`api/crypto.py`) | a API não sobe, e o log mostra o motivo, sem a chave |
 | `API_RATE_LIMIT_PER_MINUTE` que não é um inteiro | `api`, ao subir | a API não sobe: `A API não subiu: API_RATE_LIMIT_PER_MINUTE inválido: use um número inteiro de requisições por minuto (0 desliga).` |
 | `API_IDEMPOTENCY_TTL_HOURS` abaixo de 1 ou `API_ALLOWED_HOSTS` com algo que não é nome de host | `api`, ao subir | a API não sobe, com uma linha que nomeia a variável e o formato esperado |
-| Gemini temporariamente indisponível (`429`, `500`, `503`) | agente gerado | até 5 tentativas com espera exponencial (`HttpRetryOptions`); com `fallback_model`, o principal só repete o `500` |
+| Gemini temporariamente indisponível (`429`, `500`, `503`) | agente gerado | até 5 tentativas com espera exponencial (`HttpRetryOptions`) ([com `fallback_model`](transpilador.md#fallback_model-por-requisição)) |
 | Modelo principal sobrecarregado (`503`) ou sem cota (`429`) | agente gerado (`cli run`, `adk run`, `adk web`) | a mesma requisição vai na hora ao `fallback_model` ([como](transpilador.md#fallback_model-por-requisição)): `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite` |
 | O principal e o reserva indisponíveis | agente gerado | `Gemini indisponível no momento (HTTP 503); tente novamente` (código 2), sem traceback |
 | Código que nenhuma busca no catálogo devolveu (inventado) | `BookingPlugin.before_tool` (`only_confident_codes`) | `agendamento bloqueado antes de chamar a API: código(s) que nenhuma busca no catálogo devolveu: ...; nada foi agendado` (código 2), sem `POST` |

@@ -52,7 +52,7 @@ sequenceDiagram
     participant G as Gemini
     participant API as API FastAPI
     P->>A: cli run --image pedido.png
-    A->>O: extract_exam_text (nome real; o modelo só vê o apelido)
+    A->>O: extract_exam_text (nome real; o modelo só vê um apelido)
     O-->>A: linhas mascaradas, tipo de cada linha, page_clean
     A->>G: só as linhas de exame
     G-->>A: buscas propostas
@@ -67,6 +67,9 @@ sequenceDiagram
     API-->>A: id e status
     A->>P: tabela exame → código e confirmação
 ```
+
+No diagrama, o **apelido** é o nome `pedido-1.png`, que o modelo recebe no lugar do nome real do arquivo.
+`page_clean` diz se a página é só a lista ([glossário](glossario.md#resposta-do-ocr)).
 
 Passo a passo, com as funções a ler primeiro: [guia-dev.md](guia-dev.md#o-caminho-de-um-pedido-no-código). Cada
 chamada, com o que entra e o que sai: [referencia.md](referencia.md#fluxo-de-dados-de-uma-execução).

@@ -40,7 +40,7 @@ Valem com e sem `--yes`.
 | Preparo | "Preparo: jejum de 8 horas para Glicemia de jejum" | Linha `prep`: nada agenda a partir dela (nota abaixo). |
 | O modelo só lê linhas de exame | cabeçalho, nome, observação, ordem escrita, linha com `[NOME]` | Essas linhas chegam ao modelo como `[linha de texto livre omitida]`. |
 | Item da lista que a máscara tirou inteiro | "4) Ressonância magnética de crânio" | Linha `unrecognized`: relatada pelo número da linha. |
-| Piso de leitura do OCR por linha ([valores](glossario.md#leitura-e-decisão-de-cada-exame)) | "TGP" manuscrito lido "TAP" (93) | O exame não agenda sozinho: é perguntado. |
+| Piso de leitura do OCR por linha ([valores](glossario.md#faixas-e-pisos)) | "TGP" manuscrito lido "TAP" (93) | O exame não agenda sozinho: é perguntado. |
 | O resultado não é o que o pedido nomeia | o IgM genérico de "Chagas IgG e IgM"; "Anti HAV" entre HIV e Anti HCV | Só relatado, nem perguntado. |
 | Um trecho, um exame | "Clearance de creatinina" toma a linha; "Creatinina" precisa de outra ocorrência | O segundo exame é relatado (`line_used`). |
 | O "e" que o OCR cola na palavra | "TSHe T4 livre" | A busca corta a linha ali, e "TSHe" conta como TSH (0,86). |
@@ -80,4 +80,5 @@ confirmação.
 - o jejum;
 - marcas de formulário;
 - um campo reconhecido inteiro, como o do paciente ou o do médico;
-- acima da lista, o cabeçalho da clínica.
+- acima da lista, o cabeçalho da clínica;
+- abaixo da lista, uma assinatura que é só nome, CRM e data.

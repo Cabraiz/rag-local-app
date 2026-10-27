@@ -42,9 +42,9 @@ São 25 achados, da primeira versão, até 2026-10-06.
 | 18 | Uma mensagem de erro era cortada em 500 caracteres antes de esconder a chave, então um pedaço dela podia aparecer | A chave é escondida antes do corte | `test_confianca.py::test_the_key_is_removed_before_the_message_is_cut` |
 | 19 | Um argumento de tipo errado (`filename: 123`) recebia o dump de validação do Pydantic | Responde com uma frase: `filename deve ser o nome de um arquivo, ex.: pedido.png.` | `test_mcp_sse.py::test_tool_errors_reach_the_client_with_a_clear_message` |
 | 20 | Uma chamada bloqueada pelo agente contava como chamada à API | Só conta a chamada que chegou à API | `test_confianca.py::test_a_blocked_call_then_a_failed_model_does_not_say_the_api_was_called` |
-| 21 | <a name="alucinacao"></a>Testei o que acontece se o **modelo alucinar**, de 14 jeitos ([a lista](medicoes.md#modelo-que-alucina)): nada errado foi agendado, exceto no achado 22 | Nenhuma: a suíte roda o agente real com um modelo roteirizado (nota abaixo) | `test_alucinacao.py`, ex.: `test_alucinacao.py::test_a_code_no_search_returned_blocks_the_whole_call` |
+| 21 | <a name="alucinacao"></a>O que acontece se o **modelo alucinar**, testado de 14 jeitos ([a lista](medicoes.md#modelo-que-alucina)): nada errado foi agendado, exceto no achado 22 | Nenhuma: a suíte roda o agente real com um modelo roteirizado (nota abaixo) | `test_alucinacao.py`, ex.: `test_alucinacao.py::test_a_code_no_search_returned_blocks_the_whole_call` |
 | 22 | **Agendamento em dobro:** se o modelo chamasse `create_appointment` duas vezes na mesma execução, a API gravava dois agendamentos iguais | Uma 2ª chamada devolve o agendamento já criado, sem novo `POST` ([como](referencia.md#a-api-idempotência-host-limite-cabeçalhos-e-log)) | `test_alucinacao.py::test_the_appointment_requested_twice_is_booked_once` |
-| 23 | **Pedido órfão na carga:** quando a resposta do último pedido se perdia e a sessão MCP não reabria (503), o pedido voltava para a fila depois que o outro trabalhador já tinha saído, e ficava sem ninguém | Cada trabalhador só sai quando todo pedido tem resultado, não quando a fila parece vazia: um pedido que volta para a fila é pego por outro | `test_carga.py::test_an_order_whose_session_dies_is_not_orphaned_when_the_reopen_fails` |
+| 23 | **Pedido órfão na carga:** a resposta do último pedido se perdia e a sessão MCP não reabria (503). O pedido voltava para a fila depois que os outros trabalhadores já tinham saído | Cada trabalhador só sai quando todo pedido tem resultado, não quando a fila parece vazia: um pedido que volta para a fila é pego por outro | `test_carga.py::test_an_order_whose_session_dies_is_not_orphaned_when_the_reopen_fails` |
 | 24a | **Imagem girada:** uma página de lado ou de cabeça para baixo era lida torta | O OCR endireita a página pelo EXIF ou pela orientação que o Tesseract detecta, e recusa com motivo a que não consegue ler | `test_ocr.py::test_a_page_turned_in_its_pixels_is_read_upright`, `test_ocr.py::test_a_phone_photo_with_exif_orientation_is_read_upright` |
 | 24b | **PNG transparente:** o fundo transparente virava texto sobre preto | O fundo transparente vira branco | `test_ocr.py::test_a_png_with_a_transparent_background_is_read_on_white` |
 | 24c | **PDF renomeado:** um PDF renomeado para `.png` caía num erro genérico | O PDF recebe a frase `é um PDF, não uma imagem: exporte a página como PNG ou JPEG` | `test_ocr.py::test_a_pdf_renamed_to_png_says_it_is_a_pdf` |
@@ -129,13 +129,13 @@ Notas da tabela:
 
 - **27:** a spec é descrita em [transpilador.md](transpilador.md#o-que-fica-onde). Com o `ALLOWED_HOSTS` padrão, 32
   endereços hostis são recusados ([as regras](referencia.md#hosts-permitidos)).
-- **29:** no `tests-e2e`, `test_e2e.py::test_order_image_is_scheduled_with_codes_from_the_catalog` falha sem a chave
-  (`E2E_REQUIRED=1`).
+- **29:** com os testes fora da imagem `agent`, o ponta a ponta passou ao serviço `tests-e2e`. Lá,
+  `test_e2e.py::test_order_image_is_scheduled_with_codes_from_the_catalog` falha sem a chave (`E2E_REQUIRED=1`).
 
 ## O que as revisões independentes acharam
 
-Nas duas revisões independentes, um revisor de fora rodou o projeto do zero, num clone limpo,
-seguindo só o README. Os dois esbarraram em pontos de uso, não de código:
+Nas duas revisões independentes, feitas até 2026-10-06, um revisor de fora rodou o projeto do zero, num clone limpo,
+seguindo só o README. Cada revisor era uma pessoa ou uma sessão de IA sem o histórico do projeto. Os dois esbarraram em pontos de uso, não de código:
 
 - o `up` falhava com as redes do Docker esgotadas;
 - não havia como editar o `.env` no Windows;
@@ -161,5 +161,4 @@ O README e `docs/como-rodar.md` passaram a cobrir cada um.
   - execução ponta a ponta com o Gemini;
   - carga de 500 pedidos e 602 entradas quebradas;
   - dois conjuntos de 79 imagens com formatos de dado pessoal que o gerador da carga não produz;
-  - duas [revisões independentes](#o-que-as-revisões-independentes-acharam), por uma pessoa ou uma sessão de IA sem o
-    histórico do projeto.
+  - duas [revisões independentes](#o-que-as-revisões-independentes-acharam).

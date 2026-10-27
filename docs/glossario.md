@@ -19,7 +19,7 @@ em uma ou duas frases, com o lugar onde ele mora. Leia quando um termo não for 
 
 As faixas de confiança:
 
-- **0,90 ou mais:** o exame entra na lista sem aviso. Com `--yes`, agenda sozinho.
+- **0,90 ou mais:** o exame entra na lista sem aviso. Com [`--yes`](#agente-spec-e-serviços), agenda sozinho.
 - **De 0,70 até menos de 0,90:** entra com o aviso `confira`. Com `--yes`, fica de fora.
 - **Abaixo de 0,70:** não é agendado, só avisado como `baixa confiança`.
 
@@ -70,5 +70,5 @@ As mensagens de cada faixa e a calibração: [referencia.md](referencia.md#agend
 | **MCP via SSE** | O protocolo e o transporte com que o agente chama o OCR e o RAG. | `mcp_servers/` |
 | **`ALLOWED_HOSTS`** | Os únicos hosts que o agente e o transpilador aceitam como servidores. | `runtime/rede.py` |
 | **`--yes`** | Pula a confirmação, para automação ([efeitos](como-rodar.md#3-executar-o-agente), [código 3](referencia.md#códigos-de-saída)). | `cli.py` |
-| **`Idempotency-Key`** | A chave que impede que a mesma chamada agende duas vezes; vem do runtime, nunca do modelo. | `api/main.py` |
+| **`Idempotency-Key`** | A chave que impede que a mesma chamada agende duas vezes; vem do runtime, nunca do modelo. | `runtime/pedido.py` (a chave), `api/main.py` (a checagem) |
 | **`FICT-xxx`** | Os códigos fictícios dos 120 exames do catálogo. | `data/exams.json` |

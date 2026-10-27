@@ -62,14 +62,8 @@ e o que o modelo propõe só vale depois da conferência em código.
 **O que o modelo recebe.** Um agente fica perigoso quando junta três coisas: lê conteúdo não
 confiável, tem dados privados e pode mandar dados para fora. Aqui:
 
-- do pedido, o modelo recebe só as linhas de exame, mascaradas no OCR. As outras chegam como
-  `[linha de texto livre omitida]` ([quais](referencia.md#onde-a-pii-é-mascarada));
-- numa linha de exame, depois do nome, um número ou uma palavra com maiúscula que não é do catálogo sai pela forma.
-  Ainda podem chegar:
-  - restos que a máscara não reconhece: um sobrenome em minúsculas, um número que também está num nome do catálogo,
-    como "125";
-  - o que é escrito com palavras do catálogo: uma anotação clínica ao lado de um exame ("(HIV +)", "paciente hiv") ou
-    um nome feito de palavras de exame ("Albina Ferro");
+- do pedido, o modelo recebe só as linhas de exame, já mascaradas
+  ([o quê, e o que ainda passa](referencia.md#onde-a-pii-é-mascarada));
 - a única ação é agendar códigos do catálogo achados no pedido, em hosts fixos. OCR e RAG não têm
   e-mail nem internet.
 
@@ -82,14 +76,8 @@ Custo: um exame mal lido não agenda sozinho ([detalhe](referencia.md#agendament
 
 ### A confirmação final da lista
 
-Antes da API, a pessoa vê:
-
-- cada exame com o código e o aviso;
-- os exames que o OCR leu e não serão agendados, inclusive os que o agente não buscou (o pedido
-  inteiro é conferido antes da pergunta);
-- o que o OCR tirou da página e, uma vez no topo, as linhas que fizeram a página ser perguntada.
-
-E responde `Agendar estes N exames? [s/N]` (padrão: não).
+Antes da API, a pessoa vê a lista inteira, com os avisos e os exames que ficam de fora, e responde
+`Agendar estes N exames? [s/N]` (padrão: não).
 
 A pergunta é a confirmação nativa de ferramenta do ADK, pedida pelo callback e não pelo modelo. Ela funciona igual na
 CLI, no `adk run` e no `adk web` ([como](transpilador.md#a-confirmação-da-lista-confirmação-nativa-do-adk)).
@@ -140,9 +128,8 @@ aceita código e nome de exame, grava o nome do catálogo e cifra a lista com AE
 **Custo.** A detecção é por regras e vale para os formatos testados: um nome escrito de um jeito não
 testado pode chegar ao modelo ([camadas](referencia.md#segurança-em-detalhe)).
 
-**A cifra.** Cada lista fica presa ao `id`, ao status e à data do agendamento (o dado associado do GCM). Por isso uma
-lista copiada para outra linha, ou uma data editada, é detectada. AES-GCM foi escolhido no lugar do Fernet por esse
-vínculo com os campos em claro ([como funciona](referencia.md#segurança-em-detalhe)).
+**A cifra.** AES-GCM foi escolhido no lugar do Fernet porque prende cada lista aos campos em claro do agendamento
+([como funciona](referencia.md#segurança-em-detalhe)).
 
 - A chave fica num volume próprio (`api-key`), fora do git e fora do volume do banco (`api-data`). Assim uma cópia do
   banco sozinha não revela os exames, e o início rápido não tem passo manual de chave.
@@ -166,10 +153,11 @@ Palavras em comum mais `difflib`, só com a biblioteca padrão.
 ### MCP só via SSE, rede interna, containers endurecidos
 
 OCR e RAG não têm internet nem porta no host. Os containers rodam sem root, com sistema de arquivos
-somente leitura e sem capabilities; só a API publica porta, em `127.0.0.1`. Por quê: o escopo do estudo
-fixa SSE, e cada serviço só tem o que usa. Custo: a especificação 2025-03-26 do MCP trocou o SSE pelo
-Streamable HTTP; o ADK também tem `StreamableHTTPConnectionParams`, e mudar é trocar a conexão no
-template e o `run` dos servidores.
+somente leitura e sem capabilities; só a API publica porta, em `127.0.0.1`.
+
+- **Por quê:** o escopo do estudo fixa SSE, e cada serviço só tem o que usa.
+- **Custo:** a especificação 2025-03-26 do MCP trocou o SSE pelo Streamable HTTP. O ADK já tem
+  `StreamableHTTPConnectionParams`. Migrar é trocar a conexão no template e o `run` dos servidores.
 
 ### Transpilador estrito e genérico
 
@@ -183,16 +171,16 @@ template e o `run` dos servidores.
   ([validação](transpilador.md#validação-e-mensagens-de-erro)).
 - **Genérico:** a spec descreve construções do ADK (servidores MCP e OpenAPI, `LlmAgent` com
   placeholders `{chave?}` e `output_schema`, `SequentialAgent`/`ParallelAgent`/`LoopAgent` e plugins do
-  `App` com `kwargs`). O domínio (quem lê, busca e agenda, os limiares, a regra fixa sobre dados não
-  confiáveis) é o `BookingPlugin`, que confere as próprias regras no `transpile`; o transpilador não
-  importa nada dele.
+  `App` com `kwargs`).
+  - O domínio fica no `BookingPlugin`: quem lê, busca e agenda, os limiares e a regra fixa sobre dados não confiáveis.
+  - O plugin confere as próprias regras no `transpile`. O transpilador não importa nada dele.
 - **Custo:** plugins só dos pacotes `runtime` e `google.adk.plugins`, e o `cli run` só roda specs com o
   `BookingPlugin`.
 
 ### O `agent.py` usa só classes do ADK; a política mora num plugin versionado
 
 O `agent.py` gerado (cerca de 110 linhas, [exemplo](exemplo-agent.py)) instancia só classes do Google ADK
-([quais](referencia.md#as-regras-que-o-agentpy-importa)). A política de agendamento é o `BookingPlugin`, um `BasePlugin`
+ou subclasses finas delas, vindas de `runtime/` ([quais](referencia.md#as-regras-que-o-agentpy-importa)). A política de agendamento é o `BookingPlugin`, um `BasePlugin`
 do ADK declarado na spec. Ele roda sozinho com `adk run` e `adk web`, sem a CLI.
 
 **Por que uma biblioteca e não a política copiada em cada arquivo.** A regra é testada uma vez, para
@@ -252,8 +240,8 @@ com a confiança do Tesseract (`line_confidence`).
   - Os exames achados no texto foram de 45% para 53%.
   - Nos 120 manuscritos, de 23% para 34%.
   - A latência sobe 1,6x.
-- **Custo:** letra de médico continua quase ilegível: 1 de 206 exames agendado sozinho
-  ([medição](medicoes.md#pedidos-manuscritos-simulados)).
+- **Custo:** letra de médico continua quase ilegível. Nos 120 manuscritos simulados, só com a regra de linha, 1 de 206
+  exames foi agendado sozinho em 2026-10-06 ([medição](medicoes.md#pedidos-manuscritos-simulados)).
 
 Próximo passo avaliado: um OCR moderno nas linhas de baixa confiança, adiado pelo custo em imagem, memória e tempo
 de CPU ([medição](medicoes.md#ocr-moderno-avaliado-não-adotado)).
@@ -286,8 +274,8 @@ Cada defesa com os valores, os cabeçalhos e os campos do log:
   - Por quê: ela vem do cliente e pode carregar dado pessoal.
 - **`Host` conferido, escrito à mão.**
   - Por quê: escutar só em `127.0.0.1` não basta contra DNS rebinding, porque o navegador manda `Host: evil.example`.
-  - À mão porque o middleware do Starlette lê a lista ao ser montado, antes do `lifespan` que lê as variáveis, e
-    responde em texto puro.
+  - À mão porque o middleware do Starlette lê a lista ao ser montado. Isso acontece antes do `lifespan`, que lê as
+    variáveis, e ele responde em texto puro.
 - **Limite por cliente, em memória.**
   - Por quê: defesa em profundidade, não controle de acesso. Os ids já são uuid4, e não há listagem.
   - Custo: o estado é por processo. Com várias réplicas, cada uma conta o seu. Atrás de um proxy ou da porta publicada
@@ -316,10 +304,11 @@ imagens, e cinco com a de testes.
 
 ### Escala
 
-O agente não guarda estado entre execuções, OCR e RAG são serviços separados e sem estado, e o SQLite
-atende o mock. Para escalar: Postgres no lugar do SQLite e mais réplicas do `agent` e da `api`. Custo, hoje: o SQLite
-aceita um escritor por vez, então há uma réplica da `api`, e o limite de requisições por cliente vale por processo
-([API](#api-contrato-idempotência-e-defesas)).
+O agente não guarda estado entre execuções, OCR e RAG são serviços separados e sem estado, e o SQLite atende o mock.
+Para escalar: Postgres no lugar do SQLite e mais réplicas do `agent` e da `api`.
+
+**Custo, hoje.** O SQLite aceita um escritor por vez, então há uma réplica da `api`. O limite de requisições por
+cliente vale por processo ([API](#api-contrato-idempotência-e-defesas)).
 
 ## Limites
 
@@ -337,30 +326,15 @@ Sem `--yes`, a pessoa vê a lista inteira e confirma.
   - um erro de OCR na letra de mão;
   - uma assinatura à mão que o OCR lê como texto abaixo da lista.
 
-**O que ainda passa, com `--yes`.** A regra só vê o texto que o Tesseract lê:
+**O que ainda passa, com `--yes`.** A regra só vê o texto que o Tesseract lê.
 
-- um carimbo, uma nota na vertical ou em diagonal, um risco à mão ou uma letra clara demais deixam o
-  exame como linha comum;
-- uma letra cinza que o Tesseract lê, menor ou mais clara que a da página, é pega pela regra;
-- um teste da tinta que o OCR não leu foi avaliado e ficou de fora
-  ([medição](medicoes.md#rodapé-formulário-nome-e-nome-mais-longo)):
-  - ele procurava cor saturada ou tinta escura fora das caixas das palavras;
-  - pegaria os 4 carimbos e notas giradas do conjunto de ataques;
-  - mas disparou em 30 de 30 fotos e em 110 de 120 manuscritas;
-- acima da lista, uma linha tirada inteira conta como cabeçalho da clínica quando:
-  - parece um: clínica, hospital ou laboratório, endereço, telefone, CNPJ, CRM, "Receituário" ou data;
-  - e está separada da lista por um campo, como "Paciente:". Uma nota que traga uma dessas palavras passa;
-- abaixo do 1º exame, qualquer texto que a máscara tira ou não reconhece faz a página ser perguntada, em qualquer
-  língua. A exceção é uma assinatura que é só nome, CRM e data;
-- "TSH ferro", um sobrenome que é palavra de exame, sem parênteses, conta como dois exames;
-- já um exame entre parênteses, ou ao lado de um resultado na linha de outro, é anotação e faz a linha ser perguntada:
-  "Glicemia de jejum (HIV +)", "HIV positivo";
-- num formulário, só os exames marcados contam:
-  - se o OCR lê a marca de uns e não de outros, tudo é perguntado
-    (`; formulário com marcas: só os marcados contam; confira`);
-  - se não lê nenhuma marca, a lista impressa parece um pedido comum;
-- o Tesseract em PSM 11 não devolve blocos de texto, então o fim de um bloco sob "Já realizados:" vem do
-  vão entre as caixas das linhas.
+- Um carimbo, uma nota na vertical ou em diagonal, um risco à mão ou uma letra clara demais deixam o exame como linha
+  comum.
+- Uma letra cinza que o Tesseract lê, menor ou mais clara que a da página, é pega pela regra.
+- Um teste da tinta que o OCR não leu foi avaliado em 2026-10-08 e ficou de fora
+  ([medição](medicoes.md#rodapé-formulário-nome-e-nome-mais-longo)).
+- Os outros casos medidos que ainda passam: [limites conhecidos](medicoes.md#limites-conhecidos). As regras de página:
+  [regras.md](regras.md).
 
 ### A pergunta mostra a linha mascarada
 
@@ -387,7 +361,8 @@ A máscara de PII e a remoção de injeção são regras, testadas em corpora do
 
 ### Sem autenticação: na API e entre serviços
 
-A API é o mock local do estudo: a porta publicada fica só em `127.0.0.1`, com limite de requisições por IP; em produção, entraria OAuth2 ou uma chave de API.
+A API é o mock local do estudo. A porta publicada fica só em `127.0.0.1`, com limite de requisições por IP. Em
+produção, entraria OAuth2 ou uma chave de API.
 
 - OCR, RAG, API e agente dividem a rede interna, e qualquer um deles chama os outros sem credencial
   ([as redes](referencia.md#rede-e-processos)).

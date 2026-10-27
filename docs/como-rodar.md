@@ -155,7 +155,7 @@ Exemplos de linhas (negação, caixas, preparo, vários exames numa linha como "
 - Buscas em paralelo contam uma vez.
 - Ela aparece também antes de um `Erro:` e não traz dado do pedido.
 - Cada etapa inclui o turno do modelo que gera a chamada da ferramenta, então cresce com o Gemini lento.
-- O total é o relógio do `run` inteiro. Ele conta as novas tentativas do Gemini (até 5) e a espera pelo `[s/N]`, e
+- O total é o relógio do `run` inteiro. Ele conta as tentativas do Gemini (até 5 no total) e a espera pelo `[s/N]`, e
   pode passar bem da soma das etapas.
 
 **Outras opções:**

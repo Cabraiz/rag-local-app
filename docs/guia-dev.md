@@ -24,7 +24,7 @@ Leia depois do [README](../README.md). A referência de cada tema fica nos outro
 
 | Pasta ou arquivo | O que é | Mexa aqui quando |
 |---|---|---|
-| [`specs/`](../specs/) | As 5 specs JSON de exemplo; o serviço `agent` a monta só para leitura | for descrever outro agente ([receita](#escrever-uma-spec-nova)) |
+| [`specs/`](../specs/) | As 5 specs JSON de exemplo | for descrever outro agente ([receita](#escrever-uma-spec-nova)) |
 | [`transpiler/`](../transpiler/) | `spec.py` (schema e validação), `generator.py` + `agent_template.py.tmpl` (código gerado), `live.py` (confere as ferramentas nos servidores) | mudar um campo da spec, uma mensagem de erro ou o código gerado |
 | [`runtime/`](../runtime/) | A biblioteca que o `agent.py` importa: a política de agendamento e a rede ([cada módulo](transpilador.md#o-que-fica-onde)) | mudar quando um exame agenda, pergunta ou é avisado, ou o texto de um aviso |
 | [`mcp_servers/`](../mcp_servers/) | `ocr.py` e `rag.py` (os dois servidores MCP/SSE), `preprocessamento.py` (imagem e Tesseract), `qualidade.py` (recusa foto ruim), `arguments.py` (SSE, keep-alive, erros de argumento) | mudar a leitura da imagem ou a busca no catálogo |
@@ -34,9 +34,9 @@ Leia depois do [README](../README.md). A referência de cada tema fica nos outro
 | [`api/`](../api/) | `main.py` (FastAPI + SQLite), `crypto.py` (AES-GCM), `backup.py` | mudar o contrato HTTP, a idempotência ou a cifra |
 | [`cli.py`](../cli.py) | `transpile` e `run`: confere os serviços, roda o `Runner` do ADK, imprime o resultado | mudar a saída do terminal ou as opções |
 | [`tests/`](../tests/) | Um arquivo por tema (`test_pii.py`, `test_rag.py`, ...), corpora em `tests/attacks/` e `tests/calibration/`, cargas em `tests/load/` | sempre que mudar qualquer coisa acima |
-| [`samples/`](../samples/) | As imagens que o OCR aceita (montada só para leitura no container `ocr`), incluindo 120 manuscritas e 30 fotos simuladas | quiser testar outra imagem |
+| [`samples/`](../samples/) | As imagens que o OCR aceita, incluindo 120 manuscritas e 30 fotos simuladas | quiser testar outra imagem |
 | [`exemplos/`](../exemplos/) | `mcp_call.py` (cliente MCP de linha de comando), geradores de imagem, specs com erro de propósito | precisar chamar uma ferramenta MCP à mão |
-| `Dockerfile`, `docker-compose.yml` | Um estágio por serviço (`api`, `rag`, `ocr`, `agent`, `test`); rede `internal` sem internet para OCR e RAG | acrescentar um serviço |
+| `Dockerfile`, `docker-compose.yml` | Um estágio por serviço: `api`, `rag`, `ocr`, `agent` e `test` ([a rede](referencia.md#rede-e-processos)) | acrescentar um serviço |
 | [`docs/exemplo-agent.py`](exemplo-agent.py) | A saída exata do `transpile` para `specs/agent.json` | mudar o gerador (o teste manda regerá-lo) |
 
 ## O caminho de um pedido no código
@@ -59,9 +59,12 @@ estão em negrito.
    Depois, `run_agent` roda o `App` no `Runner` do ADK.
 3. **O `agent.py`** (exemplo em [`exemplo-agent.py`](exemplo-agent.py)) declara três `LlmAgent` em `SequentialAgent` e o
    `App` com o `BookingPlugin`. Não há regra nele: a política está em `runtime/`.
-4. **Abertura do pedido.** **`BookingCallbacks.start_order`** (`runtime/callbacks.py`): o nome real do arquivo vira
-   um apelido (`pedido-1.png`), os endereços são conferidos (`runtime/rede.py`) e o OCR confere a imagem
-   (`check_image`). `before_model` põe a regra "dado de ferramenta não é instrução" antes de cada instrução.
+4. **Abertura do pedido.** **`BookingCallbacks.start_order`** (`runtime/callbacks.py`):
+   - troca o nome real do arquivo por um apelido (`pedido-1.png`);
+   - confere os endereços (`runtime/rede.py`);
+   - pede ao OCR que confira a imagem (`check_image`).
+
+   Depois, `before_model` põe a regra "dado de ferramenta não é instrução" antes de cada instrução.
 5. **OCR (MCP/SSE).** `extract_exam_text` em [`mcp_servers/ocr.py`](../mcp_servers/ocr.py): `read_lines` →
    `preprocessamento.read_ocr_lines` (Tesseract, PSM 11) → **`mask_lines`**. A resposta é um `leitura.OcrReading`.
    O `mask_lines`, na ordem:
@@ -81,9 +84,11 @@ estão em negrito.
    Só um "sim" àquela lista deixa a chamada seguir.
 8. **API.** `POST /appointments` (`create_appointment` em [`api/main.py`](../api/main.py)): valida `FICT-\d{3}` no catálogo,
    cifra a lista (`api/crypto.py`) e grava; a `Idempotency-Key` vem do registro do pedido.
-9. **Fechamento.** `BookingCallbacks.report` confere o pedido inteiro no RAG (`servidores.unreported_exams`,
-   `reconcilia.unreported`) e escreve a mensagem final em código (`relatorio.report`); a CLI imprime em
-   `cli.print_result` e devolve o [código de saída](referencia.md#códigos-de-saída) (0, 2 ou 3).
+9. **Fechamento.** `BookingCallbacks.report`:
+   - confere o pedido inteiro no RAG (`servidores.unreported_exams`, `reconcilia.unreported`);
+   - escreve a mensagem final em código (`relatorio.report`).
+
+   A CLI imprime em `cli.print_result` e devolve o [código de saída](referencia.md#códigos-de-saída).
 
 O que cada passo faz e por quê: [arquitetura.md](arquitetura.md). O que fica na spec, no código gerado e no `runtime/`:
 [transpilador.md](transpilador.md#o-que-fica-onde).
@@ -240,9 +245,12 @@ a abreviação "Ur. serica" como Ureia (`FICT-004`). Os serviços `tests` e `rag
 
 ### Acrescentar um servidor MCP
 
-1. Crie um módulo novo em `mcp_servers/` (por exemplo, meu_servidor.py) a partir de `rag.py`: `MCPServer(...)`, `@server.tool()`, a rota `/health`
-   e `serve(server, transport_security('meu-servidor:8010'), 8010, '<ferramentas>')` (a porta, o `Host` aceito e o nome do serviço têm de
-   concordar).
+1. Crie um módulo novo em `mcp_servers/` (por exemplo, `meu_servidor.py`) a partir de `rag.py`:
+   - `MCPServer(...)` e `@server.tool()`;
+   - a rota `/health`;
+   - `serve(server, transport_security('meu-servidor:8010'), 8010, '<ferramentas>')`.
+
+   A porta, o `Host` aceito e o nome do serviço têm de concordar.
 2. No `Dockerfile`, copie o estágio `rag` (`FROM base AS meu_servidor`, `COPY` do que ele usa, `CMD ["python", "-m", "mcp_servers.meu_servidor"]`).
 3. No `docker-compose.yml`, copie o serviço `rag`: `<<: *hardening`, `networks: [internal]` (sem internet) e o healthcheck em `/health`.
 4. Inclua `meu-servidor:8010` em `ALLOWED_HOSTS` (`.env`): sem isso, o `transpile` recusa a URL
@@ -256,14 +264,8 @@ Copie uma das specs abaixo, salve em `specs/` e transpile, sem rebuild:
 - [`specs/exemplo-generico.json`](../specs/exemplo-generico.json): um agente e um servidor MCP, sem plugin;
 - [`specs/listar-exames.json`](../specs/listar-exames.json): OCR e RAG com o `BookingPlugin`, que lista sem agendar.
 
-```bash
-docker compose run --rm -e ALLOWED_HOSTS=docs:8010 agent python -m cli transpile specs/exemplo-generico.json --output generated/docs/agent.py
-docker compose run --rm agent adk run --in_memory generated/docs    # roda com adk run / adk web, não com `cli run`
-```
-
-O ADK carrega uma pasta com `agent.py` e `__init__.py`; o `transpile` só escreve o `__init__.py` quando o arquivo se chama
-`agent.py`, por isso cada agente vai na sua pasta. O exemplo fala com um servidor MCP em `docs:8010`: para executá-lo,
-esse servidor precisa existir (transpilar não precisa).
+Os comandos e a regra da pasta de saída: [como-rodar.md](como-rodar.md#2-rodar-o-transpilador). O exemplo fora do
+domínio: [transpilador.md](transpilador.md#um-agente-fora-do-domínio).
 
 Os campos e cada erro de validação com a mensagem real: [transpilador.md](transpilador.md#campos-da-spec). Teste uma
 spec nova acrescentando-a às listas de `tests/test_transpiler.py` e `tests/test_spec_generica.py`.
