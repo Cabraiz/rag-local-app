@@ -52,7 +52,7 @@ https://github.com/user-attachments/assets/2bf4ca61-0f7f-42d9-a174-16b3377d8f16
 | Código gerado que importa e segue o ADK | [`transpiler/generator.py`](transpiler/generator.py) | — | [`test_adk_run.py`](tests/test_adk_run.py) | [código gerado](docs/exemplo-agent.py) |
 | CLI de agendamento, com uma spec e uma imagem de exemplo | [`cli.py`](cli.py), [`specs/agent.json`](specs/agent.json), [`samples/pedido.png`](samples/pedido.png) | [05](docs/videos.md#05-ponta-a-ponta-com-gemini) | [`test_alucinacao.py`](tests/test_alucinacao.py) | [log do `run`](docs/evidencias/log-run-pedido.txt) |
 | OCR como servidor MCP só via SSE | [`mcp_servers/ocr.py`](mcp_servers/ocr.py) | [02](docs/videos.md#02-ocr-via-mcp-sse) | [`test_ocr.py`](tests/test_ocr.py) · [`test_mcp_sse.py`](tests/test_mcp_sse.py) | [como iniciar e conectar](docs/referencia.md#servidores-mcp) |
-| RAG como servidor MCP só via SSE | [`mcp_servers/rag.py`](mcp_servers/rag.py), [`data/exams.json`](data/exams.json) (120 exames) | [03](docs/videos.md#03-rag-via-mcp-sse) | [`test_rag.py`](tests/test_rag.py) · [`test_mcp_sse.py`](tests/test_mcp_sse.py) | [como iniciar e conectar](docs/referencia.md#servidores-mcp) |
+| RAG como servidor MCP só via SSE | [`mcp_servers/rag.py`](mcp_servers/rag.py), [`data/exams.json`](data/exams.json) | [03](docs/videos.md#03-rag-via-mcp-sse) | [`test_rag.py`](tests/test_rag.py) · [`test_mcp_sse.py`](tests/test_mcp_sse.py) | [como iniciar e conectar](docs/referencia.md#servidores-mcp) |
 | Agendamento numa API FastAPI, com o contrato no Swagger (`/docs`) | [`api/main.py`](api/main.py), [`api/crypto.py`](api/crypto.py) | [04](docs/videos.md#04-api-e-swagger) | [`test_api.py`](tests/test_api.py) | [operações](docs/como-rodar.md#1-subir-o-ambiente-docker) |
 | Saída: exames com códigos e a confirmação da API | [`cli.py`](cli.py), [`runtime/confirmacao.py`](runtime/confirmacao.py) | [05](docs/videos.md#05-ponta-a-ponta-com-gemini) | [`test_confirmacao_nativa.py`](tests/test_confirmacao_nativa.py) | [captura](docs/evidencias/cli-run-pedido.png) |
 | Só dados fictícios | [`data/exams.json`](data/exams.json) (`FICT-xxx`), [`samples/`](samples/), [`tests/load/pedidos.py`](tests/load/pedidos.py) | — | — | [como os dados são fictícios](docs/medicoes.md#dados-sensíveis-como-contornamos) |
@@ -86,15 +86,15 @@ flowchart LR
     E & S & A -.->|só texto mascarado| G(("Gemini"))
 ```
 
-O agente roda sob demanda, pelo `cli run` ou pelo `adk run`. Cada etapa deixa a sua saída no estado (`output_key`). Ela só vê as ferramentas que a spec lhe dá (`tool_filter`). O `BookingPlugin` confere cada chamada de modelo e de ferramenta. Detalhe: [docs/arquitetura.md](docs/arquitetura.md).
+Cada etapa deixa a sua saída no estado (`output_key`). Ela só vê as ferramentas que a spec lhe dá (`tool_filter`). O `BookingPlugin` confere cada chamada de modelo e de ferramenta. Detalhe: [docs/arquitetura.md](docs/arquitetura.md).
 
 ## Decisões e trade-offs
 
 Versão longa: [docs/decisoes.md](docs/decisoes.md).
 
 - **O modelo propõe, o código decide, a pessoa confirma.** Por quê: num pedido médico, a decisão precisa ser reprodutível e auditável. Custo: um passo a mais em todo pedido ([detalhe](docs/decisoes.md#o-modelo-propõe-o-código-decide-a-pessoa-confirma), [a confirmação](docs/decisoes.md#a-confirmação-final-da-lista)).
-- **Uma camada de regras.** Das 22 regras, 12 valem sempre, e as outras 10 só decidem com `--yes`. Por quê: a imagem não é confiável e o pedido é médico. Custo: com `--yes`, uma página honesta com uma observação não agenda sozinha ([as regras](docs/regras.md)).
-- **Banco sem PII.** Nome, CPF, telefone, e-mail e mais 10 tipos viram `[NOME]`, `[CPF]`… A API grava só códigos do catálogo, cifrados. Por quê: o LLM recebe só texto mascarado, e o banco não depende da máscara. Custo: são regras, e valem para os formatos testados ([o que ainda passa](docs/decisoes.md#pii-mascarada-na-origem-banco-sem-pii)).
+- **Uma camada de regras.** Das 22 regras, 12 valem sempre, e as outras 10 só decidem com `--yes`. Por quê: a imagem não é confiável e o pedido é médico. Custo: com `--yes`, uma página com qualquer texto além da lista, como uma observação, não agenda sozinha ([as regras](docs/regras.md)).
+- **Banco sem PII.** Nome, CPF, telefone, e-mail e mais 10 tipos viram `[NOME]`, `[CPF]`… A API grava só os exames do catálogo, com código e nome oficial, cifrados. Por quê: o LLM recebe só texto mascarado, e o banco não depende da máscara. Custo: são regras, e valem para os formatos testados ([o que ainda passa](docs/decisoes.md#pii-mascarada-na-origem-banco-sem-pii)).
 - **MCP só via SSE.** Por quê: o escopo do estudo fixa SSE. Custo: o SSE é transporte legado desde a especificação MCP 2025-03-26 ([como migrar](docs/decisoes.md#mcp-só-via-sse-rede-interna-containers-endurecidos)).
 - **Rede interna e containers endurecidos.** OCR e RAG não têm internet nem porta no host. Os containers rodam sem root e só leitura. Por quê: cada serviço só tem o que usa. Custo: o container da API tem internet, porque uma porta publicada exige uma rede não interna ([detalhe](docs/decisoes.md#mcp-só-via-sse-rede-interna-containers-endurecidos)).
 - **Transpilador estrito e genérico.** A spec tem tipos estritos, e o arquivo gerado é importado antes de o `transpile` dar certo. O domínio fica num plugin, e uma spec de outro domínio também transpila. Por quê: o erro aparece no `transpile`, não no meio de um agendamento. Custo: o `cli run` só roda specs com o `BookingPlugin` ([detalhe](docs/decisoes.md#transpilador-estrito-e-genérico)).
@@ -102,13 +102,13 @@ Versão longa: [docs/decisoes.md](docs/decisoes.md).
 
 ## Limites conhecidos
 
-- **Busca lexical, não semântica.** Ela entende abreviações e erros de OCR do catálogo. Ela não entende paráfrases. A busca semântica foi medida em 2026-10-07, em 631 consultas, 114 paráfrases e nas linhas do OCR de 150 imagens. Ela não agendou nenhum exame a mais ([medição](docs/medicoes.md#busca-semântica-avaliada-não-adotada)).
+- **Busca lexical, não semântica.** Ela entende abreviações e erros de OCR do catálogo. Ela não entende paráfrases. Medida em 2026-10-07, a busca semântica não agendou nenhum exame a mais em nenhum dos conjuntos de teste ([medição](docs/medicoes.md#busca-semântica-avaliada-não-adotada)).
 - **Letra de médico é quase ilegível para o Tesseract.** Em 2026-10-07, em 49 manuscritos de letra de médico simulada, o Tesseract agendou sozinho 1 dos 202 exames. Um leitor de visão local agenda 48 dos 202 (24%), sem erro. Esse leitor é lento na CPU, por isso fica desligado ([medição](docs/medicoes.md#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão)).
 - **Leitura fraca vira aviso.** Um exame numa linha que o OCR leu mal fica fora da pergunta. Com uma imagem nova, o agendamento pode sair parcial ([exemplo](docs/decisoes.md#exame-lido-certo-mas-com-leitura-fraca-fica-fora-da-pergunta)).
 - **Com `--yes`, um exame injetado como linha comum da lista é agendado.** Um carimbo que o OCR não lê, como "CANCELADO", também não é visto ([o que passa](docs/decisoes.md#com---yes-um-exame-injetado-como-linha-comum-é-agendado)).
 - **Regras não provam segurança contra ataques novos.** Elas são testadas como regressão, nos ataques de `tests/attacks/`. Sem a pessoa, a última checagem é o `BookingPlugin`: ele só agenda códigos achados nas linhas lidas. Um exame que o modelo associou mal ainda pode aparecer na lista, marcado `confira` ([detalhe](docs/decisoes.md#filtros-determinísticos-não-são-prova-contra-ataques-novos)).
 - **Sem autenticação na API nem entre serviços.** É um mock local. A API só publica porta em `127.0.0.1` ([em produção](docs/decisoes.md#sem-autenticação-na-api-e-entre-serviços)).
-- **Cadeia de suprimentos, em parte.** Faltam o `--require-hashes` do pip e versões fixas no `apt`. O Swagger UI vem de um CDN em versão flutuante (@5), sem SRI, a checagem de hash do navegador ([detalhe](docs/decisoes.md#cadeia-de-suprimentos-em-parte)).
+- **Cadeia de suprimentos, em parte.** Faltam o `--require-hashes` do pip e versões fixas no `apt`. O Swagger UI vem de um CDN em versão flutuante (@5). Ele não tem SRI, a checagem de hash do navegador ([detalhe](docs/decisoes.md#cadeia-de-suprimentos-em-parte)).
 
 Versão longa: [decisões e limites](docs/decisoes.md#limites) · medidos: [medições](docs/medicoes.md#limites-conhecidos) · em aberto: [revisão](docs/revisao.md#ainda-em-aberto).
 
@@ -125,7 +125,7 @@ Execução real com `gemini-3.5-flash`. Vídeos 00 a 12: [miniaturas](docs/grava
 ## Uso de IA
 
 - **Abordagem:** código escrito com Claude Code e OpenAI Codex, sob a direção do autor. Arquitetura, contratos e critérios de aceite são do autor. Cada mudança passou por revisão do diff, testes e execução real.
-- **A revisão mudou o código:** [a sigla "TGP", lida "TAP" pelo OCR, seria agendada como outro exame](docs/revisao.md#tgp-tap) · [um exame escrito 3 vezes agendava também um exame parecido](docs/revisao.md#vizinho) · [a máscara deixava passar dados pessoais difíceis](docs/revisao.md#pii-31) (num conjunto à parte: 31 de 84 antes da correção, 0 depois).
+- **A revisão mudou o código:** [a sigla "TGP", lida "TAP" pelo OCR, seria agendada como outro exame](docs/revisao.md#tgp-tap) · [um exame escrito 3 vezes agendava também um exame parecido](docs/revisao.md#vizinho) · [a máscara deixava passar dados pessoais difíceis](docs/revisao.md#pii-31) (84 casos de formatos que a carga não gera: 31 passavam antes da correção, 0 depois).
 - **Cada achado e o teste que o trava:** [docs/revisao.md](docs/revisao.md), achados até 2026-10-07. O histórico do git foi reescrito em poucos commits, um por camada, então as correções não aparecem como commits próprios.
 - **Referências e orquestração:** [Google ADK](https://google.github.io/adk-docs/), [MCP: transporte HTTP+SSE](https://modelcontextprotocol.io/specification/2024-11-05/basic/transports), [Gemini API](https://ai.google.dev/gemini-api/docs) e a [lista completa, com a orquestração do agente](docs/revisao.md#referências-e-orquestração-do-agente).
 
