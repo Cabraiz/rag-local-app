@@ -159,10 +159,10 @@ docker compose run --rm --no-deps tests ruff check .                     # estil
 docker compose run --rm --no-deps tests mypy                             # tipos
 ```
 
-- **Resultado atual:** 623 funções de teste e 19.387 casos (`pytest --collect-only`). Um teste de `test_readme.py`
+- **Resultado atual:** 623 funções de teste e 19.386 casos (`pytest --collect-only`). Um teste de `test_readme.py`
   falha se esses números ficarem velhos.
   - Quase todos os casos são de corpus parametrizado: linhas legítimas, PII gerada, ataques, termos do catálogo.
-  - 19.386 passam e 1 é pulado: o ponta a ponta, que precisa da chave.
+  - 19.385 passam e 1 é pulado: o ponta a ponta, que precisa da chave.
 - **Tempo:** medido em 2026-10-07, com a suíte de então (16.858 casos), numa máquina de 12 núcleos:
   - com `-n auto` e `--cov`, cerca de 3,5 min (200 s e 205 s);
   - sem `-n auto`, de 6 a 11 min.
