@@ -77,6 +77,7 @@ usuário sem privilégios (uid 10001), que no Linux não escreveria numa pasta d
 
 **Sua própria spec, sem rebuild.** `specs/` é montada só para leitura no `agent`: salve a spec ali; uma edição vale no
 próximo comando.
+O exemplo parte de `listar-exames.json`, que lista os exames sem agendar. Para agendar, parta de `agent.json`.
 
 ```bash
 cp specs/listar-exames.json specs/minha-spec.json                         # ou escreva a sua do zero
@@ -142,7 +143,7 @@ Tempo: OCR 2,1 s · busca 2,4 s · agendamento 1,6 s · total 13 s (modelo gemin
 O fluxo da confirmação, ponto a ponto: [transpilador.md](transpilador.md#a-confirmação-da-lista-confirmação-nativa-do-adk).
 
 **Avisos da saída.** As faixas de confiança e o que é `confira` estão no [glossário](glossario.md). "Conferir" quer
-dizer: olhe o pedido em papel (a saída mostra as linhas já mascaradas) e, se ele pede o exame, agende-o à parte.
+dizer: olhe o pedido em papel (a saída mostra as linhas já mascaradas) e, se ele pede o exame, agende-o à parte: no Swagger, `POST /appointments` com o código do exame.
 
 Cada aviso, o que significa, de onde vem no código e o que fazer: a tabela fica num lugar só, no
 [referência de avisos](referencia.md#avisos-sobre-os-exames-de-um-pedido).
@@ -168,7 +169,8 @@ Exemplos de linhas (negação, caixas, preparo, vários exames numa linha como "
 
 ### Testar outra imagem
 
-Coloque o arquivo em `samples/` (montada no container de OCR, sem rebuild) e rode:
+Use um pedido fictício: o texto, já mascarado, vai ao Gemini. Coloque o arquivo em `samples/` (montada no container
+de OCR, sem rebuild) e rode:
 
 ```bash
 docker compose run --rm agent python -m cli run --image <arquivo>
@@ -267,6 +269,7 @@ Erros saem como uma linha `Erro: ...`, com código 2. Para ver o que houve por t
 | `Cannot connect to the Docker daemon … Is the docker daemon running?` ou `failed to connect to the docker API` | Abra o Docker Desktop, espere o "Engine running" e rode de novo. |
 | `Read timed out` do pip no 1º build | É a rede até o PyPI. Rode o `docker compose up -d --wait` de novo: os estágios prontos ficam no cache. |
 | `all predefined address pools have been fully subnetted` | Redes de outros projetos ocupam todas as faixas do Docker. Ver abaixo. |
+| `port is already allocated` ou `ports are not available` no `up` | Outro programa usa a porta 8765: troque no `.env` para `API_PORT=8766` e rode o `up` de novo. |
 | `Healthy`, mas o Swagger não se chama "API de agendamento de exames (fictícia)" | Outro programa responde na porta: troque o `API_PORT`. |
 | `OCR ocupado com outras imagens; tente de novo em instantes.` | O OCR lê 3 imagens por vez, e um pedido espera até 20 s por vaga: tente de novo. |
 | Um serviço reinicia sozinho no meio de uma execução | Ele passou do seu teto de memória ([os tetos](referencia.md#rede-e-processos)). O motivo sai em `docker compose logs <serviço>`. |

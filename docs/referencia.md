@@ -291,6 +291,13 @@ Consequências:
   - `NOME` só conta o que uma regra de nome viu: rótulo, maiúsculas ao lado de um exame, prenome comum;
   - o resto vai para `text_removed`, que pode conter um nome não reconhecido.
 
+A prova de que o modelo só recebe texto mascarado:
+
+- **Código:** [`guardrails/pii.py`](../guardrails/pii.py), chamado pelo [servidor OCR](../mcp_servers/ocr.py).
+- **Teste do que o modelo recebe:** [`test_texto_livre.py`](../tests/test_texto_livre.py) (`test_the_model_reads_only_the_exam_lines_masked`).
+- **Evidência:** [vídeo 06](videos.md#06-pii) e a [captura](evidencias/cli-run-pii.png).
+- **Medição:** [carga de dados sensíveis](medicoes.md#carga-de-dados-sensíveis).
+
 Limites:
 
 - As duas detecções são por regras, não detectores universais. Os testes e os números:

@@ -38,7 +38,7 @@ Agendamento confirmado pela API: id <uuid>, status scheduled
 
 Para automação (sem terminal, CI), use `--yes`. Com ele, a CLI não pergunta, e as regras decidem sozinhas. Só agendam os exames de [confiança alta](docs/glossario.md#faixas-e-pisos), e só numa [página que é só a lista](docs/glossario.md#leitura-e-decisão-de-cada-exame). O que escapa: [limites](#limites-conhecidos). Códigos de saída: [referência](docs/referencia.md#códigos-de-saída).
 
-Sua própria spec, sem rebuild: [como](docs/como-rodar.md#2-rodar-o-transpilador). Sem a CLI, com `adk run` ou `adk web`: [como](docs/como-rodar.md#4-rodar-com-adk-run-ou-adk-web) e [vídeo 12](docs/videos.md#12-adk-sem-a-cli).
+Sua própria foto de pedido: [como](docs/como-rodar.md#testar-outra-imagem). Sua própria spec, sem rebuild: [como](docs/como-rodar.md#2-rodar-o-transpilador). Sem a CLI, com `adk run` ou `adk web`: [como](docs/como-rodar.md#4-rodar-com-adk-run-ou-adk-web) e [vídeo 12](docs/videos.md#12-adk-sem-a-cli).
 
 https://github.com/user-attachments/assets/2bf4ca61-0f7f-42d9-a174-16b3377d8f16
 
@@ -56,7 +56,7 @@ https://github.com/user-attachments/assets/2bf4ca61-0f7f-42d9-a174-16b3377d8f16
 | Agendamento numa API FastAPI, com o contrato no Swagger (`/docs`) | [`api/main.py`](api/main.py), [`api/crypto.py`](api/crypto.py) | [04](docs/videos.md#04-api-e-swagger) | [`test_api.py`](tests/test_api.py) | [operações](docs/como-rodar.md#1-subir-o-ambiente-docker) |
 | Saída: exames com códigos e a confirmação da API | [`cli.py`](cli.py), [`runtime/confirmacao.py`](runtime/confirmacao.py) | [05](docs/videos.md#05-ponta-a-ponta-com-gemini) | [`test_confirmacao_nativa.py`](tests/test_confirmacao_nativa.py) | [captura](docs/evidencias/cli-run-pedido.png) |
 | Só dados fictícios | [`data/exams.json`](data/exams.json) (`FICT-xxx`), [`samples/`](samples/), [`tests/load/pedidos.py`](tests/load/pedidos.py) | — | — | [como os dados são fictícios](docs/medicoes.md#dados-sensíveis-como-contornamos) |
-| PII mascarada antes do LLM e do banco | [`guardrails/pii.py`](guardrails/pii.py), [`guardrails/pii_rules.py`](guardrails/pii_rules.py) | [06](docs/videos.md#06-pii) | [`test_pii.py`](tests/test_pii.py) | [onde](docs/referencia.md#onde-a-pii-é-mascarada) |
+| PII mascarada antes do LLM e do banco | [`guardrails/pii.py`](guardrails/pii.py), [`guardrails/pii_rules.py`](guardrails/pii_rules.py) | [06](docs/videos.md#06-pii) | [`test_pii.py`](tests/test_pii.py) · [`test_texto_livre.py`](tests/test_texto_livre.py) | [onde e a prova](docs/referencia.md#onde-a-pii-é-mascarada) |
 | Injeção barrada antes do LLM | [`guardrails/injection.py`](guardrails/injection.py) | [08](docs/videos.md#08-segurança) | [`test_injection.py`](tests/test_injection.py) | [camadas](docs/referencia.md#segurança-em-detalhe) |
 | Exame que o pedido manda não fazer, fora do agendamento | [`guardrails/intent.py`](guardrails/intent.py) | — | [`test_negacao.py`](tests/test_negacao.py) | [regras](docs/regras.md) |
 | Tudo em Docker, orquestrado por um `docker-compose.yml` | [`Dockerfile`](Dockerfile) (multi-stage), [`docker-compose.yml`](docker-compose.yml) | [07](docs/videos.md#07-docker-e-testes) | [`test_imagens.py`](tests/test_imagens.py) | [rede e processos](docs/referencia.md#rede-e-processos) |
@@ -124,10 +124,10 @@ Execução real com `gemini-3.5-flash`. Vídeos 00 a 12: [miniaturas](docs/grava
 
 ## Uso de IA
 
-- **Abordagem:** código escrito com Claude Code e OpenAI Codex, sob a direção do autor. Arquitetura, contratos e critérios de aceite são do autor. Cada mudança passou por revisão do diff, testes e execução real.
+- **Abordagem:** código escrito com Claude Code e OpenAI Codex, sob a direção do autor ([como trabalhei](docs/revisao.md#como-trabalhei)). Arquitetura, contratos e critérios de aceite são do autor. Cada mudança passou por revisão do diff, testes e execução real.
 - **A revisão mudou o código:** [a sigla "TGP", lida "TAP" pelo OCR, seria agendada como outro exame](docs/revisao.md#tgp-tap) · [um exame escrito 3 vezes agendava também um exame parecido](docs/revisao.md#vizinho) · [a máscara deixava passar 31 de 84 casos difíceis, como um CPF partido em 2 linhas](docs/revisao.md#pii-31); depois da correção, 0.
 - **Cada achado e o teste que o trava:** [docs/revisao.md](docs/revisao.md), achados até 2026-10-07. O histórico do git foi reescrito em poucos commits, um por camada, então as correções não aparecem como commits próprios.
-- **Referências e orquestração:** [Google ADK](https://google.github.io/adk-docs/), [MCP: transporte HTTP+SSE](https://modelcontextprotocol.io/specification/2024-11-05/basic/transports), [Gemini API](https://ai.google.dev/gemini-api/docs) e a [lista completa, com a orquestração do agente](docs/revisao.md#referências-e-orquestração-do-agente).
+- **Referências e orquestração:** [Google ADK](https://google.github.io/adk-docs/), [MCP: transporte HTTP+SSE](https://modelcontextprotocol.io/specification/2024-11-05/basic/transports), [Gemini API](https://ai.google.dev/gemini-api/docs) e a [lista completa de referências](docs/revisao.md#referências-e-orquestração-do-agente).
 
 ## Mais documentação
 

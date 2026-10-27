@@ -282,6 +282,11 @@ spec nova acrescentando-a às listas de `tests/test_transpiler.py` e `tests/test
 3. Nomes aninhados ("Creatinina" dentro de "Clearance de creatinina") exigem atenção: `test_confianca.py` lista os 13 pares.
 4. Rode `tests/test_rag.py`, `test_calibration.py` (o limiar de 0,90 sobre as 631 consultas de `tests/calibration/queries.jsonl`) e
    `test_pii.py::test_no_catalog_exam_is_masked`. Se você mudou os números, corrija os docs.
+5. Reconstrua as imagens: todas copiam `data/` no build, e sem isso a API recusa o código novo.
+   ```bash
+   docker compose up -d --build --wait     # ocr, rag e api com o catálogo novo
+   docker compose build agent tests        # o agente e a suíte
+   ```
 
 ### Mudar uma regra de página ou de linha
 
