@@ -575,7 +575,8 @@ O que a CLI devolve ao shell; quem automatiza com `--yes` deve olhar o código, 
 
 ### Avisos sobre os exames de um pedido
 
-O que a CLI mostra sobre cada exame, de onde vem no código e o que fazer.
+O que a CLI mostra sobre cada exame, de onde vem no código e o que fazer. Na última coluna, **conferir** é olhar o
+pedido em papel. Se ele pede o exame, agende-o à parte: no Swagger, `POST /appointments` com o código do exame.
 
 | Saída da CLI | Significa | Vem de | O que fazer |
 |---|---|---|---|
@@ -607,7 +608,7 @@ Notas da tabela:
 
 1. A contagem de PII é um piso: `nenhuma` não prova que não sobrou nenhum dado pessoal.
 2. Com `--yes`, um exame dessa faixa sai como `não agendado sem confirmação`.
-3. Se a leitura fraca for da letra, agende o exame à parte.
+3. Se a leitura fraca for da letra, agende o exame à parte, pelo `POST /appointments` do Swagger.
 
 ### Erros por camada
 

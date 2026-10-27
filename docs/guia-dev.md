@@ -274,8 +274,8 @@ spec nova acrescentando-a às listas de `tests/test_transpiler.py` e `tests/test
 
 1. Edite [`data/exams.json`](../data/exams.json): `{"code": "FICT-121", "name": "...", "synonyms": [...]}`. O código segue
    `FICT-\d{3}` (a API recusa outro formato), e é único.
-2. Conte os efeitos:
-   - `tests/test_rag.py::test_catalog_has_120_unique_fictional_codes` fixa 120;
+2. Atualize os testes que fixam os números:
+   - `tests/test_rag.py::test_catalog_has_120_unique_fictional_codes` fixa 120: troque para 121;
    - `tests/test_readme.py` confere o "120" e os "240 termos" (nomes mais sinônimos) no README e nos docs;
    - um sinônimo curto pode deixar duas siglas a um caractere uma da outra. `test_rag.py::test_no_abbreviation_names_two_exams`
      e `test_short_abbreviations_one_letter_from_others_are_not_catalog_names` pegam esse caso.
