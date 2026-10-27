@@ -32,12 +32,12 @@ Valem com e sem `--yes`.
 
 | Regra | O exemplo que a motivou | O que acontece |
 |---|---|---|
-| Negação clara sobre o exame | "não realizar Ferritina", "TSH - NR", "Ferritina (suspensa)", "do not perform PSA" | Linha `negated`: o exame não agenda nem é perguntado, e fica contestado na página. |
+| Negação clara sobre o exame | "não realizar Ferritina", "TSH - NR", "Ferritina (suspensa)", "do not perform PSA" | Linha `negated`: o exame não agenda nem é perguntado (nota abaixo). |
 | Histórico | "já realizado em 03/2025", "feita mês passado", "Resultado de Ferritina: 45" | Linha `history`: o mesmo que a negação. |
 | Caixa ou célula que diz não | "[-] TSH", "✗ TSH", "TSH \| -" | Linha `negated`. |
 | Pista sem exame que aponta para outras linhas | o cabeçalho "Já realizados:"; "Ferritina (1)" com "(1) suspenso" | As linhas alcançadas viram `negated` ou `history`. |
 | Pista que não se liga a nenhum exame | "(favor não realizar)" embaixo de um item | `cancel_unlinked`: aviso no relatório, e a página não fica limpa. |
-| Preparo | "Preparo: jejum de 8 horas para Glicemia de jejum" | Linha `prep`: nada agenda a partir dela, e a página não é contestada. |
+| Preparo | "Preparo: jejum de 8 horas para Glicemia de jejum" | Linha `prep`: nada agenda a partir dela (nota abaixo). |
 | O modelo só lê linhas de exame | cabeçalho, nome, observação, ordem escrita, linha com `[NOME]` | Essas linhas chegam ao modelo como `[linha de texto livre omitida]`. |
 | Item da lista que a máscara tirou inteiro | "4) Ressonância magnética de crânio" | Linha `unrecognized`: relatada pelo número da linha. |
 | Piso de leitura do OCR por linha ([valores](glossario.md#leitura-e-decisão-de-cada-exame)) | "TGP" manuscrito lido "TAP" (93) | O exame não agenda sozinho: é perguntado. |
@@ -47,15 +47,13 @@ Valem com e sem `--yes`.
 
 Notas da tabela:
 
-- **Negação clara:** a pista vem logo antes do exame ou fecha a linha do único exame.
+- **Negação clara:** a pista vem logo antes do exame ou fecha a linha do único exame. O exame fica
+  [contestado](glossario.md#resposta-do-ocr) na página inteira.
+- **Preparo:** a linha de preparo não contesta o exame que cita.
 - **Pista que aponta para outras linhas:** um cabeçalho como "Já realizados:" alcança as linhas até uma linha em
   branco, um vão entre blocos ou um novo cabeçalho.
 - **Piso de leitura:** se a leitura fica abaixo de 70, o exame é relatado com baixa confiança em vez de perguntado.
-- **O resultado não é o que o pedido nomeia** em quatro casos:
-  - o resultado é só parte de um exame da linha;
-  - é uma classe de anticorpo que a linha não escreve;
-  - só as letras se parecem;
-  - há empate sem nenhuma palavra em comum.
+- **O resultado não é o que o pedido nomeia** em [quatro casos](referencia.md#quando-um-resultado-é-só-avisado).
 
 ## Regras que só decidem com `--yes`
 
@@ -83,11 +81,3 @@ confirmação.
 - marcas de formulário;
 - um campo reconhecido inteiro, como o do paciente ou o do médico;
 - acima da lista, o cabeçalho da clínica.
-
-## Dois marcadores de nome parecido
-
-- [`catalogo.MASK_TAG`](../catalogo.py) acha todo marcador que sai do OCR, inclusive `[TEXTO_REMOVIDO]`.
-- [`pii_rules.TYPED_TAG`](../guardrails/pii_rules.py) acha só o de um valor mascarado por tipo (`[CPF]`, `[NOME]`).
-
-Por isso o filtro que só deixa sair o que parece exame troca o marcador interno `[INSTRUCAO_REMOVIDA]` por
-`[TEXTO_REMOVIDO]`. O marcador interno nunca sai do OCR.

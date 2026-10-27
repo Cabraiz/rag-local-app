@@ -176,8 +176,9 @@ def test_every_message_the_report_writes_is_in_the_warnings_table():
 
 LIST_ITEM = re.compile(r'\s*(?:[-*]|\d+\.) ')
 MAX_WORDS, MAX_ASIDES = 35, 1  # per sentence; an aside is a parenthesis of 4 words or more
-MAX_CELL_WORDS, MAX_CELL_SENTENCES = 40, 2  # per table cell: one idea, or the detail goes below the table
+MAX_CELL_WORDS, MAX_CELL_SENTENCES = 40, 2  # per table cell, sentences or clauses: the detail goes below the table
 SENTENCE_END = re.compile(r'(?<=[.!?])\s+(?=[A-Z"*(])')
+CLAUSE_END = re.compile(r'(?<=[.!?;])\s+')  # in a cell, a semicolon starts another idea too
 
 
 def plain_text(text):
@@ -254,7 +255,7 @@ def test_table_cells_hold_one_idea():
                 continue
             for cell in re.split(r'(?<!\\)\|', row.strip('|')):
                 text = plain_text(cell).strip()
-                words, sentences = len(text.split()), len([part for part in SENTENCE_END.split(text) if part])
+                words, sentences = len(text.split()), len([part for part in CLAUSE_END.split(text) if part])
                 if words > MAX_CELL_WORDS or sentences > MAX_CELL_SENTENCES:
                     stale.append(f'{rel(doc)}:{number}: {words} words, {sentences} sentences: {text[:70]}…')
     assert not stale, 'move the detail of these cells below the table:\n' + '\n'.join(stale)

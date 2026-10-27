@@ -37,12 +37,12 @@ As mensagens de cada faixa e a calibração: [referencia.md](referencia.md#agend
 | Termo | O que é | Onde mora |
 |---|---|---|
 | **`line_intent`** | O que cada linha lida pede ([os 8 valores](#os-valores-de-line_intent)). | `guardrails/intent.py` (`line_kind`, `read_page`) |
-| **`page_clean`** | Verdadeiro quando a página é só a lista de exames (mais rótulos, campos e cabeçalho reconhecidos). Só numa página limpa um exame pode agendar sozinho com `--yes`. | `guardrails/intent.py` (`clean_page`) |
+| **`page_clean`** | Verdadeiro quando a página é só a lista de exames, com rótulos, campos e cabeçalho reconhecidos ([o efeito](regras.md#regras-que-só-decidem-com---yes)). | `guardrails/intent.py` (`clean_page`) |
 | **`off_list`** | As linhas que fazem a página não ser limpa; a saída as mostra uma vez, no topo. | `guardrails/intent.py` |
 | **`[TEXTO_REMOVIDO]`, `[NOME]`, `[CPF]`…** | Marcadores da máscara: o texto original não sai do container `ocr`. | `guardrails/pii.py`, `guardrails/pii_rules.py` |
 | **`OcrReading`** | O contrato da resposta do OCR, versionado. | `leitura.py` |
 | **pista** | A palavra ou marca que nega, dá como feito ou suspende um exame: "não realizar", "NR", "já realizado", "suspenso". | `guardrails/intent.py` (`CUES`) |
-| **contestado** (`contested_exams`) | Um exame que alguma linha da página nega ou dá como feito, ou que aparece numa ordem ao modelo que a máscara tirou. Negado ou feito, ele não agenda nem é perguntado. | `leitura.py`, `guardrails/intent.py` (`contested`) |
+| **contestado** (`contested_exams`) | Um exame que alguma linha da página nega ou dá como feito, ou que aparece numa ordem ao modelo que a máscara tirou ([o efeito](regras.md#regras-que-valem-sempre)). | `leitura.py`, `guardrails/intent.py` (`contested`) |
 | **`cancel_unlinked`** | Verdadeiro quando uma pista não se liga a nenhum exame. Nada na página agenda sozinho. | `leitura.py` |
 | **`exam_lines`** | As únicas linhas que o modelo lê. As outras chegam a ele como `[linha de texto livre omitida]`. | `mcp_servers/ocr.py` |
 | **`line_used`** | Motivo de um exame ficar de fora: o trecho da linha que o nomeia já é de outro exame. | `runtime/confianca.py` (`sort_out`) |
@@ -69,6 +69,6 @@ As mensagens de cada faixa e a calibração: [referencia.md](referencia.md#agend
 | **`output_key`** | A chave de estado em que cada agente deixa a sua saída para o próximo. | spec |
 | **MCP via SSE** | O protocolo e o transporte com que o agente chama o OCR e o RAG. | `mcp_servers/` |
 | **`ALLOWED_HOSTS`** | Os únicos hosts que o agente e o transpilador aceitam como servidores. | `runtime/rede.py` |
-| **`--yes`** | Pula a confirmação, para automação; só as regras decidem e o código de saída é 3 quando sobra exame sem decisão. | `cli.py` |
+| **`--yes`** | Pula a confirmação, para automação ([efeitos](como-rodar.md#3-executar-o-agente), [código 3](referencia.md#códigos-de-saída)). | `cli.py` |
 | **`Idempotency-Key`** | A chave que impede que a mesma chamada agende duas vezes; vem do runtime, nunca do modelo. | `api/main.py` |
 | **`FICT-xxx`** | Os códigos fictícios dos 120 exames do catálogo. | `data/exams.json` |

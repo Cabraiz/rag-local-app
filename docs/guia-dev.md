@@ -26,7 +26,7 @@ Leia depois do [README](../README.md). A referência de cada tema fica nos outro
 |---|---|---|
 | [`specs/`](../specs/) | As 5 specs JSON de exemplo; o serviço `agent` a monta só para leitura | for descrever outro agente ([receita](#escrever-uma-spec-nova)) |
 | [`transpiler/`](../transpiler/) | `spec.py` (schema e validação), `generator.py` + `agent_template.py.tmpl` (código gerado), `live.py` (confere as ferramentas nos servidores) | mudar um campo da spec, uma mensagem de erro ou o código gerado |
-| [`runtime/`](../runtime/) | A biblioteca que o `agent.py` importa: a política de agendamento e a rede ([cada módulo](transpilador.md#o-que-fica-onde)) |
+| [`runtime/`](../runtime/) | A biblioteca que o `agent.py` importa: a política de agendamento e a rede ([cada módulo](transpilador.md#o-que-fica-onde)) | mudar quando um exame agenda, pergunta ou é avisado, ou o texto de um aviso |
 | [`mcp_servers/`](../mcp_servers/) | `ocr.py` e `rag.py` (os dois servidores MCP/SSE), `preprocessamento.py` (imagem e Tesseract), `qualidade.py` (recusa foto ruim), `arguments.py` (SSE, keep-alive, erros de argumento) | mudar a leitura da imagem ou a busca no catálogo |
 | [`guardrails/`](../guardrails/) | `pii.py` + `pii_rules.py` (máscara), `intent.py` (o que cada linha pede e se a página é só a lista), `injection.py` (ordens ao modelo) | mudar uma regra de linha ou de página, ou um padrão de PII |
 | [`catalogo.py`](../catalogo.py), [`data/exams.json`](../data/exams.json) | Carga e normalização do catálogo (120 exames `FICT-xxx`), `ExamMatcher`, vocabulários | acrescentar um exame ou um sinônimo |
@@ -41,17 +41,18 @@ Leia depois do [README](../README.md). A referência de cada tema fica nos outro
 
 ## O caminho de um pedido no código
 
-`docker compose run --rm agent python -m cli run --image pedido.png` percorre, nesta ordem (as funções para ler
-primeiro estão em negrito):
+O passo 1 é o `transpile`, que gera o agente uma vez. Os passos 2 a 9 são o que
+`docker compose run --rm agent python -m cli run --image pedido.png` percorre, nesta ordem. As funções para ler primeiro
+estão em negrito.
 
-1. **Spec → agente.** `cli.cmd_transpile` chama `transpiler.generator.transpile`:
+1. **Spec → agente** (`python -m cli transpile`). `cli.cmd_transpile` chama `transpiler.generator.transpile`:
    - **`spec.parse_spec`** valida o JSON, o schema e as regras entre campos;
    - `live.check_live` pergunta aos servidores que ferramentas têm;
    - `generator.render` preenche o template;
    - `write_checked` compila e importa o arquivo antes de trocar o `generated/agent.py`.
 2. **Preparo do `run`.** `cli.checked_run` confere:
    - a spec;
-   - que o `agent.py` é o que ela gera hoje (`check_agent`);
+   - que o `agent.py` é o que ela gera hoje (`check_agent` o compara com `generator.render`);
    - os serviços (`check_services`);
    - se alguém pode responder `[s/N]` (`check_someone_answers`).
 
@@ -94,14 +95,19 @@ Todos os comandos rodam na raiz do clone, com o ambiente de pé (`docker compose
 
 | Peça | Comando |
 |---|---|
-| Transpilador | `docker compose run --rm agent python -m cli transpile specs/agent.json` (`--output generated/outro/agent.py` para não trocar o `agent.py`) |
+| Transpilador | `docker compose run --rm agent python -m cli transpile specs/agent.json` |
 | OCR sozinho | `docker compose run --rm agent python exemplos/mcp_call.py ocr extract_exam_text filename=pedido.png` |
 | RAG sozinho | `docker compose run --rm agent python exemplos/mcp_call.py rag search_exams query=Glicose top_k=3` |
 | API sozinha | `docker compose up -d api` e um `POST` (os comandos, abaixo da tabela) |
-| Um servidor MCP fora do compose | `python -m mcp_servers.rag` (porta 8002) ou `python -m mcp_servers.ocr` (8001, precisa do Tesseract); o host da URL precisa estar em `ALLOWED_HOSTS` |
+| Um servidor MCP fora do compose | `python -m mcp_servers.rag` (porta 8002) ou `python -m mcp_servers.ocr` (porta 8001) |
 | O agente, sem Gemini | não há: `tests/test_alucinacao.py` e `tests/test_adk_run.py` rodam o agente gerado com um modelo roteirizado, OCR, RAG e API reais |
 | O agente, com Gemini | `docker compose run --rm agent python -m cli run --image pedido.png` (`--verbose` mostra os logs das bibliotecas) |
 | Sem a CLI | `docker compose run --rm agent adk run --in_memory generated` ([como-rodar.md](como-rodar.md#4-rodar-com-adk-run-ou-adk-web)) |
+
+Notas da tabela:
+
+- **Transpilador:** `--output generated/outro/agent.py` gera noutra pasta, sem trocar o `agent.py`.
+- **Servidor MCP fora do compose:** o OCR precisa do Tesseract, e o host da URL precisa estar em `ALLOWED_HOSTS`.
 
 **O `POST` da API sozinha.** No Git Bash, Linux ou macOS:
 
@@ -266,10 +272,11 @@ spec nova acrescentando-a às listas de `tests/test_transpiler.py` e `tests/test
 
 1. Edite [`data/exams.json`](../data/exams.json): `{"code": "FICT-121", "name": "...", "synonyms": [...]}`. O código segue
    `FICT-\d{3}` (a API recusa outro formato), e é único.
-2. Conte os efeitos: `tests/test_rag.py::test_catalog_has_120_unique_fictional_codes` fixa 120; o número "120" aparece no
-   README e nos docs e é conferido por `tests/test_readme.py` (também os "240 termos", nomes mais sinônimos). Um sinônimo curto pode
-   fazer duas siglas ficarem a um caractere uma da outra: `test_rag.py::test_no_abbreviation_names_two_exams` e
-   `test_short_abbreviations_one_letter_from_others_are_not_catalog_names` pegam.
+2. Conte os efeitos:
+   - `tests/test_rag.py::test_catalog_has_120_unique_fictional_codes` fixa 120;
+   - `tests/test_readme.py` confere o "120" e os "240 termos" (nomes mais sinônimos) no README e nos docs;
+   - um sinônimo curto pode deixar duas siglas a um caractere uma da outra. `test_rag.py::test_no_abbreviation_names_two_exams`
+     e `test_short_abbreviations_one_letter_from_others_are_not_catalog_names` pegam esse caso.
 3. Nomes aninhados ("Creatinina" dentro de "Clearance de creatinina") exigem atenção: `test_confianca.py` lista os 13 pares.
 4. Rode `tests/test_rag.py`, `test_calibration.py` (o limiar de 0,90 sobre as 631 consultas de `tests/calibration/queries.jsonl`) e
    `test_pii.py::test_no_catalog_exam_is_masked`. Se você mudou os números, corrija os docs.
@@ -282,7 +289,7 @@ spec nova acrescentando-a às listas de `tests/test_transpiler.py` e `tests/test
 | A página é só a lista (`page_clean`, `off_list`) | `guardrails/intent.py`: `clean_page`, `a_field`, `a_label_or_count` | `tests/test_negacao_casos.py` (páginas de ataque e honestas), `tests/attacks/legit-pages.txt` |
 | Piso de leitura do OCR e faixas de confiança | `runtime/confianca.py`: `BookingPolicy`, `sort_out` | `tests/test_confianca.py`, `tests/test_calibration.py` |
 | Como a linha vira exames | `mcp_servers/rag.py`: `split_exams`, `unglue`, `ahead`, `behind` | `tests/test_rag.py` |
-| O texto de um aviso | `runtime/relatorio.py` (`WHY`, `LEFT_OUT`, `REFUSED`) | `tests/test_confianca.py`, `tests/test_negacao.py`; o exemplo em [como-rodar.md](como-rodar.md#3-executar-o-agente) é conferido contra o log das evidências |
+| O texto de um aviso | `runtime/relatorio.py` (`WHY`, `LEFT_OUT`, `REFUSED`) | `tests/test_confianca.py`, `tests/test_negacao.py` |
 
 Passos:
 
@@ -292,6 +299,8 @@ Passos:
    não pode apagar exame nem deixar PII.
 4. Se o efeito nos conjuntos medidos mudar, rode as cargas e atualize [medicoes.md](medicoes.md).
 5. Acrescente a regra ao mapa [regras.md](regras.md), com o exemplo que a motivou.
+6. Se mudou o texto de um aviso, confira o exemplo de [como-rodar.md](como-rodar.md#3-executar-o-agente): ele é
+   comparado com o log das evidências.
 
 Duas coisas a lembrar. Uma regra nova falha para o lado de perguntar: "só agenda sozinho o que é só exame" é a escolha
 ([por quê](decisoes.md#por-que-existe-uma-camada-de-regras)). E um campo ou um tipo de linha novo na resposta do OCR pede
@@ -307,6 +316,14 @@ uma versão nova do contrato (`leitura.VERSION`), nos dois lados.
    (`GENERATORS`, 300 casos por tipo, semente fixa); o corpus checa que nenhum valor sobra depois de `mask`. Rode também
    `tests/test_pii.py::test_masking_never_removes_an_exam_from_a_legitimate_line`.
 4. Atualize os números: `tests/test_readme.py` confere "N tipos" e "N casos gerados" nos docs.
+
+Dois marcadores de nome parecido não se confundem:
+
+- [`catalogo.MASK_TAG`](../catalogo.py) acha todo marcador que sai do OCR, inclusive `[TEXTO_REMOVIDO]`;
+- [`pii_rules.TYPED_TAG`](../guardrails/pii_rules.py) acha só o de um valor mascarado por tipo (`[CPF]`, `[NOME]`).
+
+O marcador interno `[INSTRUCAO_REMOVIDA]` vira `[TEXTO_REMOVIDO]` antes de sair do OCR
+([a etapa](referencia.md#onde-a-pii-é-mascarada)).
 
 ## Depurar um pedido que falhou ou foi perguntado
 

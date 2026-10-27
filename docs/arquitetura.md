@@ -23,16 +23,15 @@ O sistema tem duas metades:
 - **O que roda o pedido:** o agente gerado, a biblioteca [`runtime/`](../runtime/) que ele importa, dois servidores MCP
   (OCR e RAG) e a API FastAPI.
 
-A ideia central: **o modelo propõe, o código decide, a pessoa confirma.** O Gemini lê as linhas de exame já mascaradas e
-propõe buscas e códigos. O código confere cada proposta contra o que foi lido e buscado. A pessoa vê a lista e responde
-`Agendar estes N exames? [s/N]`. Só então a API é chamada.
+A ideia central: **o modelo propõe, o código decide, a pessoa confirma**
+([por quê](decisoes.md#o-modelo-propõe-o-código-decide-a-pessoa-confirma)). Só depois do "sim" a API é chamada.
 
 ## Etapas
 
 | Etapa | Onde | O que faz |
 |---|---|---|
 | Transpilar | [`transpiler/`](../transpiler/) | Valida a spec, gera `generated/agent.py` e o importa antes de dizer OK |
-| Extrair | [`mcp_servers/ocr.py`](../mcp_servers/ocr.py) | Prepara a imagem, lê com o Tesseract, classifica cada linha, tira ordens ao modelo e mascara a PII |
+| Extrair | [`mcp_servers/ocr.py`](../mcp_servers/ocr.py) | Lê a imagem e devolve só o texto mascarado ([as etapas](#por-que-a-pii-não-chega-ao-modelo)) |
 | Buscar | [`mcp_servers/rag.py`](../mcp_servers/rag.py) | Corta cada linha em exames e acha os códigos no catálogo de 120 exames ([como](referencia.md#como-a-busca-corta-uma-linha)) |
 | Conferir | [`runtime/callbacks.py`](../runtime/callbacks.py) | Aceita só códigos achados nas linhas lidas e monta a lista para a pessoa |
 | Agendar | [`api/main.py`](../api/main.py) | Valida os códigos e grava, cifrado, o código e o nome do catálogo |
@@ -53,7 +52,7 @@ sequenceDiagram
     participant G as Gemini
     participant API as API FastAPI
     P->>A: cli run --image pedido.png
-    A->>O: extract_exam_text (apelido do arquivo)
+    A->>O: extract_exam_text (nome real; o modelo só vê o apelido)
     O-->>A: linhas mascaradas, tipo de cada linha, page_clean
     A->>G: só as linhas de exame
     G-->>A: buscas propostas
@@ -115,7 +114,7 @@ cada camada barra uma coisa diferente, da imagem ao banco:
 | Pessoa | A lista inteira, antes da API |
 | Rede | Hosts fora de `ALLOWED_HOSTS` |
 | Rede | Saída do OCR e do RAG para a internet |
-| Rede | Acesso à API de fora da máquina: ela só escuta em `127.0.0.1` |
+| Rede | Acesso à API de fora da máquina: a porta dela só é publicada em `127.0.0.1` |
 | API e banco | Código fora do catálogo |
 | API e banco | Agendamento em dobro, pela `Idempotency-Key` |
 | API e banco | Dado em claro no disco: cada linha é cifrada |

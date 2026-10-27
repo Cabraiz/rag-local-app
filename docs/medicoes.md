@@ -65,7 +65,7 @@ Como repetir: `tests.load.manuscritos`, `tests.load.manuscritos --origem samples
 | Limiar de 0,90 para agendar | 631 consultas versionadas | 0 de 10 erros passam, e 522 de 621 acertos ficam (84,1%) | `pytest tests/test_calibration.py` |
 | Faixas de confiança, leitura real do OCR (dados do repositório) | 120 manuscritas e 200 pedidos da carga | **0 exames errados agendados sem confirmação** | `tests.load.manuscritos` e `tests.load.carga --n 200` |
 | Entradas faltando ou quebradas, pelo caminho real | 602 casos em 4 grupos | 312 ok, 290 recusas com mensagem clara e **0 falhas** | `tests.load.robustez --variantes 12` |
-| Cifra no banco | 6 propriedades, 4 chaves inválidas | nenhum `FICT` nem nome de exame nos bytes; toda alteração dá o mesmo 500 fixo; sem chave válida a API não sobe | `pytest tests/test_crypto.py` |
+| Cifra no banco | 6 propriedades, 4 chaves inválidas | **0 valores em claro** nos bytes (notas abaixo) | `pytest tests/test_crypto.py` |
 | Fotos de celular de pedidos impressos | 30 fotos, 97 exames, 3 níveis | 85 agendados sem perguntar (88%), **0 errados**, 0 PII ([estado atual](#estado-atual)) | `tests.load.manuscritos --origem samples/fotos-celular` |
 | Modelo que alucina | 17 testes (22 casos), serviços reais | nada errado agendado nem gravado ([tabela](#modelo-que-alucina)) | `pytest tests/test_alucinacao.py` |
 | Qualidade da foto, antes do OCR | 24 pedidos degradados passo a passo; 120 manuscritas, 200 da carga e as amostras | recusa só onde o OCR lê ~0%, com uma dica; **0** imagens reais recusadas | `pytest tests/test_qualidade.py` |
@@ -82,14 +82,19 @@ Notas do resumo:
 - **Limiar:** só há 10 erros conhecidos. É uma checagem de piso, não uma taxa de erro
   ([calibração](#calibração-do-limiar-de-090)).
 - **Robustez:** "0 falhas" quer dizer 0 erros 500, 0 tracebacks, 0 PII e 0 exames fora da imagem.
+- **Cifra:** nenhum `FICT` nem nome de exame nos bytes. Toda alteração dá o mesmo 500 fixo, e sem chave válida a API
+  não sobe.
 
 **Medições com dados fora do repositório.** Não dá para repeti-las com este clone; os casos que elas acharam viraram
 testes.
 
 | O que foi testado | Casos | Resultado | O que ficou no repositório |
 |---|---|---|---|
-| Formatos fora do gerador, em 2 conjuntos independentes de imagens: nome sem rótulo, com `'` ou `-`, em minúsculas ao lado do exame, CPF em 2 linhas, data por extenso | 79 + 79 imagens; 84 + 83 valores pessoais lidos | **0 de 84** e **0 de 83** não mascarados; 0 exames apagados (no 2º, 1 exame faltou porque o OCR leu "Vitamina B1l2") | cada caso virou teste em `tests/test_pii.py`; as imagens têm PII fictícia legível e ficam fora |
+| Formatos fora do gerador, em 2 conjuntos independentes de imagens: nome sem rótulo, com `'` ou `-`, em minúsculas ao lado do exame, CPF em 2 linhas, data por extenso | 79 + 79 imagens; 84 + 83 valores pessoais lidos | **0 de 84** e **0 de 83** não mascarados | cada caso virou teste em `tests/test_pii.py`; as imagens têm PII fictícia legível e ficam fora |
 | Faixas de confiança, leitura real do OCR (240 pedidos externos) | 240 pedidos de um conjunto externo de impressos e manuscritos | **0 exames errados agendados sem confirmação** | nada: os dados não são do projeto |
+
+Nos formatos fora do gerador, 0 exames foram apagados. No 2º conjunto, 1 exame faltou porque o OCR leu "Vitamina
+B1l2". As duas medições são de 2026-10-06 e 2026-10-07.
 
 ## Calibração do limiar de 0,90
 
@@ -135,7 +140,7 @@ O limiar de 0,90 foi calibrado em 631 consultas versionadas em [`tests/calibrati
 - **Degradação, em 3 níveis:** papel curvo, perspectiva, luz desigual, sombra, desfoque, ruído e JPEG.
 - **Medição:** cada foto passa pelo OCR, pelo RAG e pela regra real. Na CI, `tests/load/test_fotos.py` roda 5 das 30.
 
-**Números de antes da [regra por página](#lista-branca-por-página).** Hoje são 85 agendados sozinhos e 6 perguntados
+**Números de 2026-10-06, antes da [regra por página](#lista-branca-por-página).** Hoje são 85 agendados sozinhos e 6 perguntados
 ([estado atual](#estado-atual)).
 
 | Layout · leve / média / forte | Exames | Agendados sem perguntar | Baixa confiança | Não lidos | Errados | PII |
@@ -223,7 +228,7 @@ recebida e propõe o melhor resultado. "Antes" quer dizer que ele recebe todas a
 | 200 pedidos da carga (618) | 3.149 · 2.531 | 602 → 602 | 12 → 12 | 4 → 4 | 0 → 0 | 0 → 0 |
 | `pedido.png` (3) | 10 · 7 | 3 → 3 | 0 → 0 | 0 → 0 | 0 → 0 | 0 → 0 |
 
-A tabela é da época desta regra. Com as regras de página que vieram depois e o modelo do [Estado atual](#estado-atual):
+A tabela foi medida em 2026-10-08, quando a regra entrou. Com as regras de página que vieram depois e o modelo do [Estado atual](#estado-atual):
 
 - 120 manuscritas: 1.413 · 1.131 linhas, 24 agendados sozinhos e 126 perguntados;
 - 30 fotos: 85 agendados sozinhos e 6 perguntados;
@@ -272,7 +277,7 @@ Medido com OCR por linha, busca, faixas de confiança e a
 [regra de linha](#lista-branca-só-agenda-sozinha-a-linha-que-é-só-exame).
 
 **Estado atual:** com todas as regras de hoje, as 120 manuscritas têm **24 exames agendados sozinhos e 0 errados sem
-confirmação**. A tabela abaixo mede só a regra de linha, sem as regras de página: mostra o teto da leitura por estilo.
+confirmação**. A tabela abaixo, de 2026-10-06, mede só a regra de linha, sem as regras de página: mostra o teto da leitura por estilo.
 
 | Estilo · qualidade | Agendados sozinhos | Perguntados | Baixa confiança | Não lidos | Errados sem confirmação |
 |---|---|---|---|---|---|
@@ -296,7 +301,7 @@ Com a [regra de página](#lista-branca-por-página), os agendados sozinhos caem 
 - **20 linhas, em 19 imagens,** saem como `lido mas não reconhecido no catálogo: linha N`: 18 exames deformados demais
   ("- Pafinina") e 2 nomes de paciente escritos como item.
 - **Nenhuma linha** é lida como negação, histórico, dúvida, observação ou preparo.
-- **Exames achados no texto do OCR:** de 22,9% para 34,0% com o preparo da imagem e o modo de texto esparso do
+- **Exames achados no texto do OCR:** em 2026-10-06, de 22,9% para 34,0% com o preparo da imagem e o modo de texto esparso do
   Tesseract (PSM 11); na letra comum, de 37,8% para 54,6%.
 
 ## Abreviações escritas no pedido
@@ -370,8 +375,11 @@ erro 500, traceback, PII no texto do OCR ou exame agendado fora da imagem, e tod
 ## Qualidade da foto
 
 Antes do OCR, [`mcp_servers/qualidade.py`](../mcp_servers/qualidade.py) mede a foto só com Pillow (cerca de 20 ms) e
-recusa a que o OCR não leria, com motivo e dica (`OCR recusou a imagem: foto desfocada: segure o celular firme, espere focar e tire outra`). Cada limite fica onde a leitura cai a ~0%, numa curva de 24 pedidos da carga degradados
-passo a passo (ruído de sensor, JPEG 70, preparo do OCR; exame achado com score ≥ 0,90):
+recusa a que o OCR não leria, com motivo e dica (`OCR recusou a imagem: foto desfocada: segure o celular firme, espere focar e tire outra`).
+
+- Cada limite fica onde a leitura cai a ~0%.
+- A curva usa 24 pedidos da carga degradados passo a passo, com ruído de sensor, JPEG 70 e o preparo do OCR.
+- Conta como lido um exame achado com score de 0,90 ou mais.
 
 | Medida | Recusa abaixo de | Leitura na curva |
 |---|---|---|
@@ -396,8 +404,13 @@ docker compose run --rm --no-deps tests python -c "from pathlib import Path; fro
 
 ## OCR moderno (avaliado, não adotado)
 
-Em 42 manuscritos, o EasyOCR acha 35,5% dos exames; o Tesseract com preparo, 32,3%; os dois juntos, 41,9%
-(_medido fora do repositório, sem os dados aqui_).
+Em 42 manuscritos, medidos em 2026-10-06 fora do repositório (_sem os dados aqui_):
+
+- o EasyOCR acha 35,5% dos exames;
+- o Tesseract com preparo, 32,3%;
+- os dois juntos, 41,9%.
+
+O custo e a decisão:
 
 - **Custo:** o EasyOCR soma 2,1 GB à imagem, 1,4 GB de memória e 26 s no p95 por imagem em CPU; o PaddleOCR soma
   2,4 GB.
@@ -475,12 +488,12 @@ inteira, a linha casa com um nome só e o resto fica sem estado. Por isso:
 
 - **A busca separa a linha** e completa um pedaço pelo vizinho ([como](referencia.md#como-a-busca-corta-uma-linha)).
   Nas 1.750 linhas distintas dos corpora legítimos, nenhuma é cortada de outro jeito.
-- **Exame que o pedido não nomeia** (a IgM genérica de "Chagas IgG e IgM"; Chagas IgG para "Chagas IgM", que o
-  catálogo não tem) só sai em `baixa confiança`.
+- **Exame que o pedido não nomeia** só sai em `baixa confiança`. Exemplos: a IgM genérica de "Chagas IgG e IgM", e
+  Chagas IgG para "Chagas IgM", que o catálogo não tem.
 - **A CLI confere o pedido inteiro:** exame sem decisão sai como `não buscado pelo agente` ou `não incluído pelo agente`, e a confirmação termina com `ATENÇÃO: N possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima`.
 
-Medido com o pior modelo plausível, que busca cada linha inteira e propõe tudo. Os conjuntos têm semente fixa e foram
-feitos por quem não escreveu a correção (_medidos fora do repositório, sem os dados aqui_).
+Medido em 2026-10-07 com o pior modelo plausível, que busca cada linha inteira e propõe tudo. Os conjuntos têm
+semente fixa e foram feitos por quem não escreveu a correção (_medidos fora do repositório, sem os dados aqui_).
 
 - **Sorologias, qualificadores e controles:** 198 linhas, 325 exames.
   - 84 de sorologia: 6 doenças, IgG e IgM em várias formas.
@@ -509,7 +522,7 @@ linhas reais do OCR, uma a uma, dão 163 · 22 · 43: o que falta é erro de lei
 
 ## Busca semântica: avaliada, não adotada
 
-Avaliou-se uma busca semântica (multilingual-e5-small, int8, ONNX, CPU) somada à lexical: vale o maior score, e o
+Em 2026-10-07, avaliou-se uma busca semântica (multilingual-e5-small, int8, ONNX, CPU) somada à lexical: vale o maior score, e o
 semântico tem
 **teto de 0,89**, para que o sentido sozinho só pergunte. Sem o teto, agendava errados (7 a 24 na calibração, até 16
 nas linhas do OCR). Melhor resultado de cada consulta:
@@ -547,7 +560,7 @@ Medido num build separado; nem o código nem as paráfrases entram no projeto.
 Medido com `docker image inspect <imagem> --format '{{.Size}}'`, depois de `docker build --target <estágio>` no
 `Dockerfile` do repositório:
 
-| Imagem | Antes do [achado 29](revisao.md#o-que-a-revisão-e-os-testes-acharam) | Desde o achado 29 |
+| Imagem | Antes do [achado 29](revisao.md#segunda-versão-o-que-as-avaliações-apontaram) | Desde o achado 29 |
 |---|---|---|
 | `agent` (roda o agente) | 662 MB, com pytest, ruff, mypy e o Tesseract | 322 MB |
 | `test` (serviço `tests`) | não existia: os testes rodavam na `agent` | 676 MB: a `agent` mais as ferramentas de teste, o Tesseract e o projeto |
@@ -557,7 +570,7 @@ Tesseract, e que a `test` parte dela.
 
 ## Histórico das regras de linha e de página
 
-Cada seção abaixo mede uma regra quando ela entrou, com o modelo simulado daquela medição. Os números não se comparam
+Cada seção abaixo mede uma regra quando ela entrou, com o modelo simulado daquela medição, e abre com a data. Os números não se comparam
 entre seções. Os de hoje estão no [Estado atual](#estado-atual), e a regra como vale hoje, em [regras.md](regras.md).
 
 Os conjuntos de ataque citados:
@@ -570,6 +583,8 @@ Os conjuntos de ataque citados:
 - **Contestado:** ver o [glossário](glossario.md#resposta-do-ocr).
 
 ### Negação, histórico e observações
+
+Medido em 2026-10-07.
 
 O OCR lê o que cada linha pede antes da máscara ([referência](referencia.md#onde-a-pii-é-mascarada)). As regras
 ([regras.md](regras.md)):
@@ -586,7 +601,8 @@ regras. O efeito nos conjuntos honestos está na [seção seguinte](#lista-branc
 | Ataque | Sem as regras | Com as regras | Como repetir |
 |---|---|---|---|
 | 69 linhas que não pedem o exame (37 de negação, 15 de histórico, 7 em dúvida, 7 de observação, 3 de preparo), ao lado de um exame pedido | **69 de 69 agendados sozinhos** | **0 agendados sozinhos**: 55 avisados com o motivo, 14 perguntados | `pytest tests/test_negacao.py` |
-| Os 61 casos do 2º conjunto | 26 exames negados ou já feitos agendados (cuidadoso) e 10 (preguiçoso); 1 em silêncio | **0 e 0; nenhum em silêncio** | `pytest tests/test_negacao_casos.py` |
+| Os 61 casos do 2º conjunto: exames negados ou já feitos agendados (cuidadoso · preguiçoso) | 26 · 10 | **0 · 0** |
+| Os 61 casos do 2º conjunto: exames em silêncio | 1 | **0** | `pytest tests/test_negacao_casos.py` |
 | 12 imagens em que o Gemini real agendava exames cancelados em outra linha, numa tabela "Realizar?", no rodapé ou em resultados anteriores (regra de página) | 16 (cuidadoso) e 12 (preguiçoso) | **0 e 0** | 4 delas redesenhadas em `tests/test_negacao_casos.py` |
 
 **Custo, de propósito.** Passam a ser perguntadas as linhas abaixo. Cada uma é `uncertain`, e o exame sai com
@@ -599,6 +615,8 @@ regras. O efeito nos conjuntos honestos está na [seção seguinte](#lista-branc
 - linhas com valor e unidade, como "Glicemia de jejum 98 mg/dL".
 
 ### Lista branca: só agenda sozinha a linha que é só exame
+
+Medido em 2026-10-07.
 
 Uma linha só agenda sozinha se, tirados marcador, rótulo e conectivos, sobram só nomes do catálogo e qualificadores
 ([`guardrails/intent.py`](../guardrails/intent.py)). Qualquer outra palavra a faz ser perguntada, porque uma lista de
@@ -622,10 +640,21 @@ negações nunca fecha: "pedido por engano" escapava.
 |---|---|---|
 | 50 linhas legítimas ("sem plaquetas", "não precisa de jejum", "resultado anterior: 4,5"...) | 50 agendadas | **14 agendadas** (só exame), **36 perguntadas** |
 | 60 linhas honestas do 1º conjunto (busca pelo nome) | 59 agendadas, 1 perguntada ("Considerar Ferritina") | **26 agendadas, 34 perguntadas** |
-| 120 manuscritas (234 exames sem leitura na época; hoje 249, [acima](#pedidos-manuscritos-simulados)) | 114 agendados, 36 perguntados, 0 errados; 20 avisos de linha não reconhecida | **113 agendados, 37 perguntados**, 0 errados |
+| 120 manuscritas (nota 1) | 114 agendados, 36 perguntados, 0 errados; 20 avisos de linha não reconhecida | **113 agendados, 37 perguntados**, 0 errados |
 | 30 fotos de celular; sorologias (198 linhas, 325 exames) | 89 agendados, 0 errados; 293 certos, 0 errados, 2 perguntados, 5 em silêncio | iguais |
-| Linhas legítimas da máscara (8.865 grafias: as linhas de `legit.txt` e `legit-pages.txt` e os 227 termos que o catálogo tinha antes dos 13 sinônimos novos, em várias grafias) | 0 apagados; 0 linhas com exame fora de `request`; 1 perguntada pela regra da observação ("Função tireoidiana (TSH, T4 livre)") | 0 apagados; 2 perguntadas (mais "Urina tipo I - primeira urina da manhã") |
-| Corpus de PII gerada (3.600 casos) | 0 vazamentos; NOME 397 → 388 e CONVENIO 300 → 254 (tirados junto com o rótulo, saem como `[TEXTO_REMOVIDO]`) | 0 vazamentos |
+| Linhas legítimas da máscara, 8.865 grafias (nota 2): apagadas | 0 | 0 |
+| Linhas legítimas da máscara: perguntadas (nota 3) | 1 | 2 |
+| Corpus de PII gerada (3.600 casos): vazamentos (nota 4) | 0 | 0 |
+
+Notas da tabela:
+
+1. Na época, 234 exames sem leitura; hoje 249 ([acima](#pedidos-manuscritos-simulados)).
+2. As linhas de `legit.txt` e `legit-pages.txt` e os 227 termos que o catálogo tinha antes dos 13 sinônimos novos, em
+   várias grafias. Nenhuma linha com exame saiu de `request`.
+3. Com a negação, a regra da observação pergunta "Função tireoidiana (TSH, T4 livre)". Com esta regra, também "Urina
+   tipo I - primeira urina da manhã".
+4. Com a negação, NOME foi de 397 para 388 e CONVENIO de 300 para 254: tirados junto com o rótulo, saem como
+   `[TEXTO_REMOVIDO]`.
 
 **Repetir:** `pytest tests/test_negacao.py`, `pytest tests/test_pii.py` e `tests.load.manuscritos`. As 60 linhas e as
 sorologias foram _medidas fora do repositório, sem os dados aqui_.
@@ -635,6 +664,8 @@ sorologias foram _medidas fora do repositório, sem os dados aqui_.
 - Em `ataque-exame-disfarcado.png`, a Glicemia de jejum (na linha de onde saiu uma ordem ao modelo) é perguntada.
 
 ### Lista branca por página
+
+Medido em 2026-10-08.
 
 Um exame só agenda sozinho se a página inteira for só a lista de exames
 ([`guardrails/intent.py`](../guardrails/intent.py), `clean_page`). Fora os itens, a página só pode ter rótulo, jejum,
@@ -666,6 +697,8 @@ marcas, campo de paciente ou médico, cabeçalho impresso da clínica (timbre) o
 
 ### Rodapé, formulário, nome e nome mais longo
 
+Medido em 2026-10-08.
+
 Regras para furos achados em 37 pedidos adversariais e 16 honestos em imagem ([regras.md](regras.md)):
 
 - abaixo do 1º exame, nada é timbre
@@ -676,8 +709,8 @@ Regras para furos achados em 37 pedidos adversariais e 16 honestos em imagem ([r
 - número ou palavra com maiúscula fora do catálogo depois do exame sai ("Franco")
 - contagem menor que a lista tira a página da lista.
 
-Medido com OCR, busca e callbacks reais, modelos cuidadoso e guloso; contam só os exames do pedido. Por isso a base das
-manuscritas aqui (32, 124, 0) difere da seção anterior (32, 118, 0, só o cuidadoso).
+Medido com OCR, busca e callbacks reais e com os modelos cuidadoso e guloso. Contam só os exames do pedido. Por isso
+a base das manuscritas aqui (32, 124, 0) difere da seção anterior (32, 118, 0), que usou só o cuidadoso.
 
 | Corpus | Sem estas regras | Com estas regras |
 |---|---|---|
@@ -710,6 +743,8 @@ Sem mudança, em agendados sozinhos, perguntados e errados:
     dispara.
 
 ### Anotação, timbre e o contexto antes da pergunta
+
+Medido em 2026-10-08.
 
 Três regras de 29 pedidos adversariais e 16 honestos em imagem, mais 16 notas de topo em texto ([regras.md](regras.md)):
 
@@ -763,7 +798,7 @@ Só "Colesterol total e frações (HDL, LDL)" seria perguntada, e nenhum conjunt
 
 **Leitura**
 
-- **Letra de médico:** 1 de 206 exames agendado sozinho ([leitor local](#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão)).
+- **Letra de médico:** 1 dos 206 exames de letra de médico dos 120 manuscritos, só com a regra de linha, agendado sozinho ([medição](#pedidos-manuscritos-simulados); [leitor local](#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão)).
 - **Letra comum, só com a regra de linha:** 51% agendados no scan, 48% na foto e 14% na foto ruim.
 - **Troca entre exames:** "TGP" lido "TAP" é perguntado; com `--yes`, fica de fora. O piso de 95 foi calibrado nesse
   caso ([os pisos](glossario.md#faixas-e-pisos)). A troca TGO/TGP não é coberta.

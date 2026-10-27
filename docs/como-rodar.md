@@ -21,7 +21,7 @@ Leia depois do [README](../README.md#rodar-em-4-comandos), que resume tudo em 4 
 ## Pré-requisitos
 
 - Docker com Compose ≥ 2.1.1 (`up --wait`). Não é preciso Python no host.
-- Docker Desktop aberto e rodando. Se aparecer `Cannot connect to the Docker daemon … Is the docker daemon running?` (ou, em versões novas, `failed to connect to the docker API`), abra o Docker Desktop, espere o "Engine running" e rode de novo.
+- Docker Desktop aberto, com o "Engine running" ([se não estiver](#quando-algo-falha)).
 - No Windows, PowerShell ou Git Bash. O `cmd.exe` não serve: nele o `cp` não existe e o comentário depois do `#` vira argumento.
 - Internet no build (apt e pip) e na execução (Gemini).
 - Uma chave da API Gemini, criada em <https://aistudio.google.com/apikey>. A do plano gratuito funciona; para dados reais, use a paga, porque no gratuito o Google pode usar o conteúdo para melhorar produtos ([licencas.md](licencas.md#dados-e-ia)).
@@ -45,7 +45,7 @@ docker compose up -d --wait   # sobe ocr, rag e api; na 1ª vez a api cria a cha
   - Corpo de exemplo: `{"exams": [{"code": "FICT-001"}]}`. O `name` é opcional: a API grava e devolve o nome do catálogo.
   - Um `Host` fora dos [permitidos](referencia.md#hosts-permitidos) recebe `400`.
   - As capturas em [`docs/evidencias/`](evidencias/) mostram a porta 18905, a da gravação.
-- **Porta:** a API escuta só em `127.0.0.1`, na porta `API_PORT` (padrão 8765). No Windows, o Docker pode não acusar um conflito, então confira antes se ela está livre:
+- **Porta:** a porta da API é publicada só em `127.0.0.1`, como `API_PORT` (padrão 8765). No Windows, o Docker pode não acusar um conflito, então confira antes se ela está livre:
   - PowerShell: `Get-NetTCPConnection -LocalPort 8765 -State Listen` (nada impresso: livre);
   - Linux e macOS: `lsof -i :8765`.
 
@@ -56,7 +56,10 @@ docker compose up -d --wait   # sobe ocr, rag e api; na 1ª vez a api cria a cha
 - **Pasta:** rode tudo dentro de `rag-local-app`. Fora dela: `no configuration file provided: not found`.
 - **`.env`:** edite o arquivo. Não use `export`, `$env:` nem `echo > .env` (este apaga o `API_PORT`).
 - **Logs:** `docker compose logs -f ocr rag api`. **Parar:** `docker compose down`.
-- **Parar e limpar:** `docker compose --profile cli --profile test down -v` remove containers, redes e volumes: o banco, a chave e o código gerado. Faça antes o [backup](backup.md) se o banco importa. Sem `--profile cli`, o volume `generated` fica; `--rmi local` apaga também as imagens.
+- **Parar e limpar:** `docker compose --profile cli --profile test down -v` remove containers, redes e volumes.
+  - Os volumes guardam o banco, a chave e o código gerado. Faça antes o [backup](backup.md) se o banco importa.
+  - Sem `--profile cli`, o volume `generated` fica.
+  - `--rmi local` apaga também as imagens.
 
 ## 2. Rodar o transpilador
 
@@ -189,7 +192,10 @@ Exemplos em `samples/`:
   - Colesterol total e Hemoglobina glicada saem em `baixa confiança`: o OCR leu essas linhas com 68 e 60, abaixo do
     piso de 75. A saída mostra a confiança de cada um, como `(confiança 0,68)`.
   - É o esperado: o que não foi lido com segurança vai para conferência humana.
-- **`pedido-sem-exame.png`:** nenhum exame, o caso (b) do [teste de alucinação](evidencias/log-alucinacao.txt): nada é agendado (na execução do teste, `Erro: a busca no catálogo não foi feita (o agente tentou agendar sem buscar os exames); nada foi agendado`). Gerado por `exemplos/gerar_pedido_sem_exame.py`, com semente fixa.
+- **`pedido-sem-exame.png`:** não tem exame, e nada é agendado.
+  - É o caso (b) do [teste de alucinação](evidencias/log-alucinacao.txt). Na execução do teste, a saída foi
+    `Erro: a busca no catálogo não foi feita (o agente tentou agendar sem buscar os exames); nada foi agendado`.
+  - Gerado por `exemplos/gerar_pedido_sem_exame.py`, com semente fixa.
 - **`pedido-variacao.png`:** nome sem rótulo, marcadores, sinônimo `Glicose`, telefone sem rótulo, data e CRM.
 - **`ataque-injecao.png` e `ataque-exame-disfarcado.png`:** instruções escondidas; só os exames legítimos são agendados ([Segurança em detalhe](referencia.md#segurança-em-detalhe)).
 - **`pedido-manuscrito.png` e `pedido-manuscrito-dificil.png`:** letra de mão e foto de celular, simuladas. No primeiro, o OCR lê os 5 exames; no segundo ("letra de médico"), quase nada, e nada é agendado sem confirmação.
@@ -226,12 +232,9 @@ ocupada, troque só o primeiro número (ex.: `127.0.0.1:8090:8000`).
   ([quais](transpilador.md#segurança-no-código-gerado)).
 - **Reinicie o `adk run` ou o `adk web` se um `docker compose up` recriar um serviço.** Os endereços conferidos ficam
   fixos enquanto o processo durar ([`runtime/rede.py`](../runtime/rede.py)).
-- **Confirmação da lista:** a mesma da CLI, pela confirmação nativa do ADK, sem `--yes`.
-  - O `adk run` mostra `[HITL confirm]` com os avisos, a lista e `Agendar estes N exames?`. `yes` agenda; outra
-    resposta, não.
-  - O `adk web` mostra a lista, uma caixa "Confirmed" e "Submit". Com a caixa marcada, agenda.
-  - Um "sim" que chega depois do agendamento não gera um 2º `POST`:
-    `não agendado (você confirmou, mas o agendamento desta execução já tinha sido criado)…`.
+- **Confirmação da lista:** a mesma da CLI, sem `--yes`
+  ([como](transpilador.md#a-confirmação-da-lista-confirmação-nativa-do-adk)). No `adk run`, responda `yes` ao
+  `[HITL confirm]`. No `adk web`, marque "Confirmed" e clique em "Submit".
 - **A última mensagem** (`[clinic_scheduler]: …`) é escrita em código com o que as ferramentas devolveram.
   `Agendamento confirmado pela API: id …` vem só da resposta da API. O texto do modelo (`[schedule]: …`) não conta.
 - **Um pedido por sessão:** outra mensagem recebe `Esta sessão já tratou um pedido…`.
@@ -261,17 +264,15 @@ Erros saem como uma linha `Erro: ...`, com código 2. Para ver o que houve por t
 | Sintoma | O que fazer |
 |---|---|
 | `no configuration file provided: not found` | Entre em `rag-local-app`, onde está o `docker-compose.yml`. |
-| `Cannot connect to the Docker daemon … Is the docker daemon running?` | Abra o Docker Desktop e espere o "Engine running". |
+| `Cannot connect to the Docker daemon … Is the docker daemon running?` ou `failed to connect to the docker API` | Abra o Docker Desktop, espere o "Engine running" e rode de novo. |
 | `Read timed out` do pip no 1º build | É a rede até o PyPI. Rode o `docker compose up -d --wait` de novo: os estágios prontos ficam no cache. |
 | `all predefined address pools have been fully subnetted` | Redes de outros projetos ocupam todas as faixas do Docker. Ver abaixo. |
 | `Healthy`, mas o Swagger não se chama "API de agendamento de exames (fictícia)" | Outro programa responde na porta: troque o `API_PORT`. |
-| `Erro: OCR recusou a imagem: <motivo>; nada foi agendado` | Corrija o arquivo conforme o motivo: `Arquivo "x.png" não encontrado em /data/samples.`, `Imagem corrompida ou incompleta.`, `O conteúdo do arquivo não corresponde à extensão (use PNG ou JPEG).` ou `Arquivo grande demais (máximo 5 MB).`. |
 | `OCR ocupado com outras imagens; tente de novo em instantes.` | O OCR lê 3 imagens por vez, e um pedido espera até 20 s por vaga: tente de novo. |
 | Um serviço reinicia sozinho no meio de uma execução | Ele passou do seu teto de memória ([os tetos](referencia.md#rede-e-processos)). O motivo sai em `docker compose logs <serviço>`. |
-| `Aviso: modelo principal indisponível; usando gemini-3.5-flash-lite` | Não é erro: o principal deu `429`/`503` e a requisição foi ao `fallback_model`. |
-| `Erro: Gemini indisponível no momento (HTTP 503); tente novamente` | O reserva também falhou, depois de até 5 tentativas: tente mais tarde. |
-| `Erro: o Gemini recusou a chamada (HTTP 404: ...)` | Modelo descontinuado: troque com `-e GEMINI_MODEL=<modelo>`. |
 | `Erro: o OCR não devolveu o texto do pedido (serviço indisponível?); nada foi agendado` | O OCR caiu no meio da execução: veja `docker compose logs -f ocr rag api`. |
+
+As recusas do OCR e os erros do Gemini, com o que fazer: [Erros por camada](referencia.md#erros-por-camada).
 
 **Docker sem sub-redes livres:**
 

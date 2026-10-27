@@ -93,7 +93,7 @@ Em todos, nada é restaurado.
 | `Erro: chave do banco não encontrada (…): restaure primeiro a chave da gravação; nada foi restaurado` | Não há chave; a restauração não cria outra | Faça o passo 1 de [Restaurar](#restaurar) |
 | `Erro: não foi possível decifrar o registro: a chave não é a da gravação ou o dado foi alterado no banco; nada foi restaurado` | A chave não é a da cópia | Use a chave guardada com esta cópia |
 | `Erro: /state/appointments.db está em uso pela API: pare-a (docker compose stop api); nada foi restaurado` | A API está no ar e mantém o banco aberto | `docker compose stop api` |
-| `Erro: /state/appointments.db já tem agendamentos: para trocá-los pela cópia, pare a API e use --substituir; nada foi restaurado` | O banco atual já tem agendamentos | Repita o passo 3 com `--substituir` no fim. O que entrou depois da cópia se perde. |
+| `Erro: /state/appointments.db já tem agendamentos: para trocá-los pela cópia, pare a API e use --substituir; nada foi restaurado` | O banco atual já tem agendamentos | Repita o passo 3 com `--substituir` no fim. |
 | `Erro: cópia não encontrada em /state/restore.db; nada foi restaurado` | A cópia não está no volume da API | Faça o passo 2 de [Restaurar](#restaurar) |
 | `Erro: /state/restore.db não passou no integrity_check do SQLite; nada foi restaurado` | O arquivo da cópia está corrompido | Use outra cópia |
 | `use só um nome de arquivo, sem pasta nem caminho (ex.: backup.db)` | `--saida` ou `--entrada` com pasta ou caminho | Passe só o nome |

@@ -12,7 +12,7 @@ pacotes Python e `/usr/share/doc/<pacote>/copyright` para os do Debian). Cada im
 
 - o `agent`: o ADK, o cliente da Gemini API, o MCP, o httpx e o httpx2;
 - o `ocr` e a de testes (`test`): pillow, pytesseract, o Tesseract e as fontes;
-- só a de testes: o pytest.
+- só a de testes: o pytest, o pytest-xdist, o pytest-cov, o coverage, o ruff e o mypy.
 
 | Pacote | Versão | Licença | Uso |
 |---|---|---|---|
@@ -24,7 +24,7 @@ pacotes Python e `/usr/share/doc/<pacote>/copyright` para os do Debian). Cada im
 | pydantic | 2.13.5 | MIT | Validação da spec e dos contratos |
 | cryptography | 50.0.2 | Apache-2.0 ou BSD-3-Clause | Cifra AES-GCM do banco |
 | httpx | 0.28.1 | BSD-3-Clause | Cliente HTTP (CLI e testes) |
-| httpx2 | 2.13.1 | BSD-3-Clause | O cliente HTTP do SDK MCP; o runtime fixa nele os endereços conferidos (`runtime/rede.py`) |
+| httpx2 | 2.13.1 | BSD-3-Clause | Cliente HTTP do SDK MCP ([nota](#notas-das-dependências)) |
 | pillow | 12.3.0 | MIT-CMU | Leitura de imagens para o OCR |
 | pytesseract | 0.3.13 | Apache-2.0 | Ponte Python para o Tesseract |
 | pytest | 9.0.3 | MIT | Testes |
@@ -40,12 +40,15 @@ pacotes Python e `/usr/share/doc/<pacote>/copyright` para os do Debian). Cada im
 | fonts-dejavu-core, -mono (Debian, via fontconfig do Tesseract) | 2.37 | Bitstream Vera (mudanças do DejaVu em domínio público) | Fontes dos pedidos da carga (`tests/load/pedidos.py`) |
 | python:3.12-slim (imagem base) | 3.12 | PSF-2.0 e licenças do Debian 13 | Base de todas as imagens |
 
+<a name="notas-das-dependências"></a>Notas da tabela:
+
+- **httpx2:** o runtime fixa nele os endereços conferidos ([Hosts permitidos](referencia.md#hosts-permitidos)).
+
 As dependências diretas são permissivas (MIT, BSD, Apache-2.0, PSF): pedem que os avisos de
 copyright sejam mantidos, e a Apache-2.0 também pede o arquivo NOTICE quando houver. Há copyleft em
 duas partes:
-- a **certifi**, dependência transitiva, é MPL-2.0, um copyleft fraco por arquivo: só quem
-  modifica e distribui os arquivos dela precisa publicar essas mudanças. O projeto a usa sem
-  modificação;
+- a **certifi**, dependência transitiva, é MPL-2.0, um copyleft fraco por arquivo. Só quem modifica e distribui os
+  arquivos dela precisa publicar essas mudanças, e o projeto a usa sem modificação;
 - a imagem base traz pacotes do Debian sob GPL/LGPL (por exemplo `bash` e `libc6`), usados
   como programas do sistema, sem modificação.
 
@@ -80,7 +83,9 @@ Ao Gemini vai só texto, nunca o nome real do arquivo:
 A imagem e os dados pessoais nunca saem dos containers. O resto:
 
 - O projeto funciona com a chave do plano gratuito, mas as execuções deste repositório usaram a Gemini API paga.
-- Pelos [termos da Gemini API](https://ai.google.dev/gemini-api/terms) (seção "How Google Uses Your Data"), nos serviços pagos o Google não usa os prompts nem as respostas para melhorar seus produtos; nos gratuitos, pode usar.
+- Pelos [termos da Gemini API](https://ai.google.dev/gemini-api/terms), seção "How Google Uses Your Data":
+  - nos serviços pagos, o Google não usa os prompts nem as respostas para melhorar seus produtos;
+  - nos gratuitos, pode usar.
 - Para dados reais, use a API paga.
 - O projeto não tem rastreamento nem telemetria: não há biblioteca de analytics nem exportador OpenTelemetry
   configurado.

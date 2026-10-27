@@ -28,8 +28,8 @@ Cinco specs de exemplo transpilam e importam nos testes:
 | [`agent.json`](../specs/agent.json) | `extract` → `search` → `schedule` | lê, busca e agenda depois da confirmação da lista; o que tem confiança de 0,70 a 0,90 vai com aviso |
 | [`agent-sem-confirmacao.json`](../specs/agent-sem-confirmacao.json) | o mesmo | `ask_from: null`: abaixo de 0,90 só avisa, sem a faixa com aviso na lista |
 | [`listar-exames.json`](../specs/listar-exames.json) | `ler` → `listar` | só OCR e RAG, sem API: lista os exames com código e confiança, sem agendar |
-| [`agendar-variante.json`](../specs/agendar-variante.json) | `ler_e_buscar` → `revisar` → `agendar` | outros nomes de servidor e de agente; um agente lê e busca, um agente sem ferramentas revisa a lista, outro agenda |
-| [`exemplo-generico.json`](../specs/exemplo-generico.json) | `answer` | fora do domínio: um `LlmAgent` só, a raiz, com um servidor MCP de documentação e nenhum plugin; o arquivo gerado não importa nada da política de agendamento |
+| [`agendar-variante.json`](../specs/agendar-variante.json) | `ler_e_buscar` → `revisar` → `agendar` | outros nomes; um agente sem ferramentas revisa a lista |
+| [`exemplo-generico.json`](../specs/exemplo-generico.json) | `answer` | fora do domínio ([detalhe](#um-agente-fora-do-domínio)) |
 
 **Uma spec sua** vai na pasta `specs/`, sem reconstruir a imagem. Os comandos e o que acontece com o arquivo anterior:
 [como-rodar.md](como-rodar.md#2-rodar-o-transpilador).
@@ -98,8 +98,8 @@ exata do `transpile` para `specs/agent.json`, e um teste falha se ela ficar desa
   [`transpiler/live.py`](../transpiler/live.py) pergunta a cada servidor quais ferramentas ele tem
   ([Ferramentas conferidas nos servidores](#ferramentas-conferidas-nos-servidores)).
 
-  Um teste garante que o gerado importa só `google.adk`, `google.genai` e `runtime`. Uma regra copiada em cada arquivo
-  gerado não seria testada; uma regra num pacote é testada uma vez, para todas as specs.
+  Um teste garante que o gerado importa só `google.adk`, `google.genai` e `runtime`. Por que uma biblioteca:
+  [decisoes.md](decisoes.md#o-agentpy-usa-só-classes-do-adk-a-política-mora-num-plugin-versionado).
 
 ## Campos da spec
 
@@ -134,8 +134,8 @@ exata do `transpile` para `specs/agent.json`, e um teste falha se ela ficar desa
 | Campo | Regra | Vira no código gerado |
 |---|---|---|
 | `name` | identificador: minúsculas, dígitos e `_`, começando por letra | `App(name=...)` e o nome do workflow |
-| `model` | `gemini-<versão>`; numa execução, pode ser trocado com `-e GEMINI_MODEL=<modelo>` (validado pela mesma regra) | `gemini(...)`: o `Gemini` de cada agente sem `model` próprio, com 5 tentativas automáticas em `429`/`500`/`503` |
-| `fallback_model` | opcional, `gemini-<versão>` | `gemini(<modelo>, fallback=<reserva>)`: a mesma requisição vai ao reserva se o principal responder `429`/`503` (`cli run`, `adk run` e `adk web`) |
+| `model` | `gemini-<versão>` | `gemini(...)`: o `Gemini` de cada agente sem `model` próprio |
+| `fallback_model` | opcional, `gemini-<versão>` | `gemini(<modelo>, fallback=<reserva>)` ([como](#fallback_model-por-requisição)) |
 | `servers` | de 1 a 10 servidores | um toolset por servidor usado por um agente |
 | `servers.<nome>` | identificador escolhido pela spec (`ocr`, `leitor`, `docs`...); o servidor é **ou** MCP **ou** OpenAPI | o nome do servidor em `servidor.ferramenta` |
 | `servers.<nome>.url` + `tools` | servidor MCP por SSE: `http://host:porta/sse` e os nomes das ferramentas que os agentes podem chamar | `McpToolset(SseConnectionParams(url=...), tool_filter=[...])` |
@@ -144,7 +144,7 @@ exata do `transpile` para `specs/agent.json`, e um teste falha se ela ficar desa
 | `agents[].name` | identificador, sem repetir, sem nome reservado nem de função do Python (`print`) | `LlmAgent(name=...)` e o nome da variável no gerado |
 | `agents[].instruction` | texto, com placeholders `{chave}` ou `{chave?}` (notas abaixo) | `instruction` |
 | `agents[].output_key` | identificador, sem repetir; com o `BookingPlugin`, fora das chaves que ele usa no estado | `output_key` (estado compartilhado) |
-| `agents[].output_schema` | opcional, `modulo.Classe`: um modelo pydantic num dos pacotes permitidos | `output_schema`: o ADK confere a resposta do agente contra o modelo, também com ferramentas |
+| `agents[].output_schema` | opcional, `modulo.Classe`: um modelo pydantic num dos pacotes permitidos | `output_schema` |
 | `agents[].model` | opcional, `gemini-<versão>` | o `Gemini` só desse agente |
 | `agents[].tools` | `servidor.ferramenta` de um servidor declarado; pode ficar vazio (um agente que só reescreve a lista do anterior) | `tools=[...]` do agente, só com essas ferramentas |
 | `workflow` | `SequentialAgent` (o padrão), `ParallelAgent`, `LoopAgent` ou `null` (notas abaixo) | `root_agent` |
@@ -153,6 +153,9 @@ exata do `transpile` para `specs/agent.json`, e um teste falha se ela ficar desa
 
 Notas da tabela:
 
+- **`model`:** numa execução, pode ser trocado com `-e GEMINI_MODEL=<modelo>`, validado pela mesma regra. O `Gemini`
+  tem 5 tentativas automáticas em `429`, `500` e `503`.
+- **`agents[].output_schema`:** o ADK confere a resposta do agente contra o modelo, também com ferramentas.
 - **`servers.<nome>`:** o host da URL precisa estar em `ALLOWED_HOSTS`
   ([abaixo](#hosts-permitidos-quem-decide-é-quem-implanta-não-a-spec)).
 - **`agents[].instruction`:**
@@ -270,9 +273,15 @@ As regras abaixo são do plugin (`check_spec`), chamadas pelo `transpile` com as
   - Na listagem, os limiares só definem as faixas de confiança: o que sai como exame lido, o que sai como `confira` e o
     que fica de fora. Nada é agendado.
   - Os limiares são opcionais. Os valores de `listar-exames.json` são os padrões.
-- **Toda ferramenta de um agente tem papel, e uma operação de API só chega a um agente como `book`**, a única chamada que o runtime confere antes de enviar.
-  - O `transpile` recusa uma ferramenta sem papel e qualquer outra operação de API: uma 2ª operação, um 2º servidor OpenAPI, a API renomeada sem mudar `book` ou uma API numa spec que só lista.
-  - O runtime também recusa, em tempo de execução, qualquer ferramenta fora dos papéis e, no agendamento, qualquer campo além de `exams` e da `Idempotency-Key` do runtime.
+- **Toda ferramenta de um agente tem papel.** Uma operação de API só chega a um agente como `book`, a única chamada que
+  o runtime confere antes de enviar.
+  - O `transpile` recusa uma ferramenta sem papel e qualquer outra operação de API:
+    - uma 2ª operação;
+    - um 2º servidor OpenAPI;
+    - a API renomeada sem mudar `book`;
+    - uma API numa spec que só lista.
+  - Em tempo de execução, o runtime também recusa qualquer ferramenta fora dos papéis.
+  - No agendamento, ele recusa qualquer campo além de `exams` e da `Idempotency-Key` do runtime.
   - Com a API no ar, o `transpile` confere o contrato da operação de `book`:
     - ela recebe `Idempotency-Key` e um corpo só com `exams` (`additionalProperties: false`);
     - cada exame tem `code`; o `name` é opcional, e a API do projeto devolve o nome do catálogo.
