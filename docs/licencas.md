@@ -29,6 +29,7 @@ pacotes Python e `/usr/share/doc/<pacote>/copyright` para os do Debian). Cada im
 | pytesseract | 0.3.13 | Apache-2.0 | Ponte Python para o Tesseract |
 | pytest | 9.0.3 | MIT | Testes |
 | pytest-xdist | 3.8.0 | MIT | Testes em paralelo (só na imagem `test`) |
+| execnet | 2.1.2 | MIT | Dependência do pytest-xdist (só na imagem `test`) |
 | pytest-cov | 7.1.0 | MIT | Cobertura no pytest (só na imagem `test`) |
 | ruff | 0.16.10 | MIT | Estilo (só na imagem `test`) |
 | mypy | 2.4.0 | MIT | Tipos (só na imagem `test`) |
@@ -80,7 +81,8 @@ Ao Gemini vai só texto, nunca o nome real do arquivo:
 - os códigos e nomes de exames do catálogo;
 - um apelido da imagem (`pedido-1.png`).
 
-A imagem e os dados pessoais nunca saem dos containers. O resto:
+A imagem nunca sai dos containers, e os dados pessoais saem mascarados. O que a máscara não reconhece pode chegar
+ao modelo ([limites](medicoes.md#limites-conhecidos)). O resto:
 
 - O projeto funciona com a chave do plano gratuito, mas as execuções deste repositório usaram a Gemini API paga.
 - Pelos [termos da Gemini API](https://ai.google.dev/gemini-api/terms), seção "How Google Uses Your Data":

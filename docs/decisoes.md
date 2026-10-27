@@ -240,8 +240,8 @@ com a confiança do Tesseract (`line_confidence`).
   - Os exames achados no texto foram de 45% para 53%.
   - Nos 120 manuscritos, de 23% para 34%.
   - A latência sobe 1,6x.
-- **Custo:** letra de médico continua quase ilegível. Nos 120 manuscritos simulados, só com a regra de linha, 1 de 206
-  exames foi agendado sozinho em 2026-10-06 ([medição](medicoes.md#pedidos-manuscritos-simulados)).
+- **Custo:** letra de médico continua quase ilegível. Só com a regra de linha, 1 dos 206 exames dos 50 manuscritos
+  simulados de letra de médico foi agendado sozinho em 2026-10-07 ([medição](medicoes.md#pedidos-manuscritos-simulados)).
 
 Próximo passo avaliado: um OCR moderno nas linhas de baixa confiança, adiado pelo custo em imagem, memória e tempo
 de CPU ([medição](medicoes.md#ocr-moderno-avaliado-não-adotado)).

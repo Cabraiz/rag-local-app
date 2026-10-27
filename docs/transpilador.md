@@ -291,15 +291,16 @@ As regras abaixo são do plugin (`check_spec`), chamadas pelo `transpile` com as
 
 ### O que o `cli run` roda
 
-O `cli run` roda specs com o `BookingPlugin` com `read` e `search`. Com `book`, agenda; sem `book`, lista.
-
-Uma spec sem eles é um pipeline que não lê um pedido em imagem, como o exemplo genérico. Ela transpila, importa e roda
-com `adk run` e `adk web`, e o `cli run` diz que não a roda:
+O `cli run` roda specs com o `BookingPlugin` com `read` e `search`. Com `book`, agenda; sem `book`, lista, como a
+`listar-exames.json`:
 
 ```bash
 docker compose run --rm agent python -m cli transpile specs/listar-exames.json --output generated/listar/agent.py
 docker compose run --rm agent python -m cli run --image pedido.png --spec specs/listar-exames.json --agent generated/listar/agent.py
 ```
+
+Uma spec sem `read` e `search` é um pipeline que não lê um pedido em imagem, como o exemplo genérico. Ela transpila,
+importa e roda com `adk run` e `adk web`, e o `cli run` diz que não a roda.
 
 ### As garantias medidas valem para a política padrão
 

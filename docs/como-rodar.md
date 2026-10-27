@@ -179,7 +179,7 @@ docker compose run --rm agent python -m cli run --image <arquivo>
   - Um PDF renomeado é recusado pelo OCR: `O arquivo é um PDF, não uma imagem: exporte a página como PNG ou JPEG.`
 - **Foto de lado ou de cabeça para baixo** é endireitada. Se nem assim der: `imagem de lado ou de cabeça para baixo: gire e envie de novo`. PNG transparente é lido sobre branco.
 - **Arquivo inexistente ou recusado:** a CLI pergunta ao OCR antes do Gemini, então o erro sai em segundos:
-  `Erro: OCR recusou a imagem: Arquivo "x.png" não encontrado em /data/samples.; nada foi agendado`.
+  `Erro: OCR recusou a imagem: Arquivo "x.png" não encontrado em /data/samples; nada foi agendado`.
   - Só uma página que o Tesseract não consegue endireitar é recusada durante a execução.
   - O nome vai só ao OCR. O modelo recebe um apelido (`pedido-1.png`).
 - **A suíte não muda:** os testes usam a lista fixa dos arquivos versionados ([`tests/versionados.py`](../tests/versionados.py), [`test_versionados.py`](../tests/test_versionados.py)).

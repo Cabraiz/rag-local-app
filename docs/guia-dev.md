@@ -349,9 +349,11 @@ em `line_intent` (passo 1) e procure-o no mapa [regras.md](regras.md).
 
 ## Convenções
 
-- **Estilo.** Python 3.12, linha de 120, `ruff` (`E`, `F`, `I`, `B`, `C901` com complexidade máxima 10: uma função com
-  mais ramos é dividida) e `mypy`. Identificadores e comentários em inglês; nomes de módulo e mensagens ao usuário em
-  português (`confianca`, `reconcilia`). Sem formatador automático. O CI roda `ruff` e `mypy`.
+- **Estilo.** Python 3.12, com `ruff` e `mypy`, que o CI roda. Sem formatador automático.
+  - Linha de até 120 colunas, por convenção: o `ruff` ignora o `E501`.
+  - O `ruff` confere `E`, `F`, `I`, `B` e `C901`, com complexidade máxima 10. Uma função com mais ramos é dividida.
+  - Identificadores e comentários em inglês; nomes de módulo e mensagens ao usuário em português (`confianca`,
+    `reconcilia`).
 - **Mensagens.** Toda falha esperada é uma linha `Erro: ...` em português, com o campo ou o motivo e, quando existe, o
   que fazer; nunca um traceback. Texto que vem da imagem nunca vai a um log sem passar por máscara.
 - **Segurança por padrão.**

@@ -620,7 +620,7 @@ CLI antes do modelo, OCR, RAG, API, o agente gerado e, por fim, o fim da execuç
 | Servidor que responde ao GET, mas não lista as ferramentas | `cli run` | `servers.rag: http://rag:8002/sse respondeu, mas não listou as ferramentas (é um servidor MCP?)`, antes de chamar o Gemini |
 | `--image` com pasta | `cli run` | `--image: informe só o nome do arquivo dentro de samples/, ex.: pedido.png`, antes de chamar o Gemini |
 | `--image` com extensão fora de `.png`/`.jpg`/`.jpeg` | `cli run` | `--image: "..." não é uma imagem aceita; use .png, .jpg ou .jpeg`, antes de chamar o Gemini |
-| Imagem inexistente ou grande demais | `cli run`, que pergunta ao OCR (`check_image`) antes do 1º turno | `OCR recusou a imagem: Arquivo "x.png" não encontrado em /data/samples.; nada foi agendado` (código 2) |
+| Imagem inexistente ou grande demais | `cli run`, que pergunta ao OCR (`check_image`) antes do 1º turno | `OCR recusou a imagem: Arquivo "x.png" não encontrado em /data/samples; nada foi agendado` (código 2) |
 | Conteúdo que não é a imagem que a extensão diz | OCR | `O conteúdo do arquivo não corresponde à extensão (use PNG ou JPEG).` |
 | Imagem corrompida ou cortada | OCR | `Imagem corrompida ou incompleta.` |
 | PDF renomeado para `.png` | OCR | `O arquivo é um PDF, não uma imagem: exporte a página como PNG ou JPEG.` |
@@ -656,7 +656,7 @@ CLI antes do modelo, OCR, RAG, API, o agente gerado e, por fim, o fim da execuç
 | Falha depois que a API foi chamada | `cli run` | a mensagem acrescenta `o agendamento <id> já foi criado, não repita` ou `a API já foi chamada, confira os agendamentos antes de repetir` |
 
 As recusas do OCR das linhas seguintes à "Imagem inexistente" também saem nessa conferência, antes de chamar o
-Gemini.
+Gemini. A exceção é a página que o Tesseract não consegue endireitar: ela só é recusada durante a execução.
 
 Se o `agent.py` foi gerado de outra spec, não o gere de novo: passe ao `run` a spec e o agente dela
 (`--spec specs/<sua-spec>.json --agent generated/<nome>/agent.py`).

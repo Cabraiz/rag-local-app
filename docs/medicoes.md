@@ -278,7 +278,7 @@ Medido com OCR por linha, busca, faixas de confiança e a
 [regra de linha](#lista-branca-só-agenda-sozinha-a-linha-que-é-só-exame).
 
 **Estado atual:** com todas as regras de hoje, as 120 manuscritas têm **24 exames agendados sozinhos e 0 errados sem
-confirmação**. A tabela abaixo, de 2026-10-06, mede só a regra de linha, sem as regras de página: mostra o teto da leitura por estilo.
+confirmação**. A tabela abaixo, de 2026-10-07, mede só a regra de linha, sem as regras de página: mostra o teto da leitura por estilo.
 
 | Estilo · qualidade | Agendados sozinhos | Perguntados | Baixa confiança | Não lidos | Errados sem confirmação |
 |---|---|---|---|---|---|
@@ -649,7 +649,7 @@ negações nunca fecha: "pedido por engano" escapava.
 
 Notas da tabela:
 
-1. Na época, 234 exames sem leitura; hoje 249 ([acima](#pedidos-manuscritos-simulados)).
+1. Na época, 234 exames sem leitura; 249 na tabela de 2026-10-07 ([acima](#pedidos-manuscritos-simulados)).
 2. As linhas de `legit.txt` e `legit-pages.txt` e os 227 termos que o catálogo tinha antes dos 13 sinônimos novos, em
    várias grafias. Nenhuma linha com exame saiu de `request`.
 3. Com a negação, a regra da observação pergunta "Função tireoidiana (TSH, T4 livre)". Com esta regra, também "Urina
@@ -769,7 +769,8 @@ Exames para agendar:
 Agendar estes 3 exames?
 ```
 
-Medido como na seção anterior: o modelo busca o nome de cada exame do gabarito e cada linha.
+Medido com OCR, busca e callbacks reais. Diferente da seção anterior, o modelo simulado busca o nome de cada exame do
+gabarito e cada linha.
 
 - Nos 29 adversariais, os exames errados agendados sozinhos caem de 9 (em 8 pedidos) para **6 (em 6)**.
 - Nas 16 notas de topo, as páginas limpas caem de 8 para **0**.
@@ -802,9 +803,9 @@ Só "Colesterol total e frações (HDL, LDL)" seria perguntada, e nenhum conjunt
 
 **Leitura**
 
-- **Letra de médico:** 1 de 206 exames agendado sozinho. Medido em 2026-10-06 nos 120 manuscritos, só com a regra
+- **Letra de médico:** 1 de 206 exames agendado sozinho. Medido em 2026-10-07 nos 50 manuscritos de letra de médico, só com a regra
   de linha ([medição](#pedidos-manuscritos-simulados); [leitor local](#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão)).
-- **Letra comum, só com a regra de linha** (2026-10-06): 51% agendados no scan, 48% na foto e 14% na foto ruim. Hoje:
+- **Letra comum, só com a regra de linha** (2026-10-07): 51% agendados no scan, 48% na foto e 14% na foto ruim. Hoje:
   [estado atual](#estado-atual).
 - **Troca entre exames:** "TGP" lido "TAP" é perguntado; com `--yes`, fica de fora. O piso de 95 foi calibrado nesse
   caso ([os pisos](glossario.md#faixas-e-pisos)). A troca TGO/TGP não é coberta.
