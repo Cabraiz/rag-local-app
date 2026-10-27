@@ -16,9 +16,10 @@ docker compose run --rm agent python -m cli transpile specs/agent.json   # JSON 
 docker compose run --rm agent python -m cli run --image pedido.png       # lê samples/pedido.png e agenda (segundos a minutos, conforme a fila do Gemini)
 ```
 
-Saída esperada do último comando. É um trecho do [log real](docs/evidencias/log-run-pedido.txt): a saída completa também mostra o progresso de cada etapa (`[extract] chamando …`) e termina numa linha `Tempo:`.
+Saída esperada do último comando, cortada do [log real](docs/evidencias/log-run-pedido.txt). A saída completa também mostra o progresso de cada etapa e termina numa linha `Tempo:`.
 
 ```text
+Trechos removidos pelo OCR (não pareciam exame): 3
 Exames para agendar:
 - Hemograma completo (FICT-001)
 - Glicemia de jejum (FICT-002)
@@ -26,6 +27,7 @@ Exames para agendar:
 Agendar estes 3 exames? [s/N] s
 
 PII reconhecida e mascarada pelo OCR: NOME x2, CPF x1, EMAIL x1, TELEFONE x1
+Trechos removidos pelo OCR (não pareciam exame): 3
 | Exame              | Código   |
 |--------------------|----------|
 | Hemograma completo | FICT-001 |
@@ -46,13 +48,15 @@ https://github.com/user-attachments/assets/2bf4ca61-0f7f-42d9-a174-16b3377d8f16
 | Componente | Código | Testes e demonstração |
 |---|---|---|
 | Transpilador: JSON → Python que usa só classes do Google ADK | [`transpiler/`](transpiler/), [`runtime/`](runtime/), [5 specs](specs/) | [vídeo 01](docs/videos.md#01-transpilador) · [testes](tests/test_transpiler.py) · [specs diferentes](tests/test_spec_generica.py) · [com `adk run`](tests/test_adk_run.py) · [doc](docs/transpilador.md) |
-| Validação da spec, com erros claros; código gerado que importa e segue o ADK | [`transpiler/spec.py`](transpiler/spec.py), [`transpiler/live.py`](transpiler/live.py), [`transpiler/generator.py`](transpiler/generator.py) | [erros reais](docs/transpilador.md#validação-e-mensagens-de-erro) · [código gerado](docs/exemplo-agent.py) |
+| Validação da spec, com erros claros | [`transpiler/spec.py`](transpiler/spec.py), [`transpiler/live.py`](transpiler/live.py) | [erros reais](docs/transpilador.md#validação-e-mensagens-de-erro) |
+| Código gerado que importa e segue o ADK | [`transpiler/generator.py`](transpiler/generator.py) | [código gerado](docs/exemplo-agent.py) |
 | CLI de agendamento, com uma spec e uma imagem de exemplo | [`cli.py`](cli.py), [`specs/agent.json`](specs/agent.json), [`samples/pedido.png`](samples/pedido.png) | [log do `run`](docs/evidencias/log-run-pedido.txt) · [outra imagem](docs/como-rodar.md#testar-outra-imagem) |
 | OCR e RAG (≥ 100 exames) como servidores MCP só via SSE | [`mcp_servers/ocr.py`](mcp_servers/ocr.py), [`mcp_servers/rag.py`](mcp_servers/rag.py), [`data/exams.json`](data/exams.json) (120) | vídeos [02](docs/videos.md#02-ocr-via-mcp-sse) e [03](docs/videos.md#03-rag-via-mcp-sse) · [SSE](tests/test_mcp_sse.py) · [OCR](tests/test_ocr.py) · [RAG](tests/test_rag.py) · [como iniciar e conectar](docs/referencia.md#servidores-mcp) |
-| Agendamento em FastAPI; Swagger (`/docs`) com o contrato que o agente consome | [`api/main.py`](api/main.py), [`api/crypto.py`](api/crypto.py) | [vídeo 04](docs/videos.md#04-api-e-swagger) · [API](tests/test_api.py) · [operações](docs/como-rodar.md#1-subir-o-ambiente-docker) |
-| Saída: exames com códigos e confirmação da API; antes, a pessoa confirma a lista | [`cli.py`](cli.py), [`runtime/confirmacao.py`](runtime/confirmacao.py) | [vídeo 05](docs/videos.md#05-ponta-a-ponta-com-gemini) · [captura](docs/evidencias/cli-run-pedido.png) |
-| Só dados fictícios | [`data/exams.json`](data/exams.json) (`FICT-xxx`), [`samples/`](samples/), [`tests/load/pedidos.py`](tests/load/pedidos.py) | e-mails `.invalid` (RFC 2606), CPFs com dígito verificador errado ([como](docs/medicoes.md#dados-sensíveis-como-contornamos)) |
-| PII mascarada antes do LLM e do banco | [`guardrails/pii.py`](guardrails/pii.py), [`guardrails/injection.py`](guardrails/injection.py), [`guardrails/intent.py`](guardrails/intent.py) | vídeos [06](docs/videos.md#06-pii) e [08](docs/videos.md#08-segurança) · [PII](tests/test_pii.py) · [exame negado](tests/test_negacao.py) · [onde](docs/referencia.md#onde-a-pii-é-mascarada) · [o que ainda passa](docs/decisoes.md#pii-mascarada-na-origem-banco-sem-pii) · [carga](docs/medicoes.md#carga-de-dados-sensíveis) |
+| Agendamento numa API FastAPI, com o contrato no Swagger (`/docs`) | [`api/main.py`](api/main.py), [`api/crypto.py`](api/crypto.py) | [vídeo 04](docs/videos.md#04-api-e-swagger) · [API](tests/test_api.py) · [operações](docs/como-rodar.md#1-subir-o-ambiente-docker) |
+| Saída: exames com códigos e a confirmação da API | [`cli.py`](cli.py), [`runtime/confirmacao.py`](runtime/confirmacao.py) | [vídeo 05](docs/videos.md#05-ponta-a-ponta-com-gemini) · [captura](docs/evidencias/cli-run-pedido.png) |
+| Só dados fictícios | [`data/exams.json`](data/exams.json) (`FICT-xxx`), [`samples/`](samples/), [`tests/load/pedidos.py`](tests/load/pedidos.py) | [como os dados são fictícios](docs/medicoes.md#dados-sensíveis-como-contornamos) |
+| PII mascarada antes do LLM e do banco | [`guardrails/pii.py`](guardrails/pii.py), [`guardrails/pii_rules.py`](guardrails/pii_rules.py) | [vídeo 06](docs/videos.md#06-pii) · [PII](tests/test_pii.py) · [onde](docs/referencia.md#onde-a-pii-é-mascarada) · [o que ainda passa](docs/decisoes.md#pii-mascarada-na-origem-banco-sem-pii) · [carga](docs/medicoes.md#carga-de-dados-sensíveis) |
+| Injeção e exames que o pedido manda não fazer, barrados antes do LLM | [`guardrails/injection.py`](guardrails/injection.py), [`guardrails/intent.py`](guardrails/intent.py) | [vídeo 08](docs/videos.md#08-segurança) · [exame que o pedido manda não fazer](tests/test_negacao.py) · [regras](docs/regras.md) |
 | Tudo em Docker, orquestrado por um `docker-compose.yml` | [`Dockerfile`](Dockerfile) (multi-stage), [`docker-compose.yml`](docker-compose.yml) | [vídeo 07](docs/videos.md#07-docker-e-testes) · [testes](docs/guia-dev.md#testes) |
 | README, evidências e uso de IA | este arquivo, [`docs/evidencias/`](docs/evidencias/), [`docs/gravacoes/`](docs/gravacoes/) | [guia completo](docs/como-rodar.md) · [Evidências](#evidências) · [Uso de IA](#uso-de-ia) |
 
@@ -60,12 +64,7 @@ https://github.com/user-attachments/assets/2bf4ca61-0f7f-42d9-a174-16b3377d8f16
 
 - **Comece pelo [guia do desenvolvedor](docs/guia-dev.md):** o mapa do repositório, o caminho de um pedido e uma receita para mudar cada peça.
 - **Termos** como `page_clean`, `confira` e as faixas de confiança: [glossário](docs/glossario.md).
-- **Onde mexer:**
-  - `transpiler/`: a spec e o código gerado;
-  - `runtime/`: o `BookingPlugin`, que o `agent.py` importa;
-  - `mcp_servers/`: o OCR e o RAG;
-  - `guardrails/`: PII, injeção e [regras](docs/regras.md);
-  - `api/`: a API FastAPI.
+- **Onde mexer:** o [mapa do repositório](docs/guia-dev.md#mapa-do-repositório) diz o que cada pasta faz.
 
 ```bash
 docker compose run --rm tests pytest -q -n auto               # a suíte inteira, sem chave do Gemini
@@ -85,24 +84,24 @@ flowchart LR
     E & S & A -.->|só texto mascarado| G(("Gemini"))
 ```
 
-O `up` sobe OCR, RAG e API. O agente roda sob demanda, pelo `cli run` ou pelo `adk run`. Cada etapa deixa a sua saída no estado (`output_key`) e só vê as ferramentas que a spec lhe dá (`tool_filter`). O `BookingPlugin` confere cada chamada de modelo e de ferramenta. Detalhe: [docs/arquitetura.md](docs/arquitetura.md).
+O `up` sobe OCR, RAG e API. O agente roda sob demanda, pelo `cli run` ou pelo `adk run`. Cada etapa deixa a sua saída no estado (`output_key`). Ela só vê as ferramentas que a spec lhe dá (`tool_filter`). O `BookingPlugin` confere cada chamada de modelo e de ferramenta. Detalhe: [docs/arquitetura.md](docs/arquitetura.md).
 
 ## Decisões e trade-offs
 
 Versão longa: [docs/decisoes.md](docs/decisoes.md).
 
-- **O modelo propõe, o código decide, a pessoa confirma.** O Gemini lê as linhas de exame mascaradas e propõe os códigos. O código confere cada proposta contra o texto lido e a busca, e decide o que agenda, pergunta ou deixa de fora. Por quê: num pedido médico, a decisão precisa ser reprodutível e auditável ([detalhe](docs/decisoes.md#o-modelo-propõe-o-código-decide-a-pessoa-confirma)).
-- **Confirmação final da lista, nativa do ADK.** A pessoa vê os exames com código e aviso, e o que ficou de fora, antes de agendar. Custo: um passo a mais em todo pedido ([detalhe](docs/decisoes.md#a-confirmação-final-da-lista)).
+- **O modelo propõe, o código decide, a pessoa confirma.** O Gemini lê as linhas de exame mascaradas e propõe os códigos. O código confere cada proposta contra o texto lido e a busca, e decide o que agenda, pergunta ou deixa de fora. Antes de agendar, a pessoa vê a lista, numa confirmação nativa do ADK. Por quê: num pedido médico, a decisão precisa ser reprodutível e auditável. Custo: um passo a mais em todo pedido ([detalhe](docs/decisoes.md#o-modelo-propõe-o-código-decide-a-pessoa-confirma), [a confirmação](docs/decisoes.md#a-confirmação-final-da-lista)).
 - **Uma camada de regras, porque a imagem não é confiável e o pedido é médico.** As 22 regras dão o aviso ao lado de cada exame ([as regras](docs/regras.md)).
 - **PII mascarada na origem, banco sem PII.** Nome, CPF, telefone, e-mail e mais 10 tipos viram `[NOME]`, `[CPF]`… dentro do OCR. A API grava só códigos do catálogo, cifrados. Custo: são regras, válidas para os formatos testados ([camadas](docs/referencia.md#segurança-em-detalhe)).
-- **MCP só via SSE, rede interna, containers endurecidos.** OCR e RAG não têm internet nem porta no host. Os containers rodam sem root e só leitura. Custo: o SSE é transporte legado desde a especificação MCP 2025-03-26 ([como migrar](docs/decisoes.md#mcp-só-via-sse-rede-interna-containers-endurecidos)).
+- **MCP só via SSE.** Custo: o SSE é transporte legado desde a especificação MCP 2025-03-26 ([como migrar](docs/decisoes.md#mcp-só-via-sse-rede-interna-containers-endurecidos)).
+- **Rede interna e containers endurecidos.** OCR e RAG não têm internet nem porta no host. Os containers rodam sem root e só leitura.
 - **Transpilador estrito e genérico.** A spec tem tipos estritos, e o arquivo gerado é importado antes de o `transpile` dar certo. O domínio fica num plugin, e uma spec de outro domínio também transpila ([detalhe](docs/decisoes.md#transpilador-estrito-e-genérico)).
 - **`SequentialAgent`, obsoleto no ADK 2.10.** O substituto, `Workflow`, ainda não entra num `App` do ADK. Custo: um aviso de depreciação e uma migração futura ([detalhe](docs/decisoes.md#sequentialagent-obsoleto-no-adk-210)).
 
 ## Limites conhecidos
 
-- **Busca lexical, não semântica.** Ela entende abreviações e erros de OCR nos 120 exames fictícios. Ela não entende paráfrases. A busca semântica foi medida e não agendou nenhum exame a mais ([medição](docs/medicoes.md#busca-semântica-avaliada-não-adotada)).
-- **Letra de médico é quase ilegível para o Tesseract.** Nos 50 manuscritos simulados (206 exames, medido em 2026-10-07), ele agenda sozinho 1 exame, sem erro. Um leitor de visão local (Qwen3-VL) agendou 48 de 202 exames de letra de médico (24%), sem erro, mas é lento na CPU e não está ligado ([medição](docs/medicoes.md#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão)).
+- **Busca lexical, não semântica.** Ela entende abreviações e erros de OCR nos 120 exames fictícios. Ela não entende paráfrases. Medida em 2026-10-07, a busca semântica não agendou nenhum exame a mais ([medição](docs/medicoes.md#busca-semântica-avaliada-não-adotada)).
+- **Letra de médico é quase ilegível para o Tesseract.** Nos 50 manuscritos simulados (206 exames, medido em 2026-10-07), ele agenda sozinho 1 exame, sem erro. No mesmo dia, um leitor de visão local, o Qwen3-VL, agendou sem erro 48 de 202 exames, os dos 49 desses manuscritos que o gerador reproduz. Ele é lento na CPU, por isso não está ligado ([medição](docs/medicoes.md#letra-de-médico-leitor-local-avaliado-não-ligado-por-padrão)).
 - **Leitura fraca vira aviso.** Um exame numa linha que o OCR leu mal fica fora da pergunta. Com uma imagem nova, o agendamento pode sair parcial ([exemplo](docs/decisoes.md#exame-lido-certo-mas-com-leitura-fraca-fica-fora-da-pergunta)).
 - **Com `--yes`, só as regras decidem.** Não há pergunta, e só agendam os exames bem lidos de uma página que é só a lista. Um exame injetado como linha comum da lista é agendado, e um carimbo que o OCR não lê não é visto ([o que passa](docs/decisoes.md#com---yes-um-exame-injetado-como-linha-comum-é-agendado)).
 - **Regras não provam segurança contra ataques novos.** Elas são testadas como regressão, nos ataques de `tests/attacks/`. Sem a pessoa, a última checagem é o `BookingPlugin`: ele só agenda códigos achados nas linhas lidas. Um exame que o modelo associou mal ainda pode aparecer na lista, marcado `confira` ([detalhe](docs/decisoes.md#filtros-determinísticos-não-são-prova-contra-ataques-novos)).
@@ -123,7 +122,7 @@ Execução real com `gemini-3.5-flash`; o log do `run` é de 2026-10-09. Vídeos
 ## Uso de IA
 
 - **Abordagem:** código escrito com Claude Code e OpenAI Codex, sob a direção do autor. Arquitetura, contratos e critérios de aceite são do autor. Cada mudança passou por revisão do diff, testes e execução real.
-- **A revisão mudou o código:** [a sigla "TGP", lida "TAP" pelo OCR, seria agendada como outro exame](docs/revisao.md#tgp-tap) · [um exame escrito 3 vezes agendava também um exame parecido](docs/revisao.md#vizinho) · [num conjunto à parte de 84 dados pessoais difíceis, 31 passavam pela máscara; hoje, 0](docs/revisao.md#pii-31).
+- **A revisão mudou o código:** [a sigla "TGP", lida "TAP" pelo OCR, seria agendada como outro exame](docs/revisao.md#tgp-tap) · [um exame escrito 3 vezes agendava também um exame parecido](docs/revisao.md#vizinho) · [num conjunto à parte de 84 dados pessoais difíceis, 31 passavam pela máscara; depois da correção, 0](docs/revisao.md#pii-31).
 - **Cada achado e o teste que o trava:** [docs/revisao.md](docs/revisao.md), achados até 2026-10-06. O histórico do git foi reescrito em poucos commits, um por camada, então as correções não aparecem como commits próprios.
 - **Referências e orquestração:** [Google ADK](https://google.github.io/adk-docs/), [MCP: transporte HTTP+SSE](https://modelcontextprotocol.io/specification/2024-11-05/basic/transports), [Gemini API](https://ai.google.dev/gemini-api/docs) e a [lista completa, com a orquestração do agente](docs/revisao.md#referências-e-orquestração-do-agente).
 
