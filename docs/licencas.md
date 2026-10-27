@@ -8,9 +8,11 @@ O código deste repositório está sob a licença [MIT](../LICENSE).
 ## Dependências
 
 Licenças conferidas nos metadados instalados nas imagens Docker (`importlib.metadata` para os
-pacotes Python e `/usr/share/doc/<pacote>/copyright` para os do Debian). O `agent` leva o ADK, o
-cliente da Gemini API, o MCP, o httpx e o httpx2; pillow, pytesseract, o Tesseract e as fontes ficam nas imagens
-do `ocr` e de testes (`test`), e o pytest só na de testes.
+pacotes Python e `/usr/share/doc/<pacote>/copyright` para os do Debian). Cada imagem leva só o que usa:
+
+- o `agent`: o ADK, o cliente da Gemini API, o MCP, o httpx e o httpx2;
+- o `ocr` e a de testes (`test`): pillow, pytesseract, o Tesseract e as fontes;
+- só a de testes: o pytest.
 
 | Pacote | Versão | Licença | Uso |
 |---|---|---|---|
@@ -26,7 +28,10 @@ do `ocr` e de testes (`test`), e o pytest só na de testes.
 | pillow | 12.3.0 | MIT-CMU | Leitura de imagens para o OCR |
 | pytesseract | 0.3.13 | Apache-2.0 | Ponte Python para o Tesseract |
 | pytest | 9.0.3 | MIT | Testes |
-| pytest-xdist 3.8.0, pytest-cov 7.1.0, ruff 0.16.10, mypy 2.4.0 | | MIT | Testes em paralelo, cobertura, estilo e tipos (só na imagem `test`) |
+| pytest-xdist | 3.8.0 | MIT | Testes em paralelo (só na imagem `test`) |
+| pytest-cov | 7.1.0 | MIT | Cobertura no pytest (só na imagem `test`) |
+| ruff | 0.16.10 | MIT | Estilo (só na imagem `test`) |
+| mypy | 2.4.0 | MIT | Tipos (só na imagem `test`) |
 | coverage | 7.16.2 | Apache-2.0 | Medição de cobertura (só na imagem `test`) |
 | tesseract-ocr, libtesseract5 (Debian) | 5.5.0 | Apache-2.0 | Motor de OCR |
 | tesseract-ocr-por, -eng, -osd (Debian) | 4.1.0 | Apache-2.0 | Dados de idioma do OCR |
@@ -66,10 +71,20 @@ carga e não são gravadas no disco nem no repositório.
 
 ## Dados e IA
 
-Ao Gemini vai só texto: as linhas do pedido já mascaradas pelo servidor de OCR (`[NOME]`, `[CPF]`…), os códigos e nomes de exames do catálogo e um apelido da imagem (`pedido-1.png`), nunca o nome real do arquivo.
+Ao Gemini vai só texto, nunca o nome real do arquivo:
 
-- A imagem e os dados pessoais nunca saem dos containers.
+- as linhas do pedido já mascaradas pelo servidor de OCR (`[NOME]`, `[CPF]`…);
+- os códigos e nomes de exames do catálogo;
+- um apelido da imagem (`pedido-1.png`).
+
+A imagem e os dados pessoais nunca saem dos containers. O resto:
+
 - O projeto funciona com a chave do plano gratuito, mas as execuções deste repositório usaram a Gemini API paga.
 - Pelos [termos da Gemini API](https://ai.google.dev/gemini-api/terms) (seção "How Google Uses Your Data"), nos serviços pagos o Google não usa os prompts nem as respostas para melhorar seus produtos; nos gratuitos, pode usar.
 - Para dados reais, use a API paga.
-- O projeto não tem rastreamento nem telemetria: não há biblioteca de analytics nem exportador OpenTelemetry configurado, e a única chamada para fora é a do serviço `agent` à Gemini API (OCR e RAG ficam numa rede sem internet).
+- O projeto não tem rastreamento nem telemetria: não há biblioteca de analytics nem exportador OpenTelemetry
+  configurado.
+- Do código do projeto, só os serviços `agent` e `tests-e2e` chamam algo fora: a Gemini API. OCR e RAG ficam numa
+  rede sem internet.
+- A página `/docs` faz o navegador carregar o Swagger UI do `cdn.jsdelivr.net`
+  ([limite](decisoes.md#cadeia-de-suprimentos-em-parte)).

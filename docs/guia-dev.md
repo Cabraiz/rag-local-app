@@ -7,14 +7,14 @@
 - receitas para as mudanças mais comuns;
 - como depurar um pedido que falhou ou foi perguntado.
 
-- Leia depois do [README](../README.md).
-- A referência de cada tema fica nos outros documentos, com links no ponto certo:
-  - como funciona: [arquitetura.md](arquitetura.md);
-  - spec e código gerado: [transpilador.md](transpilador.md);
-  - regras de linha e de página: [regras.md](regras.md);
-  - números: [medicoes.md](medicoes.md);
-  - operação: [como-rodar.md](como-rodar.md);
-  - escolhas e limites: [decisoes.md](decisoes.md).
+Leia depois do [README](../README.md). A referência de cada tema fica nos outros documentos, com links no ponto certo:
+
+- como funciona: [arquitetura.md](arquitetura.md);
+- spec e código gerado: [transpilador.md](transpilador.md);
+- regras de linha e de página: [regras.md](regras.md);
+- números: [medicoes.md](medicoes.md);
+- operação: [como-rodar.md](como-rodar.md);
+- escolhas e limites: [decisoes.md](decisoes.md).
 
 **Índice:** [Mapa do repositório](#mapa-do-repositório) · [O caminho de um pedido no código](#o-caminho-de-um-pedido-no-código) ·
 [Rodar cada peça e os testes](#rodar-cada-peça-e-os-testes) · [Primeira mudança](#primeira-mudança-passo-a-passo) · [Receitas](#receitas) ·
@@ -26,7 +26,7 @@
 |---|---|---|
 | [`specs/`](../specs/) | As 5 specs JSON de exemplo; o serviço `agent` a monta só para leitura | for descrever outro agente ([receita](#escrever-uma-spec-nova)) |
 | [`transpiler/`](../transpiler/) | `spec.py` (schema e validação), `generator.py` + `agent_template.py.tmpl` (código gerado), `live.py` (confere as ferramentas nos servidores) | mudar um campo da spec, uma mensagem de erro ou o código gerado |
-| [`runtime/`](../runtime/) | A biblioteca que o `agent.py` importa: `plugin.py` (`BookingPlugin`), `callbacks.py`, `confianca.py` (a política), `confirmacao.py`, `relatorio.py`, `reconcilia.py`, `pedido.py` (registro por sessão), `entrada.py` (o que da mensagem chega ao modelo: só o apelido da imagem e texto), `servidores.py` (as chamadas do próprio runtime ao OCR e ao RAG, fora dos turnos do modelo), `rede.py` (`ALLOWED_HOSTS`), `adk.py` (modelo e toolsets), `web.py` | mudar quando um exame agenda, pergunta ou é avisado, ou o texto de um aviso |
+| [`runtime/`](../runtime/) | A biblioteca que o `agent.py` importa: a política de agendamento e a rede ([cada módulo](transpilador.md#o-que-fica-onde)) |
 | [`mcp_servers/`](../mcp_servers/) | `ocr.py` e `rag.py` (os dois servidores MCP/SSE), `preprocessamento.py` (imagem e Tesseract), `qualidade.py` (recusa foto ruim), `arguments.py` (SSE, keep-alive, erros de argumento) | mudar a leitura da imagem ou a busca no catálogo |
 | [`guardrails/`](../guardrails/) | `pii.py` + `pii_rules.py` (máscara), `intent.py` (o que cada linha pede e se a página é só a lista), `injection.py` (ordens ao modelo) | mudar uma regra de linha ou de página, ou um padrão de PII |
 | [`catalogo.py`](../catalogo.py), [`data/exams.json`](../data/exams.json) | Carga e normalização do catálogo (120 exames `FICT-xxx`), `ExamMatcher`, vocabulários | acrescentar um exame ou um sinônimo |
@@ -44,12 +44,18 @@
 `docker compose run --rm agent python -m cli run --image pedido.png` percorre, nesta ordem (as funções para ler
 primeiro estão em negrito):
 
-1. **Spec → agente.** `cli.cmd_transpile` chama `transpiler.generator.transpile`: **`spec.parse_spec`** valida (JSON,
-   schema, regras entre campos), `live.check_live` pergunta aos servidores que ferramentas têm, `generator.render`
-   preenche o template, e `write_checked` compila e importa o arquivo antes de trocar o `generated/agent.py`.
-2. **Preparo do `run`.** `cli.checked_run` confere a spec, que o `agent.py` é o que ela gera hoje
-   (`check_agent`), os serviços (`check_services`) e se alguém pode responder `[s/N]` (`check_someone_answers`); `run_agent`
-   roda o `App` no `Runner` do ADK.
+1. **Spec → agente.** `cli.cmd_transpile` chama `transpiler.generator.transpile`:
+   - **`spec.parse_spec`** valida o JSON, o schema e as regras entre campos;
+   - `live.check_live` pergunta aos servidores que ferramentas têm;
+   - `generator.render` preenche o template;
+   - `write_checked` compila e importa o arquivo antes de trocar o `generated/agent.py`.
+2. **Preparo do `run`.** `cli.checked_run` confere:
+   - a spec;
+   - que o `agent.py` é o que ela gera hoje (`check_agent`);
+   - os serviços (`check_services`);
+   - se alguém pode responder `[s/N]` (`check_someone_answers`).
+
+   Depois, `run_agent` roda o `App` no `Runner` do ADK.
 3. **O `agent.py`** (exemplo em [`exemplo-agent.py`](exemplo-agent.py)) declara três `LlmAgent` em `SequentialAgent` e o
    `App` com o `BookingPlugin`. Não há regra nele: a política está em `runtime/`.
 4. **Abertura do pedido.** **`BookingCallbacks.start_order`** (`runtime/callbacks.py`): o nome real do arquivo vira
@@ -65,10 +71,13 @@ primeiro estão em negrito):
 6. **RAG (MCP/SSE).** `search_exams` em [`mcp_servers/rag.py`](../mcp_servers/rag.py): `search_line` corta a linha em exames
    (`split_exams`, `unglue`, `ahead`/`behind`) e `search` pontua cada pedaço com `catalogo.ExamMatcher.closest`.
 7. **Callbacks.** `after_tool` guarda no registro do pedido (`runtime/pedido.py`) as linhas, a confiança do OCR e os
-   candidatos de cada busca (`confianca.remember_ocr`, `remember_search`). `before_tool` no agendamento chama
-   **`only_confident_codes`**: bloqueia código que nenhuma busca devolveu, dá a cada exame um trecho próprio do pedido
-   e calcula a confiança (`confianca.sort_out`, `best_spot`), monta a lista e pausa para a pergunta
-   (`confirmacao.review`, `pause_for_answer`). Só um "sim" àquela lista deixa a chamada seguir.
+   candidatos de cada busca (`confianca.remember_ocr`, `remember_search`). No agendamento, `before_tool` chama
+   **`only_confident_codes`**, que:
+   - bloqueia código que nenhuma busca devolveu;
+   - dá a cada exame um trecho próprio do pedido e calcula a confiança (`confianca.sort_out`, `best_spot`);
+   - monta a lista e pausa para a pergunta (`confirmacao.review`, `pause_for_answer`).
+
+   Só um "sim" àquela lista deixa a chamada seguir.
 8. **API.** `POST /appointments` (`create_appointment` em [`api/main.py`](../api/main.py)): valida `FICT-\d{3}` no catálogo,
    cifra a lista (`api/crypto.py`) e grava; a `Idempotency-Key` vem do registro do pedido.
 9. **Fechamento.** `BookingCallbacks.report` confere o pedido inteiro no RAG (`servidores.unreported_exams`,
@@ -88,11 +97,25 @@ Todos os comandos rodam na raiz do clone, com o ambiente de pé (`docker compose
 | Transpilador | `docker compose run --rm agent python -m cli transpile specs/agent.json` (`--output generated/outro/agent.py` para não trocar o `agent.py`) |
 | OCR sozinho | `docker compose run --rm agent python exemplos/mcp_call.py ocr extract_exam_text filename=pedido.png` |
 | RAG sozinho | `docker compose run --rm agent python exemplos/mcp_call.py rag search_exams query=Glicose top_k=3` |
-| API sozinha | `docker compose up -d api` e um `POST`: no Git Bash, Linux ou macOS, `curl -s -X POST http://127.0.0.1:8765/appointments -H 'Content-Type: application/json' -d '{"exams":[{"code":"FICT-001"}]}'`; no PowerShell, `Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8765/appointments -ContentType 'application/json' -Body '{"exams":[{"code":"FICT-001"}]}'`; sem shell, o Swagger em `/docs` ("Try it out") |
+| API sozinha | `docker compose up -d api` e um `POST` (os comandos, abaixo da tabela) |
 | Um servidor MCP fora do compose | `python -m mcp_servers.rag` (porta 8002) ou `python -m mcp_servers.ocr` (8001, precisa do Tesseract); o host da URL precisa estar em `ALLOWED_HOSTS` |
 | O agente, sem Gemini | não há: `tests/test_alucinacao.py` e `tests/test_adk_run.py` rodam o agente gerado com um modelo roteirizado, OCR, RAG e API reais |
 | O agente, com Gemini | `docker compose run --rm agent python -m cli run --image pedido.png` (`--verbose` mostra os logs das bibliotecas) |
 | Sem a CLI | `docker compose run --rm agent adk run --in_memory generated` ([como-rodar.md](como-rodar.md#4-rodar-com-adk-run-ou-adk-web)) |
+
+**O `POST` da API sozinha.** No Git Bash, Linux ou macOS:
+
+```bash
+curl -s -X POST http://127.0.0.1:8765/appointments -H 'Content-Type: application/json' -d '{"exams":[{"code":"FICT-001"}]}'
+```
+
+No PowerShell:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8765/appointments -ContentType 'application/json' -Body '{"exams":[{"code":"FICT-001"}]}'
+```
+
+Sem shell, use o Swagger em `/docs` ("Try it out").
 
 ### Ambiente local, sem Docker
 
@@ -116,7 +139,7 @@ pip install -r requirements.txt -r requirements-dev.txt -c constraints.txt
 Os testes rodam na imagem `test` (Tesseract, pytest, ruff e mypy), na rede interna e sem a chave do Gemini:
 
 ```bash
-docker compose run --rm tests pytest -q -n auto                          # tudo, em paralelo (cerca de 3,5 min com 12 núcleos)
+docker compose run --rm tests pytest -q -n auto                          # tudo, em paralelo
 docker compose run --rm tests pytest -q tests/test_pii.py                # um arquivo
 docker compose run --rm tests pytest -q tests/test_pii.py -k "cpf"       # filtrar por nome
 docker compose run --rm tests pytest -q tests/test_confianca.py::test_a_short_code_needs_a_clearer_reading   # um teste
@@ -125,13 +148,15 @@ docker compose run --rm --no-deps tests ruff check .                     # estil
 docker compose run --rm --no-deps tests mypy                             # tipos
 ```
 
-- **Serial ou paralelo.** Sem `-n auto` a suíte leva de 6 a 11 min. Os arquivos que sobem os servidores nas portas da
-  spec (8000 a 8002) carregam `xdist_group('spec-ports')` e rodam num worker só; `tests/portas.py` espera a porta
-  livre.
-- **Resultado atual:** 620 funções de teste e 19.384 casos (`pytest --collect-only`), quase todos de corpus
-  parametrizado (linhas legítimas, PII gerada, ataques, termos do catálogo). 19.383 passam e 1 é pulado: o ponta a
-  ponta, que precisa da chave. Com `-n auto` e `--cov`, cerca de 3,5 min numa máquina de 12 núcleos (medido: 200 s e
-  205 s).
+- **Resultado atual:** 623 funções de teste e 19.387 casos (`pytest --collect-only`). Um teste de `test_readme.py`
+  falha se esses números ficarem velhos.
+  - Quase todos os casos são de corpus parametrizado: linhas legítimas, PII gerada, ataques, termos do catálogo.
+  - 19.386 passam e 1 é pulado: o ponta a ponta, que precisa da chave.
+- **Tempo:** medido em 2026-10-07, com a suíte de então (16.858 casos), numa máquina de 12 núcleos:
+  - com `-n auto` e `--cov`, cerca de 3,5 min (200 s e 205 s);
+  - sem `-n auto`, de 6 a 11 min.
+- **Portas:** os arquivos que sobem os servidores nas portas da spec (8000 a 8002) carregam `xdist_group('spec-ports')`
+  e rodam num worker só. `tests/portas.py` espera a porta livre.
 - **O serviço `tests`** é a imagem do `agent` mais pytest, ruff, mypy, o Tesseract e os testes (estágio `test` do
   `Dockerfile`). Nunca recebe a `GOOGLE_API_KEY`: nada chama o Gemini.
 - **O ponta a ponta real** (`tests-e2e`) roda [`tests/test_e2e.py`](../tests/test_e2e.py) com a chave. O `run` inteiro
@@ -253,20 +278,24 @@ spec nova acrescentando-a às listas de `tests/test_transpiler.py` e `tests/test
 
 | O que mudar | Onde mora | O teste que a trava |
 |---|---|---|
-| O que uma linha pede (`request`, `negated`, `history`, `uncertain`, `prep`, `table`, `form`) | `guardrails/intent.py`: `CUES`, `line_kind`, `read_page` | `tests/test_negacao.py` (linhas e exame), corpus honesto `tests/attacks/legit.txt` |
+| O que uma linha pede ([os tipos](glossario.md#os-valores-de-line_intent)) | `guardrails/intent.py`: `CUES`, `line_kind`, `read_page` | `tests/test_negacao.py` (linhas e exame), corpus honesto `tests/attacks/legit.txt` |
 | A página é só a lista (`page_clean`, `off_list`) | `guardrails/intent.py`: `clean_page`, `a_field`, `a_label_or_count` | `tests/test_negacao_casos.py` (páginas de ataque e honestas), `tests/attacks/legit-pages.txt` |
 | Piso de leitura do OCR e faixas de confiança | `runtime/confianca.py`: `BookingPolicy`, `sort_out` | `tests/test_confianca.py`, `tests/test_calibration.py` |
 | Como a linha vira exames | `mcp_servers/rag.py`: `split_exams`, `unglue`, `ahead`, `behind` | `tests/test_rag.py` |
 | O texto de um aviso | `runtime/relatorio.py` (`WHY`, `LEFT_OUT`, `REFUSED`) | `tests/test_confianca.py`, `tests/test_negacao.py`; o exemplo em [como-rodar.md](como-rodar.md#3-executar-o-agente) é conferido contra o log das evidências |
 
-Passos: (1) escreva o caso que falha, em `tests/test_negacao.py` ou `tests/test_negacao_casos.py`;
+Passos:
 
-- (2) mude a regra;
-- (3) rode `tests/test_negacao*.py`, `tests/test_texto_livre.py`, `tests/test_pii.py` e `tests/test_injection.py` (a regra não pode apagar exame nem deixar PII);
-- (4) se o efeito nos conjuntos medidos mudar, rode as cargas e atualize [medicoes.md](medicoes.md);
-- (5) acrescente a regra ao mapa [regras.md](regras.md) com o exemplo que a motivou.
-- Uma regra nova falha para o lado de perguntar: "só agenda sozinho o que é só exame" é a escolha ([por quê](decisoes.md#por-que-existe-uma-camada-de-regras)).
-- Um campo ou um tipo de linha novo na resposta do OCR pede uma versão nova do contrato (`leitura.VERSION`), nos dois lados.
+1. Escreva o caso que falha, em `tests/test_negacao.py` ou `tests/test_negacao_casos.py`.
+2. Mude a regra.
+3. Rode `tests/test_negacao*.py`, `tests/test_texto_livre.py`, `tests/test_pii.py` e `tests/test_injection.py`. A regra
+   não pode apagar exame nem deixar PII.
+4. Se o efeito nos conjuntos medidos mudar, rode as cargas e atualize [medicoes.md](medicoes.md).
+5. Acrescente a regra ao mapa [regras.md](regras.md), com o exemplo que a motivou.
+
+Duas coisas a lembrar. Uma regra nova falha para o lado de perguntar: "só agenda sozinho o que é só exame" é a escolha
+([por quê](decisoes.md#por-que-existe-uma-camada-de-regras)). E um campo ou um tipo de linha novo na resposta do OCR pede
+uma versão nova do contrato (`leitura.VERSION`), nos dois lados.
 
 ### Acrescentar um padrão de PII
 

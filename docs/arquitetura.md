@@ -86,10 +86,10 @@ Ferramentas, URLs, portas e como iniciar cada servidor: [referencia.md](referenc
 
 ## Por que a PII não chega ao modelo
 
-A máscara roda dentro do container do OCR, antes de qualquer modelo. A ordem importa:
+A máscara roda dentro do container do OCR, antes de qualquer modelo. Ela faz quatro coisas:
 
-1. Tira as ordens ao modelo escritas na imagem.
-2. Classifica o que cada linha pede (exame, negação, preparo…).
+1. Classifica o que cada linha pede (exame, negação, preparo…), no texto como foi lido, ainda com as ordens.
+2. Tira as ordens ao modelo escritas na imagem.
 3. Mascara os dados pessoais.
 4. Deixa sair só o que parece exame ou estrutura do pedido.
 
@@ -104,13 +104,21 @@ cada camada barra uma coisa diferente, da imagem ao banco:
 
 | Camada | O que barra |
 |---|---|
-| Entrada | Foto ruim, recusada antes do OCR; o nome do arquivo não chega ao modelo |
-| Texto da imagem | Ordens ao modelo; dado de ferramenta nunca vale como instrução |
+| Entrada | Foto ruim, recusada antes do OCR |
+| Entrada | O nome do arquivo: ele não chega ao modelo |
+| Texto da imagem | Ordens ao modelo |
+| Texto da imagem | Dado de ferramenta tratado como instrução |
 | Modelo | Nada: ele só propõe |
-| Código | Código que nenhuma busca devolveu; dois exames no mesmo trecho; leitura fraca |
+| Código | Código que nenhuma busca devolveu |
+| Código | Dois exames no mesmo trecho da linha |
+| Código | Leitura fraca do OCR |
 | Pessoa | A lista inteira, antes da API |
-| Rede | Hosts fora de `ALLOWED_HOSTS`; OCR e RAG sem internet; API só em `127.0.0.1` |
-| API e banco | Código fora do catálogo; agendamento em dobro (`Idempotency-Key`); dado em claro (cifra por linha) |
+| Rede | Hosts fora de `ALLOWED_HOSTS` |
+| Rede | Saída do OCR e do RAG para a internet |
+| Rede | Acesso à API de fora da máquina: ela só escuta em `127.0.0.1` |
+| API e banco | Código fora do catálogo |
+| API e banco | Agendamento em dobro, pela `Idempotency-Key` |
+| API e banco | Dado em claro no disco: cada linha é cifrada |
 
 Cada camada, com números e exemplos: [referencia.md](referencia.md#segurança-em-detalhe). Os limites de cada uma:
 [decisoes.md](decisoes.md#limites).

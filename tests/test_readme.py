@@ -175,7 +175,14 @@ def test_every_message_the_report_writes_is_in_the_warnings_table():
 # --- 2b. Prose a reader can scan ------------------------------------------------------------------
 
 LIST_ITEM = re.compile(r'\s*(?:[-*]|\d+\.) ')
-MAX_WORDS, MAX_ASIDES = 40, 1  # per sentence; an aside is a parenthesis of 4 words or more
+MAX_WORDS, MAX_ASIDES = 35, 1  # per sentence; an aside is a parenthesis of 4 words or more
+MAX_CELL_WORDS, MAX_CELL_SENTENCES = 40, 2  # per table cell: one idea, or the detail goes below the table
+SENTENCE_END = re.compile(r'(?<=[.!?])\s+(?=[A-Z"*(])')
+
+
+def plain_text(text):
+    """The words a reader reads: a link keeps its text, inline code counts as one word."""
+    return re.sub(r'`[^`]*`', 'X', re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', text))
 
 
 def prose_paragraphs(doc):
@@ -183,7 +190,7 @@ def prose_paragraphs(doc):
     out, current, start = [], [], 0
     for number, line, fence in lines_of(doc) + [(0, '', None)]:
         stripped = line.strip()
-        skip = fence or stripped.startswith(('|', '#', '<', 'https://')) or ' · ' in stripped
+        skip = fence or stripped.startswith(('|', '#', '<', 'https://')) or ' · ' in stripped or stripped.endswith(' ·')
         if skip or not stripped or LIST_ITEM.match(line):
             if current:
                 out.append((start, ' '.join(current)))
@@ -198,8 +205,7 @@ def test_prose_sentences_stay_short():
     stale = []
     for doc in DOCS[1:]:
         for number, text in prose_paragraphs(doc):
-            plain = re.sub(r'`[^`]*`', 'X', re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', text))
-            for sentence in re.split(r'(?<=[.!?])\s+(?=[A-Z"*(])', plain):
+            for sentence in SENTENCE_END.split(plain_text(text)):
                 words = len(sentence.split())
                 asides = sum(len(inner.split()) >= 4 for inner in re.findall(r'\(([^()]*)\)', sentence))
                 if words > MAX_WORDS or asides > MAX_ASIDES:
@@ -218,6 +224,52 @@ def test_a_list_item_never_runs_into_an_unindented_line():
                 stale.append(f'{rel(doc)}:{number}: {line[:60]}')
             previous = (number, line, fence)
     assert not stale, 'indent the line or leave a blank line before it:\n' + '\n'.join(stale)
+
+
+def test_two_lists_never_render_as_one():
+    """A blank line between two lists of the same kind and indent does not end the first: GitHub shows one list."""
+    stale = []
+    for doc in DOCS[1:]:
+        rows = lines_of(doc)
+        for at, (number, line, fence) in enumerate(rows):
+            if fence or not LIST_ITEM.match(line):
+                continue
+            after = next((row for row in rows[at + 1:] if row[1].strip()), None)
+            if after is None or after[0] == number + 1 or after[2] or not LIST_ITEM.match(after[1]):
+                continue
+            indent = len(line) - len(line.lstrip())
+            numbered = line.lstrip()[0].isdigit()
+            if len(after[1]) - len(after[1].lstrip()) == indent and after[1].lstrip()[0].isdigit() == numbered:
+                stale.append(f'{rel(doc)}:{after[0]}: {after[1].strip()[:60]}')
+    assert not stale, 'put a sentence between the two lists, or join them:\n' + '\n'.join(stale)
+
+
+def test_table_cells_hold_one_idea():
+    """docs/ only: a cell is a short answer; conditions, exceptions and examples go in a note below the table."""
+    stale = []
+    for doc in DOCS[1:]:
+        for number, line, fence in lines_of(doc):
+            row = line.strip()
+            if fence or not row.startswith('|') or set(row) <= set('|-: '):
+                continue
+            for cell in re.split(r'(?<!\\)\|', row.strip('|')):
+                text = plain_text(cell).strip()
+                words, sentences = len(text.split()), len([part for part in SENTENCE_END.split(text) if part])
+                if words > MAX_CELL_WORDS or sentences > MAX_CELL_SENTENCES:
+                    stale.append(f'{rel(doc)}:{number}: {words} words, {sentences} sentences: {text[:70]}…')
+    assert not stale, 'move the detail of these cells below the table:\n' + '\n'.join(stale)
+
+
+WE = re.compile(r'\b(?:nós|nosso|nossa|nossos|nossas|[a-zç]+amos)\b', re.IGNORECASE)
+WE_WORDS = {'ramos', 'gamos', 'tamos'}  # whole words that end like a verb, not first person
+
+
+def test_the_docs_speak_in_one_voice():
+    """docs/ is impersonal; only revisao.md, the author's account of the work, says "I"."""
+    stale = [f'{rel(doc)}:{number}: {match.group(0)}' for doc in DOCS[1:] if doc.name != 'revisao.md'
+             for number, line, fence in lines_of(doc) if not fence
+             for match in WE.finditer(re.sub(r'<[^>]*>', '', plain_text(line))) if match.group(0).lower() not in WE_WORDS]
+    assert not stale, 'write these impersonally:\n' + '\n'.join(stale)
 
 
 # --- 3. Numbers the docs quote that can be computed offline --------------------------------------
