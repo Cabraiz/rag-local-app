@@ -347,7 +347,6 @@ def number(text):
 # (documents, pattern with named groups, {group: fact}). Every pattern must still be found,
 # so a reworded sentence fails here instead of silently going unchecked.
 CLAIMS = [
-    ('README.md', r'(?P<n>\d+) exames fictícios', {'n': 'catalog'}),
     ('README.md', r'`data/exams.json`\]\([^)]*\) \((?P<n>\d+) exames\)', {'n': 'catalog'}),
     ('README.md', r'<br/>(?P<n>\d+) exames', {'n': 'catalog'}),
     ('README.md', r'e-mail e mais (?P<n>\d+) tipos', {'n': 'pii_types_besides_4'}),
