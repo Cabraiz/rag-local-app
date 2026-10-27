@@ -202,9 +202,9 @@ def prose_paragraphs(doc):
 
 
 def test_prose_sentences_stay_short():
-    """docs/ only: one idea per sentence, the rule before the exception (the Google developer documentation style)."""
+    """One idea per sentence, the rule before the exception (the Google developer documentation style)."""
     stale = []
-    for doc in DOCS[1:]:
+    for doc in DOCS:
         for number, text in prose_paragraphs(doc):
             for sentence in SENTENCE_END.split(plain_text(text)):
                 words = len(sentence.split())
@@ -230,7 +230,7 @@ def test_a_list_item_never_runs_into_an_unindented_line():
 def test_two_lists_never_render_as_one():
     """A blank line between two lists of the same kind and indent does not end the first: GitHub shows one list."""
     stale = []
-    for doc in DOCS[1:]:
+    for doc in DOCS:
         rows = lines_of(doc)
         for at, (number, line, fence) in enumerate(rows):
             if fence or not LIST_ITEM.match(line):
@@ -246,9 +246,9 @@ def test_two_lists_never_render_as_one():
 
 
 def test_table_cells_hold_one_idea():
-    """docs/ only: a cell is a short answer; conditions, exceptions and examples go in a note below the table."""
+    """A cell is a short answer; conditions, exceptions and examples go in a note below the table."""
     stale = []
-    for doc in DOCS[1:]:
+    for doc in DOCS:
         for number, line, fence in lines_of(doc):
             row = line.strip()
             if fence or not row.startswith('|') or set(row) <= set('|-: '):
@@ -266,8 +266,8 @@ WE_WORDS = {'ramos', 'gamos', 'tamos'}  # whole words that end like a verb, not 
 
 
 def test_the_docs_speak_in_one_voice():
-    """docs/ is impersonal; only revisao.md, the author's account of the work, says "I"."""
-    stale = [f'{rel(doc)}:{number}: {match.group(0)}' for doc in DOCS[1:] if doc.name != 'revisao.md'
+    """The README and docs/ are impersonal; only revisao.md, the author's account of the work, says "I"."""
+    stale = [f'{rel(doc)}:{number}: {match.group(0)}' for doc in DOCS if doc.name != 'revisao.md'
              for number, line, fence in lines_of(doc) if not fence
              for match in WE.finditer(re.sub(r'<[^>]*>', '', plain_text(line))) if match.group(0).lower() not in WE_WORDS]
     assert not stale, 'write these impersonally:\n' + '\n'.join(stale)
