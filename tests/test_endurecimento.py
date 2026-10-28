@@ -260,6 +260,17 @@ def test_what_the_repository_versions_reaches_the_test_image():
     assert len(tracked) > 100 and [path for path in tracked if not in_the_context(path)] == []
 
 
+def test_every_file_the_docs_link_to_reaches_the_test_image():
+    """Without git too: the link check runs in the test image, so a linked file .dockerignore leaves out fails in CI."""
+    linked = {
+        (doc.parent / target).resolve().relative_to(ROOT).as_posix()
+        for doc in [ROOT / 'README.md', *(ROOT / 'docs').glob('*.md')]
+        for target in re.findall(r'\]\(([^)#\s]+)', doc.read_text(encoding='utf-8'))
+        if not re.match(r'[a-z]+:', target)
+    }
+    assert '.github/workflows/ci.yml' in linked and [path for path in linked if not in_the_context(path)] == []
+
+
 def test_every_file_the_dockerfile_copies_reaches_the_build_context():
     """Without git too: a new top-level module the images COPY must be allowed by .dockerignore, or the build fails."""
     copied = [
