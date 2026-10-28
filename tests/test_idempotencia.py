@@ -14,14 +14,12 @@ from fastapi.testclient import TestClient
 
 from runtime import rede
 from tests.test_api import api_module, client, configure  # noqa: F401 (fixture)
-from tests.test_transpiler import (  # noqa: F401 (ready_run is a fixture)
+from tests.test_transpiler import (
     SPEC_FILE,
-    UNAVAILABLE,
     FakeContext,
     FakeTool,
     generated_module,
     ocr_reply,
-    ready_run,
     search,
 )
 from transpiler import transpile
