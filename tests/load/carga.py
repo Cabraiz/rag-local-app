@@ -17,7 +17,6 @@ import re
 import statistics
 import sys
 import time
-import unicodedata
 from pathlib import Path
 
 import httpx
@@ -25,6 +24,7 @@ from mcp import ClientSession
 from mcp.client.sse import sse_client
 from mcp.shared.exceptions import MCPError
 
+import catalogo
 from tests.load.pedidos import gerar
 
 DOCUMENTOS = {'nascimento', 'cpf', 'rg', 'telefone', 'cep', 'crm', 'carteirinha'}  # comparados só por dígitos
@@ -39,10 +39,7 @@ EXAM_LINE = re.compile(MARKER + r'(?P<exame>\S.*)$')
 API_GENERATED = re.compile(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}|\d{4}-\d{2}-\d{2}T[\d:.]+(?:[+-]\d{2}:\d{2}|Z)?')
 
 
-def plain(text):
-    """Sem acento, sem caixa, só palavras: "José da Silva!" -> "jose da silva"."""
-    text = ''.join(c for c in unicodedata.normalize('NFKD', str(text).casefold()) if not unicodedata.combining(c))
-    return ' '.join(''.join(c if c.isalnum() else ' ' for c in text).split())
+plain = catalogo.words  # sem acento, sem caixa, só palavras: "José da Silva!" -> "jose da silva"
 
 
 def vazamentos(texto, sensiveis):
@@ -272,7 +269,7 @@ async def conferir_api(api_url, results, concorrencia=8):
 
 
 def percentil(values, p):
-    return statistics.quantiles(values, n=100)[p - 1] if len(values) > 1 else values[0]
+    return statistics.quantiles(values, n=100)[p - 1] if len(values) > 1 else (values[0] if values else 0.0)
 
 
 def quebrar(value, size=64):

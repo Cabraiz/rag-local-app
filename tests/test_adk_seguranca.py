@@ -8,7 +8,6 @@ Gemini); the OCR and catalog MCP servers and the API are the real ones (tests/te
 import asyncio
 import copy
 import hashlib
-import shutil
 import socket
 from types import SimpleNamespace
 
@@ -24,6 +23,7 @@ import tests.test_adk_run as adk
 from runtime import pedido, rede
 from runtime.callbacks import BookingCallbacks
 from runtime.pedido import Candidate, OrderRecord
+from tests.apoio import SPEC_PORTS_MARKS, forbidden
 from tests.test_adk_run import adk_run, agent_folder  # noqa: F401  (fixtures)
 from tests.test_alucinacao import IMAGE, NAMED, PORTS, appointment, services, stored_ids  # noqa: F401
 
@@ -31,12 +31,7 @@ CHECK_URLS = adk.CHECK_URLS  # the real rule; the agent_folder fixture replaces 
 SURE = [{'code': 'FICT-001', 'name': 'Hemograma completo'}, {'code': 'FICT-002', 'name': 'Glicemia de jejum'}]
 MEDIUM = [{'code': 'FICT-067', 'name': 'Creatinoquinase'}]  # a weaker hit of the Creatinina search: the question band
 
-pytestmark = [
-    pytest.mark.skipif(shutil.which('tesseract') is None, reason='Tesseract runs inside the Docker image'),
-    pytest.mark.xdist_group('spec-ports'),  # the real servers, on the spec's ports (tests/test_adk_run.py)
-    pytest.mark.filterwarnings(r'ignore:\[EXPERIMENTAL\]:UserWarning'),
-    pytest.mark.filterwarnings('ignore::DeprecationWarning'),
-]
+pytestmark = SPEC_PORTS_MARKS
 
 
 def web_app(folder, web=False):
@@ -419,8 +414,7 @@ def test_with_the_variable_false_adks_mcp_client_looks_up_no_credentials(monkeyp
     import google.auth
     from google.adk.tools.mcp_tool.mcp_session_manager import MCPSessionManager, SseConnectionParams
 
-    def must_not_run(*args, **kwargs):
-        raise AssertionError('google.auth.default looked up credentials (and the metadata server)')
+    must_not_run = forbidden('google.auth.default looked up credentials (and the metadata server)')
     monkeypatch.setattr(google.auth, 'default', must_not_run)
     monkeypatch.setenv('GOOGLE_API_USE_CLIENT_CERTIFICATE', 'false')
     manager = MCPSessionManager(SseConnectionParams(url='http://ocr:8001/sse'))

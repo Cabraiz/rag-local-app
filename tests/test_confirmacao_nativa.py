@@ -22,6 +22,7 @@ import cli
 from runtime import confirmacao
 from runtime.pedido import OrderRecord
 from runtime.plugin import BookingPlugin
+from tests.apoio import forbidden, stand_ins
 from transpiler import load_root_agent, load_spec, transpile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,26 +30,8 @@ ROOT = Path(__file__).resolve().parents[1]
 ORDER = ['Pedido de exames', '- GA', '- Creatinina']
 HITS = {'IgA': {'code': 'FICT-079', 'name': 'IgA', 'score': 1.0},
         'Creatinina': {'code': 'FICT-005', 'name': 'Creatinina', 'score': 1.0}}
-CALLS = {'extract_exam_text': [], 'search_exams': [], 'create_appointment': []}
-
-
-def extract_exam_text(filename: str) -> dict:
-    """Reads the order (stand-in for the OCR server)."""
-    CALLS['extract_exam_text'].append(filename)
-    return {'structuredContent': {'version': 1, 'lines': ORDER, 'line_confidence': [96.0] * len(ORDER),
-                                  'line_intent': ['request'] * len(ORDER), 'contested_exams': [], 'page_clean': True, 'pii_masked': {}}}
-
-
-def search_exams(query: str, top_k: int = 3) -> dict:
-    """Searches the catalog (stand-in for the RAG server)."""
-    CALLS['search_exams'].append((query, top_k))
-    return {'structuredContent': {'result': [HITS[query]]}}
-
-
-def create_appointment(exams: list[dict]) -> dict:
-    """Books the exams (stand-in for POST /appointments)."""
-    CALLS['create_appointment'].append([exam['code'] for exam in exams])
-    return {'id': 'a1', 'status': 'scheduled', 'exams': exams}
+CALLS, TOOLS = stand_ins(ORDER, HITS)
+extract_exam_text, search_exams, create_appointment = (TOOLS[name] for name in CALLS)
 
 
 class Scripted(BaseLlm):
@@ -144,8 +127,7 @@ def test_without_a_terminal_and_without_yes_nothing_is_booked_and_the_cli_says_h
 def test_without_a_terminal_and_without_yes_the_cli_stops_before_any_service_or_model_call(tmp_path, monkeypatch,
                                                                                            capsys, no_terminal):
     # An independent run-through: `run -T` without --yes read the order and ran Gemini for 2 minutes, then refused.
-    def must_not_run(*args, **kwargs):
-        raise AssertionError('called a service or the model with nobody to confirm the list')
+    must_not_run = forbidden('called a service or the model with nobody to confirm the list')
 
     transpile(ROOT / 'specs' / 'agent.json', tmp_path / 'agent.py')
     monkeypatch.setenv('GOOGLE_API_KEY', 'not-used')

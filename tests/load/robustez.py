@@ -21,7 +21,6 @@ import io
 import json
 import random
 import re
-import statistics
 import tempfile
 import time
 import warnings
@@ -518,10 +517,6 @@ async def rodar(casos, ocr_url, rag_url, api_url, concorrencia=8, posts_simultan
     return resultados, time.perf_counter() - start
 
 
-def percentil(values, p):
-    return statistics.quantiles(values, n=100)[p - 1] if len(values) > 1 else (values[0] if values else 0.0)
-
-
 def resumo(resultados, segundos, ordem=()):
     """Tabela por categoria (casos / ok / mensagem clara / falhou / p50 / p95) e a lista das falhas."""
     ordem = list(dict.fromkeys([*ordem, *(categoria for _, categoria, *_ in resultados)]))
@@ -530,12 +525,12 @@ def resumo(resultados, segundos, ordem=()):
         grupo = [r for r in resultados if r[1] == categoria]
         tempos = [r[4] for r in grupo]
         linhas.append((categoria, len(grupo), sum(r[2] == 'ok' for r in grupo), sum(r[2] == 'clara' for r in grupo),
-                       sum(r[2] == 'falhou' for r in grupo), f'{percentil(tempos, 50):.2f}', f'{percentil(tempos, 95):.2f}'))
+                       sum(r[2] == 'falhou' for r in grupo), f'{carga.percentil(tempos, 50):.2f}', f'{carga.percentil(tempos, 95):.2f}'))
     tempos = [r[4] for r in resultados]
     falhas = [r for r in resultados if r[2] == 'falhou']
     linhas.append(('TOTAL', len(resultados), sum(r[2] == 'ok' for r in resultados),
                    sum(r[2] == 'clara' for r in resultados), len(falhas),
-                   f'{percentil(tempos, 50):.2f}', f'{percentil(tempos, 95):.2f}'))
+                   f'{carga.percentil(tempos, 50):.2f}', f'{carga.percentil(tempos, 95):.2f}'))
     largura = max(len(str(linha[0])) for linha in linhas)
     texto = [f'{linha[0]:<{largura}}  ' + '  '.join(f'{str(v):>9}' for v in linha[1:]) for linha in linhas]
     texto.append(f'{len(resultados)} casos em {segundos:.0f} s')

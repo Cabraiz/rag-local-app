@@ -1,16 +1,13 @@
 """Transpiler: spec validation, generated ADK agent and CLI. No API key or services needed."""
 import ast
 import asyncio
-import copy
 import dataclasses
 import json
 import logging
 import os
 import subprocess
 import sys
-import threading
 import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -31,6 +28,7 @@ from runtime.callbacks import UNTRUSTED_DATA, mcp_payload
 from runtime.confianca import BookingPolicy, line_support
 from runtime.pedido import PRIVATE, RECORD_KEYS, OrderRecord
 from runtime.plugin import ROLES, BookingConfig, BookingPlugin
+from tests.apoio import OfflineGemini, booking, forbidden, offline_gemini, problems, spec_with
 from transpiler import TranspileError, load_root_agent, parse_spec, render, transpile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,28 +36,10 @@ SPEC_FILE = ROOT / 'specs' / 'agent.json'
 SPEC = json.loads(SPEC_FILE.read_text(encoding='utf-8'))
 
 
-def spec_with(change):
-    """The example spec as JSON text after change(spec_dict) edits a copy of it."""
-    data = copy.deepcopy(SPEC)
-    change(data)
-    return json.dumps(data)
-
-
-def booking(spec):
-    """The kwargs of the example spec's BookingPlugin: its roles and its policy."""
-    return spec['plugins'][0]['kwargs']
-
-
 def transpiled_app(spec_file, output):
     """The `app` of the file transpiled from spec_file: its root_agent and its plugins, from one import."""
     transpile(spec_file, output)
     return load_root_agent(output, name='app')
-
-
-def problems(text):
-    with pytest.raises(TranspileError) as error:
-        parse_spec(text)
-    return error.value.problems
 
 
 def test_example_spec_becomes_a_sequential_adk_pipeline(tmp_path, monkeypatch):
@@ -367,8 +347,7 @@ def fake_run(result):
 
 @pytest.mark.parametrize('image', ['pedido.pdf', 'pedido.gif', 'pedido', 'pedido.png.exe', '.png'])
 def test_cli_run_refuses_other_extensions_before_any_service_or_gemini_call(ready_run, monkeypatch, capsys, image):
-    def must_not_run(*args, **kwargs):
-        raise AssertionError('called a service or Gemini for a rejected image')
+    must_not_run = forbidden('called a service or Gemini for a rejected image')
 
     monkeypatch.setattr(cli, 'check_services', must_not_run)
     monkeypatch.setattr(cli, 'run_agent', must_not_run)
@@ -470,36 +449,12 @@ def test_cli_run_runs_the_generated_app_as_adk_run_does(ready_run, monkeypatch, 
         assert type(model) is Gemini and retried_codes(model) == [429, 500, 503]
 
 
-class FakeGemini(BaseHTTPRequestHandler):
-    """The Gemini API, offline: the primary model answers `status`, any other model 404 (not retried)."""
-    status, primary, models = 503, 'gemini-test-main', []
-
-    def do_POST(self):  # noqa: N802 (http.server's name)
-        self.rfile.read(int(self.headers.get('Content-Length') or 0))
-        model = self.path.split('/models/')[-1].split(':')[0]
-        type(self).models.append(model)
-        code = self.status if model == self.primary else 404
-        body = json.dumps({'error': {'code': code, 'message': 'fake', 'status': 'UNAVAILABLE'}}).encode()
-        self.send_response(code)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Content-Length', str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, *args):
-        pass
-
-
 @pytest.mark.parametrize('status', [503, 429])
 @pytest.mark.filterwarnings(r'ignore:\[EXPERIMENTAL\]:UserWarning')
 def test_an_unavailable_primary_switches_to_the_reserve_at_once(ready_run, monkeypatch, capsys, status):
     # The real generated agent and the real Gemini client, against a fake Gemini API on this machine:
     # before, 5 attempts with backoff (about a minute) came before the reserve model.
-    server = ThreadingHTTPServer(('127.0.0.1', 0), FakeGemini)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    monkeypatch.setattr(FakeGemini, 'status', status)
-    monkeypatch.setattr(FakeGemini, 'models', [])
-    monkeypatch.setenv('GOOGLE_GEMINI_BASE_URL', f'http://127.0.0.1:{server.server_port}')
+    server = offline_gemini(monkeypatch, refused={'gemini-test-main'}, status=status)
     monkeypatch.setenv('GEMINI_MODEL', 'gemini-test-main')
 
     async def no_tools(self, readonly_context=None):  # the MCP servers are not up: the model fails first anyway
@@ -512,9 +467,9 @@ def test_an_unavailable_primary_switches_to_the_reserve_at_once(ready_run, monke
         server.shutdown()
     out, err = capsys.readouterr()
     assert time.monotonic() - start < 15
-    assert FakeGemini.models == ['gemini-test-main', SPEC['fallback_model']]  # the primary once, no retry
+    assert OfflineGemini.calls == ['gemini-test-main', SPEC['fallback_model']]  # the primary once, no retry
     assert f'Aviso: modelo principal indisponível; usando {SPEC["fallback_model"]}' in out
-    assert err.startswith('Erro: o Gemini recusou a chamada (HTTP 404: fake)')
+    assert err.startswith('Erro: o Gemini recusou a chamada (HTTP 404: This model is currently experiencing high demand)')
 
 
 @pytest.fixture

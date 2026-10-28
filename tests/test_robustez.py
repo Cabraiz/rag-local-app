@@ -13,8 +13,8 @@ import httpx
 import pytest
 
 from mcp_servers import ocr, rag
+from tests.apoio import serve
 from tests.load import robustez
-from tests.test_carga import serve
 
 
 def test_clear_message_keeps_user_sentences_and_rejects_traces():

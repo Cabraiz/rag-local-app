@@ -4,7 +4,6 @@ O mesmo código de tests/load/manuscritos.py (as 120 rodam com o compose da carg
 RAG em processo, como em test_carga.py. Nada fora do pedido pode ser agendado e nenhuma PII
 do gabarito pode sobrar no texto do OCR.
 """
-import asyncio
 import shutil
 from pathlib import Path
 
@@ -12,9 +11,9 @@ import pytest
 from PIL import Image, ImageChops
 
 from mcp_servers import ocr, rag
+from tests.apoio import read_through_servers
 from tests.load import manuscritos
 from tests.load.carga import vazamentos
-from tests.test_carga import serve
 from tests.test_transpiler import FakeContext, FakeTool, book, generated_module, ocr_reply, search
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,15 +54,7 @@ def test_only_the_leading_marker_is_removed_from_the_query(line, query):
 # Fora desta fração, as 120 ainda têm trocas de exame pelo OCR ("Vitamina D" lida "Vitamina 2"), que
 # viram pergunta e nunca são agendadas sozinhas; 0 PII sobrando. tests/load/manuscritos.py as mede.
 def test_a_fraction_of_the_handwritten_orders_books_nothing_wrong_and_leaks_nothing(monkeypatch):
-    monkeypatch.setattr(ocr, 'SAMPLES_DIR', FOLDER)
-    servers = [serve(ocr), serve(rag)]
-    try:
-        itens = {name: ITENS[name] for name in CI_FRACTION}
-        results = asyncio.run(manuscritos.rodar(itens, servers[0][1], servers[1][1], concorrencia=2))
-    finally:
-        for server, _ in servers:
-            server.should_exit = True
-    table, problems = manuscritos.resumo(itens, results)
+    table, problems, results = read_through_servers(monkeypatch, FOLDER, {name: ITENS[name] for name in CI_FRACTION})
     assert problems == 0, table
     assert not any(found['erro'] for found in results.values()), table
 

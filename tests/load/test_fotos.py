@@ -4,7 +4,6 @@ O mesmo código de tests/load/manuscritos.py (as 30 rodam com o compose da carga
 RAG em processo, como em test_manuscritos.py. Nada fora do pedido pode ser agendado sem
 perguntar e nenhuma PII do gabarito pode sobrar no texto do OCR.
 """
-import asyncio
 import re
 import shutil
 from pathlib import Path
@@ -12,10 +11,9 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from mcp_servers import ocr, rag
+from tests.apoio import read_through_servers
 from tests.load import manuscritos
 from tests.load.pedidos import cpf_valido
-from tests.test_carga import serve
 
 ROOT = Path(__file__).resolve().parents[2]
 FOLDER = ROOT / 'samples' / 'fotos-celular'
@@ -41,14 +39,6 @@ def test_the_photo_set_is_complete_small_and_fictional():
 # As 30 com o compose da carga (tests/load/manuscritos.py --origem samples/fotos-celular) também
 # medem os exames que o agente deixa de fora; aqui, só o que não pode acontecer.
 def test_five_phone_photos_book_nothing_wrong_and_leak_nothing(monkeypatch):
-    monkeypatch.setattr(ocr, 'SAMPLES_DIR', FOLDER)
-    servers = [serve(ocr), serve(rag)]
-    try:
-        itens = {name: ITENS[name] for name in CI_FRACTION}
-        results = asyncio.run(manuscritos.rodar(itens, servers[0][1], servers[1][1], concorrencia=2))
-    finally:
-        for server, _ in servers:
-            server.should_exit = True
-    table, problems = manuscritos.resumo(itens, results)
+    table, problems, results = read_through_servers(monkeypatch, FOLDER, {name: ITENS[name] for name in CI_FRACTION})
     assert problems == 0, table
     assert not any(found['erro'] for found in results.values()), table

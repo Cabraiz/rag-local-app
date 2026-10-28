@@ -8,7 +8,6 @@ import asyncio
 import importlib
 import json
 import re
-import shutil
 import sys
 import threading
 import time
@@ -22,6 +21,7 @@ from google.genai import types
 import runtime.pedido as pedido
 import tests.test_adk_run as adk
 from runtime.callbacks import mcp_payload
+from tests.apoio import SPEC_PORTS_MARKS
 from tests.test_adk_run import agent_folder  # noqa: F401  (fixtures)
 from tests.test_adk_seguranca import (  # noqa: F401
     MEDIUM,
@@ -35,12 +35,7 @@ from tests.test_adk_seguranca import (  # noqa: F401
 )
 from tests.test_alucinacao import IMAGE, NAMED, appointment, services, stored_ids  # noqa: F401
 
-pytestmark = [
-    pytest.mark.skipif(shutil.which('tesseract') is None, reason='Tesseract runs inside the Docker image'),
-    pytest.mark.xdist_group('spec-ports'),
-    pytest.mark.filterwarnings(r'ignore:\[EXPERIMENTAL\]:UserWarning'),
-    pytest.mark.filterwarnings('ignore::DeprecationWarning'),
-]
+pytestmark = SPEC_PORTS_MARKS
 
 HONEST = adk.Scripted
 OTHER = 'pedido-foto-celular.jpg'  # a clean page too: it books alone

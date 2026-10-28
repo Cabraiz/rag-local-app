@@ -38,6 +38,7 @@ HANDS = {'comum': ['Inkfree.ttf', 'segoepr.ttf', 'segoesc.ttf'], 'medico': ['seg
 PAGE = (1000, 1300)
 MAX_BYTES = 60_000
 PAPER, INK, STAMP_INK = (246, 243, 232), (25, 45, 140), (70, 40, 150)
+INK_BOXES: list | None = None  # avaliar_letra.py: a caixa da tinta de cada linha escrita
 FIRST = ['Mariana', 'Joaquim', 'Letícia', 'Otávio', 'Bianca', 'Renato', 'Celina', 'Heitor', 'Lívia', 'Augusto']
 LAST = ['Quimera', 'Ficcional', 'Sentinela', 'Exemplar', 'Modelar', 'Simulado', 'Hipotético', 'Inventado']
 CLINICS = ['Aurora', 'Horizonte', 'Boreal', 'Cerrado', 'Litoral']
@@ -123,15 +124,21 @@ def word_mask(word, style, rng, writer):
 
 
 def write(page, text, x, y, style, rng, writer):
-    """Escreve uma linha à mão a partir de (x, y), palavra por palavra; devolve o x final."""
-    ink = tuple(max(0, c + rng.randint(-15, 15)) for c in INK)
+    """Escreve uma linha à mão a partir de (x, y), palavra por palavra; devolve o x final. Com INK_BOXES
+    numa lista, guarda nela a caixa da tinta da linha (exemplos/avaliar_letra.py), sem mudar o sorteio."""
+    ink, box = tuple(max(0, c + rng.randint(-15, 15)) for c in INK), None
     for word in text.split():
         mask = word_mask(word, style, rng, writer)
         opacity = rng.uniform(0.75, 1.0)
         mask = mask.point([int(value * opacity) for value in range(256)])  # the same table point() builds
         left, top = int(x), int(y + rng.uniform(-6, 6))
         page.paste(ink, (left, top, left + mask.width, top + mask.height), mask)
+        if INK_BOXES is not None and (inked := mask.point(lambda v: 255 if v > 40 else 0).getbbox()):
+            b = (left + inked[0], top + inked[1], left + inked[2], top + inked[3])
+            box = b if box is None else (min(box[0], b[0]), min(box[1], b[1]), max(box[2], b[2]), max(box[3], b[3]))
         x += mask.width * (0.78 if style == 'medico' else 0.9) + rng.uniform(4, 14)
+    if INK_BOXES is not None:
+        INK_BOXES.append(box)
     return x
 
 

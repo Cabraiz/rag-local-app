@@ -155,23 +155,7 @@ def caixas(_args):
     from PIL import Image, ImageDraw
 
     import exemplos.gerar_manuscrito as gm
-    registro = []
-
-    def write(page, text, x, y, style, rng, writer):  # o corpo de gm.write, guardando a caixa da tinta
-        ink, caixa = tuple(max(0, c + rng.randint(-15, 15)) for c in gm.INK), None
-        for word in text.split():
-            mask = gm.word_mask(word, style, rng, writer)
-            opacity = rng.uniform(0.75, 1.0)
-            mask = mask.point([int(value * opacity) for value in range(256)])
-            left, top = int(x), int(y + rng.uniform(-6, 6))
-            page.paste(ink, (left, top, left + mask.width, top + mask.height), mask)
-            if tinta := mask.point(lambda v: 255 if v > 40 else 0).getbbox():
-                b = (left + tinta[0], top + tinta[1], left + tinta[2], top + tinta[3])
-                caixa = b if caixa is None else (min(caixa[0], b[0]), min(caixa[1], b[1]), max(caixa[2], b[2]), max(caixa[3], b[3]))
-            x += mask.width * (0.78 if style == 'medico' else 0.9) + rng.uniform(4, 14)
-        registro.append(caixa)
-        return x
-    gm.write = write
+    registro = gm.INK_BOXES = []  # gm.write guarda aqui a caixa da tinta de cada linha
     final = lambda imagem: imagem.resize((850, int(imagem.height * 850 / imagem.width)), Image.LANCZOS)  # noqa: E731
     gabarito, saida = json.loads((AMOSTRAS / 'gabarito.json').read_text(encoding='utf-8'))['imagens'], {}
     for nome, item in gabarito.items():

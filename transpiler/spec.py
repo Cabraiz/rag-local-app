@@ -39,6 +39,14 @@ class TranspileError(Exception):
         super().__init__('\n'.join(problems))
 
 
+def all_match(values, pattern, code):
+    """Each name in `values` matches `pattern`; the first that does not is the error `code`, with the pattern's hint."""
+    for value in values:
+        if not re.fullmatch(pattern, value):
+            raise PydanticCustomError(code, f'"{value}": {PATTERN_HINTS[pattern]}')
+    return values
+
+
 class Strict(BaseModel):
     # strict: a value of another JSON type is refused, never converted ("0.9" is text, not a number).
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True, strict=True)
@@ -120,10 +128,7 @@ class Agent(Strict):
     @field_validator('tools')
     @classmethod
     def references(cls, value):
-        for tool in value:
-            if not re.fullmatch(TOOL_REF, tool):
-                raise PydanticCustomError('tool_ref', f'"{tool}": use servidor.ferramenta, ex.: ocr.extract_exam_text')
-        return value
+        return all_match(value, TOOL_REF, 'tool_ref')
 
 
 class AgentSpec(Strict):
@@ -142,10 +147,7 @@ class AgentSpec(Strict):
     @field_validator('servers')
     @classmethod
     def server_names(cls, value):
-        for name in value:
-            if not re.fullmatch(IDENTIFIER, name):
-                raise PydanticCustomError('server_name', f'"{name}": use minúsculas, dígitos e _ (começando por letra)')
-        return value
+        return all_match(value, IDENTIFIER, 'server_name')
 
     def tools_of(self, server):
         """The tools (or operations) declared for a server, as server.tool references."""

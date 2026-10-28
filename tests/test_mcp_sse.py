@@ -7,16 +7,12 @@ import asyncio
 import json
 import re
 import shutil
-import socket
-import threading
-import time
 from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
 import httpx2
 import pytest
-import uvicorn
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from PIL import Image
@@ -25,18 +21,13 @@ import cli
 from mcp_servers import ocr, rag
 from mcp_servers.arguments import KEEP_ALIVE_SECONDS
 from runtime.callbacks import BookingCallbacks
+from tests.apoio import forbidden, free_port, serve
 from transpiler import TranspileError, load_root_agent, parse_spec, transpile
 from transpiler.live import mcp_tools
 
 ROOT = Path(__file__).resolve().parents[1]
 SAMPLES = ROOT / 'samples'
 SPEC = json.loads((ROOT / 'specs' / 'agent.json').read_text(encoding='utf-8'))
-
-
-def free_port():
-    with socket.socket() as probe:
-        probe.bind(('127.0.0.1', 0))
-        return probe.getsockname()[1]
 
 
 @pytest.fixture(scope='module')
@@ -46,17 +37,8 @@ def urls():
         patch.setattr(ocr, 'SAMPLES_DIR', SAMPLES)
         servers, found = [], {}
         for name, module in (('ocr', ocr), ('rag', rag)):
-            port = free_port()
-            app = module.server.sse_app(transport_security=module.SECURITY, host='127.0.0.1')
-            server = uvicorn.Server(uvicorn.Config(app, host='127.0.0.1', port=port, log_level='warning',
-                                                   timeout_keep_alive=KEEP_ALIVE_SECONDS))
-            threading.Thread(target=server.run, daemon=True).start()
-            deadline = time.monotonic() + 60  # generous: a busy machine starts uvicorn slowly
-            while not server.started and time.monotonic() < deadline:
-                time.sleep(0.05)
-            assert server.started, f'{name} server did not start'
+            server, found[name] = serve(module)
             servers.append(server)
-            found[name] = f'http://127.0.0.1:{port}/sse'
         yield found
         for server in servers:
             server.should_exit = True
@@ -179,8 +161,7 @@ def ocr_run(urls, tmp_path, monkeypatch):
     return ['run', '--spec', str(spec_file), '--agent', str(agent)]
 
 
-def must_not_run(*args, **kwargs):
-    raise AssertionError('the model ran for an image the OCR refuses')
+must_not_run = forbidden('the model ran for an image the OCR refuses')
 
 
 @pytest.mark.parametrize('filename, reason', [

@@ -11,9 +11,9 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.apoio import serve
 from tests.test_api import ONE_EXAM, api_module, configure
 from tests.test_api_headers import assert_secured
-from tests.test_carga import serve
 
 REFUSED = {'detail': 'Cabeçalho Host não permitido: chame a API por 127.0.0.1 ou localhost (no host) ou por api '
                      '(na rede do compose), ou inclua o nome em API_ALLOWED_HOSTS.'}

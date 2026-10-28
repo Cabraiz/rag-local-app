@@ -25,6 +25,7 @@ import cli
 import transpiler.live
 from runtime import rede
 from runtime.plugin import BookingPlugin
+from tests.apoio import booking, forbidden, problems, spec_with, stand_ins
 from tests.test_agent_mcp import servers  # noqa: F401  (the real MCP servers, as processes)
 from tests.versionados import EXAMPLE_SPECS
 from transpiler import TranspileError, load_root_agent, load_spec, parse_spec, render, transpile
@@ -42,23 +43,6 @@ REAL_TOOLS = {  # what the compose servers answer (input schemas cut to the prop
     'rag': {'search_exams': {'properties': {'query': {}, 'top_k': {}}}},
     'api': {'create_appointment': {}, 'get_appointment': {}, 'health': {}},
 }
-
-
-def spec_with(change, base=SPEC):
-    data = copy.deepcopy(base)
-    change(data)
-    return json.dumps(data)
-
-
-def problems(text):
-    with pytest.raises(TranspileError) as error:
-        parse_spec(text)
-    return error.value.problems
-
-
-def booking(spec):
-    """The kwargs of a spec's BookingPlugin: its roles and its policy."""
-    return spec['plugins'][0]['kwargs']
 
 
 def servers_answer_by_host(answers):
@@ -411,8 +395,7 @@ def test_cli_run_asks_the_servers_again_before_calling_gemini(tmp_path, servers_
     transpile(tmp_path / 'spec.json', tmp_path / 'agent.py')
     servers_answer['rag'] = REAL_TOOLS['rag']
 
-    def must_not_run(*args, **kwargs):
-        raise AssertionError('Gemini called with a tool the server does not have')
+    must_not_run = forbidden('Gemini called with a tool the server does not have')
 
     monkeypatch.setenv('GOOGLE_API_KEY', 'not-used')
     monkeypatch.setattr(cli, 'answers', lambda url: None)  # each service answers its GET
@@ -446,29 +429,7 @@ ORDER = ['Pedido de exames', '- GA', '- Creatinina', '- TSH']
 HITS = {'IgA': {'code': 'FICT-079', 'name': 'IgA', 'score': 1.0},
         'Creatinina': {'code': 'FICT-005', 'name': 'Creatinina', 'score': 1.0},
         'TSH': {'code': 'FICT-024', 'name': 'TSH', 'score': 1.0}}
-CALLS: dict[str, list] = {'extract_exam_text': [], 'search_exams': [], 'create_appointment': []}
-
-
-def extract_exam_text(filename: str) -> dict:
-    """Reads the order (stand-in for the OCR server)."""
-    CALLS['extract_exam_text'].append(filename)
-    return {'structuredContent': {'version': 1, 'lines': ORDER, 'line_confidence': [96.0] * len(ORDER),
-                                  'line_intent': ['request'] * len(ORDER), 'contested_exams': [], 'page_clean': True, 'pii_masked': {}}}
-
-
-def search_exams(query: str, top_k: int = 3) -> dict:
-    """Searches the catalog (stand-in for the RAG server)."""
-    CALLS['search_exams'].append((query, top_k))
-    return {'structuredContent': {'result': [HITS[query]]}}
-
-
-def create_appointment(exams: list[dict]) -> dict:
-    """Books the exams (stand-in for POST /appointments)."""
-    CALLS['create_appointment'].append([exam['code'] for exam in exams])
-    return {'id': 'a1', 'status': 'scheduled', 'exams': exams}
-
-
-STAND_INS = {tool.__name__: tool for tool in (extract_exam_text, search_exams, create_appointment)}
+CALLS, STAND_INS = stand_ins(ORDER, HITS)
 
 
 class Scripted(BaseLlm):

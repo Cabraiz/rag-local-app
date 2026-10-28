@@ -15,13 +15,10 @@ import re
 import shutil
 import socket
 import sqlite3
-import threading
-import time
 from pathlib import Path
 
 import httpx
 import pytest
-import uvicorn
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import InMemoryRunner
@@ -29,6 +26,7 @@ from google.genai import types
 from pydantic import Field
 
 import cli
+from tests.apoio import SPEC_PORTS_MARKS, loopback, serve
 from tests.portas import require_free, wait_until_free
 from transpiler import transpile
 
@@ -40,14 +38,7 @@ SEEN = []  # every request the scripted models got: what reached "the LLM"
 READ = ['Hemograma completo', 'Glicemia de jejum', 'Creatinina']
 CODES = {'Hemograma completo': 'FICT-001', 'Glicemia de jejum': 'FICT-002', 'Creatinina': 'FICT-005'}
 
-pytestmark = [
-    pytest.mark.skipif(shutil.which('tesseract') is None, reason='Tesseract runs inside the Docker image'),
-    # The spec's own ports, also used by the other module: with pytest-xdist (-n) both run on one
-    # worker, one after the other.
-    pytest.mark.xdist_group('spec-ports'),
-    pytest.mark.filterwarnings(r'ignore:\[EXPERIMENTAL\]:UserWarning'),
-    pytest.mark.filterwarnings('ignore::DeprecationWarning'),
-]
+pytestmark = SPEC_PORTS_MARKS
 
 
 class Scripted(BaseLlm):
@@ -83,16 +74,6 @@ class ScriptedRunner(InMemoryRunner):
             super().__init__(agent=agent, app_name=app_name, **kwargs)
 
 
-def serve_on(app, port):
-    server = uvicorn.Server(uvicorn.Config(app, host='127.0.0.1', port=port, log_level='warning'))
-    threading.Thread(target=server.run, daemon=True).start()
-    deadline = time.monotonic() + 60  # generous: a busy machine (CI, parallel builds) starts uvicorn slowly
-    while not server.started and time.monotonic() < deadline:
-        time.sleep(0.05)
-    assert server.started, f'port {port} did not start'
-    return server
-
-
 @pytest.fixture(scope='module')
 def services(tmp_path_factory):
     """OCR, RAG and the API in this process, at the spec's ports; yields the API's database file."""
@@ -109,9 +90,8 @@ def services(tmp_path_factory):
     shutil.copytree(ROOT / 'samples', samples)
     shutil.copy(samples / IMAGE, samples / NAMED)
     patch.setattr(ocr, 'SAMPLES_DIR', samples)
-    servers = [serve_on(ocr.server.sse_app(transport_security=ocr.SECURITY, host='127.0.0.1'), PORTS['ocr']),
-               serve_on(rag.server.sse_app(transport_security=rag.SECURITY, host='127.0.0.1'), PORTS['rag']),
-               serve_on(importlib.reload(api.main).app, PORTS['api'])]
+    servers = [serve(ocr, port=PORTS['ocr'])[0], serve(rag, port=PORTS['rag'])[0],
+               serve(importlib.reload(api.main).app, port=PORTS['api'])[0]]
     try:
         yield folder / 'appointments.db'
     finally:
@@ -125,13 +105,7 @@ def services(tmp_path_factory):
 @pytest.fixture
 def run(services, tmp_path, monkeypatch, capsys):
     """run(scripts) -> (exit code, stdout, stderr, the appointments this run stored)."""
-    real = socket.getaddrinfo
-
-    def local(host, *args, **kwargs):  # the spec's hosts (ocr, rag, api) are this machine
-        name = host.decode() if isinstance(host, bytes) else host  # anyio passes it IDNA-encoded
-        return real('127.0.0.1' if name in PORTS else host, *args, **kwargs)
-
-    monkeypatch.setattr(socket, 'getaddrinfo', local)
+    monkeypatch.setattr(socket, 'getaddrinfo', loopback(PORTS))
     monkeypatch.setattr(cli, 'check_addresses', lambda spec: [])  # the compose names on loopback, on purpose here
     monkeypatch.setenv('GOOGLE_API_KEY', 'not-used')
     monkeypatch.delenv('GEMINI_MODEL', raising=False)

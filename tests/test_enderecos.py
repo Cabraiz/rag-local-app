@@ -7,7 +7,7 @@ import asyncio
 import json
 import socket
 import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 import httpx
@@ -19,7 +19,8 @@ import cli
 import runtime
 import transpiler.live
 from runtime import rede
-from tests.test_spec_generica import REAL_TOOLS, SPEC, VARIANT, servers_answer, spec_with  # noqa: F401
+from tests.apoio import Quiet, forbidden, spec_with
+from tests.test_spec_generica import REAL_TOOLS, SPEC, VARIANT, servers_answer  # noqa: F401
 from transpiler import TranspileError, load_root_agent, parse_spec, transpile
 from transpiler.live import live_tools
 
@@ -167,8 +168,7 @@ def test_cli_run_stops_when_a_server_answers_but_lists_nothing(tmp_path, servers
     transpile(SPEC_FILE, agent)
     servers_answer[server] = None  # the GET answers; list_tools (or /openapi.json) does not
 
-    def must_not_run(*args, **kwargs):
-        raise AssertionError('Gemini called without the tools checked')
+    must_not_run = forbidden('Gemini called without the tools checked')
 
     monkeypatch.setattr(socket, 'getaddrinfo', resolver(COMPOSE_DNS))
     monkeypatch.setenv('GOOGLE_API_KEY', 'not-used')
@@ -194,7 +194,7 @@ def test_the_servers_are_asked_also_from_inside_an_event_loop(servers_answer):
 # --- no redirect leaves the allowed host ----------------------------------------------------------
 
 
-class Recorder(BaseHTTPRequestHandler):
+class Recorder(Quiet):
     """GET /sse and /openapi.json redirect to `target`; any other path is recorded and answers 404."""
     target = ''
     hits: list[str] = []
@@ -209,8 +209,6 @@ class Recorder(BaseHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
-    def log_message(self, *args):
-        pass
 
 
 @pytest.fixture
@@ -282,8 +280,7 @@ def test_cli_run_stops_when_an_allowed_name_resolves_to_a_local_address(tmp_path
         lambda s: s['servers']['api'].update(openapi_url='https://clinica.exemplo:8443/openapi.json')), encoding='utf-8')
     transpile(tmp_path / 'spec.json', tmp_path / 'agent.py')
 
-    def must_not_run(*args, **kwargs):
-        raise AssertionError('a request was sent before the addresses were checked')
+    must_not_run = forbidden('a request was sent before the addresses were checked')
 
     monkeypatch.setattr(socket, 'getaddrinfo', resolver({'clinica.exemplo': [address], 'ocr': ['10.0.0.5'], 'rag': ['10.0.0.6']}))
     monkeypatch.setenv('GOOGLE_API_KEY', 'not-used')
@@ -351,7 +348,7 @@ def test_the_run_keeps_the_address_it_checked_when_the_dns_answer_changes(monkey
     assert rede.pinned(request, httpx.ConnectError) is request
 
 
-class HostRecorder(BaseHTTPRequestHandler):
+class HostRecorder(Quiet):
     hosts: list[str] = []
 
     def do_GET(self):  # noqa: N802 (http.server's name)
@@ -359,8 +356,6 @@ class HostRecorder(BaseHTTPRequestHandler):
         self.send_response(204)
         self.end_headers()
 
-    def log_message(self, *args):
-        pass
 
 
 def test_the_runtimes_clients_connect_to_the_pinned_address_without_asking_the_dns(monkeypatch):

@@ -14,9 +14,11 @@ from types import SimpleNamespace
 
 import pytest
 
+import catalogo
 import cli
 from runtime import confirmacao
 from runtime.plugin import BookingPlugin
+from tests.apoio import forbidden
 from tests.test_transpiler import (
     KEY,
     UNAVAILABLE,
@@ -64,10 +66,7 @@ def booked(args):
 
 def nested_pairs():
     """(short, long) catalog terms where the short one is inside the long one as whole words."""
-    def plain(text):
-        import unicodedata
-        text = ''.join(c for c in unicodedata.normalize('NFKD', text.casefold()) if not unicodedata.combining(c))
-        return ' '.join(''.join(c if c.isalnum() else ' ' for c in text).split())
+    plain = catalogo.words
 
     exams = json.loads((ROOT / 'data' / 'exams.json').read_text(encoding='utf-8'))
     terms = [(exam['code'], term, exam['name']) for exam in exams for term in [exam['name'], *exam.get('synonyms', [])]]
@@ -450,8 +449,7 @@ def test_end_to_end_without_gemini_with_the_real_ocr_reading(agent, monkeypatch,
                                    'gemini-' + 'a' * 50, 'gemini-x\x1b[31m'])
 def test_an_invalid_gemini_model_variable_stops_before_any_call(ready_run, monkeypatch, capsys, model):
     # GEMINI_MODEL replaces the spec's model, so it passes the spec's own check (transpiler/spec.py MODEL).
-    def must_not_run(*args, **kwargs):
-        raise AssertionError('called a service or Gemini with an invalid model')
+    must_not_run = forbidden('called a service or Gemini with an invalid model')
 
     monkeypatch.setenv('GEMINI_MODEL', model)
     monkeypatch.setattr(cli, 'check_services', must_not_run)

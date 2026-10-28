@@ -16,33 +16,10 @@ import time
 from types import SimpleNamespace
 
 import pytest
-import uvicorn
 
 from mcp_servers import ocr, rag
-from mcp_servers.arguments import KEEP_ALIVE_SECONDS
+from tests.apoio import serve
 from tests.load import carga, pedidos
-
-
-def serve(app, path=''):
-    """Run an ASGI app with uvicorn in a background thread; return (server, URL + path).
-
-    An MCP server module (ocr, rag) is served as its SSE app at /sse, as test_manuscritos
-    and test_robustez call it: serve(ocr).
-    """
-    if hasattr(app, 'server') and hasattr(app, 'SECURITY'):
-        app, path = app.server.sse_app(transport_security=app.SECURITY, host='127.0.0.1'), '/sse'
-    with socket.socket() as probe:
-        probe.bind(('127.0.0.1', 0))
-        port = probe.getsockname()[1]
-    # Keep-alive as in production (75 s): with uvicorn's 5 s, a POST can race the client's 5 s pool expiry.
-    server = uvicorn.Server(uvicorn.Config(app, host='127.0.0.1', port=port, log_level='warning',
-                                           timeout_keep_alive=KEEP_ALIVE_SECONDS))
-    threading.Thread(target=server.run, daemon=True).start()
-    deadline = time.monotonic() + 60  # generous: a busy machine starts uvicorn slowly
-    while not server.started and time.monotonic() < deadline:
-        time.sleep(0.05)
-    assert server.started
-    return server, f'http://127.0.0.1:{port}{path}'
 
 
 def test_generated_cpfs_are_never_valid_and_every_value_would_be_caught(tmp_path):

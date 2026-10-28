@@ -12,7 +12,6 @@ import base64
 import json
 import logging
 import re
-import shutil
 import socket
 import sys
 from types import SimpleNamespace
@@ -34,6 +33,7 @@ from google.genai import types
 from runtime import rede
 from runtime.callbacks import BookingCallbacks
 from runtime.entrada import image_names
+from tests.apoio import SPEC_PORTS_MARKS, loopback
 from tests.test_alucinacao import IMAGE, NAMED, PORTS, ROOT, appointment, services, stored_ids  # noqa: F401
 from transpiler import transpile
 
@@ -43,14 +43,7 @@ READ = ['Hemograma completo', 'Glicemia de jejum', 'Creatinina']  # the exams of
 CODES = {'Hemograma completo': 'FICT-001', 'Glicemia de jejum': 'FICT-002', 'Creatinina': 'FICT-005'}
 BOOK = {'exams': [{'code': CODES[name], 'name': name} for name in READ]}  # what the scripted schedule step books
 
-pytestmark = [
-    pytest.mark.skipif(shutil.which('tesseract') is None, reason='Tesseract runs inside the Docker image'),
-    # The spec's own ports, also used by test_alucinacao and test_agent_mcp: with pytest-xdist (-n) the
-    # three modules run on one worker, one after the other.
-    pytest.mark.xdist_group('spec-ports'),
-    pytest.mark.filterwarnings(r'ignore:\[EXPERIMENTAL\]:UserWarning'),
-    pytest.mark.filterwarnings('ignore::DeprecationWarning'),
-]
+pytestmark = SPEC_PORTS_MARKS
 
 
 def file_named_in(request):
@@ -105,19 +98,13 @@ def agent_folder(services, tmp_path, monkeypatch, new_process):  # noqa: F811
     """The folder `cli transpile` writes (agent.py, __init__.py), with the spec's hosts on this machine.
     Yields (the folder, the URLs each order checked); afterwards, as for a new `adk` process, the
     folder's modules, sys.path, the names pinned and the log handler `adk run` adds are gone."""
-    real = socket.getaddrinfo
-
-    def local(host, *args, **kwargs):  # the spec's hosts (ocr, rag, api) are this machine
-        name = host.decode() if isinstance(host, bytes) else host
-        return real('127.0.0.1' if name in PORTS else host, *args, **kwargs)
-
     checked = []
 
     def compose_names_on_loopback(urls):  # on purpose here: the rule itself is tested at the end of this file
         checked.append(list(urls))
         return []
 
-    monkeypatch.setattr(socket, 'getaddrinfo', local)
+    monkeypatch.setattr(socket, 'getaddrinfo', loopback(PORTS))
     monkeypatch.setattr(rede, 'check_urls', compose_names_on_loopback)
     monkeypatch.setenv('ADK_DISABLE_LOAD_DOTENV', '1')
     monkeypatch.delenv('GEMINI_MODEL', raising=False)

@@ -1,12 +1,12 @@
 """OCR MCP server: file boundary, PII masking before return and a real Tesseract run."""
 import asyncio
 import shutil
-import unicodedata
 from pathlib import Path
 
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
+from catalogo import fold
 from guardrails import pii
 from mcp_servers import ocr
 
@@ -211,9 +211,7 @@ def read_saved(tmp_path, monkeypatch, image, name='pedido.png', **save):
 
 def exams_read(text, exams):
     """The exams whose name is in the text, without accents or case."""
-    def plain(value):
-        return ''.join(c for c in unicodedata.normalize('NFKD', value.casefold()) if not unicodedata.combining(c))
-    return [exam for exam in exams if plain(exam) in plain(text)]
+    return [exam for exam in exams if fold(exam) in fold(text)]
 
 
 @needs_tesseract

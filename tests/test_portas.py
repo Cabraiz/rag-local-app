@@ -35,7 +35,8 @@ def test_every_test_on_the_spec_ports_runs_in_the_spec_ports_group():
     missing = []
     for path in sorted(Path(__file__).parent.glob('test_*.py')):
         text = path.read_text(encoding='utf-8')
-        module_group = "xdist_group('spec-ports')" in text.split('\ndef ', 1)[0]  # in the module's pytestmark
+        head = text.split('\ndef ', 1)[0]  # the module's pytestmark: its own list, or tests/apoio.py's
+        module_group = "xdist_group('spec-ports')" in head or 'pytestmark = SPEC_PORTS_MARKS' in head
         for node in ast.walk(ast.parse(text)):
             if not isinstance(node, ast.FunctionDef) or not node.name.startswith('test'):
                 continue

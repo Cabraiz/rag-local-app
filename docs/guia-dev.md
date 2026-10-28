@@ -168,6 +168,10 @@ docker compose run --rm --no-deps tests mypy                             # tipos
   - sem `-n auto`, de 6 a 11 min.
 - **Portas:** os arquivos que sobem os servidores nas portas da spec (8000 a 8002) carregam `xdist_group('spec-ports')`
   e rodam num worker só. `tests/portas.py` espera a porta livre.
+- **O que os testes compartilham** fica em [`tests/apoio.py`](../tests/apoio.py), escrito uma vez:
+  - um servidor numa thread (`serve`);
+  - os dublês do OCR, do RAG, da API e do Gemini fora do ar;
+  - a spec editada (`spec_with`) e o `forbidden`, para o que não pode ser chamado.
 - **O serviço `tests`** é a imagem do `agent` mais pytest, ruff, mypy, o Tesseract e os testes (estágio `test` do
   `Dockerfile`). Nunca recebe a `GOOGLE_API_KEY`: nada chama o Gemini.
 - **O ponta a ponta real** (`tests-e2e`) roda [`tests/test_e2e.py`](../tests/test_e2e.py) com a chave. O `run` inteiro
