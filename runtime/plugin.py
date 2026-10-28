@@ -2,6 +2,7 @@
 the BookingCallbacks of runtime/callbacks.py, called by the agent's place in the pipeline: the root opens the
 order and reports it, and a pipeline that lists exams without booking reviews the last answer. The transpiler
 checks a spec with its Config, check_spec and check_live."""
+
 from google.adk.plugins.base_plugin import BasePlugin
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
@@ -27,6 +28,7 @@ class BookingConfig(BaseModel):
     """The plugin's kwargs: which tool reads the order, which searches the catalog (both feed an exam's
     confidence) and which books, each as server.tool, and the policy (runtime/confianca.py). A spec may
     make the policy stricter, never looser (at 0.80 a misread "- GA" would book as IgA)."""
+
     model_config = ConfigDict(extra='forbid', strict=True)
     read: str | None = None
     search: str | None = None
@@ -43,13 +45,20 @@ class BookingConfig(BaseModel):
     def not_looser(cls, value, info: ValidationInfo):
         floor = getattr(MEASURED, str(info.field_name))
         if value is not None and value < floor:
-            raise rule(f'deve ser no mínimo {floor:g}'.replace('.', ',') + ', o valor medido: uma spec pode deixar '
-                       'a política mais rígida, nunca mais frouxa')
+            raise rule(
+                f'deve ser no mínimo {floor:g}'.replace('.', ',') + ', o valor medido: uma spec pode deixar '
+                'a política mais rígida, nunca mais frouxa'
+            )
         earlier = info.data  # the fields above, when they were valid
         if info.field_name == 'ask_from' and value is not None and value >= earlier.get('min_confidence', 2):
             raise rule('deve ser menor que min_confidence (ou null, sem pergunta)')
         line, short = earlier.get('ocr_floor_line'), earlier.get('ocr_floor_short')
-        if info.field_name == 'ocr_floor_synonym' and line is not None and short is not None and not line <= short <= value:
+        if (
+            info.field_name == 'ocr_floor_synonym'
+            and line is not None
+            and short is not None
+            and not line <= short <= value
+        ):
             raise rule('use ocr_floor_line <= ocr_floor_short <= ocr_floor_synonym (uma sigla pede leitura mais clara)')
         return value
 
@@ -61,6 +70,7 @@ class ListedExam(BaseModel):
 
 class ListedExams(BaseModel):
     """The answer of the agent that lists exams without booking (its output_schema): ADK checks it."""
+
     exams: list[ListedExam]
 
 
@@ -68,18 +78,26 @@ class BookingPlugin(BasePlugin, BookingCallbacks):
     """BookingCallbacks as an App plugin. `servers` (server name -> address) comes from the spec's servers,
     so the kwargs name each tool as server.tool; the rest is BookingConfig, checked again here, so a
     hand-edited agent.py cannot loosen the policy either."""
+
     Config = BookingConfig
 
     def __init__(self, *, servers: dict[str, str] | None = None, **kwargs):
         config, servers = BookingConfig.model_validate(kwargs), servers or {}
         # role -> (server, tool), (None, None) for a role the spec leaves out
-        read, search, book = (getattr(config, role).split('.') if getattr(config, role) else (None, None)
-                              for role in ROLES)
+        read, search, book = (
+            getattr(config, role).split('.') if getattr(config, role) else (None, None) for role in ROLES
+        )
         BasePlugin.__init__(self, name='booking')
         BookingCallbacks.__init__(
-            self, ocr_tool=read[1], search_tool=search[1], booking_tool=book[1],
+            self,
+            ocr_tool=read[1],
+            search_tool=search[1],
+            booking_tool=book[1],
             policy=BookingPolicy(**{name: given for name, given in kwargs.items() if name not in ROLES}),  # as written
-            ocr_url=servers.get(read[0] or ''), search_url=servers.get(search[0] or ''), servers=list(servers.values()))
+            ocr_url=servers.get(read[0] or ''),
+            search_url=servers.get(search[0] or ''),
+            servers=list(servers.values()),
+        )
 
     @staticmethod
     def of(app):
@@ -131,8 +149,10 @@ class BookingPlugin(BasePlugin, BookingCallbacks):
         if len(set(declared)) < len(declared):
             problems.append(f'{where}: cada papel usa uma ferramenta diferente')
         if refs['book'] and not (refs['read'] and refs['search']):
-            problems.append(f'{where}.book: agendar pede read e search: a confiança de um exame vem da leitura do '
-                            'pedido e da busca no catálogo')
+            problems.append(
+                f'{where}.book: agendar pede read e search: a confiança de um exame vem da leitura do '
+                'pedido e da busca no catálogo'
+            )
         elif refs['search'] and not refs['read']:
             problems.append(f'{where}.search: a busca é medida contra o pedido lido: declare também read')
         done: set[str] = set()  # the tools of the earlier agents
@@ -151,19 +171,26 @@ class BookingPlugin(BasePlugin, BookingCallbacks):
             schema = (live.get(server) or {}).get(tool)
             missing = [name for name in parameters if schema is not None and name not in schema.get('properties', {})]
             if missing:
-                problems.append(f'{where}.{role}: "{reference}" não recebe {" nem ".join(missing)}, que o runtime envia')
+                problems.append(
+                    f'{where}.{role}: "{reference}" não recebe {" nem ".join(missing)}, que o runtime envia'
+                )
         return problems + book_problems(config.book, live, where)
 
 
 def output_problems(spec, refs):
     """No agent writes a key of the order's copy in the session state, and a spec that lists exams ends with
     an agent whose answer ADK checks against ListedExams, what the plugin reads."""
-    problems = [f'agents.{index}.output_key: "{agent.output_key}" é reservado: o BookingPlugin usa essa chave do '
-                'estado' for index, agent in enumerate(spec.agents) if agent.output_key in RECORD_KEYS]
+    problems = [
+        f'agents.{index}.output_key: "{agent.output_key}" é reservado: o BookingPlugin usa essa chave do estado'
+        for index, agent in enumerate(spec.agents)
+        if agent.output_key in RECORD_KEYS
+    ]
     last = len(spec.agents) - 1
     if refs['search'] and not refs['book'] and spec.agents[last].output_schema != LISTED:
-        problems.append(f'agents.{last}.output_schema: o último agente de uma spec que lista exames responde com '
-                        f'{LISTED}, que o BookingPlugin lê')
+        problems.append(
+            f'agents.{last}.output_schema: o último agente de uma spec que lista exames responde com '
+            f'{LISTED}, que o BookingPlugin lê'
+        )
     return problems
 
 
@@ -177,20 +204,26 @@ def agent_problems(spec, refs, where, agent, done, plugin):
         if server is None or tool not in spec.tools_of(tool.split('.')[0]):
             continue
         if not server.mcp and tool != refs['book']:
-            problems.append(f'{where}: "{tool}" é uma operação de API e só a de {plugin}.book chega a um agente, '
-                            f'porque só ela passa pela checagem dos códigos antes da chamada; declare-a em '
-                            f'{plugin}.book ou tire-a do agente')
+            problems.append(
+                f'{where}: "{tool}" é uma operação de API e só a de {plugin}.book chega a um agente, '
+                f'porque só ela passa pela checagem dos códigos antes da chamada; declare-a em '
+                f'{plugin}.book ou tire-a do agente'
+            )
         elif tool not in refs.values():
             # The runtime lets through only the tools of the roles, each with its own check (the reading
             # gets this run's file only): a tool without a role would be refused when called.
-            problems.append(f'{where}: "{tool}" não tem papel em {plugin} (read, search ou book); o runtime só deixa '
-                            'passar as ferramentas dos papéis, cada uma conferida: declare o papel ou tire-a do agente')
+            problems.append(
+                f'{where}: "{tool}" não tem papel em {plugin} (read, search ou book); o runtime só deixa '
+                'passar as ferramentas dos papéis, cada uma conferida: declare o papel ou tire-a do agente'
+            )
     book, needed = refs['book'], [refs[role] for role in ('read', 'search') if refs[role]]
     if book in agent.tools and book in done:
         problems.append(f'{where}: {book} já está em outro agente: um pedido, um agendamento')
     elif book in agent.tools and not set(needed) <= done:
-        problems.append(f'{where}: {book} só agenda códigos achados no catálogo: '
-                        f'antes dele, agentes anteriores precisam usar {" e ".join(needed)}')
+        problems.append(
+            f'{where}: {book} só agenda códigos achados no catálogo: '
+            f'antes dele, agentes anteriores precisam usar {" e ".join(needed)}'
+        )
     return problems
 
 
@@ -206,17 +239,23 @@ def book_problems(reference, live, where):
     fields = body.get('properties') or {}
     item = (fields.get('exams') or {}).get('items') or {}
     if 'idempotency_key' not in operation.get('parameters', []):
-        problems.append(f'{where}.book: "{reference}" não recebe Idempotency-Key, que o runtime envia para que '
-                        'um POST repetido não agende duas vezes')
+        problems.append(
+            f'{where}.book: "{reference}" não recebe Idempotency-Key, que o runtime envia para que '
+            'um POST repetido não agende duas vezes'
+        )
     needed = [name for name in operation.get('needed', []) if name != 'idempotency_key']
     if needed:  # the runtime sends only the exams and our key: such a call would always be refused
-        problems.append(f'{where}.book: "{reference}" pede {", ".join(needed)} (no caminho ou obrigatório), que o '
-                        'runtime não envia: ele manda só exams e a Idempotency-Key')
+        problems.append(
+            f'{where}.book: "{reference}" pede {", ".join(needed)} (no caminho ou obrigatório), que o '
+            'runtime não envia: ele manda só exams e a Idempotency-Key'
+        )
     if 'exams' not in fields or 'code' not in (item.get('properties') or {}):
         problems.append(f'{where}.book: "{reference}" não recebe um corpo com exams[].code, que o runtime confere')
     elif set(fields) != {'exams'} or body.get('additionalProperties') is not False:
-        problems.append(f'{where}.book: "{reference}" aceita no corpo outros campos além de exams; o runtime só '
-                        'confere os exames, então a API precisa recusar o resto (additionalProperties: false)')
+        problems.append(
+            f'{where}.book: "{reference}" aceita no corpo outros campos além de exams; o runtime só '
+            'confere os exames, então a API precisa recusar o resto (additionalProperties: false)'
+        )
     return problems
 
 

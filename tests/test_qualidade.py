@@ -1,4 +1,5 @@
 """Photo quality check before the OCR: each problem gets its own reason; no shipped sample is refused."""
+
 from pathlib import Path
 
 import pytest
@@ -39,7 +40,7 @@ def test_a_clean_page_is_accepted(page):
 
 def test_a_header_strip_and_a_small_request_in_a_big_photo_are_accepted(page):
     strip = page.crop((0, 0, page.width, 150))  # wide and short, with text of normal size
-    photo = Image.new('L', (4500, 4500), 255)    # under 1% of ink
+    photo = Image.new('L', (4500, 4500), 255)  # under 1% of ink
     photo.paste(page, (1700, 1800))
     assert quality_problem(strip) is None and quality_problem(photo) is None
 

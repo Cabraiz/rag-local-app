@@ -6,6 +6,7 @@ only the KEEP_FINISHED latest finished orders stay (a run that failed past the P
 answers). A dropped order leaves what says it ran (KEEP_EVICTED of them), and a session's Idempotency-Key is
 derived from the session: an order sent again after both are gone gets the same appointment back from the API.
 """
+
 import collections
 import hashlib
 import hmac
@@ -22,6 +23,7 @@ from .entrada import image_token
 
 class Item(TypedDict):
     """An exam the policy sorted out, as the [s/N] question, the report and the CLI read it."""
+
     code: str
     name: str
     confidence: float
@@ -35,6 +37,7 @@ class Item(TypedDict):
 
 class Piece(NamedTuple):
     """Where the words of a query are in a line read, and how well they match it."""
+
     line: int
     start: int
     end: int
@@ -44,6 +47,7 @@ class Piece(NamedTuple):
 class Accounted(NamedTuple):
     """The piece of a line an exam sorted out stands on: its plain name when it is only similar to the line
     (it then accounts only for searches of words of that name), and its own words."""
+
     line: int
     start: int
     end: int
@@ -54,6 +58,7 @@ class Accounted(NamedTuple):
 @dataclass
 class Candidate:
     """A code a search returned, at its best confidence on the order (runtime/confianca.py)."""
+
     name: str
     confidence: float
     score: float  # the RAG's, capped for a neighbour or a resemblance
@@ -67,6 +72,7 @@ class Candidate:
 @dataclass
 class Find:
     """An exam a search found in the order: its untied best hit and every piece of the lines its query matched."""
+
     code: str
     name: str
     score: float
@@ -78,6 +84,7 @@ class Find:
 @dataclass
 class OrderRecord:
     """The order's record. None: not set yet; only what is set reaches the session state."""
+
     order_invocation: str | None = None  # the invocation that holds the order
     image_file: str | None = None
     image_token: str | None = None  # what the model calls the image (runtime/entrada.py)
@@ -122,8 +129,11 @@ class OrderRecord:
         """The copy in the session state: what is set, but PRIVATE. Once the OCR answered, a reading
         it gave no usable value for (None) is copied too."""
         read = self.ocr_lines is not None
-        return {name: value for name, value in asdict(self).items()
-                if name not in PRIVATE and (value is not None or read and name in UNUSABLE)}
+        return {
+            name: value
+            for name, value in asdict(self).items()
+            if name not in PRIVATE and (value is not None or read and name in UNUSABLE)
+        }
 
 
 RECORD_KEYS = tuple(field.name for field in fields(OrderRecord))  # never a spec's output_key (runtime/plugin.py)
@@ -184,7 +194,9 @@ class Orders:
     def start(self, session: Any, image_file: str, ask: bool | None = None) -> None:
         """cli run: the order of a session the CLI created, with the image it checked; ask=False: --yes, the
         rules alone, so the list is not confirmed and the middle band is left out."""
-        self.open(session_key(session), OrderRecord(image_file=image_file, image_token=image_token(image_file), ask=ask))
+        self.open(
+            session_key(session), OrderRecord(image_file=image_file, image_token=image_token(image_file), ask=ask)
+        )
 
     @staticmethod
     def publish(context: Any, order: OrderRecord) -> None:

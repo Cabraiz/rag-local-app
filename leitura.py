@@ -3,6 +3,7 @@ and the runtime validates it once (runtime/confianca.py, remember_ocr); a reply 
 VERSION changes when a field is added or changes meaning. A field left out fails closed: no reading, no kind or no
 contested set asks every exam at most. The tool still declares a plain object: ADK copies a tool's outputSchema into
 the declaration the model reads, and the model only gets the exam lines (runtime/callbacks.py, after_tool)."""
+
 from typing import Final, Literal
 
 from pydantic import BaseModel, ConfigDict, StrictBool, StrictFloat, StrictInt, model_validator
@@ -17,6 +18,7 @@ NOT_ANCHORS: Final = BLOCKING | {'prep'}  # nothing is booked from such a line, 
 
 class Contest(BaseModel):
     """An exam the page contests, and why: a line that says not to do it, that it was done, or an instruction on it."""
+
     model_config = ConfigDict(extra='forbid')
     code: str
     name: str
@@ -25,6 +27,7 @@ class Contest(BaseModel):
 
 class OcrReading(BaseModel):
     """The lines read, PII masked, and what the OCR says of each (one value per line, in the same order)."""
+
     model_config = ConfigDict(extra='forbid')
     version: Literal[1]
     lines: list[str]

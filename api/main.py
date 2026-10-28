@@ -10,6 +10,7 @@ API_ALLOWED_HOSTS (else 400) and gets the security headers of SecurityHeaders (n
 Importing this module reads no setting and touches no file: the catalog, the key and the
 database are opened when the server starts (lifespan), and an invalid key stops it there.
 """
+
 import hashlib
 import hmac
 import json
@@ -74,9 +75,13 @@ def allowed_hosts() -> frozenset[str]:
 def fingerprints(database_key: bytes, key: str, codes: list[str]) -> tuple[list[str], str]:
     """What idempotency stores, as HMACs under keys derived from the database key (the key may carry personal
     data; a plain hash of codes is reversed by trying): the key with each code, one row per exam, and the code set."""
-    mac = [hmac.new(database_key, label, hashlib.sha256).digest() for label in (b'idempotency-key', b'idempotency-body')]
-    return ([hmac.new(mac[0], f'{key} {code}'.encode(), hashlib.sha256).hexdigest() for code in codes],
-            hmac.new(mac[1], ' '.join(sorted(codes)).encode(), hashlib.sha256).hexdigest())
+    mac = [
+        hmac.new(database_key, label, hashlib.sha256).digest() for label in (b'idempotency-key', b'idempotency-body')
+    ]
+    return (
+        [hmac.new(mac[0], f'{key} {code}'.encode(), hashlib.sha256).hexdigest() for code in codes],
+        hmac.new(mac[1], ' '.join(sorted(codes)).encode(), hashlib.sha256).hexdigest(),
+    )
 
 
 class RateLimiter:
@@ -128,10 +133,13 @@ def init_db(db_path: Path) -> sqlite3.Connection:
         connection.execute('PRAGMA journal_mode = WAL')  # readers never block the writer
         connection.execute('PRAGMA secure_delete = ON')
         connection.execute('BEGIN IMMEDIATE')
-        connection.execute('CREATE TABLE IF NOT EXISTS appointments '
-                           '(id TEXT PRIMARY KEY, status TEXT, exams TEXT, created_at TEXT)')
-        connection.execute('CREATE TABLE IF NOT EXISTS idempotency_keys (key_hash TEXT PRIMARY KEY, '
-                           'request_hash TEXT NOT NULL, appointment_id TEXT NOT NULL, created_at INTEGER NOT NULL)')
+        connection.execute(
+            'CREATE TABLE IF NOT EXISTS appointments (id TEXT PRIMARY KEY, status TEXT, exams TEXT, created_at TEXT)'
+        )
+        connection.execute(
+            'CREATE TABLE IF NOT EXISTS idempotency_keys (key_hash TEXT PRIMARY KEY, '
+            'request_hash TEXT NOT NULL, appointment_id TEXT NOT NULL, created_at INTEGER NOT NULL)'
+        )
         connection.execute('DROP TABLE IF EXISTS idempotency')  # a key now books each exam once (fingerprints)
     # Kept open while serving: closing the last connection would checkpoint and delete the WAL on every POST.
     return connect(db_path)
@@ -157,11 +165,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 class RequestedExam(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    code: str = Field(pattern=r'^FICT-[0-9]{3}$', description='Código do exame no catálogo fictício.',
-                      examples=['FICT-001'])
-    name: str | None = Field(None, min_length=1, max_length=120, examples=['Hemograma'],
-                             description='Opcional: a API não o guarda nem o compara; grava e devolve o nome '
-                                         'oficial do catálogo.')
+    code: str = Field(
+        pattern=r'^FICT-[0-9]{3}$', description='Código do exame no catálogo fictício.', examples=['FICT-001']
+    )
+    name: str | None = Field(
+        None,
+        min_length=1,
+        max_length=120,
+        examples=['Hemograma'],
+        description='Opcional: a API não o guarda nem o compara; grava e devolve o nome oficial do catálogo.',
+    )
 
 
 class Exam(RequestedExam):
@@ -170,8 +183,9 @@ class Exam(RequestedExam):
 
 class AppointmentRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    exams: list[RequestedExam] = Field(min_length=1, max_length=20,
-                                       description='Exames a agendar (de 1 a 20, sem repetir).')
+    exams: list[RequestedExam] = Field(
+        min_length=1, max_length=20, description='Exames a agendar (de 1 a 20, sem repetir).'
+    )
 
     @field_validator('exams')
     @classmethod
@@ -204,9 +218,13 @@ class ValidationErrors(BaseModel):
 
 # The `detail` of each error this API returns, also shown as its example in /docs.
 NOT_FOUND = 'Agendamento não encontrado.'
-KEY_REUSED = 'Esta Idempotency-Key já agendou um destes exames, com outra lista. Para um novo agendamento, use uma chave nova.'
-HOST_NOT_ALLOWED = ('Cabeçalho Host não permitido: chame a API por 127.0.0.1 ou localhost (no host) ou por api (na rede '
-                    'do compose), ou inclua o nome em API_ALLOWED_HOSTS.')
+KEY_REUSED = (
+    'Esta Idempotency-Key já agendou um destes exames, com outra lista. Para um novo agendamento, use uma chave nova.'
+)
+HOST_NOT_ALLOWED = (
+    'Cabeçalho Host não permitido: chame a API por 127.0.0.1 ou localhost (no host) ou por api (na rede '
+    'do compose), ou inclua o nome em API_ALLOWED_HOSTS.'
+)
 TOO_LARGE = f'Corpo maior que {MAX_BODY_BYTES} bytes.'
 
 
@@ -216,20 +234,31 @@ def too_many(wait: int) -> str:
 
 def error_response(description: str, detail: str, **more) -> dict:
     """A documented error with its own example: the shared Message schema alone would show one text for all."""
-    return {'model': Message, 'description': description,
-            'content': {'application/json': {'example': {'detail': detail}}}, **more}
+    return {
+        'model': Message,
+        'description': description,
+        'content': {'application/json': {'example': {'detail': detail}}},
+        **more,
+    }
 
 
 TOO_MANY_REQUESTS = error_response(
     'Muitas requisições deste cliente (`API_RATE_LIMIT_PER_MINUTE`); tente de novo depois de `Retry-After` segundos.',
-    too_many(60), headers={'Retry-After': {'description': 'Segundos até a próxima requisição ser aceita.',
-                                           'schema': {'type': 'integer'}}})
+    too_many(60),
+    headers={
+        'Retry-After': {'description': 'Segundos até a próxima requisição ser aceita.', 'schema': {'type': 'integer'}}
+    },
+)
 HOST_REFUSED = error_response('Cabeçalho `Host` fora de `API_ALLOWED_HOSTS`.', HOST_NOT_ALLOWED)
 
 
-app = FastAPI(title='API de agendamento de exames (fictícia)', version='1.0.0', lifespan=lifespan,
-              description='Recebe a lista de exames extraída do pedido médico e cria um agendamento. '
-                          'Todos os dados são fictícios; nenhum dado de paciente é enviado ou guardado.')
+app = FastAPI(
+    title='API de agendamento de exames (fictícia)',
+    version='1.0.0',
+    lifespan=lifespan,
+    description='Recebe a lista de exames extraída do pedido médico e cria um agendamento. '
+    'Todos os dados são fictícios; nenhum dado de paciente é enviado ou guardado.',
+)
 
 
 class Middleware:
@@ -311,8 +340,11 @@ class TrustedHost(Middleware):
         await self.app(scope, receive, send)
 
 
-SECURITY_HEADERS = [(b'x-content-type-options', b'nosniff'), (b'x-frame-options', b'DENY'),
-                    (b'referrer-policy', b'no-referrer')]
+SECURITY_HEADERS = [
+    (b'x-content-type-options', b'nosniff'),
+    (b'x-frame-options', b'DENY'),
+    (b'referrer-policy', b'no-referrer'),
+]
 # The JSON routes load nothing, so nothing is allowed. Not on the docs pages: their HTML loads the
 # Swagger UI and ReDoc scripts and styles from cdn.jsdelivr.net, with an inline script.
 CONTENT_SECURITY_POLICY = (b'content-security-policy', b"default-src 'none'; frame-ancestors 'none'")
@@ -329,8 +361,11 @@ class SecurityHeaders(Middleware):
         if scope['type'] != 'http':
             return await self.app(scope, receive, send)
         path = scope['path']
-        extra = [*SECURITY_HEADERS, *([] if path in DOCS_PAGES else [CONTENT_SECURITY_POLICY]),
-                 *([NO_STORE] if path == '/appointments' or path.startswith('/appointments/') else [])]
+        extra = [
+            *SECURITY_HEADERS,
+            *([] if path in DOCS_PAGES else [CONTENT_SECURITY_POLICY]),
+            *([NO_STORE] if path == '/appointments' or path.startswith('/appointments/') else []),
+        ]
         started = False
 
         async def send_with_headers(message):
@@ -345,8 +380,9 @@ class SecurityHeaders(Middleware):
             await self.app(scope, receive, send_with_headers)
         except Exception:
             if not started:
-                await JSONResponse({'detail': 'Erro interno ao processar a requisição.'},
-                                   status_code=500)(scope, receive, send_with_headers)
+                await JSONResponse({'detail': 'Erro interno ao processar a requisição.'}, status_code=500)(
+                    scope, receive, send_with_headers
+                )
             raise
 
 
@@ -381,9 +417,17 @@ class RequestLog(Middleware):
             # API routes leave their template in scope; /docs and /openapi.json only their endpoint.
             route = getattr(scope.get('route'), 'path', None) or (scope['path'] if 'endpoint' in scope else None)
             method = scope['method'] if scope['method'] in ('GET', 'HEAD', 'POST', 'OPTIONS') else '(outro)'
-            ACCESS_LOG.info(json.dumps({'request_id': request_id, 'method': method,
-                                        'route': route or '(sem rota)', 'status': status,
-                                        'duration_ms': round((time.perf_counter() - start) * 1000, 1)}))
+            ACCESS_LOG.info(
+                json.dumps(
+                    {
+                        'request_id': request_id,
+                        'method': method,
+                        'route': route or '(sem rota)',
+                        'status': status,
+                        'duration_ms': round((time.perf_counter() - start) * 1000, 1),
+                    }
+                )
+            )
 
 
 # Innermost first; RequestLog, outermost, logs the 400, 413 and 429 of the others too.
@@ -410,7 +454,9 @@ MESSAGES: dict[str, Callable[[dict], str]] = {
     'string_too_short': lambda ctx: f"Deve ter pelo menos {count(ctx['min_length'], 'caractere', 'caracteres')}.",
     'string_too_long': lambda ctx: f"Deve ter no máximo {count(ctx['max_length'], 'caractere', 'caracteres')}.",
     'string_pattern_mismatch': lambda ctx: 'Formato inválido.',
-    **dict.fromkeys(('uuid_parsing', 'uuid_type'), lambda ctx: 'Deve ser um UUID, como 3fa85f64-5717-4562-b3fc-2c963f66afa6.'),
+    **dict.fromkeys(
+        ('uuid_parsing', 'uuid_type'), lambda ctx: 'Deve ser um UUID, como 3fa85f64-5717-4562-b3fc-2c963f66afa6.'
+    ),
 }
 
 
@@ -435,83 +481,135 @@ async def validation_error(request: Request, error: RequestValidationError):
     return JSONResponse({'detail': detail}, status_code=422)
 
 
-@app.get('/health', operation_id='health', tags=['operação'], summary='Verificar se a API está no ar',
-         description='Retorna `ok` e a quantidade de exames do catálogo carregado.')
+@app.get(
+    '/health',
+    operation_id='health',
+    tags=['operação'],
+    summary='Verificar se a API está no ar',
+    description='Retorna `ok` e a quantidade de exames do catálogo carregado.',
+)
 def health(request: Request) -> dict:
     return {'status': 'ok', 'catalog_size': len(request.app.state.catalog)}
 
 
-@app.post('/appointments', operation_id='create_appointment', tags=['agendamentos'], status_code=201,
-          response_model=Appointment, summary='Criar agendamento',
-          description='Valida cada código no catálogo e grava o agendamento. Só o `code` de cada exame conta: o '
-                      '`name` é opcional, e a API grava e devolve o nome oficial do catálogo. Código fora do formato '
-                      '`FICT-000`, repetido ou inexistente no catálogo retorna 422; cada item de `detail` '
-                      'aponta o campo (`loc`) e explica o motivo (`msg`). Corpo acima de 16 KB retorna 413. '
-                      'Com `Idempotency-Key`, os mesmos códigos devolvem o mesmo agendamento; nenhum exame se repete.',
-          responses={400: HOST_REFUSED,
-                     409: error_response('`Idempotency-Key` já usada com um destes códigos.', KEY_REUSED),
-                     413: error_response('Corpo da requisição grande demais.', TOO_LARGE),
-                     422: {'model': ValidationErrors, 'description': 'Corpo inválido ou código de exame desconhecido.'},
-                     429: TOO_MANY_REQUESTS})
+@app.post(
+    '/appointments',
+    operation_id='create_appointment',
+    tags=['agendamentos'],
+    status_code=201,
+    response_model=Appointment,
+    summary='Criar agendamento',
+    description='Valida cada código no catálogo e grava o agendamento. Só o `code` de cada exame conta: o '
+    '`name` é opcional, e a API grava e devolve o nome oficial do catálogo. Código fora do formato '
+    '`FICT-000`, repetido ou inexistente no catálogo retorna 422; cada item de `detail` '
+    'aponta o campo (`loc`) e explica o motivo (`msg`). Corpo acima de 16 KB retorna 413. '
+    'Com `Idempotency-Key`, os mesmos códigos devolvem o mesmo agendamento; nenhum exame se repete.',
+    responses={
+        400: HOST_REFUSED,
+        409: error_response('`Idempotency-Key` já usada com um destes códigos.', KEY_REUSED),
+        413: error_response('Corpo da requisição grande demais.', TOO_LARGE),
+        422: {'model': ValidationErrors, 'description': 'Corpo inválido ou código de exame desconhecido.'},
+        429: TOO_MANY_REQUESTS,
+    },
+)
 def create_appointment(
-        request: AppointmentRequest,
-        http: Request,
-        idempotency_key: Annotated[str | None, Header(
-            alias='Idempotency-Key', min_length=1, max_length=128, pattern=r'^[\x21-\x7e]+$',
+    request: AppointmentRequest,
+    http: Request,
+    idempotency_key: Annotated[
+        str | None,
+        Header(
+            alias='Idempotency-Key',
+            min_length=1,
+            max_length=128,
+            pattern=r'^[\x21-\x7e]+$',
             description='Opcional. Mesma chave e mesmos códigos (em qualquer ordem, com qualquer `name`) devolvem '
-                        'o mesmo agendamento (201); um código já agendado com ela, noutra lista, retorna 409. '
-                        'Guardada só como HMAC, por `API_IDEMPOTENCY_TTL_HOURS` (padrão 24 h); depois pode ser '
-                        'usada de novo. De 1 a 128 caracteres ASCII visíveis.',
-            examples=['3f1c9a2e-retry-1'])] = None) -> Appointment:
+            'o mesmo agendamento (201); um código já agendado com ela, noutra lista, retorna 409. '
+            'Guardada só como HMAC, por `API_IDEMPOTENCY_TTL_HOURS` (padrão 24 h); depois pode ser '
+            'usada de novo. De 1 a 128 caracteres ASCII visíveis.',
+            examples=['3f1c9a2e-retry-1'],
+        ),
+    ] = None,
+) -> Appointment:
     state = http.app.state
     # Same shape as the validation errors above, so the documented 422 schema holds.
-    unknown = [{'loc': ['body', 'exams', index, 'code'], 'type': 'unknown_exam_code',
-                'msg': 'Código de exame desconhecido no catálogo.'}
-               for index, exam in enumerate(request.exams) if exam.code not in state.catalog]
+    unknown = [
+        {
+            'loc': ['body', 'exams', index, 'code'],
+            'type': 'unknown_exam_code',
+            'msg': 'Código de exame desconhecido no catálogo.',
+        }
+        for index, exam in enumerate(request.exams)
+        if exam.code not in state.catalog
+    ]
     if unknown:
         raise HTTPException(422, detail=unknown)
     exams = [Exam(code=exam.code, name=state.catalog[exam.code]) for exam in request.exams]  # never the request's
     created = int(now())
-    appointment = Appointment(id=str(uuid.uuid4()), status='scheduled', exams=exams,
-                              created_at=datetime.fromtimestamp(created, timezone.utc).isoformat(timespec='seconds'))
+    appointment = Appointment(
+        id=str(uuid.uuid4()),
+        status='scheduled',
+        exams=exams,
+        created_at=datetime.fromtimestamp(created, timezone.utc).isoformat(timespec='seconds'),
+    )
     # closing() closes the connection; the inner `with connection` commits the insert.
     with WRITE_LOCK, closing(connect(state.db_path)) as connection, connection:
         if idempotency_key:
             connection.execute('BEGIN IMMEDIATE')  # the key check and the insert are one write transaction
             connection.execute('DELETE FROM idempotency_keys WHERE created_at <= ?', (created - state.ttl,))
             hashes, body = fingerprints(state.database_key, idempotency_key, [exam.code for exam in request.exams])
-            seen = connection.execute('SELECT request_hash, appointment_id FROM idempotency_keys WHERE key_hash IN '
-                                      f'({", ".join("?" * len(hashes))})', hashes).fetchall()  # only placeholders
+            seen = connection.execute(
+                'SELECT request_hash, appointment_id FROM idempotency_keys WHERE key_hash IN '
+                f'({", ".join("?" * len(hashes))})',
+                hashes,
+            ).fetchall()  # only placeholders
             if len(seen) == len(hashes) and all(hmac.compare_digest(row[0], body) for row in seen):
                 return load_appointment(connection, seen[0][1], state.cipher)  # the same codes: a replay
             if seen:
                 raise HTTPException(409, detail=KEY_REUSED)
-            connection.executemany('INSERT INTO idempotency_keys VALUES (?, ?, ?, ?)',
-                                   [(hashed, body, appointment.id, created) for hashed in hashes])
-        connection.execute('INSERT INTO appointments VALUES (?, ?, ?, ?)',
-                           (appointment.id, appointment.status,
-                            encrypt(state.cipher, json.dumps([exam.model_dump() for exam in exams]),
-                                    row_fields(appointment.id, appointment.status, appointment.created_at)),
-                            appointment.created_at))
+            connection.executemany(
+                'INSERT INTO idempotency_keys VALUES (?, ?, ?, ?)',
+                [(hashed, body, appointment.id, created) for hashed in hashes],
+            )
+        connection.execute(
+            'INSERT INTO appointments VALUES (?, ?, ?, ?)',
+            (
+                appointment.id,
+                appointment.status,
+                encrypt(
+                    state.cipher,
+                    json.dumps([exam.model_dump() for exam in exams]),
+                    row_fields(appointment.id, appointment.status, appointment.created_at),
+                ),
+                appointment.created_at,
+            ),
+        )
     return appointment
 
 
-@app.get('/appointments/{appointment_id}', operation_id='get_appointment', tags=['agendamentos'],
-         response_model=Appointment, summary='Consultar agendamento',
-         description='Retorna um agendamento criado anteriormente pelo seu `id` (UUID); '
-                     'um `id` que não é UUID retorna 422.',
-         responses={400: HOST_REFUSED, 404: error_response(NOT_FOUND, NOT_FOUND),
-                    422: {'model': ValidationErrors, 'description': '`id` não é um UUID.'},
-                    429: TOO_MANY_REQUESTS,
-                    500: error_response('Registro cifrado ilegível (chave diferente ou dado alterado).', UNREADABLE)})
+@app.get(
+    '/appointments/{appointment_id}',
+    operation_id='get_appointment',
+    tags=['agendamentos'],
+    response_model=Appointment,
+    summary='Consultar agendamento',
+    description='Retorna um agendamento criado anteriormente pelo seu `id` (UUID); um `id` que não é UUID retorna 422.',
+    responses={
+        400: HOST_REFUSED,
+        404: error_response(NOT_FOUND, NOT_FOUND),
+        422: {'model': ValidationErrors, 'description': '`id` não é um UUID.'},
+        429: TOO_MANY_REQUESTS,
+        500: error_response('Registro cifrado ilegível (chave diferente ou dado alterado).', UNREADABLE),
+    },
+)
 def get_appointment(appointment_id: uuid.UUID, http: Request) -> Appointment:
     with closing(connect(http.app.state.db_path)) as connection:
         return load_appointment(connection, str(appointment_id), http.app.state.cipher)
 
 
 def load_appointment(connection: sqlite3.Connection, appointment_id: str, cipher: AESGCM) -> Appointment:
-    row = connection.execute('SELECT id, status, exams, created_at FROM appointments WHERE id = ?',
-                             (appointment_id,)).fetchone()
+    row = connection.execute(
+        'SELECT id, status, exams, created_at FROM appointments WHERE id = ?', (appointment_id,)
+    ).fetchone()
     if row is None:
         raise HTTPException(404, detail=NOT_FOUND)
     try:

@@ -1,4 +1,5 @@
 """Backup and restore of the API database (api/backup.py), read back through the API itself."""
+
 import os
 import shutil
 import sqlite3
@@ -9,13 +10,16 @@ from fastapi.testclient import TestClient
 from api.crypto import new_key
 from tests.test_api import configure
 
-ORDERS = [{'exams': [{'code': 'FICT-001', 'name': 'hemograma'}]},
-          {'exams': [{'code': 'FICT-001', 'name': 'a'}, {'code': 'FICT-002', 'name': 'b'}]},
-          {'exams': [{'code': 'FICT-002', 'name': 'glicemia'}]}]
+ORDERS = [
+    {'exams': [{'code': 'FICT-001', 'name': 'hemograma'}]},
+    {'exams': [{'code': 'FICT-001', 'name': 'a'}, {'code': 'FICT-002', 'name': 'b'}]},
+    {'exams': [{'code': 'FICT-002', 'name': 'glicemia'}]},
+]
 
 
 def backup_module():
     import api.backup
+
     return api.backup
 
 
@@ -65,8 +69,10 @@ def test_a_restore_with_another_key_fails_clearly_and_restores_nothing(saved, tm
     monkeypatch.setenv('DB_ENCRYPTION_KEY', other)
     assert restore_into(fresh.parent, copy, monkeypatch) == 2
     error = capsys.readouterr().err
-    assert error == ('Erro: não foi possível decifrar o registro: a chave não é a da gravação ou o dado foi '
-                     'alterado no banco; nada foi restaurado\n')
+    assert error == (
+        'Erro: não foi possível decifrar o registro: a chave não é a da gravação ou o dado foi '
+        'alterado no banco; nada foi restaurado\n'
+    )
     assert other not in error and not fresh.exists()
 
 
@@ -111,7 +117,9 @@ def test_a_restore_is_refused_while_the_api_runs_on_the_database(saved, tmp_path
         extra = client.post('/appointments', json=ORDERS[0], headers={'Idempotency-Key': 'depois-da-copia'}).json()
         assert backup_module().main(['--entrada', 'backup.db', '--substituir']) == 2
         assert 'está em uso pela API' in capsys.readouterr().err
-        assert client.post('/appointments', json=ORDERS[0], headers={'Idempotency-Key': 'depois-da-copia'}).json() == extra
+        assert (
+            client.post('/appointments', json=ORDERS[0], headers={'Idempotency-Key': 'depois-da-copia'}).json() == extra
+        )
     assert backup_module().main(['--entrada', 'backup.db', '--substituir']) == 0  # the API stopped: restored
 
 
@@ -135,6 +143,7 @@ def test_a_damaged_copy_is_refused(saved, tmp_path, monkeypatch, capsys):
 
 def api_app():
     import api.main
+
     return api.main.app
 
 
@@ -153,13 +162,27 @@ def test_a_bare_file_name_is_in_the_database_folder_both_ways(tmp_path, monkeypa
 
 
 @pytest.mark.parametrize('option', ['--saida', '--entrada'])
-@pytest.mark.parametrize('name', ['../backup.db', '/state/backup.db', 'C:/Program Files/Git/state/backup.db',
-                                  'C:\\backup.db', 'pasta/backup.db', 'pasta\\backup.db', '..', '.', ''])
+@pytest.mark.parametrize(
+    'name',
+    [
+        '../backup.db',
+        '/state/backup.db',
+        'C:/Program Files/Git/state/backup.db',
+        'C:\\backup.db',
+        'pasta/backup.db',
+        'pasta\\backup.db',
+        '..',
+        '.',
+        '',
+    ],
+)
 def test_only_a_bare_file_name_is_accepted(tmp_path, monkeypatch, capsys, option, name):
     """A folder, "..", or an absolute path (what Git Bash makes of /state/backup.db) is refused before anything."""
     (tmp_path / 'state').mkdir()
     with TestClient(configure(tmp_path / 'state', monkeypatch)), pytest.raises(SystemExit) as refused:
         backup_module().main([option, name])
     error = capsys.readouterr().err.splitlines()[-1]
-    assert refused.value.code == 2 and error.endswith('use só um nome de arquivo, sem pasta nem caminho (ex.: backup.db)')
+    assert refused.value.code == 2 and error.endswith(
+        'use só um nome de arquivo, sem pasta nem caminho (ex.: backup.db)'
+    )
     assert not list(tmp_path.glob('**/backup.db'))

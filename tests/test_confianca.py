@@ -4,6 +4,7 @@ Confidence = min(RAG score, match with the line, OCR reading of the line), each 
 its own free piece of the order. No Gemini: the callbacks of the generated agent are
 called directly, as in test_transpiler.py.
 """
+
 import asyncio
 import itertools
 import json
@@ -49,7 +50,13 @@ def read(agent, lines, confidence=None, intent=None, **more):
     """The OCR's reply through the after_tool_callback (lines read clearly, 95, and requests, unless
     told otherwise, plus any other field of the reply); returns a fresh context."""
     context = FakeContext()
-    reply = {'version': 1, 'lines': lines, 'pii_masked': {}, 'page_clean': True, **more}  # a clean page, unless told otherwise
+    reply = {
+        'version': 1,
+        'lines': lines,
+        'pii_masked': {},
+        'page_clean': True,
+        **more,
+    }  # a clean page, unless told otherwise
     if intent is not ABSENT:
         reply['line_intent'] = ['request'] * len(lines) if intent is None else intent
     if confidence is not ABSENT:
@@ -73,8 +80,11 @@ def nested_pairs():
     pairs = {}
     for short in terms:
         for long in terms:
-            if short[0] != long[0] and plain(short[1]) != plain(long[1]) and \
-                    re.search(rf'\b{re.escape(plain(short[1]))}\b', plain(long[1])):
+            if (
+                short[0] != long[0]
+                and plain(short[1]) != plain(long[1])
+                and re.search(rf'\b{re.escape(plain(short[1]))}\b', plain(long[1]))
+            ):
                 pairs.setdefault((short[0], long[0]), (short, long))
     return list(pairs.values())
 
@@ -109,7 +119,8 @@ def test_a_name_written_once_inside_a_longer_one_is_still_one_exam(agent):
     reply, args = book(agent, context, 'FICT-005', 'FICT-094')
     assert reply is None and booked(args) == ['FICT-094']
     assert [(item['code'], item['reason'], item['used_by']) for item in context.state['low_confidence']] == [
-        ('FICT-005', 'line_used', 'Clearance de creatinina')]
+        ('FICT-005', 'line_used', 'Clearance de creatinina')
+    ]
 
 
 @pytest.mark.parametrize('reading, band', [(95, 'booked'), (75, 'booked'), (74, 'ask'), (70, 'ask'), (69, 'left out')])
@@ -126,13 +137,18 @@ def test_a_line_the_ocr_barely_read_never_books_alone(agent, monkeypatch, readin
         assert (asked or context.state['low_confidence'])[0]['confidence'] == reading / 100
 
 
-@pytest.mark.parametrize('query, code, name, reading, booked_alone', [
-    ('TSH', 'FICT-024', 'TSH', 85, True), ('TSH', 'FICT-024', 'TSH', 84, False),  # a short name: 85
-    # The handwritten set: "TGP" read as "TAP" with 93, and TAP is another name of Tempo de protrombina: 95
-    ('TAP', 'FICT-083', 'Tempo de protrombina', 97, True), ('TAP', 'FICT-083', 'Tempo de protrombina', 95, True),
-    ('TAP', 'FICT-083', 'Tempo de protrombina', 93, False),
-    ('Tempo de protrombina', 'FICT-083', 'Tempo de protrombina', 75, True),  # the full name: 75
-])
+@pytest.mark.parametrize(
+    'query, code, name, reading, booked_alone',
+    [
+        ('TSH', 'FICT-024', 'TSH', 85, True),
+        ('TSH', 'FICT-024', 'TSH', 84, False),  # a short name: 85
+        # The handwritten set: "TGP" read as "TAP" with 93, and TAP is another name of Tempo de protrombina: 95
+        ('TAP', 'FICT-083', 'Tempo de protrombina', 97, True),
+        ('TAP', 'FICT-083', 'Tempo de protrombina', 95, True),
+        ('TAP', 'FICT-083', 'Tempo de protrombina', 93, False),
+        ('Tempo de protrombina', 'FICT-083', 'Tempo de protrombina', 75, True),  # the full name: 75
+    ],
+)
 def test_a_short_code_needs_a_clearer_reading(agent, monkeypatch, query, code, name, reading, booked_alone):
     asked = []
     answering(monkeypatch, agent, lambda items: asked.extend(items) or True)
@@ -186,7 +202,8 @@ def test_the_list_is_booked_only_with_a_yes(agent, monkeypatch, answer, expected
     context = middle_band(agent)
     reply, args = book(agent, context, 'FICT-079', 'FICT-005')
     assert (reply, booked(args) if reply is None else None) == (
-        (None, expected) if answer else ({'blocked': 'você não confirmou a lista de exames'}, None))
+        (None, expected) if answer else ({'blocked': 'você não confirmou a lista de exames'}, None)
+    )
     assert [item['code'] for item in context.state.get('confirmed', [])] == (['FICT-079'] if answer else [])
 
 
@@ -195,7 +212,8 @@ def test_with_yes_the_middle_band_is_left_out(agent):
     reply, args = book(agent, context, 'FICT-079', 'FICT-005')
     assert reply is None and booked(args) == ['FICT-005']
     assert [(item['code'], item['reason']) for item in context.state['low_confidence']] == [
-        ('FICT-079', 'needs_confirmation')]
+        ('FICT-079', 'needs_confirmation')
+    ]
 
 
 def test_a_code_no_search_returned_is_blocked_and_never_asked(agent, monkeypatch):
@@ -216,8 +234,10 @@ def test_the_question_shows_the_list_with_what_was_read(agent, monkeypatch):
     monkeypatch.setattr(confirmacao.sys.stdout, 'isatty', lambda: True, raising=False)
     monkeypatch.setattr('builtins.input', lambda question: questions.append(question) or 'S')
     reply, args = book(agent, middle_band(agent), 'FICT-079', 'FICT-005')
-    assert questions == ['Exames para agendar:\n- Creatinina (FICT-005)\n- IgA (FICT-079): lido "- GA", confiança 0,80; '
-                         'confira\nAgendar estes 2 exames? [s/N] ']
+    assert questions == [
+        'Exames para agendar:\n- Creatinina (FICT-005)\n- IgA (FICT-079): lido "- GA", confiança 0,80; '
+        'confira\nAgendar estes 2 exames? [s/N] '
+    ]
     assert reply is None and booked(args) == ['FICT-005', 'FICT-079']
 
 
@@ -239,13 +259,22 @@ def test_nobody_is_asked_in_ci_or_without_a_terminal(agent, monkeypatch, env):
 
 def test_cli_yes_turns_the_questions_off_and_says_what_was_left_out(ready_run, monkeypatch, capsys):
     appointment = {'id': 'a1', 'status': 'scheduled', 'exams': [{'code': 'FICT-005', 'name': 'Creatinina'}]}
-    low = [{'code': 'FICT-079', 'name': 'IgA', 'confidence': 0.8, 'line': 0, 'read': '- GA',
-            'reason': 'needs_confirmation'}]
+    low = [
+        {
+            'code': 'FICT-079',
+            'name': 'IgA',
+            'confidence': 0.8,
+            'line': 0,
+            'read': '- GA',
+            'reason': 'needs_confirmation',
+        }
+    ]
     asked = []
 
     async def run(app, image, spec, found):
         asked.append(found['questions'])  # what the CLI writes in the order's record (orders.start)
         found.update({'appointment': appointment, 'low_confidence': low})
+
     monkeypatch.setattr(cli, 'run_agent', run)
     assert cli.main([*ready_run, '--yes']) == 0 and asked == [False]
     assert "não agendado sem confirmação: '- GA' → IgA FICT-079 (confiança 0,80)" in capsys.readouterr().out
@@ -254,10 +283,19 @@ def test_cli_yes_turns_the_questions_off_and_says_what_was_left_out(ready_run, m
 def test_cli_shows_what_the_person_confirmed_or_declined(ready_run, monkeypatch, capsys):
     appointment = {'id': 'a1', 'status': 'scheduled', 'exams': [{'code': 'FICT-079', 'name': 'IgA'}]}
     confirmed = [{'code': 'FICT-079', 'name': 'IgA', 'confidence': 0.8, 'line': 0, 'read': '- GA', 'confirmed': True}]
-    low = [{'code': 'FICT-083', 'name': 'Tempo de protrombina', 'confidence': 0.85, 'line': 1, 'read': '- TAP',
-            'reason': 'declined'}]
-    monkeypatch.setattr(cli, 'run_agent', fake_run({'appointment': appointment, 'confirmed': confirmed,
-                                                    'low_confidence': low}))
+    low = [
+        {
+            'code': 'FICT-083',
+            'name': 'Tempo de protrombina',
+            'confidence': 0.85,
+            'line': 1,
+            'read': '- TAP',
+            'reason': 'declined',
+        }
+    ]
+    monkeypatch.setattr(
+        cli, 'run_agent', fake_run({'appointment': appointment, 'confirmed': confirmed, 'low_confidence': low})
+    )
     assert cli.main(ready_run) == 0
     out = capsys.readouterr().out
     assert "incluído com a sua confirmação: '- GA' → IgA FICT-079" in out
@@ -331,10 +369,12 @@ def test_line_confidence_must_follow_the_lines_after_split_orders_are_joined(age
 class FakeRunner:
     """InMemoryRunner with scripted parts (timestamp, 'call' or 'reply', tool, call id); parts with the
     same timestamp and kind come in one event, as ADK sends parallel calls and their replies."""
+
     script = []
 
     def __init__(self, app):
         from types import SimpleNamespace
+
         self.session = SimpleNamespace(app_name='clinic', user_id='cli', id='s1', state={})
         self.session_service = SimpleNamespace(create_session=self.create, get_session=self.get)
 
@@ -347,12 +387,18 @@ class FakeRunner:
 
     async def run_async(self, **kwargs):
         from types import SimpleNamespace
+
         for (timestamp, kind), group in itertools.groupby(self.script, key=lambda item: item[:2]):
-            parts = [SimpleNamespace(
-                function_call=SimpleNamespace(name=name, id=call_id) if kind == 'call' else None,
-                function_response=SimpleNamespace(name=name, id=call_id, response={}) if kind == 'reply' else None)
-                for _, _, name, call_id in group]
-            yield SimpleNamespace(author='agent', invocation_id='i1', timestamp=timestamp, content=SimpleNamespace(parts=parts))
+            parts = [
+                SimpleNamespace(
+                    function_call=SimpleNamespace(name=name, id=call_id) if kind == 'call' else None,
+                    function_response=SimpleNamespace(name=name, id=call_id, response={}) if kind == 'reply' else None,
+                )
+                for _, _, name, call_id in group
+            ]
+            yield SimpleNamespace(
+                author='agent', invocation_id='i1', timestamp=timestamp, content=SimpleNamespace(parts=parts)
+            )
 
     async def close(self):
         pass
@@ -360,27 +406,46 @@ class FakeRunner:
 
 def test_each_step_is_timed_from_the_call_to_its_reply(monkeypatch, capsys):
     monkeypatch.setattr(cli, 'InMemoryRunner', FakeRunner)
-    monkeypatch.setattr(FakeRunner, 'script', [
-        (10.0, 'call', 'extract_exam_text', 'a'), (11.2, 'reply', 'extract_exam_text', 'a'),
-        (12.0, 'call', 'search_exams', 'b'), (12.5, 'reply', 'search_exams', 'b'),
-        (12.6, 'call', 'search_exams', 'c'), (12.9, 'reply', 'search_exams', 'c'),
-        (13.0, 'call', 'search_exams', 'e'), (13.0, 'call', 'search_exams', 'f'),  # in parallel: counted once
-        (13.3, 'reply', 'search_exams', 'e'), (13.3, 'reply', 'search_exams', 'f'),
-        (14.0, 'call', 'create_appointment', 'd'), (14.3, 'reply', 'create_appointment', 'd')])
+    monkeypatch.setattr(
+        FakeRunner,
+        'script',
+        [
+            (10.0, 'call', 'extract_exam_text', 'a'),
+            (11.2, 'reply', 'extract_exam_text', 'a'),
+            (12.0, 'call', 'search_exams', 'b'),
+            (12.5, 'reply', 'search_exams', 'b'),
+            (12.6, 'call', 'search_exams', 'c'),
+            (12.9, 'reply', 'search_exams', 'c'),
+            (13.0, 'call', 'search_exams', 'e'),
+            (13.0, 'call', 'search_exams', 'f'),  # in parallel: counted once
+            (13.3, 'reply', 'search_exams', 'e'),
+            (13.3, 'reply', 'search_exams', 'f'),
+            (14.0, 'call', 'create_appointment', 'd'),
+            (14.3, 'reply', 'create_appointment', 'd'),
+        ],
+    )
     spec, found = parse_spec((ROOT / 'specs' / 'agent.json').read_text(encoding='utf-8')), cli.new_found()
     app = SimpleNamespace(name='clinic_scheduler', plugins=[BookingPlugin()])  # the CLI registers the order there
     asyncio.run(cli.run_agent(app, 'pedido.png', spec, found))
     assert {name: round(value, 2) for name, value in found['tool_seconds'].items()} == {
-        'extract_exam_text': 1.2, 'search_exams': 1.1, 'create_appointment': 0.3}
+        'extract_exam_text': 1.2,
+        'search_exams': 1.1,
+        'create_appointment': 0.3,
+    }
     monkeypatch.delenv('GEMINI_MODEL', raising=False)
-    assert cli.timing(found, spec, 41.4) == \
-        f'Tempo: OCR 1,2 s · busca 1,1 s · agendamento 0,3 s · total 41 s (modelo {spec.model})'
+    assert (
+        cli.timing(found, spec, 41.4)
+        == f'Tempo: OCR 1,2 s · busca 1,1 s · agendamento 0,3 s · total 41 s (modelo {spec.model})'
+    )
 
 
 def test_the_time_line_closes_every_run_without_data_from_the_order(ready_run, monkeypatch, capsys):
     appointment = {'id': 'a1', 'status': 'scheduled', 'exams': [{'code': 'FICT-005', 'name': 'Creatinina'}]}
-    monkeypatch.setattr(cli, 'run_agent', fake_run({'appointment': appointment, 'tool_seconds': {'extract_exam_text': 2.0},
-                                                    'pii_masked': {'NOME': 1}}))
+    monkeypatch.setattr(
+        cli,
+        'run_agent',
+        fake_run({'appointment': appointment, 'tool_seconds': {'extract_exam_text': 2.0}, 'pii_masked': {'NOME': 1}}),
+    )
     assert cli.main(ready_run) == 0
     last = capsys.readouterr().out.strip().splitlines()[-1]
     assert re.fullmatch(r'Tempo: OCR 2,0 s · total \d+,\d s \(modelo [\w.-]+\)', last)
@@ -393,8 +458,9 @@ def test_the_time_line_closes_every_run_without_data_from_the_order(ready_run, m
 def real_search(agent, context, query):
     """The catalog search as the model sees it (top 3, in process), through the after_tool_callback."""
     rag = pytest.importorskip('mcp_servers.rag')
-    agent.CALLBACKS.after_tool(FakeTool('search_exams'), {'query': query}, context,
-                                {'structuredContent': {'result': rag.search(query, 3)}})
+    agent.CALLBACKS.after_tool(
+        FakeTool('search_exams'), {'query': query}, context, {'structuredContent': {'result': rag.search(query, 3)}}
+    )
     return [hit['code'] for hit in rag.search(query, 3)]
 
 
@@ -422,31 +488,41 @@ def test_nested_names_with_the_real_search_still_book_both(agent, short, long, o
 
 
 @pytest.mark.skipif(shutil.which('tesseract') is None, reason='Tesseract runs inside the Docker image')
-@pytest.mark.parametrize('sample', ['pedido.png', 'pedido-variacao.png', 'pedido-manuscrito.png',
-                                    'pedido-manuscrito-dificil.png'])
+@pytest.mark.parametrize(
+    'sample', ['pedido.png', 'pedido-variacao.png', 'pedido-manuscrito.png', 'pedido-manuscrito-dificil.png']
+)
 def test_end_to_end_without_gemini_with_the_real_ocr_reading(agent, monkeypatch, sample):
     # The OCR's real reply (mask and line_confidence from the reader, nothing injected), the real
     # catalog search for each line and the transpiled agent's rule, with nobody to answer [s/N].
     from mcp_servers import ocr, rag
     from tests.load import manuscritos, robustez
     from tests.test_manuscritos import ITENS, LOOSE
+
     monkeypatch.setattr(ocr, 'SAMPLES_DIR', ROOT / 'samples')
     reply = asyncio.run(ocr.extract_exam_text(sample))
     assert len(reply['line_confidence']) == len(reply['lines']) > 0
-    printed = {'pedido.png': {'FICT-001', 'FICT-002', 'FICT-005'}, 'pedido-variacao.png': {'FICT-001', 'FICT-002', 'FICT-005'}}
+    printed = {
+        'pedido.png': {'FICT-001', 'FICT-002', 'FICT-005'},
+        'pedido-variacao.png': {'FICT-001', 'FICT-002', 'FICT-005'},
+    }
     expected = printed.get(sample) or {exam['code'] for exam in ITENS[LOOSE[sample]]['exames']}
     agent.CALLBACKS.can_ask = lambda: False
     # the exam name of each line the model reads, as it searches it (no "Exame:" label, no list marker)
-    searches = [(query, rag.search(query, 3)) for query in map(robustez.consulta, manuscritos.lidas_pelo_modelo(reply))
-                if len(rag.normalize(query).replace(' ', '')) >= 2]
+    searches = [
+        (query, rag.search(query, 3))
+        for query in map(robustez.consulta, manuscritos.lidas_pelo_modelo(reply))
+        if len(rag.normalize(query).replace(' ', '')) >= 2
+    ]
     booked_alone, asked, _, _ = asyncio.run(manuscritos.decidir(agent, reply, searches))
     assert booked_alone <= expected  # never an exam outside the order without the person's yes
     if sample in printed:
         assert booked_alone == expected and not asked  # a clean printed order is booked whole, without questions
 
 
-@pytest.mark.parametrize('model', ['gpt-4o', 'gemini-3.5-flash; rm -rf /', '../gemini', 'Gemini-3.5-flash',
-                                   'gemini-' + 'a' * 50, 'gemini-x\x1b[31m'])
+@pytest.mark.parametrize(
+    'model',
+    ['gpt-4o', 'gemini-3.5-flash; rm -rf /', '../gemini', 'Gemini-3.5-flash', 'gemini-' + 'a' * 50, 'gemini-x\x1b[31m'],
+)
 def test_an_invalid_gemini_model_variable_stops_before_any_call(ready_run, monkeypatch, capsys, model):
     # GEMINI_MODEL replaces the spec's model, so it passes the spec's own check (transpiler/spec.py MODEL).
     must_not_run = forbidden('called a service or Gemini with an invalid model')
@@ -473,6 +549,7 @@ def test_the_second_example_spec_leaves_the_middle_band_out_without_asking(tmp_p
     from types import SimpleNamespace
 
     from transpiler import load_root_agent, transpile
+
     transpile(ROOT / 'specs' / 'agent-sem-confirmacao.json', tmp_path / 'agent.py')
     agent = SimpleNamespace(CALLBACKS=BookingPlugin.of(load_root_agent(tmp_path / 'agent.py', name='app')))
     asked = []
@@ -493,8 +570,9 @@ def test_a_list_answered_no_books_nothing_and_the_cli_says_so(agent, monkeypatch
     assert [(item['code'], item['confidence']) for item in asked] == [('FICT-018', 0.72)]
     monkeypatch.setattr(cli, 'run_agent', fake_run({'candidates': {'FICT-018': {}}, 'blocked': reply['blocked']}))
     assert cli.main(ready_run) == 2
-    assert capsys.readouterr().err == ('Erro: agendamento bloqueado antes de chamar a API: você não confirmou a lista de '
-                                       'exames; nada foi agendado\n')
+    assert capsys.readouterr().err == (
+        'Erro: agendamento bloqueado antes de chamar a API: você não confirmou a lista de exames; nada foi agendado\n'
+    )
 
 
 def test_the_ocr_gets_the_real_file_and_the_model_only_the_token(agent):
@@ -505,17 +583,23 @@ def test_the_ocr_gets_the_real_file_and_the_model_only_the_token(agent):
     assert asyncio.run(agent.CALLBACKS.before_tool(FakeTool('extract_exam_text'), args, context)) is None
     assert args == {'filename': 'pedido-joao-silva.png'}
     # an OCR error that quotes the real name goes back to the model with the token instead
-    refusal = {'isError': True, 'content': [{'type': 'text', 'text': 'Arquivo "pedido-joao-silva.png" não encontrado.'}]}
+    refusal = {
+        'isError': True,
+        'content': [{'type': 'text', 'text': 'Arquivo "pedido-joao-silva.png" não encontrado.'}],
+    }
     reply = agent.CALLBACKS.after_tool(FakeTool('extract_exam_text'), args, context, refusal)
     assert reply['content'][0]['text'] == 'Arquivo "pedido-1.png" não encontrado.' and reply['isError']
     assert 'pedido-joao-silva.png' in context.state['ocr_error']  # the person's own terminal still says which file
 
 
-@pytest.mark.parametrize('state, asked', [
-    ({'image_token': 'pedido-1.png', 'image_file': 'pedido-joao-silva.png'}, 'pedido-joao-silva.png'),
-    ({'image_token': 'pedido-1.png', 'image_file': 'pedido-joao-silva.png'}, 'outro.png'),
-    ({}, 'pedido-1.png'),  # no token in this run: nothing is read (fail closed)
-])
+@pytest.mark.parametrize(
+    'state, asked',
+    [
+        ({'image_token': 'pedido-1.png', 'image_file': 'pedido-joao-silva.png'}, 'pedido-joao-silva.png'),
+        ({'image_token': 'pedido-1.png', 'image_file': 'pedido-joao-silva.png'}, 'outro.png'),
+        ({}, 'pedido-1.png'),  # no token in this run: nothing is read (fail closed)
+    ],
+)
 def test_any_other_file_name_is_refused_before_the_ocr(agent, state, asked):
     context = FakeContext()
     for name, value in state.items():
@@ -541,8 +625,9 @@ def test_the_reviewed_case_reports_the_exam_the_model_left_out(agent, line, read
     real_search(agent, context, 'T4 livre')
     reply, args = book(agent, context, best_of('T4 livre'))
     assert reply is None and booked(args) == ['FICT-025']
-    assert [(item['code'], item['reason'], item['confidence'], item['read']) for item in context.state['low_confidence']] \
-        == [('FICT-024', 'omitted', reading, line)]
+    assert [
+        (item['code'], item['reason'], item['confidence'], item['read']) for item in context.state['low_confidence']
+    ] == [('FICT-024', 'omitted', reading, line)]
 
 
 def test_two_exams_left_out_of_one_line_are_both_reported(agent):
@@ -552,7 +637,9 @@ def test_two_exams_left_out_of_one_line_are_both_reported(agent):
     reply, args = book(agent, context, best_of('Creatinina'))
     assert booked(args) == ['FICT-005']
     assert sorted((item['code'], item['reason']) for item in context.state['low_confidence']) == [
-        ('FICT-024', 'omitted'), ('FICT-025', 'omitted')]
+        ('FICT-024', 'omitted'),
+        ('FICT-025', 'omitted'),
+    ]
 
 
 def test_an_exam_left_out_of_a_poorly_read_line_is_reported_at_that_reading(agent):
@@ -574,8 +661,9 @@ def test_an_exam_left_out_next_to_one_booked_by_similarity_is_reported(agent):
     real_search(agent, context, 'TSH')
     real_search(agent, context, 'T4 livre')
     book(agent, context, best_of('T4 livre'))
-    assert [(item['code'], item['confidence']) for item in context.state['low_confidence']
-            if item['reason'] == 'omitted'] == [('FICT-024', 0.86)]
+    assert [
+        (item['code'], item['confidence']) for item in context.state['low_confidence'] if item['reason'] == 'omitted'
+    ] == [('FICT-024', 0.86)]
 
 
 def test_an_exam_written_on_two_lines_is_reported_on_the_list_of_exams(agent):
@@ -585,7 +673,8 @@ def test_an_exam_written_on_two_lines_is_reported_on_the_list_of_exams(agent):
     real_search(agent, context, 'Glicose')
     book(agent, context, best_of('Hemograma completo'))
     assert [(item['code'], item['reason'], item['read']) for item in context.state['low_confidence']] == [
-        (best_of('Glicose'), 'omitted', 'Exames: Hemograma completo, Glicose')]
+        (best_of('Glicose'), 'omitted', 'Exames: Hemograma completo, Glicose')
+    ]
 
 
 def test_honest_runs_raise_no_false_alarm(agent):
@@ -595,6 +684,7 @@ def test_honest_runs_raise_no_false_alarm(agent):
     import random
 
     import catalogo
+
     alarms = []
 
     def run(lines, queries, proposed):
@@ -632,9 +722,19 @@ def test_a_name_inside_a_booked_exam_or_a_neighbour_is_not_reported(agent):
     context = read(agent, ['Hemoglobina glicada', 'Colesterol LDL'])
     search(agent, context, 'Hemoglobina glicada', ('FICT-003', 'Hemoglobina glicada', 1.0))
     search(agent, context, 'Hemoglobina', ('FICT-030', 'Hemoglobina', 1.0))
-    agent.CALLBACKS.after_tool(FakeTool('search_exams'), {'query': 'Colesterol LDL'}, context, {'structuredContent': {
-        'result': [{'code': 'FICT-008', 'name': 'Colesterol LDL', 'score': 1.0},
-                   {'code': 'FICT-007', 'name': 'Colesterol HDL', 'score': 0.93}]}})
+    agent.CALLBACKS.after_tool(
+        FakeTool('search_exams'),
+        {'query': 'Colesterol LDL'},
+        context,
+        {
+            'structuredContent': {
+                'result': [
+                    {'code': 'FICT-008', 'name': 'Colesterol LDL', 'score': 1.0},
+                    {'code': 'FICT-007', 'name': 'Colesterol HDL', 'score': 0.93},
+                ]
+            }
+        },
+    )
     reply, args = book(agent, context, 'FICT-003', 'FICT-008')
     assert reply is None and booked(args) == ['FICT-003', 'FICT-008']
     assert context.state['low_confidence'] == []
@@ -642,28 +742,51 @@ def test_a_name_inside_a_booked_exam_or_a_neighbour_is_not_reported(agent):
 
 def test_the_cli_says_which_exam_the_agent_left_out(ready_run, monkeypatch, capsys):
     appointment = {'id': 'a1', 'status': 'scheduled', 'exams': [{'code': 'FICT-025', 'name': 'T4 livre'}]}
-    low = [{'code': 'FICT-024', 'name': 'TSH', 'confidence': 0.86, 'line': 1, 'read': '2. TSHe T4 livre',
-            'reason': 'omitted'}]
+    low = [
+        {
+            'code': 'FICT-024',
+            'name': 'TSH',
+            'confidence': 0.86,
+            'line': 1,
+            'read': '2. TSHe T4 livre',
+            'reason': 'omitted',
+        }
+    ]
     monkeypatch.setattr(cli, 'run_agent', fake_run({'appointment': appointment, 'low_confidence': low}))
     assert cli.main(ready_run) == 0
-    assert "não incluído pelo agente: '2. TSHe T4 livre' → TSH FICT-024 (confiança 0,86); confira o pedido" \
+    assert (
+        "não incluído pelo agente: '2. TSHe T4 livre' → TSH FICT-024 (confiança 0,86); confira o pedido"
         in capsys.readouterr().out
+    )
 
 
-@pytest.mark.parametrize('line, codes, asked', [
-    ('PSA total e livre', ['FICT-048', 'FICT-049'], []),  # PSA total and PSA livre, not a question about T4 livre
-    ('Clearance de creatinina, urina 24h', ['FICT-094'], []),  # and no question about Urina tipo I
-    ('Toxoplasmose IgG e IgM', ['FICT-109', 'FICT-110'], []),  # never the generic IgM
-    ('IgG e IgM para toxoplasmose', ['FICT-109', 'FICT-110'], []),  # never the generic IgG
-    ('Chagas IgG e IgM', ['FICT-118'], ['FICT-081']),  # no Chagas IgM in the catalog: the generic IgM is only reported
-    ('IgM e IgG para Chagas', ['FICT-118'], ['FICT-081']),  # nor in the reverse form
-    ('Hemograma completo, IgG e IgM', ['FICT-001', 'FICT-080', 'FICT-081'], []),  # the generic dosages, on their own
-])
+@pytest.mark.parametrize(
+    'line, codes, asked',
+    [
+        ('PSA total e livre', ['FICT-048', 'FICT-049'], []),  # PSA total and PSA livre, not a question about T4 livre
+        ('Clearance de creatinina, urina 24h', ['FICT-094'], []),  # and no question about Urina tipo I
+        ('Toxoplasmose IgG e IgM', ['FICT-109', 'FICT-110'], []),  # never the generic IgM
+        ('IgG e IgM para toxoplasmose', ['FICT-109', 'FICT-110'], []),  # never the generic IgG
+        (
+            'Chagas IgG e IgM',
+            ['FICT-118'],
+            ['FICT-081'],
+        ),  # no Chagas IgM in the catalog: the generic IgM is only reported
+        ('IgM e IgG para Chagas', ['FICT-118'], ['FICT-081']),  # nor in the reverse form
+        (
+            'Hemograma completo, IgG e IgM',
+            ['FICT-001', 'FICT-080', 'FICT-081'],
+            [],
+        ),  # the generic dosages, on their own
+    ],
+)
 def test_a_piece_that_is_part_of_the_exam_next_to_it_books_no_other_exam(agent, line, codes, asked):
     rag = pytest.importorskip('mcp_servers.rag')
     context = read(agent, ['Exames:', line])
     hits = rag.search_line(line, 3)
-    agent.CALLBACKS.after_tool(FakeTool('search_exams'), {'query': line}, context, {'structuredContent': {'result': hits}})
+    agent.CALLBACKS.after_tool(
+        FakeTool('search_exams'), {'query': line}, context, {'structuredContent': {'result': hits}}
+    )
     best = {}
     for hit in hits:  # the model proposes the best hit of each piece
         best.setdefault(hit['piece'], hit['code'])
@@ -673,15 +796,20 @@ def test_a_piece_that_is_part_of_the_exam_next_to_it_books_no_other_exam(agent, 
     assert all(item['reason'] == 'score' for item in context.state['low_confidence'])  # reported, never a question
 
 
-@pytest.mark.parametrize('line, asked', [
-    ('Chagas IgM', 'FICT-118'),  # no Chagas IgM in the catalog: Chagas IgG (one letter apart) is only reported
-    ('Toxoplasmose', 'FICT-109'),  # no class written: Toxoplasmose IgG is not assumed
-])
+@pytest.mark.parametrize(
+    'line, asked',
+    [
+        ('Chagas IgM', 'FICT-118'),  # no Chagas IgM in the catalog: Chagas IgG (one letter apart) is only reported
+        ('Toxoplasmose', 'FICT-109'),  # no class written: Toxoplasmose IgG is not assumed
+    ],
+)
 def test_an_antibody_class_the_order_does_not_name_is_never_booked_alone(agent, line, asked):
     rag = pytest.importorskip('mcp_servers.rag')
     context = read(agent, ['Exames:', line])
     hits = rag.search_line(line, 3)
-    agent.CALLBACKS.after_tool(FakeTool('search_exams'), {'query': line}, context, {'structuredContent': {'result': hits}})
+    agent.CALLBACKS.after_tool(
+        FakeTool('search_exams'), {'query': line}, context, {'structuredContent': {'result': hits}}
+    )
     assert hits[0]['code'] == asked
     assert context.state['candidates'][asked]['confidence'] <= agent.CALLBACKS.policy.below_asking  # not even asked
 
@@ -692,10 +820,13 @@ def test_a_resemblance_of_letters_is_reported_not_asked(agent):
     rag = pytest.importorskip('mcp_servers.rag')
     context = read(agent, ['Exames:', 'Anti HAV IgM'])
     hits = rag.search_line('Anti HAV IgM', 3)
-    agent.CALLBACKS.after_tool(FakeTool('search_exams'), {'query': 'Anti HAV IgM'}, context,
-                                {'structuredContent': {'result': hits}})
-    assert all(candidate['confidence'] <= agent.CALLBACKS.policy.below_asking
-               for candidate in context.state['candidates'].values())
+    agent.CALLBACKS.after_tool(
+        FakeTool('search_exams'), {'query': 'Anti HAV IgM'}, context, {'structuredContent': {'result': hits}}
+    )
+    assert all(
+        candidate['confidence'] <= agent.CALLBACKS.policy.below_asking
+        for candidate in context.state['candidates'].values()
+    )
 
 
 def test_a_best_match_tied_with_another_exam_is_reported_not_asked(agent):
@@ -703,18 +834,25 @@ def test_a_best_match_tied_with_another_exam_is_reported_not_asked(agent):
     # and shares no word with either ("anti" aside): the words do not say which, so neither is asked.
     rag = pytest.importorskip('mcp_servers.rag')
     context = read(agent, ['Exames:', 'Anti HAV'])
-    agent.CALLBACKS.after_tool(FakeTool('search_exams'), {'query': 'Anti HAV'}, context,
-                                {'structuredContent': {'result': rag.search_line('Anti HAV', 3)}})
-    assert all(candidate['confidence'] <= agent.CALLBACKS.policy.below_asking
-               for candidate in context.state['candidates'].values())
+    agent.CALLBACKS.after_tool(
+        FakeTool('search_exams'),
+        {'query': 'Anti HAV'},
+        context,
+        {'structuredContent': {'result': rag.search_line('Anti HAV', 3)}},
+    )
+    assert all(
+        candidate['confidence'] <= agent.CALLBACKS.policy.below_asking
+        for candidate in context.state['candidates'].values()
+    )
 
 
 def test_a_tie_of_related_exams_that_share_the_word_read_is_still_asked(agent):
     # "T3" is 0,80 like T3 livre and like T3 total: an ambiguity of the order itself, asked as before.
     rag = pytest.importorskip('mcp_servers.rag')
     context = read(agent, ['Exames:', 'T3'])
-    agent.CALLBACKS.after_tool(FakeTool('search_exams'), {'query': 'T3'}, context,
-                                {'structuredContent': {'result': rag.search_line('T3', 3)}})
+    agent.CALLBACKS.after_tool(
+        FakeTool('search_exams'), {'query': 'T3'}, context, {'structuredContent': {'result': rag.search_line('T3', 3)}}
+    )
     best = max(context.state['candidates'].values(), key=lambda candidate: candidate['confidence'])
     assert best['confidence'] >= agent.CALLBACKS.policy.ask_from
 
@@ -726,5 +864,7 @@ def test_a_match_by_a_synonym_is_no_resemblance_of_letters(agent):
     hits = rag.search_line('4 TGP', 3)
     assert (hits[0]['name'], hits[0]['term']) == ('ALT', 'TGP')
     context = read(agent, ['Exames:', '4 TGP'])
-    agent.CALLBACKS.after_tool(FakeTool('search_exams'), {'query': '4 TGP'}, context, {'structuredContent': {'result': hits}})
+    agent.CALLBACKS.after_tool(
+        FakeTool('search_exams'), {'query': '4 TGP'}, context, {'structuredContent': {'result': hits}}
+    )
     assert context.state['candidates'][hits[0]['code']]['confidence'] >= agent.CALLBACKS.policy.ask_from

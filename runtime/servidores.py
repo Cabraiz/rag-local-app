@@ -1,6 +1,7 @@
 """The two calls the runtime itself makes to the spec's MCP servers, outside any model turn: the reading server's check
 of an image before the first model turn, and the catalog search of every line read, for the check of the whole order
 before the [s/N] question and after the run (runtime/reconcilia.py). No model sees either."""
+
 import asyncio
 from collections.abc import Iterable
 from typing import Any
@@ -51,11 +52,13 @@ async def search_lines(url: str, tool: str, texts: list[str], top_k: int) -> dic
                 result = await session.call_tool(tool, {'query': text[:200], 'top_k': top_k})
             payload = None if result.is_error else (result.structured_content or {}).get('result')
             return text, payload if isinstance(payload, list) else []
+
         return dict(await asyncio.gather(*map(search, texts)))
 
 
-async def unreported_exams(order: OrderRecord, url: str | None, tool: str | None, policy: BookingPolicy,
-                           listed: Iterable[Item] = ()) -> tuple[list[Item], bool]:
+async def unreported_exams(
+    order: OrderRecord, url: str | None, tool: str | None, policy: BookingPolicy, listed: Iterable[Item] = ()
+) -> tuple[list[Item], bool]:
     """(the exams of the order the run left in no reported state, besides `listed`, True if the search did not
     answer): every line read is searched on the spec's catalog server (runtime/reconcilia.py)."""
     texts = list(dict.fromkeys(text for _, text, _ in order_lines(order.ocr_read or [])))
@@ -65,6 +68,8 @@ async def unreported_exams(order: OrderRecord, url: str | None, tool: str | None
         hits = await asyncio.wait_for(search_lines(url, tool, texts, policy.top_k), CHECK_SECONDS)
     except Exception:  # the search went down after the run: say the order was not checked
         return [], True
-    settled = {exam.get('code') for exam in (order.booked_appointment or {}).get('exams') or [] if isinstance(exam, dict)}
+    settled = {
+        exam.get('code') for exam in (order.booked_appointment or {}).get('exams') or [] if isinstance(exam, dict)
+    }
     settled |= {item['code'] for item in [*(order.low_confidence or []), *(order.confirmed or []), *listed]}
     return unreported(order, hits.get, policy, settled), False

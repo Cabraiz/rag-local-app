@@ -4,6 +4,7 @@ Retrieval-augmented lookup of exam codes in the catalog (data/exams.json), score
 catalogo.py describes: shared words or character similarity, whichever is higher. The
 agent receives ranked codes from the catalog and never has to invent one.
 """
+
 import functools
 import itertools
 import re
@@ -30,8 +31,11 @@ def search(query: str, top_k: int = 3) -> list[dict]:
         raise ToolError(f'Consulta longa demais (máximo {MAX_QUERY_LENGTH} caracteres).')
     if isinstance(top_k, bool) or not isinstance(top_k, int) or not 1 <= top_k <= MAX_TOP_K:
         raise ToolError(f'top_k deve ser um inteiro entre 1 e {MAX_TOP_K}.')
-    scored = [{'code': exam['code'], 'name': exam['name'], 'score': round(score, 2), 'term': written}
-              for score, written, exam in MATCHER.closest(normalize(query)) if score >= MIN_SCORE]
+    scored = [
+        {'code': exam['code'], 'name': exam['name'], 'score': round(score, 2), 'term': written}
+        for score, written, exam in MATCHER.closest(normalize(query))
+        if score >= MIN_SCORE
+    ]
     scored.sort(key=lambda hit: (-hit['score'], hit['code']))
     return scored[:top_k]
 
@@ -46,11 +50,14 @@ def split_exams(query: str, short: bool = False) -> list[str]:
     parts, separators, written = [], [], SEPARATOR.findall(query)
     for index, part in enumerate(SEPARATOR.split(query)):
         cut, between = unglue(part)
-        separators += [*written[index - 1:index], *between]  # the separator before the part, then its cuts
+        separators += [*written[index - 1 : index], *between]  # the separator before the part, then its cuts
         parts += cut
 
     def joined(start, stop):  # parts start..stop with the separators written between them
-        return ''.join(part + sep for part, sep in zip(parts[start:stop], separators[start:stop], strict=True)) + parts[stop]
+        return (
+            ''.join(part + sep for part, sep in zip(parts[start:stop], separators[start:stop], strict=True))
+            + parts[stop]
+        )
 
     pieces, start = [], 0
     while start < len(parts):
@@ -75,13 +82,17 @@ for _term in MATCHER.searched:
         ENDINGS.setdefault(' '.join(_term.split()[:-1]), set()).add(_term.split()[-1])
 # The generic dosages of an antibody class: booked alone only from a line of complete exams, never
 # from a line that names a disease ("Anti HAV IgG e IgM", "IgG e IgM para toxoplasmose").
-GENERIC = {exam['code'] for exam in MATCHER.exams if all(set(term.split()) <= CLASSES | {'total'} for term in exam['terms'])}
+GENERIC = {
+    exam['code'] for exam in MATCHER.exams if all(set(term.split()) <= CLASSES | {'total'} for term in exam['terms'])
+}
 
 
 def qualifier(piece: str) -> bool:
     """A piece of only words that qualify the exam before it (a sample, a time): not searched on its own."""
-    return all(word in QUALIFIERS or word in ('fezes', 'sem') or re.fullmatch(r'\d+h?', word)
-               for word in normalize(piece).split())
+    return all(
+        word in QUALIFIERS or word in ('fezes', 'sem') or re.fullmatch(r'\d+h?', word)
+        for word in normalize(piece).split()
+    )
 
 
 @functools.lru_cache(maxsize=4096)
@@ -111,11 +122,11 @@ def unglue(part: str) -> tuple[list[str], list[str]]:
     pieces, between, start = [], [], 0
     tokens = list(re.finditer(r'\S+', part))
     for before, after in itertools.pairwise(tokens):
-        left, right = part[start:before.end()], part[after.start():]
+        left, right = part[start : before.end()], part[after.start() :]
         ends_glued = bool(catalogo.glued_e(before[0])[0]) and glued(before[0], left[:-1], left, right)
         if ends_glued or bool(catalogo.glued_e(after[0])[1]) and glued(after[0], right[1:], right, left):
             pieces.append(left)
-            between.append(part[before.end():after.start()])
+            between.append(part[before.end() : after.start()])
             start = after.start()
     return [*pieces, part[start:]], between
 
@@ -160,7 +171,9 @@ def partial(text: str, previous: str | None, code: str, line: set, complete: set
         last = normalize(previous).split()[-1]
         if any({last, *words} <= endings for endings in ENDINGS.values()):
             return True
-    return code in GENERIC and (serology or bool(line - CLASSES - CONNECTIVES - complete - words))  # 'total' of IgE total
+    return code in GENERIC and (
+        serology or bool(line - CLASSES - CONNECTIVES - complete - words)
+    )  # 'total' of IgE total
 
 
 def search_line(query: str, top_k: int = 3) -> list[dict]:
@@ -200,8 +213,11 @@ def completed(pieces: list[str], index: int, found: list[dict], weak: bool, shor
 def marked_partial(query: str, searched: list[tuple[str, str, list[dict]]]) -> list[dict]:
     """The hits of each piece searched, with its 'piece' as written and, when partial(), 'partial'."""
     line = set(normalize(query).split())
-    named = [set(normalize(text).split()) for _, text, found in searched
-             if found and found[0]['score'] >= COMPLETED and found[0]['code'] not in GENERIC]
+    named = [
+        set(normalize(text).split())
+        for _, text, found in searched
+        if found and found[0]['score'] >= COMPLETED and found[0]['code'] not in GENERIC
+    ]
     complete = set().union(*named)
     serology = any(words & CLASSES and words - CLASSES - CONNECTIVES for words in named)  # "Chagas IgG" on the line
     hits = []

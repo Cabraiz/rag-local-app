@@ -2,6 +2,7 @@
 
 A page whose name a DNS rebinding points at 127.0.0.1 sends its own name as Host and gets 400. ADK checks
 Host only on a loopback bind, not on the 0.0.0.0 that Docker needs. Usage: python -m runtime.web generated."""
+
 import argparse
 import errno
 import logging
@@ -21,8 +22,11 @@ class ReadOnlyPackage(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         error = record.args[-1] if isinstance(record.args, tuple) and record.args else None
-        return not (str(record.msg).startswith('Failed to write runtime config file') and isinstance(error, OSError)
-                    and error.errno == errno.EROFS)
+        return not (
+            str(record.msg).startswith('Failed to write runtime config file')
+            and isinstance(error, OSError)
+            and error.errno == errno.EROFS
+        )
 
 
 READ_ONLY_PACKAGE = ReadOnlyPackage()
@@ -32,10 +36,16 @@ logging.getLogger('google_adk.google.adk.cli.api_server').addFilter(READ_ONLY_PA
 def web_app(agents_dir: str, host: str = '127.0.0.1') -> FastAPI:
     app = get_fast_api_app(agents_dir=agents_dir, web=True, use_local_storage=False, host=host, bind_host=host)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=['127.0.0.1', 'localhost'])  # on any port
-    @app.exception_handler(ValueError)  # ADK's input checks (a forged adk_request_confirmation among them): 400, not a 500
+
+    @app.exception_handler(
+        ValueError
+    )  # ADK's input checks (a forged adk_request_confirmation among them): 400, not a 500
     async def refused(request: Request, error: ValueError) -> JSONResponse:
         logging.getLogger(__name__).warning('Requisição recusada: %s', type(error).__name__)  # the type only
-        return JSONResponse({'detail': 'Requisição inválida para esta sessão (ex.: confirmação forjada).'}, status_code=400)
+        return JSONResponse(
+            {'detail': 'Requisição inválida para esta sessão (ex.: confirmação forjada).'}, status_code=400
+        )
+
     return app
 
 

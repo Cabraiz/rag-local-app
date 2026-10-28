@@ -17,6 +17,7 @@ of them changes meaning or signature, or a name generated files use is added or 
 into each generated file, which checks it on import (require_api). 6: no `guarded`, the BookingPlugin puts its rule
 on untrusted data before each instruction itself.
 """
+
 import warnings
 
 # ADK's "[EXPERIMENTAL] feature ..." notices (ResumabilityConfig, FallbackModel...) would fill `adk run`'s
@@ -32,5 +33,7 @@ __all__ = ['API_VERSION', 'LiveOpenAPIToolset', 'McpToolset', 'gemini', 'require
 def require_api(version: int) -> None:
     """Stop the import of a generated file made for another interface of this library."""
     if version != API_VERSION:
-        raise ImportError(f'agent.py foi gerado para a interface {version} do runtime, e este runtime tem a '
-                          f'{API_VERSION}: gere de novo com `python -m cli transpile <spec>`')
+        raise ImportError(
+            f'agent.py foi gerado para a interface {version} do runtime, e este runtime tem a '
+            f'{API_VERSION}: gere de novo com `python -m cli transpile <spec>`'
+        )

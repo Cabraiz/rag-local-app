@@ -1,4 +1,5 @@
 """Command line: `python -m cli transpile <spec>` and `python -m cli run --image <file>`."""
+
 import argparse
 import asyncio
 import logging
@@ -32,8 +33,10 @@ from transpiler.spec import MODEL
 DEFAULT_SPEC = 'specs/agent.json'
 DEFAULT_AGENT = 'generated/agent.py'
 NO_TERMINAL = 'sem terminal para confirmar a lista de exames: rode num terminal ou com --yes'
-NO_TERMINAL_AT_START = (f'{NO_TERMINAL}; nada foi lido nem agendado (no docker compose, terminal é `run` sem -T; '
-                        'com --yes, só as regras decidem e os exames que pediriam confirmação ficam de fora)')
+NO_TERMINAL_AT_START = (
+    f'{NO_TERMINAL}; nada foi lido nem agendado (no docker compose, terminal é `run` sem -T; '
+    'com --yes, só as regras decidem e os exames que pediriam confirmação ficam de fora)'
+)
 UNDECIDED_WITH_YES = 3  # exit code: booked with --yes, and exams of the order left undecided (checked_run)
 SET_ANSWER = 'set_model_response'  # ADK's tool for an output_schema (runtime/plugin.py, ListedExams): writes nothing
 
@@ -58,8 +61,7 @@ def cmd_transpile(args):
     checked: list[str] = []
     root_agent = transpile(args.spec, args.output, checked)
     steps = ': ' + ' -> '.join(agent.name for agent in root_agent.sub_agents) if root_agent.sub_agents else ''
-    print(f'OK: {args.output} gerado e importado; root_agent "{root_agent.name}" '
-          f'({type(root_agent).__name__}{steps})')
+    print(f'OK: {args.output} gerado e importado; root_agent "{root_agent.name}" ({type(root_agent).__name__}{steps})')
     if checked:  # a server that did not answer keeps the spec's list; `cli run` asks it again
         print(f'Ferramentas conferidas nos servidores: {", ".join(checked)}')
     return 0
@@ -67,9 +69,11 @@ def cmd_transpile(args):
 
 def answers(url):
     """GET the server's address, at the address the run checked for its name (runtime/rede.py)."""
+
     async def get():
         async with rede.client(timeout=3) as client, client.stream('GET', url) as response:
             response.raise_for_status()
+
     asyncio.run(get())
 
 
@@ -84,8 +88,10 @@ def check_services(spec):
         try:
             answers(url)
         except httpx.HTTPError as error:
-            raise RunError(f'{label} fora do ar em {url} ({type(error).__name__}); '
-                           'suba os serviços com `docker compose up -d --wait`') from None
+            raise RunError(
+                f'{label} fora do ar em {url} ({type(error).__name__}); '
+                'suba os serviços com `docker compose up -d --wait`'
+            ) from None
     live = live_tools(spec)
     problems = check_live(spec, live, required=True)  # the spec may not have been transpiled with them up
     if problems:
@@ -110,8 +116,10 @@ def check_image(spec, image, live):
     try:
         reason = asyncio.run(asyncio.wait_for(servidores.image_problem(server.url, image), CHECK_SECONDS))
     except Exception as error:  # it listed its tools a moment ago: a timeout or a dropped stream
-        raise RunError(f'{name.upper()} (MCP) não conferiu a imagem em {server.url} ({type(error).__name__}); '
-                       'suba os serviços com `docker compose up -d --wait`') from None
+        raise RunError(
+            f'{name.upper()} (MCP) não conferiu a imagem em {server.url} ({type(error).__name__}); '
+            'suba os serviços com `docker compose up -d --wait`'
+        ) from None
     if reason:
         raise RunError(ocr_refused(reason))
 
@@ -150,10 +158,24 @@ def new_found():
     blocked; api_called: a POST, or a tool without a role, answered) and the run (tools_called,
     tool_seconds, model); the rest from the plugin's record of the order (take_record); and one input:
     questions, whether someone answers [s/N]."""
-    return {'api_called': False, 'appointment': None, 'api_error': None, 'blocked': None, 'pii_masked': {},
-            'text_removed': 0, 'unrecognized': [], 'instructions_removed': 0, 'candidates': {}, 'low_confidence': [], 'confirmed': [],
-            'tools_called': set(), 'tool_seconds': {}, 'ocr_read': True,
-            'listing': [], 'invented': []}
+    return {
+        'api_called': False,
+        'appointment': None,
+        'api_error': None,
+        'blocked': None,
+        'pii_masked': {},
+        'text_removed': 0,
+        'unrecognized': [],
+        'instructions_removed': 0,
+        'candidates': {},
+        'low_confidence': [],
+        'confirmed': [],
+        'tools_called': set(),
+        'tool_seconds': {},
+        'ocr_read': True,
+        'listing': [],
+        'invented': [],
+    }
 
 
 async def answers_to(requests, started, found):
@@ -169,8 +191,13 @@ async def answers_to(requests, started, found):
             found['no_terminal'] = True
         original = ((request.args or {}).get('originalFunctionCall') or {}).get('id')
         started[original] = time.time()  # the call runs again from here: the wait is not the tool's time
-        parts.append(types.Part(function_response=types.FunctionResponse(
-            name=CONFIRMATION, id=request.id, response={'confirmed': bool(yes)})))
+        parts.append(
+            types.Part(
+                function_response=types.FunctionResponse(
+                    name=CONFIRMATION, id=request.id, response={'confirmed': bool(yes)}
+                )
+            )
+        )
     return types.Content(role='user', parts=parts)
 
 
@@ -185,16 +212,21 @@ async def run_agent(app, image, spec, found):
     # answers the questions, go to the order's record in the agent's callbacks (runtime/pedido.py).
     session = await runner.session_service.create_session(app_name=app.name, user_id='cli')
     BookingPlugin.of(app).orders.start(session, image, ask=found.get('questions'))
-    message: types.Content | None = types.Content(role='user', parts=[types.Part(text=f'Arquivo do pedido: {image_token(image)}')])
+    message: types.Content | None = types.Content(
+        role='user', parts=[types.Part(text=f'Arquivo do pedido: {image_token(image)}')]
+    )
     started, invocation = {}, None  # call id -> timestamp of the event that asked for it
     try:
         while message is not None:
             requests = []
-            async for event in runner.run_async(user_id='cli', session_id=session.id, new_message=message,
-                                                invocation_id=invocation):
+            async for event in runner.run_async(
+                user_id='cli', session_id=session.id, new_message=message, invocation_id=invocation
+            ):
                 invocation = event.invocation_id
                 found['model'] = getattr(event, 'model_version', None) or found.get('model')
-                spans: dict[str | None, float] = {}  # tool -> longest call answered in this event (parallel calls overlap)
+                spans: dict[
+                    str | None, float
+                ] = {}  # tool -> longest call answered in this event (parallel calls overlap)
                 for part in (event.content.parts if event.content else None) or []:
                     if part.function_call and part.function_call.name == CONFIRMATION:
                         requests.append(part.function_call)
@@ -218,14 +250,23 @@ async def run_agent(app, image, spec, found):
 def take_record(found, order):
     """What the plugin's record of the order (runtime/pedido.py) says of the run: what the OCR read, masked
     and removed, the policy's sorting, and the check of the whole order the report made as the run ended."""
-    found.update(pii_masked=order.pii_masked or {}, text_removed=order.text_removed or 0,
-                 instructions_removed=order.instructions_removed or 0, candidates=order.candidates or {},
-                 low_confidence=[*(order.low_confidence or []), *(order.unreported or [])],
-                 confirmed=order.confirmed or [], listing=order.listing or [], invented=order.invented or [],
-                 model_error=order.model_error, cancel_unlinked=order.cancel_unlinked,
-                 unrecognized=unrecognized(order.view()), ocr_read=order.ocr_lines is not None,
-                 ocr_error=order.ocr_error, file_refused=bool(order.file_refused),
-                 order_unchecked=bool(order.order_unchecked))
+    found.update(
+        pii_masked=order.pii_masked or {},
+        text_removed=order.text_removed or 0,
+        instructions_removed=order.instructions_removed or 0,
+        candidates=order.candidates or {},
+        low_confidence=[*(order.low_confidence or []), *(order.unreported or [])],
+        confirmed=order.confirmed or [],
+        listing=order.listing or [],
+        invented=order.invented or [],
+        model_error=order.model_error,
+        cancel_unlinked=order.cancel_unlinked,
+        unrecognized=unrecognized(order.view()),
+        ocr_read=order.ocr_lines is not None,
+        ocr_error=order.ocr_error,
+        file_refused=bool(order.file_refused),
+        order_unchecked=bool(order.order_unchecked),
+    )
 
 
 def failure_message(error, found):
@@ -247,11 +288,15 @@ def failure_message(error, found):
 def timing(found, spec, total):
     """One line with the time of each step (tool call to reply, from the ADK events), the
     whole run and the model; nothing read from the order."""
+
     def seconds(value):
         return f'{value:.1f}'.replace('.', ',') if value < 10 else f'{value:.0f}'
 
-    steps = (('OCR', tool_for(spec, 'read')), ('busca', tool_for(spec, 'search')),
-             ('agendamento', tool_for(spec, 'book')))
+    steps = (
+        ('OCR', tool_for(spec, 'read')),
+        ('busca', tool_for(spec, 'search')),
+        ('agendamento', tool_for(spec, 'book')),
+    )
     spent = found['tool_seconds']
     parts = [f'{label} {seconds(spent[tool])} s' for label, tool in steps if tool in spent]
     model = found.get('model') or os.environ.get('GEMINI_MODEL') or spec.model  # the one that answered
@@ -275,8 +320,11 @@ def show_listing(found, spec):
         print(f'ignorado: {code} não veio de nenhuma busca no catálogo')
     listing = found['listing']
     if not listing:
-        raise RunError('nenhum exame listado com confiança suficiente; veja os avisos acima'
-                       if found['low_confidence'] else 'Nenhum exame encontrado no pedido')
+        raise RunError(
+            'nenhum exame listado com confiança suficiente; veja os avisos acima'
+            if found['low_confidence']
+            else 'Nenhum exame encontrado no pedido'
+        )
     shown = [f'{item["confidence"]:.2f}'.replace('.', ',') + (' confira' if item['check'] else '') for item in listing]
     width, column = max(len('Exame'), *(len(item['name']) for item in listing)), max(len('Confiança'), *map(len, shown))
     print(f'| {"Exame":<{width}} | Código   | {"Confiança":<{column}} |')
@@ -284,8 +332,10 @@ def show_listing(found, spec):
     for item, confidence in zip(listing, shown, strict=True):
         print(f'| {item["name"]:<{width}} | {item["code"]:<8} | {confidence:<{column}} |')
     if found['api_called']:  # a tool outside the roles answered: never say that nothing was written
-        print(f'\n{len(listing)} exame(s) listado(s); o BookingPlugin da spec não declara book, mas uma '
-              'ferramenta fora dos papéis respondeu e pode ter gravado: confira')
+        print(
+            f'\n{len(listing)} exame(s) listado(s); o BookingPlugin da spec não declara book, mas uma '
+            'ferramenta fora dos papéis respondeu e pode ter gravado: confira'
+        )
     else:
         print(f'\n{len(listing)} exame(s) listado(s); nada foi agendado (o BookingPlugin da spec não declara book)')
 
@@ -302,8 +352,11 @@ def print_result(found):
     appointment = found['appointment']
     # The line says when the agent left exams of the order out (the exit code: checked_run).
     left = sum(item.get('reason') in UNDECIDED for item in found['low_confidence'])
-    check = (f'; ATENÇÃO: {left} possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima'
-             if left else '')
+    check = (
+        f'; ATENÇÃO: {left} possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima'
+        if left
+        else ''
+    )
     print(f'\nAgendamento confirmado pela API: id {appointment["id"]}, status {appointment["status"]}{check}')
     return left
 
@@ -319,20 +372,29 @@ def validate_args(args):
     # turn): the agent image does not mount samples/, so a file added after the build exists only there.
     if Path(args.image).suffix.lower() not in IMAGE_SUFFIXES:
         # A bare name ("pedido") most likely means the PNG sample of the same name.
-        hint = f'; quis dizer "{args.image}.png"?' if not Path(args.image).suffix and not args.image.startswith('.') else ''
+        hint = (
+            f'; quis dizer "{args.image}.png"?'
+            if not Path(args.image).suffix and not args.image.startswith('.')
+            else ''
+        )
         raise RunError(f'--image: "{args.image}" não é uma imagem aceita; use .png, .jpg ou .jpeg{hint}')
     if not Path(args.agent).is_file():
         # The README runs everything in Docker, so suggest the full command.
-        raise RunError(f'{args.agent} não existe: rode antes: '
-                       f'docker compose run --rm agent python -m cli transpile {DEFAULT_SPEC}')
+        raise RunError(
+            f'{args.agent} não existe: rode antes: docker compose run --rm agent python -m cli transpile {DEFAULT_SPEC}'
+        )
     if not os.environ.get('GOOGLE_API_KEY'):
-        raise RunError('GOOGLE_API_KEY não definida: preencha GOOGLE_API_KEY= no .env '
-                       '(crie com "cp .env.example .env" se ele não existir)')
+        raise RunError(
+            'GOOGLE_API_KEY não definida: preencha GOOGLE_API_KEY= no .env '
+            '(crie com "cp .env.example .env" se ele não existir)'
+        )
     model = os.environ.get('GEMINI_MODEL')
     if model and not re.fullmatch(MODEL, model):  # the spec's own rule: the variable does not bypass it
         shown = ''.join(char for char in model[:60] if char.isprintable())
-        raise RunError(f'GEMINI_MODEL inválido ("{shown}"): use um modelo como gemini-3.5-flash, '
-                       'ou deixe a variável vazia para usar o modelo da spec')
+        raise RunError(
+            f'GEMINI_MODEL inválido ("{shown}"): use um modelo como gemini-3.5-flash, '
+            'ou deixe a variável vazia para usar o modelo da spec'
+        )
 
 
 def check_agent(args, spec):
@@ -345,8 +407,10 @@ def check_agent(args, spec):
     except (OSError, UnicodeDecodeError) as error:
         raise RunError(f'{args.agent}: não foi possível ler ({type(error).__name__}); {transpile_again}') from None
     if text != render(spec, args.spec):  # read_text turns a Windows checkout's CRLF into LF
-        raise RunError(f'{args.agent} não é o que {args.spec} gera hoje (gerado de outra spec, antes de uma mudança '
-                       f'ou editado à mão); {transpile_again}')
+        raise RunError(
+            f'{args.agent} não é o que {args.spec} gera hoje (gerado de outra spec, antes de uma mudança '
+            f'ou editado à mão); {transpile_again}'
+        )
     args.checked_agent.write_text(text, encoding='utf-8')  # what the run imports: these bytes, not a 2nd read
 
 
@@ -363,9 +427,11 @@ def load_checked_spec(args):
     the OCR accepts the image."""
     spec = load_spec(args.spec)
     if not (tool_for(spec, 'read') and tool_for(spec, 'search')):
-        raise RunError(f'{args.spec}: `cli run` lê um pedido em imagem e busca os exames no catálogo, e esta spec '
-                       'não tem o BookingPlugin com read e search; ela pode ser transpilada e rodada com `adk run` '
-                       'ou `adk web`, não pela CLI')
+        raise RunError(
+            f'{args.spec}: `cli run` lê um pedido em imagem e busca os exames no catálogo, e esta spec '
+            'não tem o BookingPlugin com read e search; ela pode ser transpilada e rodada com `adk run` '
+            'ou `adk web`, não pela CLI'
+        )
     check_someone_answers(args, spec)
     check_agent(args, spec)
     check_image(spec, args.image, check_services(spec))
@@ -490,8 +556,11 @@ def main(argv=None):
     logging.disable(logging.CRITICAL)
     parser = Parser(prog='python -m cli', description='Transpilador JSON -> agente Google ADK.')
     common = Parser(add_help=False)
-    common.add_argument('--verbose', action='store_true',
-                        help='mostra no stderr os logs das bibliotecas (ADK, Gemini, MCP), sem a chave da API')
+    common.add_argument(
+        '--verbose',
+        action='store_true',
+        help='mostra no stderr os logs das bibliotecas (ADK, Gemini, MCP), sem a chave da API',
+    )
     commands = parser.add_subparsers(dest='command', required=True)
     transpile_cmd = commands.add_parser('transpile', parents=[common], help='gera e valida o agente a partir da spec')
     transpile_cmd.add_argument('spec', nargs='?', default=DEFAULT_SPEC)
@@ -500,9 +569,12 @@ def main(argv=None):
     run_cmd.add_argument('--image', required=True, help='nome do arquivo em samples/, ex.: pedido.png')
     run_cmd.add_argument('--agent', default=DEFAULT_AGENT)
     run_cmd.add_argument('--spec', default=DEFAULT_SPEC, help='spec usada no transpile (URLs dos serviços)')
-    run_cmd.add_argument('--yes', action='store_true',
-                         help='agenda sem a confirmação final da lista, por sua conta: só as regras decidem, e só o '
-                              'que elas agendariam sozinhas; os exames que pediriam confirmação ficam de fora')
+    run_cmd.add_argument(
+        '--yes',
+        action='store_true',
+        help='agenda sem a confirmação final da lista, por sua conta: só as regras decidem, e só o '
+        'que elas agendariam sozinhas; os exames que pediriam confirmação ficam de fora',
+    )
     try:
         args = parser.parse_args(argv)
         show_logs(args.verbose)

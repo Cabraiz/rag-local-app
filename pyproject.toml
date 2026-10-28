@@ -1,5 +1,6 @@
 # Quality checks that run in CI (.github/workflows/ci.yml), in the tests service:
 #   docker compose run --rm --no-deps tests ruff check .
+#   docker compose run --rm --no-deps tests ruff format --check .
 #   docker compose run --rm --no-deps tests mypy
 #   docker compose run --rm tests pytest -q --cov
 
@@ -11,8 +12,13 @@ extend-exclude = ["generated", "docs/evidencias", "docs/gravacoes"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "C901"]  # pycodestyle, pyflakes, import order, bugbear, complexity
 ignore = [
-    "E501",  # long lines: no formatter is used, and test data and regexes are long on purpose
+    "E501",  # long lines: ruff format breaks the code, but test data, strings and regexes stay long on purpose
 ]
+
+[tool.ruff.format]
+quote-style = "preserve"  # the project's single quotes, double where the text has a single one
+# The transpiler's output, byte for byte (tests/test_transpiler.py::test_docs_example_is_exactly_what_transpile_generates).
+exclude = ["docs/exemplo-agent.py", "*.md"]  # and the Python examples inside the docs, written by hand
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10  # a function with more branches than this is split

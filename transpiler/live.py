@@ -2,6 +2,7 @@
 list_tools, an API its /openapi.json. A server that does not answer (offline transpile, CI)
 keeps the spec's declared list; `cli run` asks again before calling Gemini, and there every
 server has to answer. A server that answers with something that is not JSON is a problem."""
+
 import asyncio
 import concurrent.futures
 import re
@@ -25,8 +26,10 @@ async def mcp_tools(url):
     from mcp import ClientSession  # the MCP SDK comes with google-adk
     from mcp.client.sse import sse_client
 
-    async with (sse_client(url, timeout=SECONDS, sse_read_timeout=SECONDS, httpx_client_factory=rede.mcp_client) as streams,
-                ClientSession(*streams) as session):
+    async with (
+        sse_client(url, timeout=SECONDS, sse_read_timeout=SECONDS, httpx_client_factory=rede.mcp_client) as streams,
+        ClientSession(*streams) as session,
+    ):
         await session.initialize()
         return {tool.name: tool.input_schema or {} for tool in (await session.list_tools()).tools}
 
@@ -42,9 +45,13 @@ async def api_operations(url):
 def operations(document):
     """operationId -> its method, parameter names and JSON body, from an OpenAPI document."""
     paths = document.get('paths', {}) if isinstance(document, dict) else {}
-    return {operation['operationId']: describe_operation(document, method, operation, item.get('parameters'))
-            for item in paths.values() if isinstance(item, dict)
-            for method, operation in item.items() if isinstance(operation, dict) and 'operationId' in operation}
+    return {
+        operation['operationId']: describe_operation(document, method, operation, item.get('parameters'))
+        for item in paths.values()
+        if isinstance(item, dict)
+        for method, operation in item.items()
+        if isinstance(operation, dict) and 'operationId' in operation
+    }
 
 
 def resolve(document, schema):
@@ -67,15 +74,22 @@ def describe_operation(document, method, operation, shared=None):
     content = ((operation.get('requestBody') or {}).get('content') or {}).get('application/json') or {}
     body = resolve(document, content.get('schema'))
     properties = {name: resolve(document, schema) for name, schema in (body.get('properties') or {}).items()}
-    properties = {name: schema | ({'items': resolve(document, schema['items'])} if 'items' in schema else {})
-                  for name, schema in properties.items()}
+    properties = {
+        name: schema | ({'items': resolve(document, schema['items'])} if 'items' in schema else {})
+        for name, schema in properties.items()
+    }
     parameters = [resolve(document, parameter) for parameter in [*(shared or []), *operation.get('parameters', [])]]
-    named = [(re.sub(r'[^a-z0-9]+', '_', str(parameter.get('name', '')).lower()), parameter) for parameter in parameters]
-    return {'method': method.upper(),
-            'parameters': sorted(name for name, _ in named),
-            'needed': sorted(name for name, parameter in named
-                             if parameter.get('in') == 'path' or parameter.get('required') is True),
-            'body': body | {'properties': properties}}
+    named = [
+        (re.sub(r'[^a-z0-9]+', '_', str(parameter.get('name', '')).lower()), parameter) for parameter in parameters
+    ]
+    return {
+        'method': method.upper(),
+        'parameters': sorted(name for name, _ in named),
+        'needed': sorted(
+            name for name, parameter in named if parameter.get('in') == 'path' or parameter.get('required') is True
+        ),
+        'body': body | {'properties': properties},
+    }
 
 
 def unanswered(error: Exception) -> bool:
@@ -98,6 +112,7 @@ async def ask_servers(spec):
             if not unanswered(error):
                 raise
         return name, None  # see check_live
+
     live = dict(await asyncio.gather(*(ask(name, server) for name, server in spec.servers.items())))
     if problems:
         raise TranspileError(problems)
@@ -123,7 +138,9 @@ def check_addresses(spec):
     fields = {server.address[1]: f'servers.{name}.{server.address[0]}' for name, server in spec.servers.items()}
     with rede.LOCK:
         refused = rede.pin(fields, rede.PINS if rede.PINS is not None else {})
-    return [f'{fields[url]}: "{host}" resolve para {", ".join(bad)}, {rede.REFUSED}' for url, (host, bad) in refused.items()]
+    return [
+        f'{fields[url]}: "{host}" resolve para {", ".join(bad)}, {rede.REFUSED}' for url, (host, bad) in refused.items()
+    ]
 
 
 def check_live(spec, live, required=False):
@@ -139,7 +156,13 @@ def check_live(spec, live, required=False):
         server = spec.servers[name]
         for missing in [tool for tool in server.names if tools is not None and tool not in tools]:
             field = 'tools' if server.mcp else 'operations'
-            problems.append(f'servers.{name}.{field}: "{missing}" não existe neste servidor '
-                            f'(use {", ".join(sorted(tools)) or "nenhuma"})')
-    return problems + [problem for plugin, config, where in load_plugins(spec)[0] if hasattr(plugin, 'check_live')
-                       for problem in plugin.check_live(spec, config, live, where)]
+            problems.append(
+                f'servers.{name}.{field}: "{missing}" não existe neste servidor '
+                f'(use {", ".join(sorted(tools)) or "nenhuma"})'
+            )
+    return problems + [
+        problem
+        for plugin, config, where in load_plugins(spec)[0]
+        if hasattr(plugin, 'check_live')
+        for problem in plugin.check_live(spec, config, live, where)
+    ]

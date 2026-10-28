@@ -15,6 +15,7 @@ está na imagem, nenhuma PII no texto que sai do OCR, e toda recusa com mensagem
 Sai com código 1 se algum caso falhar. --caso <id> refaz só os casos indicados, com o
 mesmo conteúdo (a semente é fixa).
 """
+
 import argparse
 import asyncio
 import io
@@ -37,16 +38,30 @@ SEED = 20261006
 LIMITE_CASO_S = 120  # o OCR tem limite próprio de 30 s; acima disso, o caso travou
 EXAMS = {exam['code']: exam['name'] for exam in pedidos.EXAMS}
 CODE_OF = {name: code for code, name in EXAMS.items()}
-FORA_DO_CATALOGO = ['Tomografia de crânio', 'Exame de vista', 'Biópsia hepática', 'Mapeamento genético completo',
-                    'Ressonância de joelho', 'Teste de esforço']
+FORA_DO_CATALOGO = [
+    'Tomografia de crânio',
+    'Exame de vista',
+    'Biópsia hepática',
+    'Mapeamento genético completo',
+    'Ressonância de joelho',
+    'Teste de esforço',
+]
 # Nomes em inglês de exames do catálogo: o mesmo exame, então agendá-lo não é erro.
-EM_INGLES = {'Complete blood count': 'Hemograma completo', 'Fasting glucose': 'Glicemia de jejum',
-             'Creatinine': 'Creatinina', 'Vitamin D': 'Vitamina D', 'Total cholesterol': 'Colesterol total',
-             'Urinalysis': 'Urina tipo I'}
+EM_INGLES = {
+    'Complete blood count': 'Hemograma completo',
+    'Fasting glucose': 'Glicemia de jejum',
+    'Creatinine': 'Creatinina',
+    'Vitamin D': 'Vitamina D',
+    'Total cholesterol': 'Colesterol total',
+    'Urinalysis': 'Urina tipo I',
+}
 # Texto que nunca deve chegar ao usuário: rastros de exceção ou de código.
-INTERNO = re.compile(r'Traceback|File "|line \d+, in |\b\w+(?:Error|Exception)\b|NoneType|object at 0x|errno'
-                     # dump de validação do pydantic: tipo interno, valor recebido e link da documentação
-                     r'|validation errors? for|\[type=\w+|input_value=|errors\.pydantic\.dev', re.I)
+INTERNO = re.compile(
+    r'Traceback|File "|line \d+, in |\b\w+(?:Error|Exception)\b|NoneType|object at 0x|errno'
+    # dump de validação do pydantic: tipo interno, valor recebido e link da documentação
+    r'|validation errors? for|\[type=\w+|input_value=|errors\.pydantic\.dev',
+    re.I,
+)
 PREFIXO_MCP = re.compile(r'^Error executing tool \w+: ')
 ROTULO = re.compile(r'^\s*(?:exames?(?: solicitados?)?|solicito os exames)\s*:?\s*', re.I)
 MARCADOR = re.compile(r'^\s*(?:\d+\s*[.)]|[-–•*])\s*')
@@ -59,6 +74,7 @@ def mensagem_clara(texto):
 
 
 # ---------------------------------------------------------------- casos de imagem
+
 
 def desenhar(texto, rng, tamanho=26, largura=1100):
     """Texto em fundo branco, como um pedido escaneado; devolve (imagem, y de cada linha)."""
@@ -137,15 +153,20 @@ def caso_imagem(categoria, rng):  # noqa: C901 - um ramo por categoria de robust
         image, rows = desenhar(texto, rng)
         draw = ImageDraw.Draw(image)
         for y in rows:  # risco por cima de cada linha
-            draw.line((40, y + 14 + rng.randrange(-4, 5), image.width - 40, y + 10 + rng.randrange(-4, 5)),
-                      fill=0, width=rng.randrange(4, 9))
+            draw.line(
+                (40, y + 14 + rng.randrange(-4, 5), image.width - 40, y + 10 + rng.randrange(-4, 5)),
+                fill=0,
+                width=rng.randrange(4, 9),
+            )
         dados = png(image.filter(ImageFilter.GaussianBlur(rng.uniform(1.5, 3.0))))
     elif categoria in ('girada 90°', 'girada 180°', 'de cabeça para baixo'):
         texto, sensiveis = pedido_completo(rng, exames)
         image = desenhar(texto, rng)[0]
-        image = {'girada 90°': lambda i: i.transpose(Image.Transpose.ROTATE_90),
-                 'girada 180°': lambda i: i.transpose(Image.Transpose.ROTATE_180),
-                 'de cabeça para baixo': lambda i: i.transpose(Image.Transpose.FLIP_TOP_BOTTOM)}[categoria](image)
+        image = {
+            'girada 90°': lambda i: i.transpose(Image.Transpose.ROTATE_90),
+            'girada 180°': lambda i: i.transpose(Image.Transpose.ROTATE_180),
+            'de cabeça para baixo': lambda i: i.transpose(Image.Transpose.FLIP_TOP_BOTTOM),
+        }[categoria](image)
         dados = png(image)
     elif categoria == 'minúscula (50 px)':
         texto, sensiveis = pedido_completo(rng, exames)
@@ -162,7 +183,7 @@ def caso_imagem(categoria, rng):  # noqa: C901 - um ramo por categoria de robust
     elif categoria == 'JPEG truncado':
         texto, sensiveis = pedido_completo(rng, exames)
         completo = jpeg(desenhar(texto, rng)[0])
-        dados, ext = completo[:int(len(completo) * rng.uniform(0.2, 0.8))], '.jpg'
+        dados, ext = completo[: int(len(completo) * rng.uniform(0.2, 0.8))], '.jpg'
     elif categoria == 'PNG corrompido':
         texto, sensiveis = pedido_completo(rng, exames)
         raw = bytearray(png(desenhar(texto, rng)[0]))
@@ -172,8 +193,15 @@ def caso_imagem(categoria, rng):  # noqa: C901 - um ramo por categoria de robust
     elif categoria == 'extensão errada':
         texto, sensiveis = pedido_completo(rng, exames)
         image = desenhar(texto, rng)[0]
-        dados, ext = rng.choice([(png(image), '.jpg'), (jpeg(image), '.png'), (png(image), '.gif'),
-                                 ('\n'.join(texto).encode('utf-8'), '.txt'), (png(image), '.PNG')])
+        dados, ext = rng.choice(
+            [
+                (png(image), '.jpg'),
+                (jpeg(image), '.png'),
+                (png(image), '.gif'),
+                ('\n'.join(texto).encode('utf-8'), '.txt'),
+                (png(image), '.PNG'),
+            ]
+        )
         if ext != '.PNG':
             permitidos = set()  # recusado pela extensão ou pelo conteúdo: nada é lido
     elif categoria == '0 byte':
@@ -181,7 +209,12 @@ def caso_imagem(categoria, rng):  # noqa: C901 - um ramo por categoria de robust
     elif categoria == 'arquivo inexistente':
         return {}, [f'nao-existe-{rng.randrange(10**6)}.png'], set(), {}
     elif categoria == 'caminho no nome':
-        return {}, [rng.choice(['../etc/passwd.png', '/data/samples/pedido.png', '..\\pedido.png', 'a/b.png'])], set(), {}
+        return (
+            {},
+            [rng.choice(['../etc/passwd.png', '/data/samples/pedido.png', '..\\pedido.png', 'a/b.png'])],
+            set(),
+            {},
+        )
     elif categoria == 'duplicada':
         texto, sensiveis = pedido_completo(rng, exames)
         dados = png(desenhar(texto, rng)[0])
@@ -207,15 +240,37 @@ def caso_imagem(categoria, rng):  # noqa: C901 - um ramo por categoria de robust
     return {'pedido' + ext: dados}, ['pedido' + ext], permitidos, sensiveis
 
 
-CATEGORIAS_IMAGEM = ['página em branco', 'só PII, sem exame', 'só cabeçalho', '"Exames:" vazio',
-                     'linhas cortadas na metade', 'ilegível ou riscado', 'girada 90°', 'girada 180°',
-                     'de cabeça para baixo', 'minúscula (50 px)', 'enorme (perto do limite)', 'acima do limite',
-                     'JPEG truncado', 'PNG corrompido', 'extensão errada', '0 byte', 'arquivo inexistente',
-                     'caminho no nome', 'duplicada', 'exame repetido 3x', 'exame fora do catálogo',
-                     'exames em inglês', 'sem paciente', 'sem médico', 'sem data']
+CATEGORIAS_IMAGEM = [
+    'página em branco',
+    'só PII, sem exame',
+    'só cabeçalho',
+    '"Exames:" vazio',
+    'linhas cortadas na metade',
+    'ilegível ou riscado',
+    'girada 90°',
+    'girada 180°',
+    'de cabeça para baixo',
+    'minúscula (50 px)',
+    'enorme (perto do limite)',
+    'acima do limite',
+    'JPEG truncado',
+    'PNG corrompido',
+    'extensão errada',
+    '0 byte',
+    'arquivo inexistente',
+    'caminho no nome',
+    'duplicada',
+    'exame repetido 3x',
+    'exame fora do catálogo',
+    'exames em inglês',
+    'sem paciente',
+    'sem médico',
+    'sem data',
+]
 
 
 # ---------------------------------------------------------------- casos do RAG e da API
+
 
 def consultas_rag(rng, n):
     """{categoria: [argumentos de search_exams]}."""
@@ -225,27 +280,84 @@ def consultas_rag(rng, n):
         'RAG: consulta vazia': [{'query': ''} for _ in range(n)],
         'RAG: só espaços': [{'query': ' ' * rng.randrange(1, 50) + rng.choice(['', '\t', '\n'])} for _ in range(n)],
         'RAG: 5.000 caracteres': [{'query': ''.join(rng.choice(letras) for _ in range(5000))} for _ in range(n)],
-        'RAG: emoji': [{'query': ''.join(rng.choice(emoji) for _ in range(rng.randrange(1, 8)))
-                        + rng.choice(['', ' hemograma', ' glicose'])} for _ in range(n)],
-        'RAG: caracteres de controle': [{'query': ''.join(rng.choice(['\x00', '\x07', '\x1b[31m', '\x7f', '\u202e', 'tsh', 'ferritina'])
-                                                         for _ in range(rng.randrange(2, 8)))} for _ in range(n)],
-        'RAG: SQL no texto': [{'query': rng.choice(["'; DROP TABLE exams; --", "1' OR '1'='1", 'hemograma" UNION SELECT *',
-                                                    "glicose'); DELETE FROM appointments; --", "%' AND 1=1 --"])}
-                              for _ in range(n)],
-        'RAG: JSON no texto': [{'query': rng.choice(['{"code": "FICT-001"}', '[{"query": 1}]', '{"top_k": 99}',
-                                                     '{"exams": [{"code": "FICT-120"}]}', 'null'])} for _ in range(n)],
-        'RAG: tipo ou top_k inválido': [rng.choice([{'query': 123}, {'query': None}, {'query': ['tsh']},
-                                                    {'query': 'tsh', 'top_k': 0}, {'query': 'tsh', 'top_k': 1000},
-                                                    {'query': 'tsh', 'top_k': 'x'}, {'query': 'tsh', 'top_k': True}])
-                                        for _ in range(n)],
+        'RAG: emoji': [
+            {
+                'query': ''.join(rng.choice(emoji) for _ in range(rng.randrange(1, 8)))
+                + rng.choice(['', ' hemograma', ' glicose'])
+            }
+            for _ in range(n)
+        ],
+        'RAG: caracteres de controle': [
+            {
+                'query': ''.join(
+                    rng.choice(['\x00', '\x07', '\x1b[31m', '\x7f', '\u202e', 'tsh', 'ferritina'])
+                    for _ in range(rng.randrange(2, 8))
+                )
+            }
+            for _ in range(n)
+        ],
+        'RAG: SQL no texto': [
+            {
+                'query': rng.choice(
+                    [
+                        "'; DROP TABLE exams; --",
+                        "1' OR '1'='1",
+                        'hemograma" UNION SELECT *',
+                        "glicose'); DELETE FROM appointments; --",
+                        "%' AND 1=1 --",
+                    ]
+                )
+            }
+            for _ in range(n)
+        ],
+        'RAG: JSON no texto': [
+            {
+                'query': rng.choice(
+                    [
+                        '{"code": "FICT-001"}',
+                        '[{"query": 1}]',
+                        '{"top_k": 99}',
+                        '{"exams": [{"code": "FICT-120"}]}',
+                        'null',
+                    ]
+                )
+            }
+            for _ in range(n)
+        ],
+        'RAG: tipo ou top_k inválido': [
+            rng.choice(
+                [
+                    {'query': 123},
+                    {'query': None},
+                    {'query': ['tsh']},
+                    {'query': 'tsh', 'top_k': 0},
+                    {'query': 'tsh', 'top_k': 1000},
+                    {'query': 'tsh', 'top_k': 'x'},
+                    {'query': 'tsh', 'top_k': True},
+                ]
+            )
+            for _ in range(n)
+        ],
     }
 
 
 def argumentos_ocr(rng, n):
     """{categoria: [argumentos de extract_exam_text]}: tipos errados, chave faltando ou a mais."""
-    return {'OCR: argumento inválido': [rng.choice([{'filename': None}, {'filename': 123}, {'filename': ['a.png']},
-                                                    {}, {'filename': {'nome': 'a.png'}}, {'filename': True}])
-                                        for _ in range(n)]}
+    return {
+        'OCR: argumento inválido': [
+            rng.choice(
+                [
+                    {'filename': None},
+                    {'filename': 123},
+                    {'filename': ['a.png']},
+                    {},
+                    {'filename': {'nome': 'a.png'}},
+                    {'filename': True},
+                ]
+            )
+            for _ in range(n)
+        ]
+    }
 
 
 def corpos_api(rng, n):
@@ -256,29 +368,66 @@ def corpos_api(rng, n):
     post = lambda **kw: ('POST', '/appointments', kw, {400, 413, 415, 422})  # noqa: E731
     return {
         'API: corpo vazio': [post(content=b'', headers={'Content-Type': 'application/json'}) for _ in range(n)],
-        'API: campos faltando': [post(json=rng.choice([{}, {'exams': [{}]}, {'exams': [{'code': 'FICT-001'}]},
-                                                       {'exams': [{'name': 'Hemograma'}]}])) for _ in range(n)],
-        'API: null': [post(json=rng.choice([None, {'exams': None}, {'exams': [None]}, {'exams': [{'code': None, 'name': None}]}]))
-                      for _ in range(n)],
-        'API: tipos trocados': [post(json=rng.choice([{'exams': 'FICT-001'}, {'exams': {'code': 'FICT-001'}},
-                                                      {'exams': [{'code': 1, 'name': 2}]}, {'exams': [['FICT-001']]},
-                                                      {'exams': [{'code': 'fict-001', 'name': 'x'}]}, [um()]]))
-                                for _ in range(n)],
+        'API: campos faltando': [
+            post(
+                json=rng.choice(
+                    [{}, {'exams': [{}]}, {'exams': [{'code': 'FICT-001'}]}, {'exams': [{'name': 'Hemograma'}]}]
+                )
+            )
+            for _ in range(n)
+        ],
+        'API: null': [
+            post(json=rng.choice([None, {'exams': None}, {'exams': [None]}, {'exams': [{'code': None, 'name': None}]}]))
+            for _ in range(n)
+        ],
+        'API: tipos trocados': [
+            post(
+                json=rng.choice(
+                    [
+                        {'exams': 'FICT-001'},
+                        {'exams': {'code': 'FICT-001'}},
+                        {'exams': [{'code': 1, 'name': 2}]},
+                        {'exams': [['FICT-001']]},
+                        {'exams': [{'code': 'fict-001', 'name': 'x'}]},
+                        [um()],
+                    ]
+                )
+            )
+            for _ in range(n)
+        ],
         'API: mais de 20 exames': [post(json={'exams': muitos(rng.randrange(21, 60))}) for _ in range(n)],
-        'API: códigos repetidos': [post(json={'exams': [e := um(), e, *([e] * rng.randrange(0, 3))]}) for _ in range(n)],
-        'API: código fora do catálogo': [post(json={'exams': [{'code': f'FICT-{rng.randrange(121, 1000):03d}', 'name': 'x'}]})
-                                         for _ in range(n)],
-        'API: JSON quebrado ou outro formato': [post(content=rng.choice([b'{"exams": [', b'\xff\xfe\x00', b'exams=FICT-001']),
-                                                     headers={'Content-Type': rng.choice(['application/json', 'text/plain'])})
-                                                for _ in range(n)],
-        'API: corpo acima de 16 KB': [post(json={'exams': [{'code': 'FICT-001', 'name': 'x' * 20000}]}) for _ in range(n)],
-        'API: id inválido ou inexistente': [('GET', rng.choice(['/appointments/abc', '/appointments/123',
-                                                                '/appointments/00000000-0000-4000-8000-000000000000']),
-                                             {}, {404, 422}) for _ in range(n)],
+        'API: códigos repetidos': [
+            post(json={'exams': [e := um(), e, *([e] * rng.randrange(0, 3))]}) for _ in range(n)
+        ],
+        'API: código fora do catálogo': [
+            post(json={'exams': [{'code': f'FICT-{rng.randrange(121, 1000):03d}', 'name': 'x'}]}) for _ in range(n)
+        ],
+        'API: JSON quebrado ou outro formato': [
+            post(
+                content=rng.choice([b'{"exams": [', b'\xff\xfe\x00', b'exams=FICT-001']),
+                headers={'Content-Type': rng.choice(['application/json', 'text/plain'])},
+            )
+            for _ in range(n)
+        ],
+        'API: corpo acima de 16 KB': [
+            post(json={'exams': [{'code': 'FICT-001', 'name': 'x' * 20000}]}) for _ in range(n)
+        ],
+        'API: id inválido ou inexistente': [
+            (
+                'GET',
+                rng.choice(
+                    ['/appointments/abc', '/appointments/123', '/appointments/00000000-0000-4000-8000-000000000000']
+                ),
+                {},
+                {404, 422},
+            )
+            for _ in range(n)
+        ],
     }
 
 
 # ---------------------------------------------------------------- execução
+
 
 class Ferramenta:
     def __init__(self, name):
@@ -295,6 +444,7 @@ def agente_gerado():
     import importlib.util
 
     from transpiler import transpile
+
     destino = Path(tempfile.mkdtemp()) / 'agent.py'
     with warnings.catch_warnings():  # avisos de recurso experimental do ADK, irrelevantes aqui
         warnings.simplefilter('ignore')
@@ -420,7 +570,9 @@ async def caso_de_api(api, metodo, caminho, kwargs, aceitos):
 async def concorrencia_api(api, n):
     """n POSTs válidos ao mesmo tempo: todos 201, ids distintos, e o GET devolve o mesmo corpo."""
     rng = random.Random(SEED + 7)
-    corpos = [{'exams': [{'code': c, 'name': 'x'} for c in rng.sample(sorted(EXAMS), rng.randrange(1, 4))]} for _ in range(n)]
+    corpos = [
+        {'exams': [{'code': c, 'name': 'x'} for c in rng.sample(sorted(EXAMS), rng.randrange(1, 4))]} for _ in range(n)
+    ]
     start = time.perf_counter()
     respostas = await asyncio.gather(*(api.post('/appointments', json=corpo) for corpo in corpos))
     segundos = (time.perf_counter() - start) / n
@@ -477,9 +629,13 @@ async def rodar(casos, ocr_url, rag_url, api_url, concorrencia=8, posts_simultan
         quedas = 0
         while not fila.empty() and quedas < 5:
             try:
-                async with sse_client(ocr_url, sse_read_timeout=180) as o, ClientSession(*o) as ocr, \
-                        sse_client(rag_url) as r, ClientSession(*r) as rag, \
-                        httpx.AsyncClient(base_url=api_url, timeout=60, transport=transporte) as api:
+                async with (
+                    sse_client(ocr_url, sse_read_timeout=180) as o,
+                    ClientSession(*o) as ocr,
+                    sse_client(rag_url) as r,
+                    ClientSession(*r) as rag,
+                    httpx.AsyncClient(base_url=api_url, timeout=60, transport=transporte) as api,
+                ):
                     await ocr.initialize()
                     await rag.initialize()
                     while not fila.empty():
@@ -497,8 +653,11 @@ async def rodar(casos, ocr_url, rag_url, api_url, concorrencia=8, posts_simultan
                             # Um caso sem resposta não pode travar a suíte: conta como falha e reabre as sessões.
                             outcome = await asyncio.wait_for(caso, LIMITE_CASO_S)
                         except Exception as error:  # um caso que derruba o cliente é um achado, não o fim da suíte
-                            motivo = (f'sem resposta em {LIMITE_CASO_S} s' if isinstance(error, TimeoutError)
-                                      else f'exceção no caminho: {error!r}')
+                            motivo = (
+                                f'sem resposta em {LIMITE_CASO_S} s'
+                                if isinstance(error, TimeoutError)
+                                else f'exceção no caminho: {error!r}'
+                            )
                             resultados.append((id_, categoria, 'falhou', motivo[:300], time.perf_counter() - start))
                             raise
                         resultados.append((id_, categoria, *outcome, time.perf_counter() - start))
@@ -512,8 +671,15 @@ async def rodar(casos, ocr_url, rag_url, api_url, concorrencia=8, posts_simultan
     if posts_simultaneos:
         async with httpx.AsyncClient(base_url=api_url, timeout=60, transport=transporte) as api:
             for indice, (outcome, detalhe, segundos) in enumerate(await concorrencia_api(api, posts_simultaneos)):
-                resultados.append((f'api-conc-{indice:03d}', f'API: {posts_simultaneos} POSTs ao mesmo tempo',
-                                   outcome, detalhe, segundos))
+                resultados.append(
+                    (
+                        f'api-conc-{indice:03d}',
+                        f'API: {posts_simultaneos} POSTs ao mesmo tempo',
+                        outcome,
+                        detalhe,
+                        segundos,
+                    )
+                )
     return resultados, time.perf_counter() - start
 
 
@@ -524,13 +690,30 @@ def resumo(resultados, segundos, ordem=()):
     for categoria in [c for c in ordem if any(r[1] == c for r in resultados)]:
         grupo = [r for r in resultados if r[1] == categoria]
         tempos = [r[4] for r in grupo]
-        linhas.append((categoria, len(grupo), sum(r[2] == 'ok' for r in grupo), sum(r[2] == 'clara' for r in grupo),
-                       sum(r[2] == 'falhou' for r in grupo), f'{carga.percentil(tempos, 50):.2f}', f'{carga.percentil(tempos, 95):.2f}'))
+        linhas.append(
+            (
+                categoria,
+                len(grupo),
+                sum(r[2] == 'ok' for r in grupo),
+                sum(r[2] == 'clara' for r in grupo),
+                sum(r[2] == 'falhou' for r in grupo),
+                f'{carga.percentil(tempos, 50):.2f}',
+                f'{carga.percentil(tempos, 95):.2f}',
+            )
+        )
     tempos = [r[4] for r in resultados]
     falhas = [r for r in resultados if r[2] == 'falhou']
-    linhas.append(('TOTAL', len(resultados), sum(r[2] == 'ok' for r in resultados),
-                   sum(r[2] == 'clara' for r in resultados), len(falhas),
-                   f'{carga.percentil(tempos, 50):.2f}', f'{carga.percentil(tempos, 95):.2f}'))
+    linhas.append(
+        (
+            'TOTAL',
+            len(resultados),
+            sum(r[2] == 'ok' for r in resultados),
+            sum(r[2] == 'clara' for r in resultados),
+            len(falhas),
+            f'{carga.percentil(tempos, 50):.2f}',
+            f'{carga.percentil(tempos, 95):.2f}',
+        )
+    )
     largura = max(len(str(linha[0])) for linha in linhas)
     texto = [f'{linha[0]:<{largura}}  ' + '  '.join(f'{str(v):>9}' for v in linha[1:]) for linha in linhas]
     texto.append(f'{len(resultados)} casos em {segundos:.0f} s')
@@ -554,9 +737,12 @@ def main(argv=None):
     casos = montar(args.variantes, args.pasta)
     if args.caso:
         casos = [caso for caso in casos if caso[0] in args.caso]
-    print(f'{len(casos)} casos ({args.variantes} por categoria); {args.concorrencia} sessões em paralelo...', flush=True)
-    resultados, segundos = asyncio.run(rodar(casos, args.ocr, args.rag, args.api, args.concorrencia,
-                                             0 if args.caso else args.posts_simultaneos))
+    print(
+        f'{len(casos)} casos ({args.variantes} por categoria); {args.concorrencia} sessões em paralelo...', flush=True
+    )
+    resultados, segundos = asyncio.run(
+        rodar(casos, args.ocr, args.rag, args.api, args.concorrencia, 0 if args.caso else args.posts_simultaneos)
+    )
     if args.relatorio:
         Path(args.relatorio).write_text(json.dumps(resultados, ensure_ascii=False, indent=1), encoding='utf-8')
     tabela, falhas = resumo(resultados, segundos, [caso[1] for caso in casos])

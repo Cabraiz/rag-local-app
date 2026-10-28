@@ -75,6 +75,9 @@ jobs:
       - name: Lint (ruff)
         run: docker compose run --rm --no-deps tests ruff check .
 
+      - name: Format (ruff)
+        run: docker compose run --rm --no-deps tests ruff format --check .
+
       - name: Type check (mypy)
         run: docker compose run --rm --no-deps tests mypy
 

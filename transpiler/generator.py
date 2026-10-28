@@ -1,4 +1,5 @@
 """AgentSpec -> generated/agent.py (Google ADK), then compile and import it."""
+
 import importlib.util
 import inspect
 import os
@@ -18,15 +19,19 @@ TEMPLATE = Template((Path(__file__).parent / 'agent_template.py.tmpl').read_text
 WIDTH = 120  # the generated file keeps the repository's line length (pyproject.toml)
 # Written next to an agent.py, so its folder is an ADK agent folder: `adk run <folder>` and `adk web
 # <folder>` import it and run its `app`. runtime first: it silences ADK's [EXPERIMENTAL] notices.
-PACKAGE = ('"""ADK agent folder: `adk run` and `adk web` load agent.py and run its `app`."""\n'
-           'import runtime  # noqa: F401\n\nfrom . import agent  # noqa: F401\n')
-ABOUT = ('Declared here, from the spec, with Google ADK classes: the model, each LlmAgent (its tools, its instruction, '
-         'its output_key), {root}, and the App that `adk run` and `adk web` load (resumable: a tool call that asks for '
-         "a confirmation pauses and resumes). Imported from `runtime`, the transpiler's runtime library (interface "
-         '{version}, tested on its own, the same for every spec):')
+PACKAGE = (
+    '"""ADK agent folder: `adk run` and `adk web` load agent.py and run its `app`."""\n'
+    'import runtime  # noqa: F401\n\nfrom . import agent  # noqa: F401\n'
+)
+ABOUT = (
+    'Declared here, from the spec, with Google ADK classes: the model, each LlmAgent (its tools, its instruction, '
+    'its output_key), {root}, and the App that `adk run` and `adk web` load (resumable: a tool call that asks for '
+    "a confirmation pauses and resumes). Imported from `runtime`, the transpiler's runtime library (interface "
+    '{version}, tested on its own, the same for every spec):'
+)
 RUNTIME_DOC = {  # the docstring line of each name imported from runtime
     'LiveOpenAPIToolset': "- LiveOpenAPIToolset: ADK's OpenAPIToolset, built from an API's live /openapi.json on first use,\n"
-                          '  on a host that ALLOWED_HOSTS allows;',
+    '  on a host that ALLOWED_HOSTS allows;',
     'McpToolset': "- McpToolset: ADK's McpToolset, on a host that ALLOWED_HOSTS allows (checked on import);",
     'gemini': '- gemini: the model with retries (and the reserve model);',
     'require_api': '- require_api: stops this file on a runtime with another interface.',
@@ -69,10 +74,20 @@ def toolset(spec, server, names):
     declared = spec.servers[server]
     if not declared.mcp:
         url = declared.openapi_url
-        return call('LiveOpenAPIToolset', [('openapi_url', repr(url)), ('base_url', repr(url.removesuffix('/openapi.json'))),
-                                           ('tool_filter', repr(names))], 8)
-    return call('McpToolset', [('connection_params', f'SseConnectionParams(url={declared.url!r})'),
-                               ('tool_filter', repr(names))], 8)
+        return call(
+            'LiveOpenAPIToolset',
+            [
+                ('openapi_url', repr(url)),
+                ('base_url', repr(url.removesuffix('/openapi.json'))),
+                ('tool_filter', repr(names)),
+            ],
+            8,
+        )
+    return call(
+        'McpToolset',
+        [('connection_params', f'SseConnectionParams(url={declared.url!r})'), ('tool_filter', repr(names))],
+        8,
+    )
 
 
 def render_agent(spec, agent):
@@ -81,8 +96,11 @@ def render_agent(spec, agent):
         server, name = reference.split('.')
         servers.setdefault(server, []).append(name)
     instruction = '(\n' + '\n'.join(literal(agent.instruction, 8)) + '\n    )'
-    arguments = [('name', repr(agent.name)), ('model', model_call(spec, agent.model) if agent.model else 'MODEL'),
-                 ('instruction', instruction)]
+    arguments = [
+        ('name', repr(agent.name)),
+        ('model', model_call(spec, agent.model) if agent.model else 'MODEL'),
+        ('instruction', instruction),
+    ]
     if servers:
         arguments.append(('tools', listing([toolset(spec, server, names) for server, names in servers.items()], 4)))
     if agent.output_schema:
@@ -103,7 +121,9 @@ def value(data, indent):
     """A spec value as a Python literal, a dict with one entry per line, like every call of the file."""
     if not (isinstance(data, dict) and data):
         return repr(data)
-    return '{\n' + ''.join(f'{" " * (indent + 4)}{key!r}: {item!r},\n' for key, item in data.items()) + ' ' * indent + '}'
+    return (
+        '{\n' + ''.join(f'{" " * (indent + 4)}{key!r}: {item!r},\n' for key, item in data.items()) + ' ' * indent + '}'
+    )
 
 
 def render_plugin(spec, plugin, found):
@@ -118,12 +138,18 @@ def render_plugin(spec, plugin, found):
 def imports(spec, plugins):
     """(import lines, docstring lines): only what this spec's file uses."""
     kinds = {spec.servers[reference.split('.')[0]].mcp for agent in spec.agents for reference in agent.tools}
-    adk = [f'from google.adk.agents import {", ".join(sorted({"LlmAgent", spec.workflow or "LlmAgent"}))}',
-           'from google.adk.apps import App, ResumabilityConfig']
+    adk = [
+        f'from google.adk.agents import {", ".join(sorted({"LlmAgent", spec.workflow or "LlmAgent"}))}',
+        'from google.adk.apps import App, ResumabilityConfig',
+    ]
     if True in kinds:
         adk.append('from google.adk.tools.mcp_tool.mcp_session_manager import SseConnectionParams')
-    names = [*(['LiveOpenAPIToolset'] if False in kinds else []), *(['McpToolset'] if True in kinds else []),
-             'gemini', 'require_api']
+    names = [
+        *(['LiveOpenAPIToolset'] if False in kinds else []),
+        *(['McpToolset'] if True in kinds else []),
+        'gemini',
+        'require_api',
+    ]
     ours = [f'from runtime import {", ".join(names)}']
     classes: dict[str, set[str]] = {}  # module -> the classes of the spec imported from it
     for module, _, name in (path.rpartition('.') for _, path in imported_classes(spec)):
@@ -132,9 +158,13 @@ def imports(spec, plugins):
         (adk if module.startswith('google.') else ours).append(f'from {module} import {", ".join(sorted(found))}')
     doc = [RUNTIME_DOC[name] for name in names if name in RUNTIME_DOC]
     if plugins:
-        doc.append(fill("The App's plugins (ADK's BasePlugin), each with the kwargs the spec gives it: "
-                        + ', '.join(f'{found.__name__} from {plugin.path.rpartition(".")[0]}' for plugin, found in plugins)
-                        + '.'))
+        doc.append(
+            fill(
+                "The App's plugins (ADK's BasePlugin), each with the kwargs the spec gives it: "
+                + ', '.join(f'{found.__name__} from {plugin.path.rpartition(".")[0]}' for plugin, found in plugins)
+                + '.'
+            )
+        )
     return '\n'.join(sorted(adk)) + '\n\n' + '\n'.join(sorted(ours)), '\n'.join(doc)
 
 
@@ -145,12 +175,16 @@ def model_call(spec, model):
 
 def model_comment(spec):
     """The comment above MODEL, true for this spec: with or without a reserve model."""
-    text = ('Gemini (GEMINI_MODEL in .env, or `-e GEMINI_MODEL=<model>` for one run, can replace it), retried on '
-            '429/500/503 up to 5 times.')
+    text = (
+        'Gemini (GEMINI_MODEL in .env, or `-e GEMINI_MODEL=<model>` for one run, can replace it), retried on '
+        '429/500/503 up to 5 times.'
+    )
     if spec.fallback_model:
-        text = ('Gemini (GEMINI_MODEL in .env, or `-e GEMINI_MODEL=<model>` for one run, can replace it). A request '
-                f'it refuses with 429 (quota) or 503 (overloaded) goes at once to the reserve model, {spec.fallback_model}, '
-                'which retries 429/500/503 up to 5 times; the main model retries only a 500.')
+        text = (
+            'Gemini (GEMINI_MODEL in .env, or `-e GEMINI_MODEL=<model>` for one run, can replace it). A request '
+            f'it refuses with 429 (quota) or 503 (overloaded) goes at once to the reserve model, {spec.fallback_model}, '
+            'which retries 429/500/503 up to 5 times; the main model retries only a 500.'
+        )
     return '\n'.join(f'# {line}' for line in textwrap.wrap(text, 96))
 
 
@@ -164,12 +198,20 @@ def render(spec, spec_file):
     if plugins:
         app.append(('plugins', listing([render_plugin(spec, plugin, found) for plugin, found in plugins], 4)))
     return TEMPLATE.substitute(
-        imports=import_lines, runtime_doc=runtime_doc,
-        about=fill(ABOUT.format(root=f'the {spec.workflow} that runs them' if spec.workflow else 'which is the root',
-                                version=API_VERSION)),
+        imports=import_lines,
+        runtime_doc=runtime_doc,
+        about=fill(
+            ABOUT.format(
+                root=f'the {spec.workflow} that runs them' if spec.workflow else 'which is the root',
+                version=API_VERSION,
+            )
+        ),
         spec_file=re.sub(r'[^A-Za-z0-9._-]', '_', Path(spec_file).name),  # docstring text, not a literal
-        model=model_call(spec, spec.model), model_comment=model_comment(spec), api_version=repr(API_VERSION),
-        agents=''.join(render_agent(spec, agent) for agent in spec.agents), root=render_root(spec),
+        model=model_call(spec, spec.model),
+        model_comment=model_comment(spec),
+        api_version=repr(API_VERSION),
+        agents=''.join(render_agent(spec, agent) for agent in spec.agents),
+        root=render_root(spec),
         app='app = ' + call('App', [*app, ('resumability_config', 'ResumabilityConfig(is_resumable=True)')]),
     )
 
@@ -187,8 +229,9 @@ def load_root_agent(path, shown=None, name='root_agent'):
         module_spec.loader.exec_module(module)
         return getattr(module, name)
     except Exception as error:  # e.g. ADK missing or another version: one clear line, no traceback
-        raise TranspileError([f'{shown or path}: o código gerado não pôde ser importado '
-                              f'({type(error).__name__}: {str(error)[:200]})']) from None
+        raise TranspileError(
+            [f'{shown or path}: o código gerado não pôde ser importado ({type(error).__name__}: {str(error)[:200]})']
+        ) from None
 
 
 def write_checked(output, source):
@@ -213,8 +256,9 @@ def load_spec(spec_path):  # file -> AgentSpec, read errors as TranspileError
     try:
         text = Path(spec_path).read_text(encoding='utf-8-sig')  # a BOM (Windows editors) is dropped
     except (OSError, UnicodeDecodeError) as error:
-        raise TranspileError([f'{spec_path}: não foi possível ler ({error.__class__.__name__}); '
-                              'a spec de exemplo é specs/agent.json']) from None
+        raise TranspileError(
+            [f'{spec_path}: não foi possível ler ({error.__class__.__name__}); a spec de exemplo é specs/agent.json']
+        ) from None
     return parse_spec(text)
 
 

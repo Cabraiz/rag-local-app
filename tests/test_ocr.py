@@ -1,4 +1,5 @@
 """OCR MCP server: file boundary, PII masking before return and a real Tesseract run."""
+
 import asyncio
 import shutil
 from pathlib import Path
@@ -18,19 +19,22 @@ def samples_dir(monkeypatch):
     monkeypatch.setattr(ocr, 'SAMPLES_DIR', SAMPLES)
 
 
-@pytest.mark.parametrize('filename, message', [
-    ('', 'filename deve ser'),
-    ('a' * 300 + '.png', 'longo demais'),
-    ('/etc/passwd', 'sem pastas'),
-    ('C:\\pedido.png', 'sem pastas'),
-    ('C:pedido.png', 'sem pastas'),
-    ('../pedido.png', 'sem pastas'),
-    ('..\\pedido.png', 'sem pastas'),
-    ('sub/pedido.png', 'sem pastas'),
-    ('..', 'Extensão'),
-    ('pedido.txt', 'Extensão'),
-    ('ausente.png', 'não encontrado'),
-])
+@pytest.mark.parametrize(
+    'filename, message',
+    [
+        ('', 'filename deve ser'),
+        ('a' * 300 + '.png', 'longo demais'),
+        ('/etc/passwd', 'sem pastas'),
+        ('C:\\pedido.png', 'sem pastas'),
+        ('C:pedido.png', 'sem pastas'),
+        ('../pedido.png', 'sem pastas'),
+        ('..\\pedido.png', 'sem pastas'),
+        ('sub/pedido.png', 'sem pastas'),
+        ('..', 'Extensão'),
+        ('pedido.txt', 'Extensão'),
+        ('ausente.png', 'não encontrado'),
+    ],
+)
 def test_rejects_paths_outside_samples(filename, message):
     with pytest.raises(ToolError, match=message):
         ocr.resolve_sample(filename)
@@ -64,6 +68,7 @@ def test_rejects_truncated_image_with_a_clear_message(tmp_path, monkeypatch):
 
 def test_rejects_content_that_does_not_match_the_extension(tmp_path, monkeypatch):
     from PIL import Image
+
     Image.new('RGB', (200, 100), 'white').save(tmp_path / 'falso.png', format='GIF')
     monkeypatch.setattr(ocr, 'SAMPLES_DIR', tmp_path)
     with pytest.raises(ToolError, match='não corresponde à extensão'):
@@ -76,6 +81,7 @@ def no_tesseract(*args, **kwargs):
 
 def test_check_image_accepts_a_sample_without_running_the_ocr(monkeypatch):
     from PIL import Image
+
     monkeypatch.setattr(ocr, 'read_ocr_lines', no_tesseract)
     with Image.open(SAMPLES / 'pedido.png') as image:
         width, height = image.size
@@ -84,11 +90,13 @@ def test_check_image_accepts_a_sample_without_running_the_ocr(monkeypatch):
 
 def write_gif(path):
     from PIL import Image
+
     Image.new('RGB', (200, 100), 'white').save(path, format='GIF')
 
 
 def write_blank_page(path):
     from PIL import Image
+
     Image.new('RGB', (1200, 1600), 'white').save(path)
 
 
@@ -128,11 +136,20 @@ def test_check_image_keeps_the_size_limits(monkeypatch, limit, message):
 def test_every_line_is_masked_and_counted(monkeypatch):
     monkeypatch.setattr(pii, 'mask', lambda line: ('[CPF]', {'CPF': 1}) if 'CPF' in line else (line, {}))
     result = ocr.mask_lines(['CPF: 1', 'Hemograma completo', 'CPF: 2'])
-    assert result == {'lines': ['[CPF]', 'Hemograma completo', '[CPF]'], 'pii_masked': {'CPF': 2}, 'line_confidence': None,
-                      'line_intent': ['request', 'request', 'request'], 'contested_exams': [],
-                      'instructions_removed': 0, 'text_removed': 0, 'cancel_unlinked': False, 'page_clean': True,
-                      'off_list': [], 'exam_lines': [1], 'exam_terms': [[], [['hemograma', 'Hemograma completo'],
-                                                              ['hemograma completo', 'Hemograma completo']], []]}
+    assert result == {
+        'lines': ['[CPF]', 'Hemograma completo', '[CPF]'],
+        'pii_masked': {'CPF': 2},
+        'line_confidence': None,
+        'line_intent': ['request', 'request', 'request'],
+        'contested_exams': [],
+        'instructions_removed': 0,
+        'text_removed': 0,
+        'cancel_unlinked': False,
+        'page_clean': True,
+        'off_list': [],
+        'exam_lines': [1],
+        'exam_terms': [[], [['hemograma', 'Hemograma completo'], ['hemograma completo', 'Hemograma completo']], []],
+    }
 
 
 needs_tesseract = pytest.mark.skipif(shutil.which('tesseract') is None, reason='Tesseract runs inside the Docker image')
@@ -141,13 +158,30 @@ needs_tesseract = pytest.mark.skipif(shutil.which('tesseract') is None, reason='
 # Real Tesseract + real guardrails.pii on each sample: exams stay, personal data is gone.
 # Tesseract reads the e-mail "@" of pedido.png as "Qg"; the mask must still hide it.
 SAMPLE_CASES = {
-    'pedido.png': (['Hemograma completo', 'Glicemia de jejum', 'Creatinina'],
-                   ['123.456.789', '90000-1234', 'sentinela', 'example', 'qrs']),
-    'pedido-variacao.png': (['Hemograma completo', 'Glicose', 'Creatinina'],
-                            ['123.456.789', '3333-4444', 'sentinela', '05/10/2026', '123456', 'qrs']),
-    'pedido-realista.png': (['Convênio', 'CID', 'Obs', 'Hemoglobina glicada', 'Colesterol total', 'TSH'],
-                            ['joao', 'silva', 'lima', '987.654.321', '98888-7777', 'e11.9', '01/10/2026',
-                             '654321', '52 anos', 'ouro', 'diabetes']),
+    'pedido.png': (
+        ['Hemograma completo', 'Glicemia de jejum', 'Creatinina'],
+        ['123.456.789', '90000-1234', 'sentinela', 'example', 'qrs'],
+    ),
+    'pedido-variacao.png': (
+        ['Hemograma completo', 'Glicose', 'Creatinina'],
+        ['123.456.789', '3333-4444', 'sentinela', '05/10/2026', '123456', 'qrs'],
+    ),
+    'pedido-realista.png': (
+        ['Convênio', 'CID', 'Obs', 'Hemoglobina glicada', 'Colesterol total', 'TSH'],
+        [
+            'joao',
+            'silva',
+            'lima',
+            '987.654.321',
+            '98888-7777',
+            'e11.9',
+            '01/10/2026',
+            '654321',
+            '52 anos',
+            'ouro',
+            'diabetes',
+        ],
+    ),
 }
 
 
@@ -170,19 +204,27 @@ def test_the_readme_sample_masks_the_same_personal_data():
     # docs/como-rodar.md and the videos show this count for pedido.png.
     result = ocr.mask_lines(ocr.read_lines(ocr.resolve_sample('pedido.png')))
     assert result['pii_masked'] == {'NOME': 2, 'CPF': 1, 'EMAIL': 1, 'TELEFONE': 1}
-    assert result['lines'][2:] == ['Paciente: [NOME]', 'CPF: [CPF]', 'Email: [EMAIL]', 'Telefone: [TELEFONE]',
-                                   'Medico: [NOME]', 'Exame: Hemograma completo', 'Exame: Glicemia de jejum',
-                                   'Exame: Creatinina']
-
+    assert result['lines'][2:] == [
+        'Paciente: [NOME]',
+        'CPF: [CPF]',
+        'Email: [EMAIL]',
+        'Telefone: [TELEFONE]',
+        'Medico: [NOME]',
+        'Exame: Hemograma completo',
+        'Exame: Glicemia de jejum',
+        'Exame: Creatinina',
+    ]
 
 
 def test_the_order_without_exams_is_the_one_its_generator_draws():
     # Case (b) of docs/evidencias/log-alucinacao.txt: the image is in samples/ and its generator redraws it.
     from exemplos.gerar_pedido_sem_exame import desenhar
     from tests.load import pedidos
+
     if not Path(pedidos.FONTS[0]).is_file():
         pytest.skip('the DejaVu fonts of the Docker image draw it')
     from PIL import Image
+
     drawn, _ = desenhar()
     with Image.open(SAMPLES / 'pedido-sem-exame.png') as saved:
         assert (saved.mode, saved.size) == (drawn.mode, drawn.size) and saved.tobytes() == drawn.tobytes()
@@ -196,6 +238,7 @@ def test_the_order_without_exams_masks_what_the_evidence_log_shows_and_has_no_ex
     masked = ', '.join(f'{kind} x{count}' for kind, count in result['pii_masked'].items())
     assert f'PII reconhecida e mascarada pelo OCR: {masked}' in case
     assert result['lines'][-3:] == ['Exames solicitados:', 'Dr. [NOME] - [CRM]', 'Data: [DATA]']
+
 
 # Images that reach the OCR in an unusual shape (bugs 1 to 3 of the 5d0ccc1 bug hunt).
 PEDIDO_EXAMS = ['Hemograma completo', 'Glicemia de jejum', 'Creatinina']
@@ -216,11 +259,13 @@ def exams_read(text, exams):
 
 @needs_tesseract
 @pytest.mark.parametrize('angle', [0, 90, 180, 270])
-@pytest.mark.parametrize('source, exams', [(SAMPLES / 'pedido.png', PEDIDO_EXAMS), (PHOTO, PHOTO_EXAMS)],
-                         ids=['pedido', 'foto-celular'])
+@pytest.mark.parametrize(
+    'source, exams', [(SAMPLES / 'pedido.png', PEDIDO_EXAMS), (PHOTO, PHOTO_EXAMS)], ids=['pedido', 'foto-celular']
+)
 def test_a_page_turned_in_its_pixels_is_read_upright(tmp_path, monkeypatch, source, exams, angle):
     # No EXIF: the pixels themselves are turned, as in a sideways scan or an app that dropped the tag.
     from PIL import Image
+
     with Image.open(source) as image:
         turned = image.convert('RGB').rotate(angle, expand=True)
     name = 'girada' + source.suffix
@@ -230,6 +275,7 @@ def test_a_page_turned_in_its_pixels_is_read_upright(tmp_path, monkeypatch, sour
 @needs_tesseract
 def test_a_phone_photo_with_exif_orientation_is_read_upright(tmp_path, monkeypatch):
     from PIL import Image
+
     with Image.open(PHOTO) as image:
         exif = image.getexif()
         exif[0x0112] = 6  # Orientation: the camera was turned; the viewer turns it back 90 degrees
@@ -242,6 +288,7 @@ def test_a_page_the_osd_sees_turned_but_nobody_can_read_is_refused(monkeypatch):
     from PIL import Image
 
     from mcp_servers import preprocessamento
+
     monkeypatch.setattr(preprocessamento, 'read_words', lambda *args: [(0, 0, 10, 10, 'x', 20)])
     monkeypatch.setattr(preprocessamento, 'rotation', lambda *args: 90)
     with pytest.raises(preprocessamento.SidewaysImage, match='de lado ou de cabeça para baixo'):
@@ -252,6 +299,7 @@ def test_an_upright_poor_reading_stays_as_it_is_when_the_osd_does_not_see_a_turn
     from PIL import Image
 
     from mcp_servers import preprocessamento
+
     monkeypatch.setattr(preprocessamento, 'read_words', lambda *args: [(0, 0, 10, 10, 'TSH', 40)])
     monkeypatch.setattr(preprocessamento, 'rotation', lambda *args: 0)
     assert [line.text for line in preprocessamento.read_ocr_lines(Image.new('L', (800, 600), 255), 30)] == ['TSH']
@@ -261,6 +309,7 @@ def test_an_upright_poor_reading_stays_as_it_is_when_the_osd_does_not_see_a_turn
 @pytest.mark.parametrize('mode', ['RGBA', 'LA'])
 def test_a_png_with_a_transparent_background_is_read_on_white(tmp_path, monkeypatch, mode):
     from PIL import Image, ImageOps
+
     with Image.open(SAMPLES / 'pedido.png') as image:
         page = image.convert('RGB')
     ink = ImageOps.invert(page.convert('L'))  # opaque text, transparent paper (black underneath)
@@ -273,12 +322,14 @@ def test_an_image_without_transparency_is_passed_through_untouched():
     from PIL import Image
 
     from mcp_servers.preprocessamento import on_white
+
     image = Image.new('RGB', (10, 10), 'gray')
     assert on_white(image) is image
 
 
 def test_a_pdf_renamed_to_png_says_it_is_a_pdf(tmp_path, monkeypatch):
     from PIL import Image
+
     Image.new('RGB', (200, 100), 'white').save(tmp_path / 'pedido.png', format='PDF')
     monkeypatch.setattr(ocr, 'SAMPLES_DIR', tmp_path)
     with pytest.raises(ToolError, match='é um PDF, não uma imagem: exporte a página como PNG ou JPEG'):

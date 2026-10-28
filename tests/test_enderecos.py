@@ -3,6 +3,7 @@ ALLOWED_HOSTS does not import, `cli run` runs only the agent.py the spec generat
 server has to list its tools before a run, no redirect takes a toolset to another host, and an
 allowed name that resolves to a local or metadata address stops the run, whose addresses stay
 the ones checked. No API key or Gemini."""
+
 import asyncio
 import json
 import socket
@@ -29,13 +30,24 @@ SPEC_FILE = Path(__file__).resolve().parents[1] / 'specs' / 'agent.json'
 # --- the runtime checks the hosts again, when agent.py is imported --------------------------------
 
 
-@pytest.mark.parametrize('allowed, url', [
-    (None, 'http://ocr:8001/sse'), (None, 'http://OCR:8001/sse'), (None, 'https://ocr:8001/sse'),
-    (None, 'http://ocr:8002/sse'), (None, 'http://ocr/sse'), (None, 'http://ocr.:8001/sse'),
-    (None, 'http://169.254.169.254/sse'), (None, 'http://localhost:2375/sse'), (None, 'http://ocr:99999/sse'),
-    ('clinica.interna', 'https://clinica.interna:8443/sse'), ('clinica.interna:8443', 'https://clinica.interna/sse'),
-    ('clinica.interna:8443, ocr:8001', 'http://ocr:8001/sse'), (',', 'http://rag:8002/sse'),
-])
+@pytest.mark.parametrize(
+    'allowed, url',
+    [
+        (None, 'http://ocr:8001/sse'),
+        (None, 'http://OCR:8001/sse'),
+        (None, 'https://ocr:8001/sse'),
+        (None, 'http://ocr:8002/sse'),
+        (None, 'http://ocr/sse'),
+        (None, 'http://ocr.:8001/sse'),
+        (None, 'http://169.254.169.254/sse'),
+        (None, 'http://localhost:2375/sse'),
+        (None, 'http://ocr:99999/sse'),
+        ('clinica.interna', 'https://clinica.interna:8443/sse'),
+        ('clinica.interna:8443', 'https://clinica.interna/sse'),
+        ('clinica.interna:8443, ocr:8001', 'http://ocr:8001/sse'),
+        (',', 'http://rag:8002/sse'),
+    ],
+)
 def test_the_runtime_allows_exactly_the_hosts_the_transpiler_allows(monkeypatch, allowed, url):
     if allowed is None:
         monkeypatch.delenv('ALLOWED_HOSTS', raising=False)
@@ -55,10 +67,13 @@ def test_the_runtime_allows_exactly_the_hosts_the_transpiler_allows(monkeypatch,
     assert runtime_allows == transpiler_allows
 
 
-@pytest.mark.parametrize('openapi_url, base_url', [
-    ('http://169.254.169.254/openapi.json', 'http://169.254.169.254'),
-    ('http://api:8000/openapi.json', 'http://evil.example:8000'),  # the contract from the API, the POSTs elsewhere
-])
+@pytest.mark.parametrize(
+    'openapi_url, base_url',
+    [
+        ('http://169.254.169.254/openapi.json', 'http://169.254.169.254'),
+        ('http://api:8000/openapi.json', 'http://evil.example:8000'),  # the contract from the API, the POSTs elsewhere
+    ],
+)
 def test_an_openapi_toolset_outside_allowed_hosts_is_refused(monkeypatch, openapi_url, base_url):
     monkeypatch.delenv('ALLOWED_HOSTS', raising=False)
     with pytest.raises(ValueError, match='fora de ALLOWED_HOSTS'):
@@ -67,8 +82,10 @@ def test_an_openapi_toolset_outside_allowed_hosts_is_refused(monkeypatch, openap
 
 def test_an_agent_py_generated_for_another_allowed_hosts_does_not_import(tmp_path, servers_answer, monkeypatch):
     monkeypatch.setenv('ALLOWED_HOSTS', 'ocr:8001,rag:8002,clinica.interna:8443')
-    (tmp_path / 'spec.json').write_text(spec_with(
-        lambda s: s['servers']['api'].update(openapi_url='https://clinica.interna:8443/openapi.json')), encoding='utf-8')
+    (tmp_path / 'spec.json').write_text(
+        spec_with(lambda s: s['servers']['api'].update(openapi_url='https://clinica.interna:8443/openapi.json')),
+        encoding='utf-8',
+    )
     transpile(tmp_path / 'spec.json', tmp_path / 'agent.py')
     monkeypatch.delenv('ALLOWED_HOSTS')  # the deployment went back to the default
     with pytest.raises(TranspileError) as error:
@@ -117,12 +134,15 @@ def test_cli_run_goes_on_with_the_agent_py_its_spec_generates(run_argv, capsys):
     assert capsys.readouterr().err == 'Erro: serviços conferidos\n'
 
 
-@pytest.mark.parametrize('edit', [
-    lambda text: text.replace('min_confidence=0.9', 'min_confidence=0.1'),
-    lambda text: text.replace("'http://rag:8002/sse'", "'http://rag:8002/sse?x'"),
-    lambda text: text + '\n# edited\n',
-    None,  # another spec's agent.py
-])
+@pytest.mark.parametrize(
+    'edit',
+    [
+        lambda text: text.replace('min_confidence=0.9', 'min_confidence=0.1'),
+        lambda text: text.replace("'http://rag:8002/sse'", "'http://rag:8002/sse?x'"),
+        lambda text: text + '\n# edited\n',
+        None,  # another spec's agent.py
+    ],
+)
 def test_cli_run_refuses_an_agent_py_its_spec_does_not_generate(run_argv, tmp_path, capsys, edit):
     agent, argv = run_argv
     if edit is None:
@@ -135,7 +155,8 @@ def test_cli_run_refuses_an_agent_py_its_spec_does_not_generate(run_argv, tmp_pa
     assert capsys.readouterr().err == (
         f'Erro: {agent} não é o que specs/agent.json gera hoje (gerado de outra spec, antes de uma mudança ou '
         f'editado à mão); gere de novo: docker compose run --rm agent python -m cli transpile specs/agent.json '
-        f'--output {agent}\n')
+        f'--output {agent}\n'
+    )
 
 
 def test_cli_run_imports_the_agent_py_it_compared_even_if_the_file_changes_after(run_argv, monkeypatch, capsys):
@@ -143,11 +164,13 @@ def test_cli_run_imports_the_agent_py_it_compared_even_if_the_file_changes_after
     imported = []
 
     def swap_the_file(spec):  # between the check and the import
-        agent.write_text(agent.read_text(encoding='utf-8') + "\nraise RuntimeError('trocado depois da checagem')\n",
-                         encoding='utf-8')
+        agent.write_text(
+            agent.read_text(encoding='utf-8') + "\nraise RuntimeError('trocado depois da checagem')\n", encoding='utf-8'
+        )
 
     async def run_agent(root_agent, image, spec, found):
         imported.append(root_agent.name)
+
     monkeypatch.setattr(cli, 'check_services', swap_the_file)
     monkeypatch.setattr(cli, 'run_agent', run_agent)
     cli.main(argv)
@@ -157,13 +180,20 @@ def test_cli_run_imports_the_agent_py_it_compared_even_if_the_file_changes_after
 # --- every server lists its tools before a run ----------------------------------------------------
 
 
-@pytest.mark.parametrize('server, expected', [
-    ('ocr', 'servers.ocr: http://ocr:8001/sse respondeu, mas não listou as ferramentas (é um servidor MCP?)'),
-    ('rag', 'servers.rag: http://rag:8002/sse respondeu, mas não listou as ferramentas (é um servidor MCP?)'),
-    ('api', 'servers.api: http://api:8000/openapi.json respondeu, mas não listou as operações (é um /openapi.json?)'),
-])
-def test_cli_run_stops_when_a_server_answers_but_lists_nothing(tmp_path, servers_answer, monkeypatch, capsys,
-                                                              server, expected):
+@pytest.mark.parametrize(
+    'server, expected',
+    [
+        ('ocr', 'servers.ocr: http://ocr:8001/sse respondeu, mas não listou as ferramentas (é um servidor MCP?)'),
+        ('rag', 'servers.rag: http://rag:8002/sse respondeu, mas não listou as ferramentas (é um servidor MCP?)'),
+        (
+            'api',
+            'servers.api: http://api:8000/openapi.json respondeu, mas não listou as operações (é um /openapi.json?)',
+        ),
+    ],
+)
+def test_cli_run_stops_when_a_server_answers_but_lists_nothing(
+    tmp_path, servers_answer, monkeypatch, capsys, server, expected
+):
     agent = tmp_path / 'agent.py'
     transpile(SPEC_FILE, agent)
     servers_answer[server] = None  # the GET answers; list_tools (or /openapi.json) does not
@@ -188,6 +218,7 @@ def test_the_servers_are_asked_also_from_inside_an_event_loop(servers_answer):
 
     async def inside_a_loop():
         return live_tools(spec)
+
     assert asyncio.run(inside_a_loop()) == REAL_TOOLS
 
 
@@ -196,6 +227,7 @@ def test_the_servers_are_asked_also_from_inside_an_event_loop(servers_answer):
 
 class Recorder(Quiet):
     """GET /sse and /openapi.json redirect to `target`; any other path is recorded and answers 404."""
+
     target = ''
     hits: list[str] = []
 
@@ -208,7 +240,6 @@ class Recorder(Quiet):
         type(self).hits.append(self.path)
         self.send_response(404)
         self.end_headers()
-
 
 
 @pytest.fixture
@@ -226,6 +257,7 @@ def two_origins(monkeypatch):
     def redirect(to_other):
         here.RequestHandlerClass.target = f'http://127.0.0.1:{(other if to_other else here).server_port}'
         return f'http://127.0.0.1:{here.server_port}', here.RequestHandlerClass.hits, other.RequestHandlerClass.hits
+
     yield redirect
     for server in servers:
         server.shutdown()
@@ -266,32 +298,64 @@ def resolver(answers):
         address = answers[host].pop(0) if len(answers[host]) > 1 else answers[host][0]
         if address is None:
             raise socket.gaierror(socket.EAI_NONAME, 'Name or service not known')
-        family, sockaddr = (socket.AF_INET6, (address, port, 0, 0)) if ':' in address else (socket.AF_INET, (address, port))
+        family, sockaddr = (
+            (socket.AF_INET6, (address, port, 0, 0)) if ':' in address else (socket.AF_INET, (address, port))
+        )
         return [(family, socket.SOCK_STREAM, 6, '', sockaddr)]
+
     return getaddrinfo
 
 
-@pytest.mark.parametrize('address', ['127.0.0.1', '127.1.2.3', '169.254.169.254', '0.0.0.0', '::1', '::ffff:127.0.0.1',
-                                     'fe80::1', 'fd00:ec2::254', 'fc00::1', '100.100.100.200', '100.64.0.1', '168.63.129.16'])
-def test_cli_run_stops_when_an_allowed_name_resolves_to_a_local_address(tmp_path, servers_answer, monkeypatch, capsys,
-                                                                       address):
+@pytest.mark.parametrize(
+    'address',
+    [
+        '127.0.0.1',
+        '127.1.2.3',
+        '169.254.169.254',
+        '0.0.0.0',
+        '::1',
+        '::ffff:127.0.0.1',
+        'fe80::1',
+        'fd00:ec2::254',
+        'fc00::1',
+        '100.100.100.200',
+        '100.64.0.1',
+        '168.63.129.16',
+    ],
+)
+def test_cli_run_stops_when_an_allowed_name_resolves_to_a_local_address(
+    tmp_path, servers_answer, monkeypatch, capsys, address
+):
     monkeypatch.setenv('ALLOWED_HOSTS', 'ocr:8001,rag:8002,clinica.exemplo:8443')
-    (tmp_path / 'spec.json').write_text(spec_with(
-        lambda s: s['servers']['api'].update(openapi_url='https://clinica.exemplo:8443/openapi.json')), encoding='utf-8')
+    (tmp_path / 'spec.json').write_text(
+        spec_with(lambda s: s['servers']['api'].update(openapi_url='https://clinica.exemplo:8443/openapi.json')),
+        encoding='utf-8',
+    )
     transpile(tmp_path / 'spec.json', tmp_path / 'agent.py')
 
     must_not_run = forbidden('a request was sent before the addresses were checked')
 
-    monkeypatch.setattr(socket, 'getaddrinfo', resolver({'clinica.exemplo': [address], 'ocr': ['10.0.0.5'], 'rag': ['10.0.0.6']}))
+    monkeypatch.setattr(
+        socket, 'getaddrinfo', resolver({'clinica.exemplo': [address], 'ocr': ['10.0.0.5'], 'rag': ['10.0.0.6']})
+    )
     monkeypatch.setenv('GOOGLE_API_KEY', 'not-used')
     monkeypatch.setattr(cli, 'answers', must_not_run)
     monkeypatch.setattr(cli, 'run_agent', must_not_run)
-    argv = ['run', '--image', 'pedido.png', '--spec', str(tmp_path / 'spec.json'), '--agent', str(tmp_path / 'agent.py')]
+    argv = [
+        'run',
+        '--image',
+        'pedido.png',
+        '--spec',
+        str(tmp_path / 'spec.json'),
+        '--agent',
+        str(tmp_path / 'agent.py'),
+    ]
     assert cli.main(argv) == 2
     assert capsys.readouterr().err == (
         f'Erro: servers.api.openapi_url: "clinica.exemplo" resolve para {address}, um endereço local ou de metadados '
         'de nuvem (ex.: 127.0.0.1, 169.254.169.254, fd00:ec2::254); só um host escrito como esse endereço (IP ou '
-        'localhost) e listado em ALLOWED_HOSTS pode apontar para ele\n')
+        'localhost) e listado em ALLOWED_HOSTS pode apontar para ele\n'
+    )
 
 
 def test_the_private_addresses_of_the_compose_network_are_allowed(monkeypatch):
@@ -324,6 +388,7 @@ def test_a_host_written_as_the_address_is_not_resolved(monkeypatch):
 
     def must_not_resolve(*args, **kwargs):
         raise AssertionError('resolved a host that ALLOWED_HOSTS lists by its address')
+
     spec = parse_spec(spec_with(on_this_machine))
     monkeypatch.setattr(socket, 'getaddrinfo', must_not_resolve)
     assert transpiler.live.check_addresses(spec) == []
@@ -331,7 +396,9 @@ def test_a_host_written_as_the_address_is_not_resolved(monkeypatch):
 
 def test_the_run_keeps_the_address_it_checked_when_the_dns_answer_changes(monkeypatch, new_process):
     monkeypatch.setenv('ALLOWED_HOSTS', 'ocr:8001,rag:8002,clinica.exemplo:8443')
-    spec = parse_spec(spec_with(lambda s: s['servers']['api'].update(openapi_url='https://clinica.exemplo:8443/openapi.json')))
+    spec = parse_spec(
+        spec_with(lambda s: s['servers']['api'].update(openapi_url='https://clinica.exemplo:8443/openapi.json'))
+    )
     rebinding = resolver({'clinica.exemplo': ['10.0.0.7', '127.0.0.1'], 'ocr': ['10.0.0.5'], 'rag': ['10.0.0.6']})
     monkeypatch.setattr(socket, 'getaddrinfo', rebinding)
     with rede.pinned_names() as pins:
@@ -341,9 +408,14 @@ def test_the_run_keeps_the_address_it_checked_when_the_dns_answer_changes(monkey
         # the name it was given (the Host header and TLS).
         for client in (httpx, httpx2):
             sent = rede.pinned(client.Request('GET', 'https://CLINICA.exemplo:8443/openapi.json'), client.ConnectError)
-            assert (str(sent.url), sent.headers['host']) == ('https://10.0.0.7:8443/openapi.json', 'clinica.exemplo:8443')
+            assert (str(sent.url), sent.headers['host']) == (
+                'https://10.0.0.7:8443/openapi.json',
+                'clinica.exemplo:8443',
+            )
             assert sent.extensions['sni_hostname'] == 'clinica.exemplo'
-    assert rede.PINS is None and socket.getaddrinfo is rebinding  # nothing pinned after the run, and no resolver replaced
+    assert (
+        rede.PINS is None and socket.getaddrinfo is rebinding
+    )  # nothing pinned after the run, and no resolver replaced
     request = httpx.Request('GET', 'https://clinica.exemplo:8443/openapi.json')
     assert rede.pinned(request, httpx.ConnectError) is request
 
@@ -357,7 +429,6 @@ class HostRecorder(Quiet):
         self.end_headers()
 
 
-
 def test_the_runtimes_clients_connect_to_the_pinned_address_without_asking_the_dns(monkeypatch):
     server = ThreadingHTTPServer(('127.0.0.1', 0), HostRecorder)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -368,6 +439,7 @@ def test_the_runtimes_clients_connect_to_the_pinned_address_without_asking_the_d
     def no_dns(host, *args, **kwargs):  # an address is still "resolved" by the socket, without any DNS
         assert host not in ('servico.exemplo', b'servico.exemplo'), 'a pinned name was resolved again'
         return real(host, *args, **kwargs)
+
     monkeypatch.setattr(socket, 'getaddrinfo', no_dns)
 
     async def mcp_get():
@@ -377,6 +449,7 @@ def test_the_runtimes_clients_connect_to_the_pinned_address_without_asking_the_d
     async def api_get():
         async with rede.client() as client:
             return (await client.get(url)).status_code
+
     try:
         with rede.pinned_names() as pins:
             pins['servico.exemplo'] = ['127.0.0.1']  # as check_addresses keeps it

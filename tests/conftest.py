@@ -1,4 +1,5 @@
 """Shared by every test module."""
+
 import sys
 
 import pytest
@@ -26,6 +27,7 @@ def no_terminal(monkeypatch):
     """docker compose run -T, a pipe or CI: nobody answers the [s/N] question, and `cli run` without --yes
     stops before the model (cli.check_someone_answers)."""
     from runtime import confirmacao
+
     monkeypatch.setattr(confirmacao, 'can_ask', lambda: False)
 
 

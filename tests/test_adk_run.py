@@ -7,6 +7,7 @@ scripted stand-in (no Gemini); the OCR and catalog MCP servers and the API are t
 in this process at the spec's own URLs (ocr:8001, rag:8002, api:8000, resolved to this machine), so
 the generated code runs unchanged. What counts is what the API stored, read back through its GET.
 """
+
 import asyncio
 import base64
 import json
@@ -59,6 +60,7 @@ def replies(request):
 
 class Scripted(BaseLlm):
     """Each step does its task honestly: read the file it was told, search each exam read, book BOOK."""
+
     model: str = 'scripted'
 
     async def generate_content_async(self, llm_request, stream=False):
@@ -75,8 +77,11 @@ class Scripted(BaseLlm):
             calls = [(tool, BOOK)]
         else:
             calls = '\n'.join(READ) if tool == 'extract_exam_text' else 'Pronto.'
-        parts = ([types.Part(text=calls)] if isinstance(calls, str) else
-                 [types.Part(function_call=types.FunctionCall(name=name, args=args)) for name, args in calls])
+        parts = (
+            [types.Part(text=calls)]
+            if isinstance(calls, str)
+            else [types.Part(function_call=types.FunctionCall(name=name, args=args)) for name, args in calls]
+        )
         yield LlmResponse(content=types.Content(role='model', parts=parts))
 
 
@@ -133,6 +138,7 @@ def adk_run(agent_folder, services, monkeypatch):  # noqa: F811
         done = CliRunner().invoke(adk_main, ['run', '--in_memory', str(folder)], input=typed)
         assert done.exception is None, done.output
         return done.output, [appointment(id_) for id_ in stored_ids(services) if id_ not in before], checked
+
     return go
 
 
@@ -144,9 +150,11 @@ def all_three():
 def test_adk_run_books_the_order_from_only_its_file_name(adk_run, typed):
     out, new, checked = adk_run(typed, 'yes')
     assert new == all_three(), out  # read by the real OCR, searched in the real RAG, stored by the real API
-    assert ('[HITL confirm] Trechos removidos pelo OCR (não pareciam exame): 3\nExames para agendar:\n'
-            '- Hemograma completo (FICT-001)\n- Glicemia de jejum (FICT-002)\n'
-            '- Creatinina (FICT-005)\nAgendar estes 3 exames?') in out  # ADK's console shows the list first
+    assert (
+        '[HITL confirm] Trechos removidos pelo OCR (não pareciam exame): 3\nExames para agendar:\n'
+        '- Hemograma completo (FICT-001)\n- Glicemia de jejum (FICT-002)\n'
+        '- Creatinina (FICT-005)\nAgendar estes 3 exames?'
+    ) in out  # ADK's console shows the list first
     stored_id = re.search(r'Agendamento confirmado pela API: id (\S+), status scheduled', out)
     assert stored_id and appointment(stored_id[1].rstrip(',')) == all_three()[0], out
     assert 'PII reconhecida e mascarada pelo OCR: NOME x2, CPF x1, EMAIL x1, TELEFONE x1' in out
@@ -156,35 +164,61 @@ def test_adk_run_books_the_order_from_only_its_file_name(adk_run, typed):
     # The order checks every server before the first model turn; each toolset, its URLs before it connects.
     assert checked[0] == ['http://ocr:8001/sse', 'http://rag:8002/sse', 'http://api:8000/openapi.json']
     assert {url for urls in checked[1:] for url in urls} == {
-        'http://ocr:8001/sse', 'http://rag:8002/sse', 'http://api:8000/openapi.json', 'http://api:8000'}
+        'http://ocr:8001/sse',
+        'http://rag:8002/sse',
+        'http://api:8000/openapi.json',
+        'http://api:8000',
+    }
 
 
-@pytest.mark.parametrize('answer, stored, line', [
-    ('yes', [['FICT-001', 'FICT-002', 'FICT-067']],
-     "incluído com a sua confirmação: 'Exame: Creatinina' → Creatinoquinase FICT-067"),
-    ('no', [], 'agendamento bloqueado antes de chamar a API: você não confirmou a lista de exames; nada foi agendado'),
-])
-def test_the_question_is_answered_in_adk_runs_console_and_resumes_the_same_call(adk_run, monkeypatch, answer, stored,
-                                                                                 line):
+@pytest.mark.parametrize(
+    'answer, stored, line',
+    [
+        (
+            'yes',
+            [['FICT-001', 'FICT-002', 'FICT-067']],
+            "incluído com a sua confirmação: 'Exame: Creatinina' → Creatinoquinase FICT-067",
+        ),
+        (
+            'no',
+            [],
+            'agendamento bloqueado antes de chamar a API: você não confirmou a lista de exames; nada foi agendado',
+        ),
+    ],
+)
+def test_the_question_is_answered_in_adk_runs_console_and_resumes_the_same_call(
+    adk_run, monkeypatch, answer, stored, line
+):
     # A weaker candidate of the Creatinina search (Creatinoquinase, in the question band) proposed with
     # the two exams read clearly: ADK's console shows the whole list, the answer applies to it, one POST or none.
-    monkeypatch.setitem(BOOK, 'exams', [{'code': 'FICT-001', 'name': 'Hemograma completo'},
-                                        {'code': 'FICT-002', 'name': 'Glicemia de jejum'},
-                                        {'code': 'FICT-067', 'name': 'Creatinoquinase'}])
+    monkeypatch.setitem(
+        BOOK,
+        'exams',
+        [
+            {'code': 'FICT-001', 'name': 'Hemograma completo'},
+            {'code': 'FICT-002', 'name': 'Glicemia de jejum'},
+            {'code': 'FICT-067', 'name': 'Creatinoquinase'},
+        ],
+    )
     out, new, _ = adk_run(IMAGE, answer)
-    assert ('[HITL confirm] Trechos removidos pelo OCR (não pareciam exame): 3\nExames para agendar:\n'
-            '- Hemograma completo (FICT-001)\n- Glicemia de jejum (FICT-002)\n- Creatinoquinase (FICT-067): lido "Exame: Creatinina", confiança 0,') in out
+    assert (
+        '[HITL confirm] Trechos removidos pelo OCR (não pareciam exame): 3\nExames para agendar:\n'
+        '- Hemograma completo (FICT-001)\n- Glicemia de jejum (FICT-002)\n- Creatinoquinase (FICT-067): lido "Exame: Creatinina", confiança 0,'
+    ) in out
     assert 'Agendar estes 3 exames?' in out
     assert [[code for code, _ in exams] for exams in new] == stored, out
     assert line in out.split('[clinic_scheduler]: ', 1)[1]
 
 
-@pytest.mark.parametrize('typed, told', [
-    ('oi, quero agendar meus exames', 'Informe só o nome de um arquivo de pedido em samples/'),
-    ('samples/pedido.png', 'Informe só o nome de um arquivo de pedido em samples/'),  # no folders
-    ('pedido.png e pedido-variacao.png', 'Informe só o nome de um arquivo de pedido em samples/'),  # one order
-    ('pedido-joao-silva-nao-existe.png', 'OCR recusou a imagem: Arquivo "pedido-1.png" não encontrado'),
-])
+@pytest.mark.parametrize(
+    'typed, told',
+    [
+        ('oi, quero agendar meus exames', 'Informe só o nome de um arquivo de pedido em samples/'),
+        ('samples/pedido.png', 'Informe só o nome de um arquivo de pedido em samples/'),  # no folders
+        ('pedido.png e pedido-variacao.png', 'Informe só o nome de um arquivo de pedido em samples/'),  # one order
+        ('pedido-joao-silva-nao-existe.png', 'OCR recusou a imagem: Arquivo "pedido-1.png" não encontrado'),
+    ],
+)
 def test_without_one_readable_image_nothing_reaches_a_model(adk_run, typed, told):
     out, new, _ = adk_run(typed)
     assert told in out and 'Nada foi lido nem agendado' in out, out
@@ -198,19 +232,31 @@ def test_an_exam_the_order_says_not_to_do_is_not_booked_under_adk_run(adk_run, m
     # search and the real API, under `adk run`.
     from mcp_servers import ocr
     from mcp_servers.preprocessamento import OcrLine
+
     order = ['Hemograma completo', 'TSH', 'Obs: NAO realizar Ferritina']
     monkeypatch.setattr(ocr, 'read_lines', lambda path: [OcrLine(line, 95) for line in order])
     monkeypatch.setattr(sys.modules[__name__], 'READ', ['Hemograma completo', 'TSH', 'Ferritina'])
-    monkeypatch.setitem(BOOK, 'exams', [{'code': 'FICT-001', 'name': 'Hemograma completo'},
-                                        {'code': 'FICT-024', 'name': 'TSH'}, {'code': 'FICT-018', 'name': 'Ferritina'}])
+    monkeypatch.setitem(
+        BOOK,
+        'exams',
+        [
+            {'code': 'FICT-001', 'name': 'Hemograma completo'},
+            {'code': 'FICT-024', 'name': 'TSH'},
+            {'code': 'FICT-018', 'name': 'Ferritina'},
+        ],
+    )
     out, new, _ = adk_run(IMAGE, 'no')
     assert new == [], out  # answered no: nothing booked
     question, report = out.split('[clinic_scheduler]: ', 1)  # the report is written in code, not by the model
-    assert ('[HITL confirm] Atenção: o pedido tem texto além da lista de exames: linha 3 "Obs: NAO realizar Ferritina"; '
-            'confira o papel\nExames para agendar:\n') in question  # the page's reason once, above the list
-    assert ('- TSH (FICT-024): lido "TSH", confiança 0,89; confira\n'
-            "Não agendados:\n- não agendado: 'Obs: NAO realizar Ferritina' → Ferritina FICT-018; o pedido diz para "
-            'não realizar\nAgendar estes 2 exames?') in question
+    assert (
+        '[HITL confirm] Atenção: o pedido tem texto além da lista de exames: linha 3 "Obs: NAO realizar Ferritina"; '
+        'confira o papel\nExames para agendar:\n'
+    ) in question  # the page's reason once, above the list
+    assert (
+        '- TSH (FICT-024): lido "TSH", confiança 0,89; confira\n'
+        "Não agendados:\n- não agendado: 'Obs: NAO realizar Ferritina' → Ferritina FICT-018; o pedido diz para "
+        'não realizar\nAgendar estes 2 exames?'
+    ) in question
     assert "não agendado: 'Obs: NAO realizar Ferritina' → Ferritina FICT-018; o pedido diz para não realizar" in report
     assert 'você não confirmou a lista de exames; nada foi agendado' in report
     assert 'Agendamento confirmado pela API' not in report and 'ATENÇÃO' not in report
@@ -225,18 +271,23 @@ def test_one_order_per_session(adk_run):
 
 # --- The same rules, without servers ------------------------------------------------------------------
 
-@pytest.mark.parametrize('text, names', [
-    ('pedido.png', ['pedido.png']),
-    ('Arquivo: "Pedido-2.JPG".', ['Pedido-2.JPG']),
-    ('../samples/pedido.png', ['../samples/pedido.png']),  # kept whole, then refused for its folder
-    ('sem arquivo', []),
-])
+
+@pytest.mark.parametrize(
+    'text, names',
+    [
+        ('pedido.png', ['pedido.png']),
+        ('Arquivo: "Pedido-2.JPG".', ['Pedido-2.JPG']),
+        ('../samples/pedido.png', ['../samples/pedido.png']),  # kept whole, then refused for its folder
+        ('sem arquivo', []),
+    ],
+)
 def test_the_image_name_is_taken_whole_from_the_message(text, names):
     assert image_names(text) == names
 
 
 def resolver(answers):
     """getaddrinfo where each name in `answers` resolves to its next address; the rest are unknown."""
+
     def getaddrinfo(host, port, *args, **kwargs):
         name = host.decode() if isinstance(host, bytes) else host
         if rede.host_of(f'http://[{name}]/' if ':' in name else f'http://{name}/') is None:  # an address
@@ -245,29 +296,36 @@ def resolver(answers):
             raise socket.gaierror(socket.EAI_NONAME, 'Name or service not known')
         address = answers[name].pop(0) if len(answers[name]) > 1 else answers[name][0]
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (address, port))]
+
     return getaddrinfo
 
 
 def order(callbacks, text, holder=None):
     """start_order for a message of a context with no session; `holder`: the invocation that already holds its order."""
-    context = SimpleNamespace(state={}, invocation_id='i1',
-                              user_content=types.Content(role='user', parts=[types.Part(text=text)]))
+    context = SimpleNamespace(
+        state={}, invocation_id='i1', user_content=types.Content(role='user', parts=[types.Part(text=text)])
+    )
     callbacks.orders.of(context).order_invocation = holder
     return asyncio.run(callbacks.start_order(context)), context.state
 
 
 @pytest.mark.parametrize('address', ['127.0.0.1', '169.254.169.254', '100.100.100.200'])
-def test_outside_cli_run_a_name_on_a_local_address_stops_the_order_before_any_model_turn(monkeypatch, new_process,
-                                                                                          address):
+def test_outside_cli_run_a_name_on_a_local_address_stops_the_order_before_any_model_turn(
+    monkeypatch, new_process, address
+):
     monkeypatch.setenv('ALLOWED_HOSTS', 'ocr:8001,rag:8002,clinica.exemplo:8443')
-    monkeypatch.setattr(socket, 'getaddrinfo', resolver({'clinica.exemplo': [address], 'ocr': ['10.0.0.5'],
-                                                         'rag': ['10.0.0.6']}))
-    callbacks = BookingCallbacks(ocr_tool='extract_exam_text', servers=[
-        'http://ocr:8001/sse', 'http://rag:8002/sse', 'https://clinica.exemplo:8443/openapi.json'])
+    monkeypatch.setattr(
+        socket, 'getaddrinfo', resolver({'clinica.exemplo': [address], 'ocr': ['10.0.0.5'], 'rag': ['10.0.0.6']})
+    )
+    callbacks = BookingCallbacks(
+        ocr_tool='extract_exam_text',
+        servers=['http://ocr:8001/sse', 'http://rag:8002/sse', 'https://clinica.exemplo:8443/openapi.json'],
+    )
     said, state = order(callbacks, 'pedido.png')
     assert said.parts[0].text == (
         f'Endereço recusado: https://clinica.exemplo:8443/openapi.json: "clinica.exemplo" resolve para {address}, '
-        f'{rede.REFUSED}. Nada foi lido nem agendado.')
+        f'{rede.REFUSED}. Nada foi lido nem agendado.'
+    )
     assert state == {}  # no image taken, no order started
     with pytest.raises(httpx.ConnectError):  # and the runtime's clients reach the name at no address
         rede.pinned(httpx.Request('GET', 'https://clinica.exemplo:8443/openapi.json'), httpx.ConnectError)
@@ -299,6 +357,7 @@ def test_adk_run_with_the_real_address_rule_books_over_the_addresses_it_checked(
             return local('10.0.0.99', port, *args, **kwargs)
         answered.add(name)
         return local(host, port, *args, **kwargs)
+
     monkeypatch.setattr(socket, 'getaddrinfo', compose_dns)
     monkeypatch.setattr(rede, 'check_urls', CHECK_URLS)
     monkeypatch.setattr(rede, 'unsafe', lambda address: False)
@@ -313,22 +372,50 @@ def test_adk_web_books_the_order_from_only_its_file_name(agent_folder, services,
     folder, _ = agent_folder
     monkeypatch.setattr(adk_api_server, 'Runner', ScriptedRunner)
     before = stored_ids(services)
-    server = get_fast_api_app(agents_dir=str(folder), web=False, session_service_uri='memory://',
-                              artifact_service_uri='memory://', memory_service_uri='memory://', use_local_storage=False)
+    server = get_fast_api_app(
+        agents_dir=str(folder),
+        web=False,
+        session_service_uri='memory://',
+        artifact_service_uri='memory://',
+        memory_service_uri='memory://',
+        use_local_storage=False,
+    )
     with TestClient(server) as client:
         session = client.post('/apps/generated/users/pessoa/sessions', json={}).json()
-        events = client.post('/run', json={'appName': 'generated', 'userId': 'pessoa', 'sessionId': session['id'],
-                                           'newMessage': {'role': 'user', 'parts': [{'text': NAMED}]}}).json()
+        events = client.post(
+            '/run',
+            json={
+                'appName': 'generated',
+                'userId': 'pessoa',
+                'sessionId': session['id'],
+                'newMessage': {'role': 'user', 'parts': [{'text': NAMED}]},
+            },
+        ).json()
         assert [appointment(id_) for id_ in stored_ids(services) if id_ not in before] == []  # paused at the list
-        [(paused, question)] = [(event, part['functionCall']) for event in events
-                                for part in (event.get('content') or {}).get('parts', [])
-                                if (part.get('functionCall') or {}).get('name') == 'adk_request_confirmation']
+        [(paused, question)] = [
+            (event, part['functionCall'])
+            for event in events
+            for part in (event.get('content') or {}).get('parts', [])
+            if (part.get('functionCall') or {}).get('name') == 'adk_request_confirmation'
+        ]
         assert question['args']['toolConfirmation']['hint'].endswith('Agendar estes 3 exames?')  # what the page shows
-        confirmed = {'functionResponse': {'id': question['id'], 'name': 'adk_request_confirmation',
-                                          'response': {'confirmed': True}}}  # the "Confirmed" box and Submit
-        events = client.post('/run', json={'appName': 'generated', 'userId': 'pessoa', 'sessionId': session['id'],
-                                           'invocationId': paused['invocationId'],
-                                           'newMessage': {'role': 'user', 'parts': [confirmed]}}).json()
+        confirmed = {
+            'functionResponse': {
+                'id': question['id'],
+                'name': 'adk_request_confirmation',
+                'response': {'confirmed': True},
+            }
+        }  # the "Confirmed" box and Submit
+        events = client.post(
+            '/run',
+            json={
+                'appName': 'generated',
+                'userId': 'pessoa',
+                'sessionId': session['id'],
+                'invocationId': paused['invocationId'],
+                'newMessage': {'role': 'user', 'parts': [confirmed]},
+            },
+        ).json()
     assert [appointment(id_) for id_ in stored_ids(services) if id_ not in before] == all_three()
     last = events[-1]
     assert last['author'] == 'clinic_scheduler'
@@ -342,30 +429,60 @@ def test_an_image_attached_in_adk_web_is_refused_and_never_sent_to_a_model(agent
     monkeypatch.setattr(adk_api_server, 'Runner', ScriptedRunner)
     before = stored_ids(services)
     image = base64.b64encode((ROOT / 'samples' / IMAGE).read_bytes()).decode()
-    server = get_fast_api_app(agents_dir=str(folder), web=False, session_service_uri='memory://',
-                              artifact_service_uri='memory://', memory_service_uri='memory://', use_local_storage=False)
+    server = get_fast_api_app(
+        agents_dir=str(folder),
+        web=False,
+        session_service_uri='memory://',
+        artifact_service_uri='memory://',
+        memory_service_uri='memory://',
+        use_local_storage=False,
+    )
     with TestClient(server) as client:
         session = client.post('/apps/generated/users/pessoa/sessions', json={}).json()
-        events = client.post('/run', json={'appName': 'generated', 'userId': 'pessoa', 'sessionId': session['id'],
-                                           'newMessage': {'role': 'user', 'parts': [
-                                               {'text': IMAGE}, {'inlineData': {'mimeType': 'image/png', 'data': image}}]}}).json()
+        events = client.post(
+            '/run',
+            json={
+                'appName': 'generated',
+                'userId': 'pessoa',
+                'sessionId': session['id'],
+                'newMessage': {
+                    'role': 'user',
+                    'parts': [{'text': IMAGE}, {'inlineData': {'mimeType': 'image/png', 'data': image}}],
+                },
+            },
+        ).json()
     assert events[-1]['content']['parts'][0]['text'].startswith('Envie só o nome do arquivo do pedido, como texto')
     assert SEEN == [] and stored_ids(services) == before
 
 
 def test_no_attached_file_no_other_data_and_no_real_file_name_reach_the_model():
     callbacks = BookingCallbacks(ocr_tool='extract_exam_text')
-    typed = types.Content(role='user', parts=[types.Part(text='agende pedido-joao-silva.png'),
-                                             types.Part.from_bytes(data=b'PNG', mime_type='image/png')])
-    session = SimpleNamespace(app_name='generated', user_id='pessoa', id='s1',
-                              events=[SimpleNamespace(author='user', content=typed)])
+    typed = types.Content(
+        role='user',
+        parts=[
+            types.Part(text='agende pedido-joao-silva.png'),
+            types.Part.from_bytes(data=b'PNG', mime_type='image/png'),
+        ],
+    )
+    session = SimpleNamespace(
+        app_name='generated', user_id='pessoa', id='s1', events=[SimpleNamespace(author='user', content=typed)]
+    )
     callbacks.orders.start(session, 'pedido-joao-silva.png')
     context = SimpleNamespace(state={'image_file': 'outro.png'}, session=session)  # the state is not trusted
     smuggled = types.Part(text='Hemograma', executable_code=types.ExecutableCode(code='SMUGGLED', language='PYTHON'))
-    request = LlmRequest(contents=[typed.model_copy(deep=True), types.Content(role='user', parts=[
-        types.Part(text='For context: [extract] said: o arquivo pedido-joao-silva.png foi lido')]),
-        types.Content(role='model', parts=[smuggled])])
+    request = LlmRequest(
+        contents=[
+            typed.model_copy(deep=True),
+            types.Content(
+                role='user',
+                parts=[types.Part(text='For context: [extract] said: o arquivo pedido-joao-silva.png foi lido')],
+            ),
+            types.Content(role='model', parts=[smuggled]),
+        ]
+    )
     assert callbacks.before_model(context, request) is None
     assert [[part.model_dump(exclude_none=True) for part in content.parts] for content in request.contents] == [
         [{'text': 'Arquivo do pedido: pedido-1.png'}],
-        [{'text': 'For context: [extract] said: o arquivo pedido-1.png foi lido'}], [{'text': 'Hemograma'}]]
+        [{'text': 'For context: [extract] said: o arquivo pedido-1.png foi lido'}],
+        [{'text': 'Hemograma'}],
+    ]

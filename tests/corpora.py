@@ -1,4 +1,5 @@
 """Readers for the injection corpora in tests/attacks/, shared by the test files that use them."""
+
 from pathlib import Path
 
 ATTACKS_DIR = Path(__file__).resolve().parent / 'attacks'

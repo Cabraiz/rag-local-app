@@ -2,6 +2,7 @@
 the OCR masked, the exams left out and why, and the appointment as the API returned it. `cli run`
 prints these lines; under `adk run` or `adk web` the pipeline's last message is this report
 (BookingCallbacks.report)."""
+
 import re
 from collections.abc import Mapping
 from typing import Any
@@ -11,17 +12,24 @@ from google.genai import errors
 from .pedido import Item, OrderRecord
 
 # Why an exam is asked although it is written clearly: what its line says (runtime/confianca.py, 'why').
-WHY = {'uncertain': '; o pedido tem outras palavras além do exame', 'table': '; o pedido está em tabela ou colunas',
-       'instruction': '; o pedido tem uma instrução sobre este exame', 'page': '; o pedido tem texto além da lista de exames',
-       'form': '; formulário com marcas: só os marcados contam; confira', 'longer': '; o nome escrito é de outro exame, mais longo'}
+WHY = {
+    'uncertain': '; o pedido tem outras palavras além do exame',
+    'table': '; o pedido está em tabela ou colunas',
+    'instruction': '; o pedido tem uma instrução sobre este exame',
+    'page': '; o pedido tem texto além da lista de exames',
+    'form': '; formulário com marcas: só os marcados contam; confira',
+    'longer': '; o nome escrito é de outro exame, mais longo',
+}
 SAID = WHY | {'page': ''}  # in the [s/N] question, the page's reason is said once, above the list
 # How each exam left out is shown, by its reason; {guess} is "'<line read>' → <exam> <code> (confiança 0,xx)".
 LEFT_OUT = {
     'needs_confirmation': 'não agendado sem confirmação: {guess}; rode num terminal, sem --yes, para responder',
     'declined': 'não incluído (você respondeu não): {guess}',
     # a yes to a call that resumed after another call of the same turn had already booked the run's appointment
-    'after_booking': ('não agendado (você confirmou, mas o agendamento desta execução já tinha sido criado): {guess}; '
-                      'agende-o à parte'),
+    'after_booking': (
+        'não agendado (você confirmou, mas o agendamento desta execução já tinha sido criado): {guess}; '
+        'agende-o à parte'
+    ),
     'omitted': 'não incluído pelo agente: {guess}; confira o pedido',  # a search found it, the model left it out
     'not_searched': 'não buscado pelo agente: {guess}; confira o pedido',  # only the check of the whole order found it
     'score': 'baixa confiança: {guess}; confira o pedido',
@@ -78,12 +86,18 @@ def reading_lines(values: Mapping[str, Any]) -> list[str]:
     if values.get('cancel_unlinked'):  # guardrails/intent.py: nothing on the page books alone
         lines.append('Aviso: o pedido tem um cancelamento que não foi ligado a um exame; confira')
     # the text of an unrecognized line never leaves the OCR: only where it is
-    lines += [f'lido mas não reconhecido no catálogo: linha {number}; confira o pedido' for number in unrecognized(values)]
-    lines += [f"incluído com a sua confirmação: '{printable(item['read'])}' → {item['name']} {item['code']}"
-              for item in values.get('confirmed') or []]
+    lines += [
+        f'lido mas não reconhecido no catálogo: linha {number}; confira o pedido' for number in unrecognized(values)
+    ]
+    lines += [
+        f"incluído com a sua confirmação: '{printable(item['read'])}' → {item['name']} {item['code']}"
+        for item in values.get('confirmed') or []
+    ]
     lines += [left_out_line(item) for item in values.get('low_confidence') or []]
     if values.get('order_unchecked'):
-        lines.append('Aviso: o pedido não foi conferido por inteiro (a busca no catálogo não respondeu); confira o pedido')
+        lines.append(
+            'Aviso: o pedido não foi conferido por inteiro (a busca no catálogo não respondeu); confira o pedido'
+        )
     return lines
 
 
@@ -136,16 +150,22 @@ def appointment_lines(appointment: dict[str, Any], left_out: list[Item]) -> list
         return None
     undecided = sum(item.get('reason') in UNDECIDED for item in left_out)
     if undecided:
-        line += (f'; ATENÇÃO: {undecided} possível(is) exame(s) do pedido sem decisão do agente, '
-                 'confira os avisos acima')
-    return [*exams, '', line]  # the blank line ends the list: in `adk web`'s Markdown the next line would join the last item
+        line += f'; ATENÇÃO: {undecided} possível(is) exame(s) do pedido sem decisão do agente, confira os avisos acima'
+    return [
+        *exams,
+        '',
+        line,
+    ]  # the blank line ends the list: in `adk web`'s Markdown the next line would join the last item
 
 
 def listing_lines(order: OrderRecord) -> list[str]:
     listing = order.listing or []
     lines = [f'ignorado: {code} não veio de nenhuma busca no catálogo' for code in order.invented or []]
-    lines += [f'- {item["name"]} ({item["code"]}), confiança {confidence(item["confidence"])}'
-              + (' (confira)' if item['check'] else '') for item in listing]
+    lines += [
+        f'- {item["name"]} ({item["code"]}), confiança {confidence(item["confidence"])}'
+        + (' (confira)' if item['check'] else '')
+        for item in listing
+    ]
     if listing:  # a blank line ends the list, as in appointment_lines
         lines += ['', f'{len(listing)} exame(s) listado(s); nada foi agendado']
     else:
@@ -158,8 +178,10 @@ def report(order: OrderRecord, books: bool) -> str:
     left_out = [*(order.low_confidence or []), *(order.unreported or [])]
     lines = reading_lines(order.view() | {'low_confidence': left_out})
     if not books:
-        return '\n'.join(lines + (listing_lines(order) if order.ocr_lines is not None else
-                                  [f'{not_booked(order)}; nada foi listado']))
+        return '\n'.join(
+            lines
+            + (listing_lines(order) if order.ocr_lines is not None else [f'{not_booked(order)}; nada foi listado'])
+        )
     appointment = order.booked_appointment
     booked = appointment_lines(appointment, left_out) if appointment is not None else None
     if booked is None and appointment is not None:

@@ -1,4 +1,5 @@
 """Encryption at rest of the exam lists: the cipher module and the API database."""
+
 import importlib
 import json
 import logging
@@ -14,8 +15,7 @@ from fastapi.testclient import TestClient
 
 from api.crypto import CryptoError, decrypt, encrypt, load_key, new_key, resolve_key
 
-CATALOG = [{'code': 'FICT-001', 'name': 'Hemograma completo'},
-           {'code': 'FICT-002', 'name': 'Glicemia de jejum'}]
+CATALOG = [{'code': 'FICT-001', 'name': 'Hemograma completo'}, {'code': 'FICT-002', 'name': 'Glicemia de jejum'}]
 ROW = '7f0c2b5e-0000-4000-8000-000000000001'
 
 
@@ -97,6 +97,7 @@ def start_api(tmp_path, monkeypatch, key):
     monkeypatch.setenv('DB_KEY_FILE', str(tmp_path / 'keys' / 'db.key'))
     monkeypatch.setenv('DB_ENCRYPTION_KEY', key)
     import api.main
+
     return api.main  # the settings are read when the app starts, not on import
 
 
@@ -108,8 +109,9 @@ def raw_database(tmp_path):
 def test_database_holds_no_exam_in_clear_and_get_returns_what_post_stored(tmp_path, monkeypatch):
     module = start_api(tmp_path, monkeypatch, new_key())
     with TestClient(module.app) as client:
-        created = client.post('/appointments', json={'exams': [{'code': 'FICT-001', 'name': 'a'},
-                                                              {'code': 'FICT-002', 'name': 'b'}]}).json()
+        created = client.post(
+            '/appointments', json={'exams': [{'code': 'FICT-001', 'name': 'a'}, {'code': 'FICT-002', 'name': 'b'}]}
+        ).json()
         assert client.get(f"/appointments/{created['id']}").json() == created
     for secret in (b'FICT', b'Hemograma', b'Glicemia'):
         assert secret not in raw_database(tmp_path)
@@ -127,8 +129,10 @@ def test_wrong_key_or_tampered_row_gives_a_clear_500_without_the_key(tmp_path, m
         changed = client.post('/appointments', json={'exams': [{'code': 'FICT-002', 'name': 'b'}]}).json()
     with sqlite3.connect(tmp_path / 'appointments.db') as connection:
         token = connection.execute('SELECT exams FROM appointments WHERE id = ?', (changed['id'],)).fetchone()[0]
-        connection.execute('UPDATE appointments SET exams = ? WHERE id = ?',
-                           (token[:30] + ('A' if token[30] != 'A' else 'B') + token[31:], changed['id']))
+        connection.execute(
+            'UPDATE appointments SET exams = ? WHERE id = ?',
+            (token[:30] + ('A' if token[30] != 'A' else 'B') + token[31:], changed['id']),
+        )
     replies = []
     with TestClient(start_api(tmp_path, monkeypatch, first_key).app) as client:
         replies.append(client.get(f"/appointments/{changed['id']}"))  # tampered row
@@ -151,15 +155,20 @@ def test_a_value_moved_or_a_clear_field_edited_in_the_database_gives_a_fixed_500
         target = client.post('/appointments', json={'exams': [{'code': 'FICT-002', 'name': 'b'}]}).json()
         with sqlite3.connect(tmp_path / 'appointments.db') as connection:
             if edit == 'created_at changed':
-                connection.execute('UPDATE appointments SET created_at = ? WHERE id = ?',
-                                   ('2020-01-01T00:00:00+00:00', target['id']))
+                connection.execute(
+                    'UPDATE appointments SET created_at = ? WHERE id = ?', ('2020-01-01T00:00:00+00:00', target['id'])
+                )
             else:
-                connection.execute('UPDATE appointments SET exams = (SELECT exams FROM appointments WHERE id = ?) '
-                                   'WHERE id = ?', (source['id'], target['id']))
+                connection.execute(
+                    'UPDATE appointments SET exams = (SELECT exams FROM appointments WHERE id = ?) WHERE id = ?',
+                    (source['id'], target['id']),
+                )
         reply = client.get(f"/appointments/{target['id']}")
         assert reply.status_code == 500
-        assert reply.json() == {'detail': 'não foi possível decifrar o registro: a chave não é a da gravação '
-                                          'ou o dado foi alterado no banco'}
+        assert reply.json() == {
+            'detail': 'não foi possível decifrar o registro: a chave não é a da gravação '
+            'ou o dado foi alterado no banco'
+        }
         assert client.get(f"/appointments/{source['id']}").json() == source
 
 
@@ -197,6 +206,7 @@ def test_importing_the_api_reads_no_setting_and_touches_no_file(tmp_path, monkey
     monkeypatch.setenv('DB_ENCRYPTION_KEY', 'chave-invalida')
     monkeypatch.setenv('EXAMS_PATH', str(tmp_path / 'nao-existe.json'))
     import api.main
+
     importlib.reload(api.main)  # no exit, no key, no database, no catalog
     assert list(tmp_path.iterdir()) == []
 
@@ -207,15 +217,29 @@ def test_uvicorn_refuses_an_invalid_key_with_one_clear_line(tmp_path):
         probe.bind(('127.0.0.1', 0))
         port = probe.getsockname()[1]
     key = 'chave-invalida-sentinela'
-    env = {**os.environ, 'DB_ENCRYPTION_KEY': key, 'DB_PATH': str(tmp_path / 'appointments.db'),
-           'DB_KEY_FILE': str(tmp_path / 'keys' / 'db.key')}
-    server = subprocess.run([sys.executable, '-m', 'uvicorn', 'api.main:app', '--host', '127.0.0.1', '--port', str(port)],
-                            cwd=Path(__file__).resolve().parents[1], env=env, capture_output=True, text=True,
-                            timeout=60, shell=False, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    env = {
+        **os.environ,
+        'DB_ENCRYPTION_KEY': key,
+        'DB_PATH': str(tmp_path / 'appointments.db'),
+        'DB_KEY_FILE': str(tmp_path / 'keys' / 'db.key'),
+    }
+    server = subprocess.run(
+        [sys.executable, '-m', 'uvicorn', 'api.main:app', '--host', '127.0.0.1', '--port', str(port)],
+        cwd=Path(__file__).resolve().parents[1],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        shell=False,
+        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+    )
     output = server.stdout + server.stderr
     assert server.returncode != 0
-    assert [line for line in output.splitlines() if 'DB_ENCRYPTION_KEY' in line] == \
-        [line for line in output.splitlines() if 'A API não subiu: DB_ENCRYPTION_KEY inválida' in line] != []
+    assert (
+        [line for line in output.splitlines() if 'DB_ENCRYPTION_KEY' in line]
+        == [line for line in output.splitlines() if 'A API não subiu: DB_ENCRYPTION_KEY inválida' in line]
+        != []
+    )
     assert len([line for line in output.splitlines() if 'DB_ENCRYPTION_KEY' in line]) == 1
     assert 'Traceback' not in output and key not in output
     assert not list(tmp_path.glob('appointments.db*'))

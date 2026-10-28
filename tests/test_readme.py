@@ -5,6 +5,7 @@ network. The one exception is the collected test count (`pytest --collect-only`,
 its own test at the end. A failure names the document, the line and what is stale; fix the text
 (or, when the text is right and the rule here too strict, the rule).
 """
+
 import ast
 import json
 import re
@@ -134,7 +135,6 @@ def test_every_quoted_repository_path_exists():
     assert not stale, '\n'.join(stale)
 
 
-
 TEST_ID = re.compile(r'(test_\w+\.py)::(?:Test\w+::)?(test_\w+)')
 
 
@@ -164,12 +164,17 @@ def test_every_test_file_is_in_the_developer_guide_map():
 def test_every_message_the_report_writes_is_in_the_warnings_table():
     """Each fixed piece of every message runtime/relatorio.py writes about an exam is in the table a reader searches."""
     from runtime import relatorio
+
     reference = (ROOT / 'docs' / 'referencia.md').read_text(encoding='utf-8')
     table = reference.split('### Avisos sobre os exames de um pedido', 1)[1].split('\n### ', 1)[0]
     messages = [*relatorio.WHY.values(), *relatorio.LEFT_OUT.values(), *relatorio.REFUSED.values()]
-    pieces = {piece.strip() for message in messages for piece in re.split(r'\{\w+\}', message) if len(piece.strip()) > 8}
+    pieces = {
+        piece.strip() for message in messages for piece in re.split(r'\{\w+\}', message) if len(piece.strip()) > 8
+    }
     missing = sorted(piece for piece in pieces if piece not in table)
-    assert not missing, 'missing from "Avisos sobre os exames de um pedido" in docs/referencia.md: ' + ' | '.join(missing)
+    assert not missing, 'missing from "Avisos sobre os exames de um pedido" in docs/referencia.md: ' + ' | '.join(
+        missing
+    )
 
 
 # --- 2b. Prose a reader can scan ------------------------------------------------------------------
@@ -220,8 +225,14 @@ def test_a_list_item_never_runs_into_an_unindented_line():
     for doc in DOCS:
         previous = (0, '', None)
         for number, line, fence in lines_of(doc):
-            if not fence and not previous[2] and LIST_ITEM.match(previous[1]) and line.strip() \
-                    and not line.startswith((' ', '|', '#', '<', '`')) and not LIST_ITEM.match(line):
+            if (
+                not fence
+                and not previous[2]
+                and LIST_ITEM.match(previous[1])
+                and line.strip()
+                and not line.startswith((' ', '|', '#', '<', '`'))
+                and not LIST_ITEM.match(line)
+            ):
                 stale.append(f'{rel(doc)}:{number}: {line[:60]}')
             previous = (number, line, fence)
     assert not stale, 'indent the line or leave a blank line before it:\n' + '\n'.join(stale)
@@ -235,7 +246,7 @@ def test_two_lists_never_render_as_one():
         for at, (number, line, fence) in enumerate(rows):
             if fence or not LIST_ITEM.match(line):
                 continue
-            after = next((row for row in rows[at + 1:] if row[1].strip()), None)
+            after = next((row for row in rows[at + 1 :] if row[1].strip()), None)
             if after is None or after[0] == number + 1 or after[2] or not LIST_ITEM.match(after[1]):
                 continue
             indent = len(line) - len(line.lstrip())
@@ -267,13 +278,20 @@ WE_WORDS = {'ramos', 'gamos', 'tamos'}  # whole words that end like a verb, not 
 
 def test_the_docs_speak_in_one_voice():
     """The README and docs/ are impersonal; only revisao.md, the author's account of the work, says "I"."""
-    stale = [f'{rel(doc)}:{number}: {match.group(0)}' for doc in DOCS if doc.name != 'revisao.md'
-             for number, line, fence in lines_of(doc) if not fence
-             for match in WE.finditer(re.sub(r'<[^>]*>', '', plain_text(line))) if match.group(0).lower() not in WE_WORDS]
+    stale = [
+        f'{rel(doc)}:{number}: {match.group(0)}'
+        for doc in DOCS
+        if doc.name != 'revisao.md'
+        for number, line, fence in lines_of(doc)
+        if not fence
+        for match in WE.finditer(re.sub(r'<[^>]*>', '', plain_text(line)))
+        if match.group(0).lower() not in WE_WORDS
+    ]
     assert not stale, 'write these impersonally:\n' + '\n'.join(stale)
 
 
 # --- 3. Numbers the docs quote that can be computed offline --------------------------------------
+
 
 def read_json(path):
     return json.loads((ROOT / path).read_text(encoding='utf-8'))
@@ -318,11 +336,13 @@ def facts():
 
 def pii_patterns():
     from guardrails.pii_rules import PATTERNS
+
     return PATTERNS
 
 
 def pii_corpus_size():
     from tests.pii_corpus import GENERATORS, PER_KIND
+
     return {'kinds': len(GENERATORS), 'per_kind': PER_KIND, 'total': len(GENERATORS) * PER_KIND}
 
 
@@ -331,10 +351,14 @@ def count_test_functions():
     total = 0
     for path in (ROOT / 'tests').rglob('test_*.py'):
         tree = ast.parse(path.read_text(encoding='utf-8'))
-        bodies = [tree.body] + [node.body for node in tree.body if isinstance(node, ast.ClassDef)
-                                and node.name.startswith('Test')]
-        total += sum(isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name.startswith('test')
-                     for body in bodies for node in body)
+        bodies = [tree.body] + [
+            node.body for node in tree.body if isinstance(node, ast.ClassDef) and node.name.startswith('Test')
+        ]
+        total += sum(
+            isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name.startswith('test')
+            for body in bodies
+            for node in body
+        )
     return total
 
 
@@ -352,19 +376,31 @@ CLAIMS = [
     ('*', r'(?P<n>\d+) funções(?: de teste)?', {'n': 'test_functions'}),
     ('*', r'(?P<n>[\d.]+) ataques', {'n': 'attacks'}),
     ('*', r'(?P<n>[\d.]+) linhas legítimas,? \(?(?P<d>[\d.]+) distintas', {'n': 'legit', 'd': 'legit_distinct'}),
-    ('*', r'(?P<n>[\d.]+) linhas legítimas distintas \(as (?P<d>[\d.]+) distintas de `tests/attacks/legit.txt`',
-     {'n': 'legit_all_distinct', 'd': 'legit_distinct'}),
+    (
+        '*',
+        r'(?P<n>[\d.]+) linhas legítimas distintas \(as (?P<d>[\d.]+) distintas de `tests/attacks/legit.txt`',
+        {'n': 'legit_all_distinct', 'd': 'legit_distinct'},
+    ),
     ('*', r'(?P<n>[\d.]+) linhas legítimas e os (?P<t>\d+) termos', {'n': 'legit_all_distinct', 't': 'catalog_terms'}),
     ('*', r'(?P<t>\d+) (?:nomes e sinônimos|termos no catálogo)', {'t': 'catalog_terms'}),
     ('*', r'(?P<n>[\d.]+) consultas(?: versionadas| de calibração|;)', {'n': 'queries'}),
-    ('*', r'(?P<o>\d+) linhas de OCR de \d+ pedidos fictícios, já mascaradas, e (?P<s>\d+) consultas sintéticas',
-     {'o': 'queries_ocr', 's': 'queries_synthetic'}),
+    (
+        '*',
+        r'(?P<o>\d+) linhas de OCR de \d+ pedidos fictícios, já mascaradas, e (?P<s>\d+) consultas sintéticas',
+        {'o': 'queries_ocr', 's': 'queries_synthetic'},
+    ),
     ('*', r'(?P<n>[\d.]+) casos gerados (?:de PII|por `tests/pii_corpus.py`)', {'n': ('pii_cases', 'total')}),
     ('*', r'(?P<k>\d+) tipos × (?P<p>\d+)', {'k': ('pii_cases', 'kinds'), 'p': ('pii_cases', 'per_kind')}),
-    ('*', r'tem (?P<n>\d+) pedidos fictícios com aparência de letra de mão: (?P<c>\d+) de letra comum e (?P<m>\d+)',
-     {'n': 'handwritten', 'c': 'handwritten_common', 'm': 'handwritten_doctor'}),
-    ('*', r'(?P<f>\d+) das (?P<n>\d+) \((?P<p>\d+)%\) imitam foto',
-     {'f': 'handwritten_photo', 'n': 'handwritten', 'p': 'handwritten_photo_pct'}),
+    (
+        '*',
+        r'tem (?P<n>\d+) pedidos fictícios com aparência de letra de mão: (?P<c>\d+) de letra comum e (?P<m>\d+)',
+        {'n': 'handwritten', 'c': 'handwritten_common', 'm': 'handwritten_doctor'},
+    ),
+    (
+        '*',
+        r'(?P<f>\d+) das (?P<n>\d+) \((?P<p>\d+)%\) imitam foto',
+        {'f': 'handwritten_photo', 'n': 'handwritten', 'p': 'handwritten_photo_pct'},
+    ),
     ('*', r'(?P<n>\d+) fotos de celular', {'n': 'photos'}),
     ('*', r'(?P<n>\d+) fotos, (?P<e>\d+) exames', {'n': 'photos', 'e': 'photo_exams'}),
 ]
@@ -396,13 +432,16 @@ def test_numbers_quoted_in_the_docs_match_the_repository(documents, pattern, gro
             found += 1
             for group, key in groups.items():
                 if not agrees(number(match.group(group)), fact(key)):
-                    stale.append(f'{rel(doc)}:{line_number}: "{match.group(0)}" says {match.group(group)}, '
-                                 f'the repository has {fact(key)} ({key})')
+                    stale.append(
+                        f'{rel(doc)}:{line_number}: "{match.group(0)}" says {match.group(group)}, '
+                        f'the repository has {fact(key)} ({key})'
+                    )
     assert found, f'no sentence matches {pattern!r} any more: update the claim in this test'
     assert not stale, '\n'.join(stale)
 
 
 # --- Sample output and the API contract the docs quote --------------------------------------------
+
 
 def text_blocks(doc):
     """The ```text blocks of a Markdown file, as lists of non-empty lines."""
@@ -419,22 +458,36 @@ def text_blocks(doc):
 def test_the_sample_transpile_line_matches_the_spec():
     spec = read_json('specs/agent.json')
     steps = ' -> '.join(agent['name'] for agent in spec['agents'])
-    expected = re.compile(rf'OK: generated/agent\.py gerado e importado; root_agent "{spec["name"]}" '
-                          rf'\(SequentialAgent: {re.escape(steps)}\)')
+    expected = re.compile(
+        rf'OK: generated/agent\.py gerado e importado; root_agent "{spec["name"]}" '
+        rf'\(SequentialAgent: {re.escape(steps)}\)'
+    )
     quoted = [(doc, line) for doc in DOCS for block in text_blocks(doc) for line in block if line.startswith('OK: ')]
     assert quoted, 'no sample "OK: ..." transpile line found'
-    stale = [f'{rel(doc)}: {line!r} does not match the spec ({spec["name"]}: {steps})'
-             for doc, line in quoted if not expected.fullmatch(line)]
+    stale = [
+        f'{rel(doc)}: {line!r} does not match the spec ({spec["name"]}: {steps})'
+        for doc, line in quoted
+        if not expected.fullmatch(line)
+    ]
     assert not stale, '\n'.join(stale)
 
 
 def test_the_sample_exam_table_matches_the_catalog():
     names = {exam['code']: exam['name'] for exam in read_json('data/exams.json')}
-    rows = [(doc, row) for doc in DOCS for block in text_blocks(doc) for line in block
-            if (row := re.fullmatch(r'\|\s*(.+?)\s*\|\s*(FICT-\d{3})\s*\|', line))]
+    rows = [
+        (doc, row)
+        for doc in DOCS
+        for block in text_blocks(doc)
+        for line in block
+        if (row := re.fullmatch(r'\|\s*(.+?)\s*\|\s*(FICT-\d{3})\s*\|', line))
+    ]
     assert rows, 'no sample exam table found'
-    stale = [f'{rel(doc)}: "{row.group(1)}" is {row.group(2)}, but the catalog calls {row.group(2)} '
-             f'"{names.get(row.group(2))}"' for doc, row in rows if names.get(row.group(2)) != row.group(1)]
+    stale = [
+        f'{rel(doc)}: "{row.group(1)}" is {row.group(2)}, but the catalog calls {row.group(2)} '
+        f'"{names.get(row.group(2))}"'
+        for doc, row in rows
+        if names.get(row.group(2)) != row.group(1)
+    ]
     assert not stale, '\n'.join(stale)
 
 
@@ -446,26 +499,39 @@ def in_log(line, log):
 
 def test_the_sample_run_output_is_the_one_in_the_evidence_log():
     log = (ROOT / 'docs' / 'evidencias' / 'log-run-pedido.txt').read_text(encoding='utf-8').splitlines()
-    blocks = [(doc, block) for doc in DOCS for block in text_blocks(doc)
-              if any(line.startswith('Tempo:') for line in block)]
+    blocks = [
+        (doc, block) for doc in DOCS for block in text_blocks(doc) if any(line.startswith('Tempo:') for line in block)
+    ]
     assert blocks, 'no sample run output (a block with "Tempo:") found'
-    stale = [f'{rel(doc)}: {line!r} is not in docs/evidencias/log-run-pedido.txt'
-             for doc, block in blocks for line in block if not line.startswith('OK: ') and not in_log(line, log)]
+    stale = [
+        f'{rel(doc)}: {line!r} is not in docs/evidencias/log-run-pedido.txt'
+        for doc, block in blocks
+        for line in block
+        if not line.startswith('OK: ') and not in_log(line, log)
+    ]
     assert not stale, '\n'.join(stale)
 
 
 def test_the_api_operations_the_docs_name_exist():
-    routes = set(re.findall(r"@app\.(get|post)\('([^']+)', operation_id='(\w+)'",
-                            (ROOT / 'api' / 'main.py').read_text(encoding='utf-8')))
+    routes = set(
+        re.findall(
+            r"@app\.(get|post)\(\s*'([^']+)',\s*operation_id='(\w+)'",
+            (ROOT / 'api' / 'main.py').read_text(encoding='utf-8'),
+        )
+    )
     guide = (ROOT / 'docs' / 'como-rodar.md').read_text(encoding='utf-8')
     quoted = re.findall(r'`(\w+)` \(`(GET|POST) ([^`]+)`\)', guide)
     assert quoted, 'no "`operation` (`METHOD /path`)" found in docs/como-rodar.md'
-    stale = [f'docs/como-rodar.md: {operation} ({method} {path}) is not an operation of api/main.py'
-             for operation, method, path in quoted if (method.lower(), path, operation) not in routes]
+    stale = [
+        f'docs/como-rodar.md: {operation} ({method} {path}) is not an operation of api/main.py'
+        for operation, method, path in quoted
+        if (method.lower(), path, operation) not in routes
+    ]
     assert not stale, '\n'.join(stale)
 
 
 # --- 4. Compose commands --------------------------------------------------------------------------
+
 
 @cache
 def compose(files=('docker-compose.yml',)):
@@ -486,16 +552,31 @@ def compose(files=('docker-compose.yml',)):
 def compose_commands(doc):
     """(line number, words) of every `docker compose` command: shell blocks and inline `code`."""
     for number_, line, fence in lines_of(doc):
-        candidates = [line] if fence in ('bash', 'sh', 'shell', 'powershell') else (
-            re.findall(r'`(docker compose [^`]+)`', line) if fence is None else [])
+        candidates = (
+            [line]
+            if fence in ('bash', 'sh', 'shell', 'powershell')
+            else (re.findall(r'`(docker compose [^`]+)`', line) if fence is None else [])
+        )
         for command in candidates:
             if command.strip().startswith('docker compose'):
                 yield number_, shlex.split(command, comments=True)
 
 
 GLOBAL_VALUED = {'-f', '--file', '-p', '--project-name', '--profile', '--env-file'}
-RUN_VALUED = {'-e', '--env', '--name', '-v', '--volume', '-w', '--workdir', '--entrypoint', '-u', '--user', '-p',
-              '--publish'}
+RUN_VALUED = {
+    '-e',
+    '--env',
+    '--name',
+    '-v',
+    '--volume',
+    '-w',
+    '--workdir',
+    '--entrypoint',
+    '-u',
+    '--user',
+    '-p',
+    '--publish',
+}
 SERVICE_ARGS = {'run', 'exec', 'port', 'logs', 'up', 'build', 'ps', 'down'}
 
 
@@ -520,18 +601,22 @@ def command_problems(words):
     subcommand_at = next((i for i, word in enumerate(global_words) if word in SERVICE_ARGS), None)
     options, _ = split_options(global_words[:subcommand_at], GLOBAL_VALUED)
     files = tuple(options.get('-f', [])) or ('docker-compose.yml',)
-    problems = [f'compose file {name} does not exist' for name in files
-                if name not in NOT_IN_REPO and not (ROOT / name).exists()]
+    problems = [
+        f'compose file {name} does not exist'
+        for name in files
+        if name not in NOT_IN_REPO and not (ROOT / name).exists()
+    ]
     services, profiles = compose(tuple(name for name in files if (ROOT / name).exists()))
-    problems += [f'profile {name} is not in docker-compose.yml' for name in options.get('--profile', [])
-                 if name not in profiles]
+    problems += [
+        f'profile {name} is not in docker-compose.yml' for name in options.get('--profile', []) if name not in profiles
+    ]
     if subcommand_at is None:
         return problems
-    subcommand, after = global_words[subcommand_at], global_words[subcommand_at + 1:]
+    subcommand, after = global_words[subcommand_at], global_words[subcommand_at + 1 :]
     if subcommand in ('run', 'exec'):  # run [options] <service> <command...>
         _, args = split_options(after, RUN_VALUED)
         named = args[:1]
-        command = after[after.index(named[0]) + 1:] if named else []
+        command = after[after.index(named[0]) + 1 :] if named else []
     else:  # logs -f ocr rag api, port api 8000, up/down with flags: their words are services or numbers
         named = [word for word in after if not word.startswith('-') and not word.isdigit()]
         command = []
@@ -565,13 +650,21 @@ def test_compose_commands_name_files_profiles_services_and_modules_that_exist():
 
 # --- The collected test count (slow: runs `pytest --collect-only`) ----------------------------------
 
+
 def test_the_collected_test_count_the_docs_quote_is_current():
-    out = subprocess.run([sys.executable, '-m', 'pytest', '--collect-only', '-q', '-p', 'no:cacheprovider'],
-                         cwd=ROOT, capture_output=True, text=True, timeout=300).stdout
+    out = subprocess.run(
+        [sys.executable, '-m', 'pytest', '--collect-only', '-q', '-p', 'no:cacheprovider'],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    ).stdout
     collected = int(re.search(r'(\d+) tests? collected', out).group(1))
-    claims = [(r'(?P<n>[\d.]+) casos \(`pytest --collect-only`\)', lambda n: n == collected),
-              (r'(?P<n>[\d.]+) passam e 1 é pulado', lambda n: n == collected - 1),
-              (r'\((?P<n>\d+,\d) mil casos', lambda n: abs(n - collected / 1000) < 0.1)]  # 16.765: "16,7 mil"
+    claims = [
+        (r'(?P<n>[\d.]+) casos \(`pytest --collect-only`\)', lambda n: n == collected),
+        (r'(?P<n>[\d.]+) passam e 1 é pulado', lambda n: n == collected - 1),
+        (r'\((?P<n>\d+,\d) mil casos', lambda n: abs(n - collected / 1000) < 0.1),
+    ]  # 16.765: "16,7 mil"
     stale, found = [], 0
     for doc, line_number, line in claim_lines('*'):
         for pattern, holds in claims:

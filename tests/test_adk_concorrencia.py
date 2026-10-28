@@ -4,6 +4,7 @@ message of a session is refused before it runs anything, two sessions never shar
 and an order sent again after a restart (a session ADK kept on disk) is refused, not booked again.
 Scripted models (no Gemini), the real OCR, RAG and API servers (tests/test_adk_run.py).
 """
+
 import asyncio
 import importlib
 import json
@@ -45,8 +46,16 @@ MID = threading.Event()  # set when a run is mid-way (its search step started)
 def run(client, session, parts, confirmed=True, **extra):
     """(status, events) of a message; the question about the list is answered `confirmed` (None: left
     unanswered), as the web page does."""
-    response = client.post('/run', json={'appName': 'generated', 'userId': 'pessoa', 'sessionId': session,
-                                         'newMessage': {'role': 'user', 'parts': parts}, **extra})
+    response = client.post(
+        '/run',
+        json={
+            'appName': 'generated',
+            'userId': 'pessoa',
+            'sessionId': session,
+            'newMessage': {'role': 'user', 'parts': parts},
+            **extra,
+        },
+    )
     try:
         status, events = response.status_code, response.json()
     except ValueError:
@@ -59,8 +68,13 @@ def run(client, session, parts, confirmed=True, **extra):
 
 
 def calls(events, name=None):
-    names = [part['functionCall']['name'] for event in events if isinstance(event, dict)
-             for part in (event.get('content') or {}).get('parts', []) if part.get('functionCall')]
+    names = [
+        part['functionCall']['name']
+        for event in events
+        if isinstance(event, dict)
+        for part in (event.get('content') or {}).get('parts', [])
+        if part.get('functionCall')
+    ]
     return names if name is None else [n for n in names if n == name]
 
 
@@ -75,6 +89,7 @@ def together(*jobs):
     def go(index, job):
         barrier.wait()
         out[index] = job()
+
     threads = [threading.Thread(target=go, args=(index, job)) for index, job in enumerate(jobs)]
     for thread in threads:
         thread.start()
@@ -117,16 +132,20 @@ class Reader(HONEST):
             out = [(tool, {'query': name}) for name in names[:8]]
         elif tool == 'search_exams':
             best = [((mcp_payload(reply) or [{}]) or [{}])[0] for reply in answered]
-            out = json.dumps([{'code': hit['code'], 'name': hit['name']} for hit in best if hit.get('code')],
-                             ensure_ascii=False)
+            out = json.dumps(
+                [{'code': hit['code'], 'name': hit['name']} for hit in best if hit.get('code')], ensure_ascii=False
+            )
         elif tool == 'create_appointment' and not answered:
             listed = instruction_list(llm_request)
             match = re.search(r'\[.*\]', listed, re.S)
             out = [(tool, {'exams': json.loads(match[0]) if match else []})]
         else:
             out = 'Pronto.'
-        parts = ([types.Part(text=out)] if isinstance(out, str) else
-                 [types.Part(function_call=types.FunctionCall(name=name, args=args)) for name, args in out])
+        parts = (
+            [types.Part(text=out)]
+            if isinstance(out, str)
+            else [types.Part(function_call=types.FunctionCall(name=name, args=args)) for name, args in out]
+        )
         yield LlmResponse(content=types.Content(role='model', parts=parts))
 
 
@@ -136,12 +155,14 @@ def codes(stored):
 
 # --- (1) two requests at once in the SAME session -----------------------------------------------------
 
+
 def test_the_same_message_twice_at_once_books_once_and_runs_each_tool_once(web, services, monkeypatch):  # noqa: F811
     before = stored_ids(services)
     with TestClient(web_app(web), raise_server_exceptions=False) as client:
         session = new_session(client)
-        (s1, e1), (s2, e2) = together(lambda: run(client, session, [{'text': NAMED}]),
-                                      lambda: run(client, session, [{'text': NAMED}]))
+        (s1, e1), (s2, e2) = together(
+            lambda: run(client, session, [{'text': NAMED}]), lambda: run(client, session, [{'text': NAMED}])
+        )
         after = run(client, session, [{'text': NAMED}])
     new = [appointment(i) for i in stored_ids(services) if i not in before]
     assert len(new) == 1 and 'já foi criado: não repita' in text_of(after[1])
@@ -179,14 +200,16 @@ def test_two_different_orders_at_once_in_one_session_book_one_coherent_order(web
             alone[image] = [codes(appointment(i)) for i in stored_ids(services) if i not in mark]
         mark = stored_ids(services)
         session = new_session(client)
-        (s1, e1), (s2, e2) = together(lambda: run(client, session, [{'text': IMAGE}]),
-                                      lambda: run(client, session, [{'text': OTHER}]))
+        (s1, e1), (s2, e2) = together(
+            lambda: run(client, session, [{'text': IMAGE}]), lambda: run(client, session, [{'text': OTHER}])
+        )
     new = [codes(appointment(i)) for i in stored_ids(services) if i not in mark]
     assert alone[IMAGE] != alone[OTHER], 'the two orders must differ for this test to mean anything'
     assert len(new) <= 1 and (not new or new[0] in (alone[IMAGE][0], alone[OTHER][0])), 'a mixed order was booked'
 
 
 # --- (2) two sessions at once, different orders -----------------------------------------------------------
+
 
 def test_two_sessions_at_once_each_book_their_own_order_with_their_own_key(web, services, monkeypatch):  # noqa: F811
     monkeypatch.setattr(adk, 'Scripted', Reader)
@@ -213,24 +236,36 @@ def test_a_yes_in_one_session_is_never_the_other_sessions_yes(web, services, mon
     before = stored_ids(services)
     with TestClient(web_app(web), raise_server_exceptions=False) as client:
         a, b = new_session(client), new_session(client)
-        (_, ea), (_, eb) = together(lambda: run(client, a, [{'text': NAMED}], None),
-                                    lambda: run(client, b, [{'text': NAMED}], None))
+        (_, ea), (_, eb) = together(
+            lambda: run(client, a, [{'text': NAMED}], None), lambda: run(client, b, [{'text': NAMED}], None)
+        )
         (eva, ca), (evb, cb) = confirmation_request(ea), confirmation_request(eb)
         assert ca and cb
-        together(lambda: run(client, a, answer(ca, True), invocationId=eva['invocationId']),
-                 lambda: run(client, b, answer(cb, False), invocationId=evb['invocationId']))
+        together(
+            lambda: run(client, a, answer(ca, True), invocationId=eva['invocationId']),
+            lambda: run(client, b, answer(cb, False), invocationId=evb['invocationId']),
+        )
         state = {s: client.get(f'/apps/generated/users/pessoa/sessions/{s}').json()['state'] for s in (a, b)}
     new = [codes(appointment(i)) for i in stored_ids(services) if i not in before]
     assert new == [['FICT-001', 'FICT-002', 'FICT-067']]  # a's yes books a's list; b's no books nothing
-    assert codes((e['code'], 0) for e in state[a]['booked_appointment']['exams']) == ['FICT-001', 'FICT-002', 'FICT-067']
+    assert codes((e['code'], 0) for e in state[a]['booked_appointment']['exams']) == [
+        'FICT-001',
+        'FICT-002',
+        'FICT-067',
+    ]
     assert 'booked_appointment' not in state[b] and state[b]['blocked'] == 'você não confirmou a lista de exames'
 
 
 # --- (3) restarts ------------------------------------------------------------------------------------
 
+
 def test_the_same_key_after_an_api_restart_returns_the_same_appointment(services):  # noqa: F811
     import api.main
-    body, headers = {'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo'}]}, {'Idempotency-Key': 'reinicio-' + str(time.time())}
+
+    body, headers = (
+        {'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo'}]},
+        {'Idempotency-Key': 'reinicio-' + str(time.time())},
+    )
     with TestClient(importlib.reload(api.main).app, base_url='http://api:8000') as first:
         one = first.post('/appointments', json=body, headers=headers)
     with TestClient(importlib.reload(api.main).app, base_url='http://api:8000') as second:  # a new process' app
@@ -248,10 +283,21 @@ def restart_adk(folder, uri, monkeypatch):
 
 def adk_web_app(folder, uri):
     if uri is None:  # ADK's default: per-agent local SQLite under the agent's .adk/
-        return get_fast_api_app(agents_dir=str(folder), web=False, artifact_service_uri='memory://',
-                                memory_service_uri='memory://', use_local_storage=True)
-    return get_fast_api_app(agents_dir=str(folder), web=False, session_service_uri=uri,
-                            artifact_service_uri='memory://', memory_service_uri='memory://', use_local_storage=False)
+        return get_fast_api_app(
+            agents_dir=str(folder),
+            web=False,
+            artifact_service_uri='memory://',
+            memory_service_uri='memory://',
+            use_local_storage=True,
+        )
+    return get_fast_api_app(
+        agents_dir=str(folder),
+        web=False,
+        session_service_uri=uri,
+        artifact_service_uri='memory://',
+        memory_service_uri='memory://',
+        use_local_storage=False,
+    )
 
 
 @pytest.mark.parametrize('store', ['local', 'memory'])

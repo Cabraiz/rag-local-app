@@ -6,6 +6,7 @@ more than a resemblance of letters is an exam of the order, and must end in a re
 nobody booked or reported is "não buscado pelo agente", or the reason its line gives (negated, history, prep). Nothing
 is booked here.
 """
+
 import re
 from collections.abc import Callable, Iterable
 
@@ -25,7 +26,9 @@ from .confianca import (
 )
 from .pedido import Accounted, Item, OrderRecord
 
-ITEM_MARKER = re.compile(rf'{LIST_MARKER.pattern}|^\s*(?:\d{{1,2}}\s+(?=[^\W\d_])|[A-Za-z][.)])\s*', re.I)  # "1 TGP", "A."
+ITEM_MARKER = re.compile(
+    rf'{LIST_MARKER.pattern}|^\s*(?:\d{{1,2}}\s+(?=[^\W\d_])|[A-Za-z][.)])\s*', re.I
+)  # "1 TGP", "A."
 # A label before ":" opens a part of the line: a list, a note (only a close match counts: "Obs: jejum de 8 horas" is not
 # Proteinúria de 24 horas), personal data (left out, colon or not: "Dr. [NOME] - [CRM]"). "Paciente: [NOME] Exames: TSH".
 NOTES = catalogo.NOTE_LABELS | catalogo.CLINICAL_LABELS
@@ -34,8 +37,9 @@ LABELS = catalogo.LIST_LABELS | NOTES | DATA_LABELS
 # exam inside it is checked on its own. "25(OH)D", glued, stays one name.
 ASIDE = re.compile(r'(?<=\s)\(|\)(?=\s|$)')
 # A time after an exam ("TSH em 30 dias", "após 3 meses") is not part of its name: a separator too.
-WHEN = re.compile(r'\b(?:em|ap[oó]s|daqui a|dentro de)\s+\d+\s*(?:dias?|semanas?|m[eê]s(?:es)?|anos?|horas?)\b',
-                  re.IGNORECASE)
+WHEN = re.compile(
+    r'\b(?:em|ap[oó]s|daqui a|dentro de)\s+\d+\s*(?:dias?|semanas?|m[eê]s(?:es)?|anos?|horas?)\b', re.IGNORECASE
+)
 
 
 def exams_only(text: str) -> str:
@@ -63,11 +67,11 @@ def parts(text: str) -> list[tuple[str, str]]:
     found: list[tuple[str, str]] = []
     label, start = '', 0
     for colon in re.finditer(':', text):
-        before = text[start:colon.start()]
+        before = text[start : colon.start()]
         tail = before.split()
         for size in (2, 1):
             if len(tail) >= size and is_label(' '.join(tail[-size:])):
-                found.append((label, before[:before.rindex(tail[-size])]))
+                found.append((label, before[: before.rindex(tail[-size])]))
                 label, start = ' '.join(tail[-size:]), colon.end()
                 break
     return [*found, (label, text[start:])]
@@ -82,7 +86,9 @@ def order_lines(read: list[str]) -> list[tuple[int, str, bool]]:
         for label, value in parts(ITEM_MARKER.sub('', MASK_TAG.sub(' ', str(line)))):
             text = '' if is_label(label, DATA_LABELS) else searched_text(label, value)
             if re.search(r'[^\W\d_]{2}', text):  # the search's longest query
-                lines.append((index, ' '.join(text.split())[:catalogo.MAX_QUERY_LENGTH], first_word(label or text) in NOTES))
+                lines.append(
+                    (index, ' '.join(text.split())[: catalogo.MAX_QUERY_LENGTH], first_word(label or text) in NOTES)
+                )
     return lines
 
 
@@ -98,8 +104,13 @@ def searched_text(label: str, value: str) -> str:
 def taken(claimed: list[Accounted], texts: list[str], line: int, start: int, end: int) -> bool:
     """Whether a proposed exam stands on this piece as that exam: the piece's words, or the exam they match, are words of
     its name ("Proteína OC" under a Proteína C reativa; not "Triglicerideos" under a "Colesterol total" on the line)."""
-    return any(other.line == line and other.start < end and start < other.end
-               and any(pieces_of(text, [other.exam]) for text in texts) for other in claimed)
+    return any(
+        other.line == line
+        and other.start < end
+        and start < other.end
+        and any(pieces_of(text, [other.exam]) for text in texts)
+        for other in claimed
+    )
 
 
 def only_a_resemblance(order: OrderRecord, index: int, query: str, name: str, score: float, note: bool) -> bool:
@@ -117,8 +128,9 @@ def piece_on(lines: list[str], index: int, query: str) -> tuple[int, int]:
     return spots[0][1:3] if spots else (0, len(lines[index]) if index < len(lines) else 0)
 
 
-def unreported(order: OrderRecord, hits_of: Callable[[str], object], policy: BookingPolicy,
-               settled: Iterable[str | None]) -> list[Item]:
+def unreported(
+    order: OrderRecord, hits_of: Callable[[str], object], policy: BookingPolicy, settled: Iterable[str | None]
+) -> list[Item]:
     """The exams of the order in no reported state, as left out items ('not_searched', or 'omitted' when a search returned
     the code), one per exam at the confidence the order gives it. hits_of(text): the catalog search's hits for a line;
     settled: the codes booked or already reported."""
@@ -138,8 +150,16 @@ def unreported(order: OrderRecord, hits_of: Callable[[str], object], policy: Boo
             reading = reading_at(order.ocr_confidence, index, policy.ocr_floor(query, name), policy)
             kind = intent_of(order, index)
             reason = kind if kind in NOT_ANCHORS else 'omitted' if best.code in candidates else 'not_searched'
-            reported.append({'code': best.code, 'name': best.name, 'line': index, 'reason': reason,
-                             'confidence': round(min(best.score, reading), 2), 'read': read[index]})
+            reported.append(
+                {
+                    'code': best.code,
+                    'name': best.name,
+                    'line': index,
+                    'reason': reason,
+                    'confidence': round(min(best.score, reading), 2),
+                    'read': read[index],
+                }
+            )
             done.add(best.code)
             claimed.append(Accounted(index, start, end, None, name))
     return reported

@@ -155,7 +155,8 @@ docker compose run --rm tests pytest -q tests/test_pii.py                # um ar
 docker compose run --rm tests pytest -q tests/test_pii.py -k "cpf"       # filtrar por nome
 docker compose run --rm tests pytest -q tests/test_confianca.py::test_a_short_code_needs_a_clearer_reading   # um teste
 docker compose run --rm tests-e2e                                        # o ponta a ponta real, com o Gemini (precisa da chave no .env)
-docker compose run --rm --no-deps tests ruff check .                     # estilo
+docker compose run --rm --no-deps tests ruff check .                     # lint
+docker compose run --rm --no-deps tests ruff format --check .            # formato (sem --check, formata)
 docker compose run --rm --no-deps tests mypy                             # tipos
 ```
 
@@ -200,7 +201,8 @@ docker compose run --rm --no-deps tests mypy                             # tipos
 - **Cargas fora da suíte** (OCR, RAG e API reais, sem Gemini): `tests.load.carga`, `tests.load.manuscritos`,
   `tests.load.robustez`; os comandos e o que cada um mede estão em [medicoes.md](medicoes.md#resumo).
 - **A CI** ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) roda a suíte, o `ruff` e o `mypy`:
-  - `ruff`: pyflakes, pycodestyle, ordem dos imports e bugbear;
+  - `ruff check`: pyflakes, pycodestyle, ordem dos imports e bugbear;
+  - `ruff format --check`: o formato do código;
   - `mypy`: sem `--strict`, com `ignore_missing_imports` e `check_untyped_defs` (config em
     [`pyproject.toml`](../pyproject.toml));
   - cobertura como relatório, sem limite que quebre o build: 98% das linhas de `api`, `catalogo`, `cli`, `guardrails`,
@@ -358,8 +360,10 @@ em `line_intent` (passo 1) e procure-o no mapa [regras.md](regras.md).
 
 ## Convenções
 
-- **Estilo.** Python 3.12, com `ruff` e `mypy`, que o CI roda. Sem formatador automático.
-  - Linha de até 120 colunas, por convenção: o `ruff` ignora o `E501`.
+- **Estilo.** Python 3.12, com `ruff` e `mypy`, que o CI roda.
+  - O formato é o do `ruff format`, como o Prettier no JavaScript: linha de até 120 colunas e as aspas que já estão no
+    código. O `E501` fica ignorado, porque dados de teste, textos e regexes continuam longos de propósito.
+  - O `docs/exemplo-agent.py` fica de fora: ele é a saída do transpilador, byte a byte.
   - O `ruff` confere `E`, `F`, `I`, `B` e `C901`, com complexidade máxima 10. Uma função com mais ramos é dividida.
   - Identificadores e comentários em inglês; nomes de módulo e mensagens ao usuário em português (`confianca`,
     `reconcilia`).

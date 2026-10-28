@@ -36,6 +36,7 @@ def gemini_api(monkeypatch):
 def reserve_runner(reserve):
     """ADK's Runner as `adk run` builds it, with each step's reserve model replaced by `reserve()`; the
     main model stays the generated file's real Gemini client."""
+
     class ReserveRunner(Runner):
         def __init__(self, *args, app=None, **kwargs):
             steps = [app.root_agent]
@@ -46,6 +47,7 @@ def reserve_runner(reserve):
                     assert isinstance(step.model.models[0], Primary)
                     step.model.models = [step.model.models[0], reserve()]
             super().__init__(*args, app=app, **kwargs)
+
     return ReserveRunner
 
 
@@ -58,7 +60,8 @@ def run(agent_folder, monkeypatch, reserve, *lines):  # noqa: F811
 
 @pytest.mark.parametrize('status', [503, 429])
 def test_an_unavailable_main_model_hands_the_same_request_to_the_reserve_and_the_order_is_booked(
-        agent_folder, services, gemini_api, monkeypatch, status):  # noqa: F811
+    agent_folder, services, gemini_api, monkeypatch, status
+):  # noqa: F811
     monkeypatch.setattr(gemini_api, 'status', status)
     before = stored_ids(services)
     done = run(agent_folder, monkeypatch, adk.Scripted, IMAGE, 'yes')
@@ -71,12 +74,14 @@ def test_an_unavailable_main_model_hands_the_same_request_to_the_reserve_and_the
 
 
 def test_when_both_models_fail_adk_run_ends_in_one_clear_line_not_a_traceback(
-        agent_folder, services, gemini_api, monkeypatch):  # noqa: F811
+    agent_folder, services, gemini_api, monkeypatch
+):  # noqa: F811
     monkeypatch.setattr(gemini_api, 'refused', {MAIN, RESERVE})
     before = stored_ids(services)
 
     def real_reserve():  # the generated file's reserve, without its backoff (5 attempts: about 30 s)
         return Gemini(model=RESERVE, retry_options=types.HttpRetryOptions(attempts=1))
+
     done = run(agent_folder, monkeypatch, real_reserve, IMAGE)
     assert done.exception is None and 'Traceback' not in done.output, done.output
     assert gemini_api.calls == [MAIN, RESERVE]  # the first step; the next ones make no model call

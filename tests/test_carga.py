@@ -4,6 +4,7 @@ O mesmo código de tests/load/carga.py (a carga de 500 roda com o compose), com 
 servidores OCR, RAG e a API em processo, como em test_mcp_sse.py. Falha se vazar um valor,
 se o SQLite tiver algo em claro ou se um agendamento não voltar igual ao enviado.
 """
+
 import asyncio
 import importlib
 import json
@@ -39,8 +40,10 @@ def test_twenty_orders_through_ocr_leak_nothing(tmp_path, monkeypatch):
     db = tmp_path / 'appointments.db'
     monkeypatch.setenv('DB_PATH', str(db))
     from api.crypto import new_key
+
     monkeypatch.setenv('DB_ENCRYPTION_KEY', new_key())
     import api.main
+
     servers = [serve(ocr), serve(rag), serve(importlib.reload(api.main).app)]
     try:
         urls = [url for _, url in servers]
@@ -49,7 +52,9 @@ def test_twenty_orders_through_ocr_leak_nothing(tmp_path, monkeypatch):
     finally:
         for server, _ in servers:
             server.should_exit = True
-    table, problems = carga.resumo(manifesto, results, seconds, carga.banco_em_claro(db, manifesto, results), diferentes)
+    table, problems = carga.resumo(
+        manifesto, results, seconds, carga.banco_em_claro(db, manifesto, results), diferentes
+    )
     assert problems == 0 and all(found['agendado'] for found in results.values()), table
     assert sessions == {'nao_fecharam': 0, 'quebraram': 0}, table
     exams = sum(len(item['exames']) for item in manifesto.values())
@@ -59,13 +64,18 @@ def test_twenty_orders_through_ocr_leak_nothing(tmp_path, monkeypatch):
 def test_values_stored_in_clear_are_found_in_the_database_bytes(tmp_path):
     # The same check on a database written without encryption: it must not pass.
     manifesto = pedidos.gerar(tmp_path / 'pedidos', 1)
-    (filename, item), = manifesto.items()
+    ((filename, item),) = manifesto.items()
     db = tmp_path / 'clear.db'
     with sqlite3.connect(db) as connection:
         connection.execute('CREATE TABLE appointments (id TEXT, exams TEXT, note TEXT)')
-        connection.execute('INSERT INTO appointments VALUES (?, ?, ?)', (
-            'b1a41468-7e29-40b1-ba66-1b478d6a3568', json.dumps(item['exames'], ensure_ascii=False),
-            f'{item["sensiveis"]["paciente"]} {item["sensiveis"]["cpf"]}'))
+        connection.execute(
+            'INSERT INTO appointments VALUES (?, ?, ?)',
+            (
+                'b1a41468-7e29-40b1-ba66-1b478d6a3568',
+                json.dumps(item['exames'], ensure_ascii=False),
+                f'{item["sensiveis"]["paciente"]} {item["sensiveis"]["cpf"]}',
+            ),
+        )
     found = carga.banco_em_claro(db, manifesto, {filename: {'agendado': 'b1a41468-7e29-40b1-ba66-1b478d6a3568'}})
     kinds = {what for what, _, _ in found}
     assert {'código FICT', 'paciente', 'cpf'} <= kinds and any(what.startswith('exame ') for what in kinds)
@@ -86,7 +96,7 @@ class Session:
 
 def test_a_failure_in_the_rag_counts_and_keeps_the_ocr_check(tmp_path):
     manifesto = pedidos.gerar(tmp_path, 1)
-    (filename, item), = manifesto.items()
+    ((filename, item),) = manifesto.items()
     ocr_session = Session([f'Paciente: {item["sensiveis"]["paciente"]}', '- Hemograma completo'])
     found = asyncio.run(carga.um_pedido(ocr_session, Session(error=RuntimeError('RAG fora')), None, filename, item))
     assert found['erro'] == 'RuntimeError: RAG fora' and found['vazamentos']  # the leak is still seen
@@ -107,8 +117,9 @@ def test_a_dead_session_is_retried_once_on_a_new_one(tmp_path):
     # A lost reply becomes MCPError after CALL_SECONDS (the keep-alive race): the order is
     # marked for a new session, not hung and not posted twice.
     from mcp.shared.exceptions import MCPError
+
     manifesto = pedidos.gerar(tmp_path, 1)
-    (filename, item), = manifesto.items()
+    ((filename, item),) = manifesto.items()
     found = asyncio.run(carga.um_pedido(Session(error=MCPError(-32001, 'Timed out')), None, None, filename, item))
     assert found['sessao'] and found['erro'].startswith('MCPError') and not found['agendado']
 
@@ -120,6 +131,7 @@ def test_an_order_whose_session_dies_is_not_orphaned_when_the_reopen_fails(tmp_p
     # (Whether the 503 is reached depends on who is faster; the old code always reached it and lost
     # the order, the new one may finish the order on the other worker before the reopen.)
     from starlette.responses import PlainTextResponse
+
     manifesto = pedidos.gerar(tmp_path, 4)
     last = list(manifesto)[-1]
     monkeypatch.setattr(ocr, 'SAMPLES_DIR', tmp_path)
@@ -153,9 +165,22 @@ def test_an_order_whose_session_dies_is_not_orphaned_when_the_reopen_fails(tmp_p
 
 
 def test_a_long_list_by_type_wraps_between_items_in_the_value_column():
-    value = ' · '.join(f'{kind} {n}' for kind, n in [('CID', 176), ('CLINICO', 67), ('CONVENIO', 200), ('CPF', 200),
-                                                     ('CRM', 200), ('DATA', 400), ('EMAIL', 200), ('ENDERECO', 266),
-                                                     ('NOME', 400), ('RG', 200), ('TELEFONE', 200)])
+    value = ' · '.join(
+        f'{kind} {n}'
+        for kind, n in [
+            ('CID', 176),
+            ('CLINICO', 67),
+            ('CONVENIO', 200),
+            ('CPF', 200),
+            ('CRM', 200),
+            ('DATA', 400),
+            ('EMAIL', 200),
+            ('ENDERECO', 266),
+            ('NOME', 400),
+            ('RG', 200),
+            ('TELEFONE', 200),
+        ]
+    )
     parts = carga.quebrar(value)
     assert len(parts) > 1 and all(len(part) <= 64 for part in parts)
     assert ' · '.join(parts) == value  # every item kept whole, in order

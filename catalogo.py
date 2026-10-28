@@ -4,6 +4,7 @@ so none keeps its own copy. A score is the better of two explainable signals: sh
 ~ "glicemia de jejum") and character similarity (difflib: "hemograma compieto"). A word is an exam word when it is
 one, or one OCR error from one by the Tolerance of the reader that asks. The API reads data/exams.json on its own.
 """
+
 import difflib
 import functools
 import json
@@ -49,30 +50,127 @@ def normalize(text: str) -> str:
 
 # Shared by every reader of an order (the OCR's guards, the RAG search, the runtime), each written once; the OCR's own
 # are in guardrails/pii_rules.py. A list marker: "1)", "2.", "-", "•", never the "25-" of "25-OH vitamina D".
-CONNECTIVES = frozenset(('a', 'o', 'as', 'os', 'e', 'de', 'da', 'do', 'das', 'dos', 'em', 'no', 'na', 'com', 'sem', 'para',
-                         'por'))
+CONNECTIVES = frozenset(
+    ('a', 'o', 'as', 'os', 'e', 'de', 'da', 'do', 'das', 'dos', 'em', 'no', 'na', 'com', 'sem', 'para', 'por')
+)
 CLASSES = frozenset(('iga', 'igg', 'igm', 'ige'))
 LIST_MARKER = re.compile(r'^\s*(?:[-–•*·>]+|\(?\d{1,2}\s*(?:[.)]+|-(?!\s*(?:oh|hidrox|\d))))\s*', re.IGNORECASE)
 # Words that qualify an exam ("TSH ULTRASSENSÍVEL", "Hemograma Completo Com Plaquetas"): never a name.
-EXAM_MODIFIERS = frozenset(('ultrassensivel', 'ultra', 'sensivel', 'fracoes', 'fracao', 'plaquetas', 'total', 'livre',
-                            'serico', 'serica', 'soro', 'plasma', 'sangue', 'urina', 'jejum', 'basal', 'dosagem', 'pesquisa',
-                            'contagem', 'quantitativo', 'quantitativa', 'qualitativo', 'qualitativa', 'completo',
-                            'completa', 'automatizado', 'colesterol'))
+EXAM_MODIFIERS = frozenset(
+    (
+        'ultrassensivel',
+        'ultra',
+        'sensivel',
+        'fracoes',
+        'fracao',
+        'plaquetas',
+        'total',
+        'livre',
+        'serico',
+        'serica',
+        'soro',
+        'plasma',
+        'sangue',
+        'urina',
+        'jejum',
+        'basal',
+        'dosagem',
+        'pesquisa',
+        'contagem',
+        'quantitativo',
+        'quantitativa',
+        'qualitativo',
+        'qualitativa',
+        'completo',
+        'completa',
+        'automatizado',
+        'colesterol',
+    )
+)
 FOLLOW_UP = frozenset(('rotina', 'controle', 'urgente'))  # when, never which exam: no help to the search
 # What may stand next to an exam on a line that books alone: its qualifiers, sample, type ("Urina tipo I", "HIV 1 e 2"),
 # a fasting time, follow-up, the disease of a serology ("IgG para toxoplasmose", "Hepatite A IgM").
-QUALIFIERS = EXAM_MODIFIERS | CLASSES | FOLLOW_UP | {
-    'e', 'de', 'do', 'da', 'em', 'com', 'para', 'tipo', 'i', 'ii', '1', '2', 'a', 'b', 'c', 'd', 'h', 'hs', 'hrs', 'hora',
-    'horas', 'manha', 'pos', 'prandial', 'isolada', 'amostra', 'sorologia', 'doenca', 'hepatite', 'hav', 'imunoglobulina',
-    'imunoglobulinas'}
+QUALIFIERS = (
+    EXAM_MODIFIERS
+    | CLASSES
+    | FOLLOW_UP
+    | {
+        'e',
+        'de',
+        'do',
+        'da',
+        'em',
+        'com',
+        'para',
+        'tipo',
+        'i',
+        'ii',
+        '1',
+        '2',
+        'a',
+        'b',
+        'c',
+        'd',
+        'h',
+        'hs',
+        'hrs',
+        'hora',
+        'horas',
+        'manha',
+        'pos',
+        'prandial',
+        'isolada',
+        'amostra',
+        'sorologia',
+        'doenca',
+        'hepatite',
+        'hav',
+        'imunoglobulina',
+        'imunoglobulinas',
+    }
+)
 # The first word of a label before ":", by what follows it: a list of exams, a note around them, clinical data,
 # personal data (runtime/reconcilia.py; guardrails/pii_rules.py builds the OCR's page labels on them).
-LIST_LABELS = frozenset(('exame', 'exames', 'solicito', 'solicitacao', 'solicitados', 'solicitamos', 'pedido', 'pedidos',
-                         'requisicao', 'realizar'))
+LIST_LABELS = frozenset(
+    (
+        'exame',
+        'exames',
+        'solicito',
+        'solicitacao',
+        'solicitados',
+        'solicitamos',
+        'pedido',
+        'pedidos',
+        'requisicao',
+        'realizar',
+    )
+)
 NOTE_LABELS = frozenset(('obs', 'observacao', 'observacoes', 'orientacao', 'orientacoes', 'preparo'))
 CLINICAL_LABELS = frozenset(('indicacao', 'diagnostico', 'hipotese', 'cid'))
-DATA_LABELS = frozenset(('paciente', 'nome', 'data', 'nascimento', 'medico', 'medica', 'dr', 'dra', 'crm', 'rg', 'cpf',
-                         'cns', 'convenio', 'endereco', 'telefone', 'celular', 'email', 'assinatura', 'carimbo', 'local'))
+DATA_LABELS = frozenset(
+    (
+        'paciente',
+        'nome',
+        'data',
+        'nascimento',
+        'medico',
+        'medica',
+        'dr',
+        'dra',
+        'crm',
+        'rg',
+        'cpf',
+        'cns',
+        'convenio',
+        'endereco',
+        'telefone',
+        'celular',
+        'email',
+        'assinatura',
+        'carimbo',
+        'local',
+    )
+)
 # Every marker the OCR leaves: a value masked by type ([CPF]) or a removal ([TEXTO_REMOVIDO]); pii_rules.TYPED_TAG.
 MASK_TAG = re.compile(r'\[[A-Z_]+\]')
 MAX_QUERY_LENGTH = 200  # the catalog search's longest query (mcp_servers/rag.py); the runtime cuts a line there
@@ -110,6 +208,7 @@ def similarity(query: str, term: str) -> float:
 
 class Tolerance(NamedTuple):
     """How far a word (fold()) may be from an exam word and still be one, by difflib's ratio."""
+
     cutoff: float  # from this ratio, a misread word is the exam word
     shortest: int  # a shorter word counts only as written
     modifiers: bool  # whether EXAM_MODIFIERS ("plaquetas", "sérico") count as exam words
@@ -131,18 +230,27 @@ class ExamMatcher:
         self.names = [term for exam in exams for term in [exam['name'], *exam['synonyms']]]  # as in the catalog
         self.written = {words(term): exam for exam in exams for term in [exam['name'], *exam['synonyms']]}
         self.searched = {term: exam for exam in exams for term in exam['terms']}
-        self.word_sets = {frozenset(term.split()): exam['code'] for term, exam in self.searched.items()}  # "igg toxoplasmose" too
+        self.word_sets = {
+            frozenset(term.split()): exam['code'] for term, exam in self.searched.items()
+        }  # "igg toxoplasmose" too
         self.vocabulary = frozenset(fold(word) for term in self.names for word in re.findall(r'\w+', term))
         self.with_modifiers = self.vocabulary | EXAM_MODIFIERS
-        self.pattern = re.compile('|'.join(r'(?<![a-z0-9])' + r'[\W_]+'.join(map(re.escape, term.split())) + r'(?![a-z0-9])'
-                                           for term in sorted(self.written, key=len, reverse=True) if term))
+        self.pattern = re.compile(
+            '|'.join(
+                r'(?<![a-z0-9])' + r'[\W_]+'.join(map(re.escape, term.split())) + r'(?![a-z0-9])'
+                for term in sorted(self.written, key=len, reverse=True)
+                if term
+            )
+        )
         self.is_exam_word = functools.lru_cache(maxsize=65536)(self._is_exam_word)
         self.search_score = functools.lru_cache(maxsize=65536)(self._search_score)
 
     def _is_exam_word(self, word: str, tolerance: Tolerance) -> bool:
         """A word of an exam's name (or a modifier, when the tolerance counts them), or one OCR error from one."""
         pool = self.with_modifiers if tolerance.modifiers else self.vocabulary
-        return word in pool or (len(word) >= tolerance.shortest and bool(difflib.get_close_matches(word, pool, 1, tolerance.cutoff)))
+        return word in pool or (
+            len(word) >= tolerance.shortest and bool(difflib.get_close_matches(word, pool, 1, tolerance.cutoff))
+        )
 
     def closest(self, query: str) -> Iterator[tuple[float, str, dict]]:
         """For each exam: the best score of a normalized query and the name it came from (a tie: the first, its name)."""
@@ -167,5 +275,8 @@ def exam_word(word: str) -> bool:
     """A word (fold()) of a list line that belongs to its exams: a qualifier, an exam word, one with the connective
     "e" the OCR glued to it ("TSHe", "eT4"), or one OCR error from an exam word (LIST_WORD)."""
     exams = matcher()
-    return word in QUALIFIERS or bool({word, *glued_e(word)} & exams.vocabulary) or (
-        word.isalpha() and exams.is_exam_word(word, LIST_WORD))
+    return (
+        word in QUALIFIERS
+        or bool({word, *glued_e(word)} & exams.vocabulary)
+        or (word.isalpha() and exams.is_exam_word(word, LIST_WORD))
+    )

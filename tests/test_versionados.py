@@ -1,4 +1,5 @@
 """The fixed lists of tests/versionados.py: they match the repository, and a user's extra file changes nothing."""
+
 import re
 import shutil
 import subprocess
@@ -34,8 +35,13 @@ def test_the_lists_are_the_files_git_tracks():
 
 
 def collected(folder):
-    out = subprocess.run([sys.executable, '-m', 'pytest', '--collect-only', '-q', '-p', 'no:cacheprovider', *MODULES],
-                         cwd=folder, capture_output=True, text=True, timeout=300).stdout
+    out = subprocess.run(
+        [sys.executable, '-m', 'pytest', '--collect-only', '-q', '-p', 'no:cacheprovider', *MODULES],
+        cwd=folder,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    ).stdout
     return int(re.search(r'(\d+) tests? collected', out).group(1))
 
 

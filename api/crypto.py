@@ -10,6 +10,7 @@ first start and keeps it in its own volume (resolve_key). To create your own key
 (no Python needed on the host):
     docker compose run --rm --no-deps api python -m api.crypto --gerar-chave
 """
+
 import argparse
 import base64
 import binascii
@@ -22,8 +23,10 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 KEY_VARIABLE = 'DB_ENCRYPTION_KEY'
 NONCE_BYTES = 12
-HOW_TO_CREATE = ('gere uma com `docker compose run --rm --no-deps api python -m api.crypto --gerar-chave` '
-                 'e coloque em DB_ENCRYPTION_KEY no .env')
+HOW_TO_CREATE = (
+    'gere uma com `docker compose run --rm --no-deps api python -m api.crypto --gerar-chave` '
+    'e coloque em DB_ENCRYPTION_KEY no .env'
+)
 UNREADABLE = 'não foi possível decifrar o registro: a chave não é a da gravação ou o dado foi alterado no banco'
 
 
@@ -67,8 +70,10 @@ def resolve_key(env_value: str | None, key_file: Path) -> str:
         if key_file.exists():
             value = key_file.read_text(encoding='ascii', errors='replace').strip()
             if not key_bytes(value):
-                raise CryptoError(f'chave do banco inválida em {key_file} (esperada uma chave de 32 bytes em '
-                                  f'base64): restaure a chave da gravação ou defina {KEY_VARIABLE} no .env.')
+                raise CryptoError(
+                    f'chave do banco inválida em {key_file} (esperada uma chave de 32 bytes em '
+                    f'base64): restaure a chave da gravação ou defina {KEY_VARIABLE} no .env.'
+                )
             return value
         key_file.parent.mkdir(parents=True, exist_ok=True)
         value = new_key()
@@ -76,8 +81,7 @@ def resolve_key(env_value: str | None, key_file: Path) -> str:
         with os.fdopen(os.open(key_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w', encoding='ascii') as file:
             file.write(value + '\n')
     except OSError as error:
-        raise CryptoError(f'não foi possível ler ou criar a chave do banco em {key_file}: '
-                          f'{error.strerror}') from None
+        raise CryptoError(f'não foi possível ler ou criar a chave do banco em {key_file}: {error.strerror}') from None
     print(f'chave do banco criada em {key_file}', file=sys.stderr)
     return value
 
@@ -99,7 +103,11 @@ def decrypt(cipher: AESGCM, token: str, bound_to: str) -> str:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='python -m api.crypto', description='Chave de cifra do banco da API.')
-    parser.add_argument('--gerar-chave', action='store_true', required=True,
-                        help='imprime uma chave nova (AES-256, base64url) para DB_ENCRYPTION_KEY')
+    parser.add_argument(
+        '--gerar-chave',
+        action='store_true',
+        required=True,
+        help='imprime uma chave nova (AES-256, base64url) para DB_ENCRYPTION_KEY',
+    )
     parser.parse_args()
     print(new_key())

@@ -4,6 +4,7 @@ O mesmo código de tests/load/manuscritos.py (as 120 rodam com o compose da carg
 RAG em processo, como em test_carga.py. Nada fora do pedido pode ser agendado e nenhuma PII
 do gabarito pode sobrar no texto do OCR.
 """
+
 import shutil
 from pathlib import Path
 
@@ -36,15 +37,18 @@ def test_the_set_is_complete_small_and_fictional():
             assert ImageChops.difference(copy.convert('RGB'), original.convert('RGB')).getbbox() is None
 
 
-@pytest.mark.parametrize('line, query', [
-    ('1. Complemento C4', 'Complemento C4'),
-    ('2) Vitamina B12', 'Vitamina B12'),
-    ('- T4 livre', 'T4 livre'),
-    ('• CA 19-9', 'CA 19-9'),
-    ('3. 25-OH Vitamina D', '25-OH Vitamina D'),
-    ('25-OH Vitamina D', '25-OH Vitamina D'),
-    ('  12 . Ferritina.', 'Ferritina.'),
-])
+@pytest.mark.parametrize(
+    'line, query',
+    [
+        ('1. Complemento C4', 'Complemento C4'),
+        ('2) Vitamina B12', 'Vitamina B12'),
+        ('- T4 livre', 'T4 livre'),
+        ('• CA 19-9', 'CA 19-9'),
+        ('3. 25-OH Vitamina D', '25-OH Vitamina D'),
+        ('25-OH Vitamina D', '25-OH Vitamina D'),
+        ('  12 . Ferritina.', 'Ferritina.'),
+    ],
+)
 def test_only_the_leading_marker_is_removed_from_the_query(line, query):
     # Digits at the end or inside an exam name are part of it ("Vitamina B12" is not "Vitamina B").
     assert manuscritos.consulta(line) == query

@@ -4,6 +4,7 @@ Reads a fictional order image from /data/samples (read-only), runs Tesseract in 
 the model and masks the PII on every line BEFORE returning: the raw text never leaves this process. check_image runs
 every check but Tesseract, so `cli run` refuses a bad file before the first model turn; no agent has it (tool_filter).
 """
+
 import asyncio
 import os
 import re
@@ -109,18 +110,29 @@ def mask_lines(lines: Sequence[OcrLine | str]) -> dict:
     safe, removed = neutralize_joined(joined)  # prompt injection: the text goes to the LLM
     masked, counts = mask_page(safe)
     kinds, contest, unlinked = intent.read_page(joined, breaks)
-    kinds = ['unrecognized' if kind in ASKED_KINDS and unrecognized_request(line, out) else kind
-             for kind, line, out in zip(kinds, safe, masked, strict=True)]
+    kinds = [
+        'unrecognized' if kind in ASKED_KINDS and unrecognized_request(line, out) else kind
+        for kind, line, out in zip(kinds, safe, masked, strict=True)
+    ]
     confidence, readings = joined_readings(read, sources)
     off = intent.clean_page(joined, masked, kinds, odd, readings)
     exam_lines = [at for at, line in enumerate(masked) if names_an_exam(line)]
     named = any(NAME_TAG in masked[at] for at in exam_lines)  # a name's line never books alone
     text_removed = counts.pop('TEXTO_REMOVIDO', 0)
-    return {'lines': masked, 'line_confidence': confidence, 'line_intent': kinds, 'pii_masked': counts,
-            'instructions_removed': removed, 'text_removed': text_removed, 'contested_exams': intent.contested(joined, contest),
-            'cancel_unlinked': unlinked, 'off_list': off, 'page_clean': not (removed or unlinked or named or off),
-            'exam_terms': [[[term, NAMES[term]] for term in sorted(exams_on(line))] for line in masked],
-            'exam_lines': [at for at in exam_lines if kinds[at] not in NOT_ANCHORS and exam_before_name(masked[at])]}
+    return {
+        'lines': masked,
+        'line_confidence': confidence,
+        'line_intent': kinds,
+        'pii_masked': counts,
+        'instructions_removed': removed,
+        'text_removed': text_removed,
+        'contested_exams': intent.contested(joined, contest),
+        'cancel_unlinked': unlinked,
+        'off_list': off,
+        'page_clean': not (removed or unlinked or named or off),
+        'exam_terms': [[[term, NAMES[term]] for term in sorted(exams_on(line))] for line in masked],
+        'exam_lines': [at for at in exam_lines if kinds[at] not in NOT_ANCHORS and exam_before_name(masked[at])],
+    }
 
 
 def joined_readings(read: list[OcrLine], sources: list[range]) -> tuple[list[float] | None, list[float]]:
@@ -144,8 +156,10 @@ def reading_marks(read: list[OcrLine]) -> tuple[frozenset[int], list[bool]]:
     if not boxes or len(boxes) < len(read):
         return frozenset(), [False] * len(read)
     height, ink = median(box[2] for box in boxes), median(box[3] for box in boxes)
-    return (frozenset(i for i in range(1, len(boxes)) if boxes[i][0] - boxes[i - 1][1] > GAP * height),
-            [box[2] < SMALL * height or box[3] > ink + LIGHT for box in boxes])
+    return (
+        frozenset(i for i in range(1, len(boxes)) if boxes[i][0] - boxes[i - 1][1] > GAP * height),
+        [box[2] < SMALL * height or box[3] > ink + LIGHT for box in boxes],
+    )
 
 
 def names_an_exam(line: str) -> bool:
@@ -153,8 +167,11 @@ def names_an_exam(line: str) -> bool:
     values aside, a word one OCR error from an exam word (not a qualifier) or text the search finds (MIN_SCORE)."""
     text = LIST_MARKER.sub(' ', MASK_TAG.sub(' ', line))
     rest = [word for word in words(text).split() if word not in STRUCTURE]
-    return bool(exams_on(text)) or matcher().search_score(' '.join(rest)) >= MIN_SCORE or any(
-        word not in QUALIFIERS and exam_like(word) for word in rest)
+    return (
+        bool(exams_on(text))
+        or matcher().search_score(' '.join(rest)) >= MIN_SCORE
+        or any(word not in QUALIFIERS and exam_like(word) for word in rest)
+    )
 
 
 def exam_before_name(line: str) -> bool:
@@ -175,14 +192,20 @@ def unrecognized_request(line: str, masked: str) -> bool:
 def only_a_modifier_left(line: str, masked: str) -> bool:
     """[TEXTO_REMOVIDO] and only modifiers of an exam left ("[TEXTO_REMOVIDO] total"), on a line written without tags."""
     left = words(LIST_MARKER.sub('', masked).replace(REMOVED_TAG, ' '))
-    return (MARKER not in line and REMOVED_TAG in masked and not MASK_TAG.search(line) and bool(left)
-            and all(word in EXAM_MODIFIERS for word in left.split()) and not exams_on(left))
+    return (
+        MARKER not in line
+        and REMOVED_TAG in masked
+        and not MASK_TAG.search(line)
+        and bool(left)
+        and all(word in EXAM_MODIFIERS for word in left.split())
+        and not exams_on(left)
+    )
 
 
 def removed_whole(line: str, masked: str) -> bool:
     """A list item of 6 letters or more, and no order to the model, that left as nothing but [TEXTO_REMOVIDO] and marks."""
     item = LIST_MARKER.match(line)
-    if not item or MARKER in line or len(re.findall(r'[^\W\d_]', MASK_TAG.sub(' ', line[item.end():]))) < 6:
+    if not item or MARKER in line or len(re.findall(r'[^\W\d_]', MASK_TAG.sub(' ', line[item.end() :]))) < 6:
         return False
     return bool(re.fullmatch(r'(?:\[TEXTO_REMOVIDO\]|[^\w\[\]])+', LIST_MARKER.sub('', masked, count=1)))
 

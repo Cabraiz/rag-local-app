@@ -10,6 +10,7 @@ os exames de cada imagem. Tudo é inventado a partir da semente:
 - de 1 a 5 exames de data/exams.json.
 Três layouts e três fontes, com leve rotação e ruído para o OCR trabalhar.
 """
+
 import json
 import random
 from pathlib import Path
@@ -22,8 +23,16 @@ SEED = 20261005
 ROOT = Path(__file__).resolve().parents[2]
 EXAMS = json.loads((ROOT / 'data' / 'exams.json').read_text(encoding='utf-8'))
 FONTS = [f'/usr/share/fonts/truetype/dejavu/{name}.ttf' for name in ('DejaVuSans', 'DejaVuSerif', 'DejaVuSansMono')]
-STREETS = ['Rua das Acácias', 'Avenida São João', 'Rua Professor Antônio Prado', 'Travessa da Conceição',
-           'Rua Visconde de Inhaúma', 'Avenida Getúlio Vargas', 'Rua Dom Pedro II', 'Alameda dos Ipês']
+STREETS = [
+    'Rua das Acácias',
+    'Avenida São João',
+    'Rua Professor Antônio Prado',
+    'Travessa da Conceição',
+    'Rua Visconde de Inhaúma',
+    'Avenida Getúlio Vargas',
+    'Rua Dom Pedro II',
+    'Alameda dos Ipês',
+]
 DDD = ['11', '21', '31', '41', '51', '61', '71', '81', '85', '92']
 UF = ['SP', 'RJ', 'MG', 'PR', 'RS', 'DF', 'BA', 'PE', 'CE', 'AM']
 CID = ['E11.9', 'I10', 'E78.5', 'D50.9', 'N18.3', 'E03.9', 'Z00.0', 'K21.0']
@@ -83,22 +92,63 @@ def linhas(rng, d, exames, layout):
     lista = [f'{i}. {exame}' for i, exame in enumerate(exames, 1)] if layout == 1 else [f'- {e}' for e in exames]
     data = f'{rng.randrange(1, 29):02d}/{rng.randrange(1, 13):02d}/2026'
     if layout == 0:
-        return ['PEDIDO MÉDICO DE EXAMES', 'Clínica Exemplo de Diagnóstico', '',
-                f'Paciente: {d["paciente"]}', f'Data de nascimento: {d["nascimento"]}', f'CPF: {d["cpf"]}',
-                f'RG: {d["rg"]}', f'Telefone: {d["telefone"]}', f'E-mail: {d["email"]}',
-                f'Endereço: {d["endereco"]}', f'CEP: {d["cep"]}', f'Carteirinha: {d["carteirinha"]}',
-                f'CID-10: {d["cid"]}', '', 'Exames solicitados:', *lista, '',
-                f'Dr. {d["medico"]} - {d["crm"]}', f'Data: {data}']
+        return [
+            'PEDIDO MÉDICO DE EXAMES',
+            'Clínica Exemplo de Diagnóstico',
+            '',
+            f'Paciente: {d["paciente"]}',
+            f'Data de nascimento: {d["nascimento"]}',
+            f'CPF: {d["cpf"]}',
+            f'RG: {d["rg"]}',
+            f'Telefone: {d["telefone"]}',
+            f'E-mail: {d["email"]}',
+            f'Endereço: {d["endereco"]}',
+            f'CEP: {d["cep"]}',
+            f'Carteirinha: {d["carteirinha"]}',
+            f'CID-10: {d["cid"]}',
+            '',
+            'Exames solicitados:',
+            *lista,
+            '',
+            f'Dr. {d["medico"]} - {d["crm"]}',
+            f'Data: {data}',
+        ]
     if layout == 1:
-        return ['SOLICITAÇÃO DE EXAMES LABORATORIAIS', '',
-                f'Nome: {d["paciente"]}', f'Nascimento {d["nascimento"]}   CPF {d["cpf"]}',
-                f'RG {d["rg"]}   Tel. {d["telefone"]}', f'Email: {d["email"]}',
-                f'{d["endereco"]} - CEP {d["cep"]}', f'Convênio: Plano Exemplo - carteirinha {d["carteirinha"]}',
-                f'CID {d["cid"]}', '', 'Exames:', *lista, '', f'Médico: {d["medico"]}', d['crm'], data]
-    return ['RECEITUÁRIO', '', d['paciente'].upper(), f'Nasc. {d["nascimento"]} - Carteirinha {d["carteirinha"]}',
-            f'CPF {d["cpf"]} - RG {d["rg"]}',
-            f'{d["telefone"]} / {d["email"]}', f'{d["endereco"]}, CEP {d["cep"]}', f'Indicação clínica: CID {d["cid"]}',
-            '', 'Solicito os exames:', *lista, '', f'Dra. {d["medico"]}', f'{d["crm"]}', f'{data}']
+        return [
+            'SOLICITAÇÃO DE EXAMES LABORATORIAIS',
+            '',
+            f'Nome: {d["paciente"]}',
+            f'Nascimento {d["nascimento"]}   CPF {d["cpf"]}',
+            f'RG {d["rg"]}   Tel. {d["telefone"]}',
+            f'Email: {d["email"]}',
+            f'{d["endereco"]} - CEP {d["cep"]}',
+            f'Convênio: Plano Exemplo - carteirinha {d["carteirinha"]}',
+            f'CID {d["cid"]}',
+            '',
+            'Exames:',
+            *lista,
+            '',
+            f'Médico: {d["medico"]}',
+            d['crm'],
+            data,
+        ]
+    return [
+        'RECEITUÁRIO',
+        '',
+        d['paciente'].upper(),
+        f'Nasc. {d["nascimento"]} - Carteirinha {d["carteirinha"]}',
+        f'CPF {d["cpf"]} - RG {d["rg"]}',
+        f'{d["telefone"]} / {d["email"]}',
+        f'{d["endereco"]}, CEP {d["cep"]}',
+        f'Indicação clínica: CID {d["cid"]}',
+        '',
+        'Solicito os exames:',
+        *lista,
+        '',
+        f'Dra. {d["medico"]}',
+        f'{d["crm"]}',
+        f'{data}',
+    ]
 
 
 def fonte(index, size):
@@ -128,8 +178,11 @@ def pedido(rng, index):
     sensiveis = dados(rng)
     image = imagem(rng, linhas(rng, sensiveis, exames, layout), layout)
     codes = {exam['name']: exam['code'] for exam in EXAMS}
-    return f'pedido-{index:04d}.png', image, {
-        'layout': layout, 'sensiveis': sensiveis, 'exames': [{'code': codes[e], 'name': e} for e in exames]}
+    return (
+        f'pedido-{index:04d}.png',
+        image,
+        {'layout': layout, 'sensiveis': sensiveis, 'exames': [{'code': codes[e], 'name': e} for e in exames]},
+    )
 
 
 def gerar(pasta, n, seed=SEED):

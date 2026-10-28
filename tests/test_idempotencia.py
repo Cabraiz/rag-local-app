@@ -1,4 +1,5 @@
 """Idempotency-Key no POST /appointments e o log JSON por requisição da API."""
+
 import asyncio
 import contextlib
 import hashlib
@@ -46,8 +47,10 @@ def test_same_key_with_an_exam_already_booked_in_another_list_is_409(client):
     assert client.post('/appointments', json=BODY, headers={'Idempotency-Key': 'pedido-42'}).status_code == 201
     response = client.post('/appointments', json=BOTH, headers={'Idempotency-Key': 'pedido-42'})
     assert response.status_code == 409
-    assert response.json() == {'detail': 'Esta Idempotency-Key já agendou um destes exames, com outra lista. '
-                                         'Para um novo agendamento, use uma chave nova.'}
+    assert response.json() == {
+        'detail': 'Esta Idempotency-Key já agendou um destes exames, com outra lista. '
+        'Para um novo agendamento, use uma chave nova.'
+    }
     assert len(rows('appointments')) == 1
 
 
@@ -62,6 +65,7 @@ def test_twenty_simultaneous_posts_with_one_key_create_one_appointment(client, m
     # as it would across API processes.
     if serialized:
         monkeypatch.setattr(api_module(), 'WRITE_LOCK', contextlib.nullcontext())
+
     def post(_):
         return client.post('/appointments', json=BODY, headers={'Idempotency-Key': 'retry'})
 
@@ -148,8 +152,9 @@ def test_the_clear_keys_of_an_earlier_version_are_erased_at_startup(tmp_path, mo
     with TestClient(app) as client:
         booked = client.post('/appointments', json=BODY).json()
     with contextlib.closing(sqlite3.connect(app.state.db_path)) as connection, connection:
-        connection.execute('CREATE TABLE idempotency (key TEXT PRIMARY KEY, body_hash TEXT NOT NULL, '
-                           'appointment_id TEXT NOT NULL)')
+        connection.execute(
+            'CREATE TABLE idempotency (key TEXT PRIMARY KEY, body_hash TEXT NOT NULL, appointment_id TEXT NOT NULL)'
+        )
         connection.execute('INSERT INTO idempotency VALUES (?, ?, ?)', ('pedido-Maria-antigo', 'f' * 64, booked['id']))
     with TestClient(app) as client:
         with contextlib.closing(sqlite3.connect(app.state.db_path)) as connection:
@@ -176,6 +181,7 @@ def test_the_key_is_documented_and_the_agent_still_reads_the_contract(client, tm
     [header] = post['parameters']
     assert header['name'] == 'Idempotency-Key' and header['in'] == 'header' and not header.get('required')
     assert header['description'] and '409' in post['responses']
+
     # The generated agent's OpenAPIToolset, fed this API's real /openapi.json.
     def serve(request):
         return httpx.Response(200, json=schema)
@@ -221,14 +227,20 @@ def test_the_booking_body_has_only_the_codes_whatever_the_model_adds(client, tmp
     args = {'exams': proposed}
     assert asyncio.run(agent.CALLBACKS.before_tool(FakeTool('create_appointment'), args, context)) is None
     assert args['exams'] == [{'code': 'FICT-001'}]
-    created = client.post('/appointments', json={'exams': args['exams']}, headers={'Idempotency-Key': args['idempotency_key']})
-    assert created.status_code == 201 and created.json()['exams'] == [{'code': 'FICT-001', 'name': 'Hemograma completo'}]
+    created = client.post(
+        '/appointments', json={'exams': args['exams']}, headers={'Idempotency-Key': args['idempotency_key']}
+    )
+    assert created.status_code == 201 and created.json()['exams'] == [
+        {'code': 'FICT-001', 'name': 'Hemograma completo'}
+    ]
 
 
 @pytest.mark.parametrize('second_body', ['the same', 'another'])
 def test_after_the_first_appointment_a_new_call_never_reaches_the_api(tmp_path, second_body):
     agent, context = generated_module(tmp_path), FakeContext()
-    agent.CALLBACKS.after_tool(FakeTool('extract_exam_text'), {}, context, ocr_reply('- Hemograma completo', '- Creatinina'))
+    agent.CALLBACKS.after_tool(
+        FakeTool('extract_exam_text'), {}, context, ocr_reply('- Hemograma completo', '- Creatinina')
+    )
     search(agent, context, 'Hemograma', ('FICT-001', 'Hemograma completo', 1.0))
     search(agent, context, 'Creatinina', ('FICT-005', 'Creatinina', 1.0))
     first = {'exams': [{'code': 'FICT-001', 'name': 'Hemograma'}]}
@@ -255,8 +267,9 @@ def access_log(caplog):
 
 def test_one_json_line_per_request_without_body_or_key(client, access_log):
     secret = {'exams': [{'code': 'FICT-001', 'name': 'Maria Sentinela 123.456.789-00'}]}
-    created = client.post('/appointments', json=secret, headers={'Idempotency-Key': 'chave-secreta',
-                                                                  'X-Request-ID': 'pedido-Maria-123'})
+    created = client.post(
+        '/appointments', json=secret, headers={'Idempotency-Key': 'chave-secreta', 'X-Request-ID': 'pedido-Maria-123'}
+    )
     client.get(f"/appointments/{created.json()['id']}")
     client.get('/nao/existe/Maria')
     client.get('/openapi.json')
@@ -264,17 +277,25 @@ def test_one_json_line_per_request_without_body_or_key(client, access_log):
     lines = access_log()
     assert re.fullmatch(r'[0-9a-f]{32}', created.headers['x-request-id'])  # ours, never the client's
     assert [(line['method'], line['route'], line['status']) for line in lines] == [
-        ('POST', '/appointments', 201), ('GET', '/appointments/{appointment_id}', 200),
-        ('GET', '(sem rota)', 404), ('GET', '/openapi.json', 200), ('POST', '(sem rota)', 413)]
+        ('POST', '/appointments', 201),
+        ('GET', '/appointments/{appointment_id}', 200),
+        ('GET', '(sem rota)', 404),
+        ('GET', '/openapi.json', 200),
+        ('POST', '(sem rota)', 413),
+    ]
     assert all(set(line) == {'request_id', 'method', 'route', 'status', 'duration_ms'} for line in lines)
-    assert lines[0]['request_id'] == created.headers['x-request-id'] and len({line['request_id'] for line in lines}) == 5
+    assert (
+        lines[0]['request_id'] == created.headers['x-request-id'] and len({line['request_id'] for line in lines}) == 5
+    )
     text = json.dumps(lines)
     assert 'Sentinela' not in text and 'chave-secreta' not in text and 'Maria' not in text
 
 
 def test_a_client_request_id_or_method_never_reaches_the_log(client, access_log):
-    sent = [client.get('/health', headers={'X-Request-ID': given}).headers['x-request-id']
-            for given in ('x", "status": 200', 'a' * 65, 'Maria-Silva', 'abc-123')]
+    sent = [
+        client.get('/health', headers={'X-Request-ID': given}).headers['x-request-id']
+        for given in ('x", "status": 200', 'a' * 65, 'Maria-Silva', 'abc-123')
+    ]
     refused = client.request('MARIASILVA', '/health')
     lines = access_log()
     assert [line['request_id'] for line in lines] == [*sent, refused.headers['x-request-id']]

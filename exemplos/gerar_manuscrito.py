@@ -17,6 +17,7 @@ As fontes vêm da pasta em FONTS_DIR ou, sem ela, das pastas de fontes do sistem
 Linux ou macOS). Fora do Windows, copie para uma pasta as fontes listadas em HANDS e as
 Arial (arial.ttf e arialbd.ttf) e aponte FONTS_DIR para ela.
 """
+
 import argparse
 import functools
 import io
@@ -34,7 +35,10 @@ SYSTEM_FONTS = {
     'darwin': [Path('/Library/Fonts'), Path('~/Library/Fonts'), Path('/System/Library/Fonts')],
 }
 LINUX_FONTS = [Path('/usr/share/fonts'), Path('/usr/local/share/fonts'), Path('~/.local/share/fonts'), Path('~/.fonts')]
-HANDS = {'comum': ['Inkfree.ttf', 'segoepr.ttf', 'segoesc.ttf'], 'medico': ['segoesc.ttf', 'segoescb.ttf', 'Inkfree.ttf']}
+HANDS = {
+    'comum': ['Inkfree.ttf', 'segoepr.ttf', 'segoesc.ttf'],
+    'medico': ['segoesc.ttf', 'segoescb.ttf', 'Inkfree.ttf'],
+}
 PAGE = (1000, 1300)
 MAX_BYTES = 60_000
 PAPER, INK, STAMP_INK = (246, 243, 232), (25, 45, 140), (70, 40, 150)
@@ -43,25 +47,27 @@ FIRST = ['Mariana', 'Joaquim', 'Letícia', 'Otávio', 'Bianca', 'Renato', 'Celin
 LAST = ['Quimera', 'Ficcional', 'Sentinela', 'Exemplar', 'Modelar', 'Simulado', 'Hipotético', 'Inventado']
 CLINICS = ['Aurora', 'Horizonte', 'Boreal', 'Cerrado', 'Litoral']
 # (código no catálogo, como se escreve por extenso, abreviações de receita)
-EXAMS = [('FICT-001', 'Hemograma completo', ['Hemogr.', 'Hemograma']),
-         ('FICT-002', 'Glicemia de jejum', ['Glic. jejum', 'Glicemia']),
-         ('FICT-003', 'Hemoglobina glicada', ['HbA1c', 'Hb glic.']),
-         ('FICT-004', 'Ureia', ['Ur.', 'Ureia']),
-         ('FICT-005', 'Creatinina', ['Creat.', 'Creatinina']),
-         ('FICT-006', 'Colesterol total', ['Col. total', 'CT']),
-         ('FICT-007', 'Colesterol HDL', ['HDL']),
-         ('FICT-009', 'Triglicerídeos', ['Trig.', 'TG']),
-         ('FICT-018', 'Ferritina', ['Ferrit.', 'Ferritina']),
-         ('FICT-021', 'Vitamina B12', ['Vit B12', 'B12']),
-         ('FICT-023', 'Vitamina D', ['Vit D', '25 OH vit D']),
-         ('FICT-024', 'TSH', ['TSH']),
-         ('FICT-025', 'T4 livre', ['T4L', 'T4 livre']),
-         ('FICT-048', 'PSA total', ['PSA']),
-         ('FICT-055', 'TGO', ['TGO']),
-         ('FICT-056', 'TGP', ['TGP']),
-         ('FICT-057', 'Gama GT', ['GGT']),
-         ('FICT-071', 'Proteína C reativa', ['PCR']),
-         ('FICT-090', 'Urina tipo I', ['EAS', 'Urina I'])]
+EXAMS = [
+    ('FICT-001', 'Hemograma completo', ['Hemogr.', 'Hemograma']),
+    ('FICT-002', 'Glicemia de jejum', ['Glic. jejum', 'Glicemia']),
+    ('FICT-003', 'Hemoglobina glicada', ['HbA1c', 'Hb glic.']),
+    ('FICT-004', 'Ureia', ['Ur.', 'Ureia']),
+    ('FICT-005', 'Creatinina', ['Creat.', 'Creatinina']),
+    ('FICT-006', 'Colesterol total', ['Col. total', 'CT']),
+    ('FICT-007', 'Colesterol HDL', ['HDL']),
+    ('FICT-009', 'Triglicerídeos', ['Trig.', 'TG']),
+    ('FICT-018', 'Ferritina', ['Ferrit.', 'Ferritina']),
+    ('FICT-021', 'Vitamina B12', ['Vit B12', 'B12']),
+    ('FICT-023', 'Vitamina D', ['Vit D', '25 OH vit D']),
+    ('FICT-024', 'TSH', ['TSH']),
+    ('FICT-025', 'T4 livre', ['T4L', 'T4 livre']),
+    ('FICT-048', 'PSA total', ['PSA']),
+    ('FICT-055', 'TGO', ['TGO']),
+    ('FICT-056', 'TGP', ['TGP']),
+    ('FICT-057', 'Gama GT', ['GGT']),
+    ('FICT-071', 'Proteína C reativa', ['PCR']),
+    ('FICT-090', 'Urina tipo I', ['EAS', 'Urina I']),
+]
 
 
 def font_dirs():
@@ -81,8 +87,10 @@ def font_file(name):
             found = next((path for path in sorted(folder.rglob('*')) if path.name.lower() == name.lower()), None)
             if found:
                 return found
-    raise SystemExit(f'Fonte "{name}" não encontrada em {", ".join(str(folder) for folder in font_dirs())}. '
-                     'Defina FONTS_DIR com a pasta que a contém (as de letra de mão vêm com o Windows).')
+    raise SystemExit(
+        f'Fonte "{name}" não encontrada em {", ".join(str(folder) for folder in font_dirs())}. '
+        'Defina FONTS_DIR com a pasta que a contém (as de letra de mão vêm com o Windows).'
+    )
 
 
 def font(name, size):
@@ -150,11 +158,17 @@ def stamp(page, rng, doctor, crm):
     draw.rectangle((4, 4, 415, 135), outline=255, width=4)
     for row, text in enumerate([f'Dr(a). {doctor}', f'CRM-SP {crm}', 'Clínica Médica']):
         draw.text((20, 14 + row * 40), text, font=face, fill=255)
-    holes = Image.fromarray((np.random.default_rng(rng.randrange(2**32)).random((140, 420)) > 0.25).astype('uint8') * 255)
+    holes = Image.fromarray(
+        (np.random.default_rng(rng.randrange(2**32)).random((140, 420)) > 0.25).astype('uint8') * 255
+    )
     image = Image.fromarray(np.minimum(np.asarray(image), np.asarray(holes)))  # tinta falhada
-    image = image.rotate(rng.uniform(-18, 18), expand=True, resample=Image.BICUBIC).filter(ImageFilter.GaussianBlur(1.2))
+    image = image.rotate(rng.uniform(-18, 18), expand=True, resample=Image.BICUBIC).filter(
+        ImageFilter.GaussianBlur(1.2)
+    )
     left, top = rng.randint(470, 540), rng.randint(1000, 1060)
-    page.paste(STAMP_INK, (left, top, left + image.width, top + image.height), image.point(lambda value: int(value * 0.75)))
+    page.paste(
+        STAMP_INK, (left, top, left + image.width, top + image.height), image.point(lambda value: int(value * 0.75))
+    )
 
 
 def signature(page, rng, x, y):
@@ -171,11 +185,18 @@ def order(rng, style, index):
     patient = f'{rng.choice(FIRST)} {rng.choice(LAST)} {rng.choice(LAST)}'
     doctor, cpf, crm = f'{rng.choice(FIRST)} {rng.choice(LAST)}', invalid_cpf(rng), str(rng.randint(100000, 999999))
     chosen = rng.sample(EXAMS, rng.randint(3, 5))
-    writer = {'font': rng.choice(HANDS[style]), 'size': rng.randint(40, 48) if style == 'comum' else rng.randint(36, 44)}
+    writer = {
+        'font': rng.choice(HANDS[style]),
+        'size': rng.randint(40, 48) if style == 'comum' else rng.randint(36, 44),
+    }
     page = Image.new('RGB', PAGE, PAPER)
     printed, draw = font('arial.ttf', 26), ImageDraw.Draw(page)
-    draw.text((60, 50), f'CLÍNICA FICTÍCIA {rng.choice(CLINICS).upper()} - PEDIDO DE EXAMES', font=font('arialbd.ttf', 30),
-              fill=(60, 60, 60))
+    draw.text(
+        (60, 50),
+        f'CLÍNICA FICTÍCIA {rng.choice(CLINICS).upper()} - PEDIDO DE EXAMES',
+        font=font('arialbd.ttf', 30),
+        fill=(60, 60, 60),
+    )
     for y in range(200, 1250, 70):  # pauta clara, como um bloco de receita
         draw.line((50, y + 52, 950, y + 52), fill=(200, 210, 230), width=2)
     for y, label in ((200, 'Paciente:'), (270, 'CPF:'), (340, 'Data:')):
@@ -197,8 +218,11 @@ def order(rng, style, index):
     else:
         stamp(page, rng, doctor, crm)
         signature(page, rng, 90, 1110)
-    truth = {'estilo': style, 'exames': written,
-             'sensiveis': {'paciente': patient, 'cpf': cpf, 'medico': doctor, 'crm': crm}}
+    truth = {
+        'estilo': style,
+        'exames': written,
+        'sensiveis': {'paciente': patient, 'cpf': cpf, 'medico': doctor, 'crm': crm},
+    }
     return page, truth
 
 
@@ -213,8 +237,16 @@ def perspective(page, rng, strength):
     table = Image.new('RGB', (w + 160, h + 160), tuple(rng.randint(70, 120) for _ in range(3)))
     table.paste(page, (80, 80))
     jitter = [rng.uniform(-strength, strength) * w for _ in range(8)]
-    quad = (jitter[0], jitter[1], jitter[2], h + 160 + jitter[3], w + 160 + jitter[4], h + 160 + jitter[5],
-            w + 160 + jitter[6], jitter[7])
+    quad = (
+        jitter[0],
+        jitter[1],
+        jitter[2],
+        h + 160 + jitter[3],
+        w + 160 + jitter[4],
+        h + 160 + jitter[5],
+        w + 160 + jitter[6],
+        jitter[7],
+    )
     return table.transform((w, h), Image.QUAD, quad, Image.BICUBIC)
 
 
@@ -222,7 +254,9 @@ def crumple(page, rng):
     """Papel amassado: deforma uma malha de 4 x 5 quadrados com deslocamentos pequenos."""
     w, h = page.size
     cols, rows, push = 4, 5, 10
-    offset = {(i, j): (rng.uniform(-push, push), rng.uniform(-push, push)) for i in range(cols + 1) for j in range(rows + 1)}
+    offset = {
+        (i, j): (rng.uniform(-push, push), rng.uniform(-push, push)) for i in range(cols + 1) for j in range(rows + 1)
+    }
     mesh = []
     for i in range(cols):
         for j in range(rows):
@@ -253,7 +287,9 @@ def blur(page, rng, heavy):
     if rng.random() < 0.5:  # tremido: o mesmo papel deslocado alguns pixels, em média
         shifts = [page.transform(page.size, Image.AFFINE, (1, 0, dx, 0, 1, 0)) for dx in range(-3, 4)]
         return Image.fromarray(np.mean([np.asarray(s, dtype=float) for s in shifts], axis=0).astype('uint8'))
-    return page.filter(ImageFilter.GaussianBlur(rng.uniform(1.0, 2.0) if heavy else rng.uniform(0.6, 1.2)))  # fora de foco
+    return page.filter(
+        ImageFilter.GaussianBlur(rng.uniform(1.0, 2.0) if heavy else rng.uniform(0.6, 1.2))
+    )  # fora de foco
 
 
 def degrade(page, rng, level):
@@ -280,11 +316,17 @@ def degrade(page, rng, level):
         elif effect == 'desfoque':
             page = blur(page, rng, heavy)
         elif effect == 'ruído':
-            noise = np.random.default_rng(rng.randrange(2**32)).normal(0, 10 if heavy else 6, (page.height, page.width, 1))
+            noise = np.random.default_rng(rng.randrange(2**32)).normal(
+                0, 10 if heavy else 6, (page.height, page.width, 1)
+            )
             page = Image.fromarray(np.clip(np.asarray(page, dtype=float) + noise, 0, 255).astype('uint8'))
         elif effect == 'borda cortada':
             cut = int(page.width * rng.uniform(0.03, 0.08))
-            page = page.crop((cut, 0, page.width, page.height)) if rng.random() < 0.5 else page.crop((0, 0, page.width - cut, page.height))
+            page = (
+                page.crop((cut, 0, page.width, page.height))
+                if rng.random() < 0.5
+                else page.crop((0, 0, page.width - cut, page.height))
+            )
     return page, effects, rng.randint(25, 40) if heavy else rng.randint(40, 55)
 
 
@@ -314,8 +356,11 @@ def main(argv=None):
             quality -= 5
         (out / name).write_bytes(buffer.getvalue())
         truth[name] = {**item, 'degradacao': level, 'efeitos': effects, 'jpeg_qualidade': quality}
-    truth = {'gerado_por': f'python exemplos/gerar_manuscrito.py --saida {args.saida} --comum {args.comum} '
-                           f'--medico {args.medico} --semente {args.semente}', 'imagens': truth}
+    truth = {
+        'gerado_por': f'python exemplos/gerar_manuscrito.py --saida {args.saida} --comum {args.comum} '
+        f'--medico {args.medico} --semente {args.semente}',
+        'imagens': truth,
+    }
     (out / 'gabarito.json').write_text(json.dumps(truth, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
     print(f'{len(jobs)} imagens em {out}')
 

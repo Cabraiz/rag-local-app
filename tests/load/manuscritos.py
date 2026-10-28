@@ -14,6 +14,7 @@ o OCR devolve), sem ninguém para responder [s/N]:
 - PII sobrando: valor do gabarito no texto do OCR, com o verificador da carga (precisa ser 0).
 Imprime a taxa por estilo e por degradação; sai com 1 se houver agendado errado ou PII.
 """
+
 import argparse
 import asyncio
 import json
@@ -49,8 +50,9 @@ async def decidir(agente, reply, buscas):
     contexto = Contexto()
     agente.CALLBACKS.after_tool(Ferramenta('extract_exam_text'), {}, contexto, {'structuredContent': reply})
     for query, hits in buscas:
-        agente.CALLBACKS.after_tool(Ferramenta('search_exams'), {'query': query}, contexto,
-                                     {'structuredContent': {'result': hits}})
+        agente.CALLBACKS.after_tool(
+            Ferramenta('search_exams'), {'query': query}, contexto, {'structuredContent': {'result': hits}}
+        )
     candidates = contexto.state.get('candidates', {})
     if not candidates:
         return set(), set(), set(), {}
@@ -68,8 +70,14 @@ async def avaliar(ocr, rag, agente, filename, item):
     try:
         reply = await chamar(ocr, 'extract_exam_text', {'filename': filename})
     except RuntimeError as error:
-        return {'erro': str(error), 'lidos': set(), 'perguntados': set(), 'baixa': set(), 'errados': {},
-                'vazamentos': []}
+        return {
+            'erro': str(error),
+            'lidos': set(),
+            'perguntados': set(),
+            'baixa': set(),
+            'errados': {},
+            'vazamentos': [],
+        }
     buscas = []
     for line in lidas_pelo_modelo(reply):
         query = consulta(line)
@@ -78,10 +86,15 @@ async def avaliar(ocr, rag, agente, filename, item):
     agendados, perguntados, baixa, confianca = await decidir(agente, reply, buscas)
     expected = {exam['code'] for exam in item['exames']}
     linha = {hits[0]['code']: query for query, hits in buscas if hits}
-    return {'erro': None, 'lidos': agendados & expected, 'perguntados': perguntados & expected,
-            'baixa': baixa & expected, 'perguntados_errados': perguntados - expected,
-            'errados': {code: (confianca.get(code), linha.get(code, '')) for code in agendados - expected},
-            'vazamentos': vazamentos('\n'.join(reply['lines']), item['sensiveis'])}
+    return {
+        'erro': None,
+        'lidos': agendados & expected,
+        'perguntados': perguntados & expected,
+        'baixa': baixa & expected,
+        'perguntados_errados': perguntados - expected,
+        'errados': {code: (confianca.get(code), linha.get(code, '')) for code in agendados - expected},
+        'vazamentos': vazamentos('\n'.join(reply['lines']), item['sensiveis']),
+    }
 
 
 async def rodar(itens, ocr_url, rag_url, concorrencia=4):
@@ -92,8 +105,12 @@ async def rodar(itens, ocr_url, rag_url, concorrencia=4):
         fila.put_nowait(filename)
 
     async def worker():
-        async with sse_client(ocr_url, sse_read_timeout=120) as o, ClientSession(*o) as ocr, \
-                sse_client(rag_url) as r, ClientSession(*r) as rag:
+        async with (
+            sse_client(ocr_url, sse_read_timeout=120) as o,
+            ClientSession(*o) as ocr,
+            sse_client(rag_url) as r,
+            ClientSession(*r) as rag,
+        ):
             await ocr.initialize()
             await rag.initialize()
             while not fila.empty():
@@ -121,23 +138,31 @@ def resumo(itens, results, detalhe=False):
             group['pii'] += len(found['vazamentos'])
             group['falhas'] += bool(found['erro'])
         if detalhe:
-            lines.append(f'  {filename:<16} {item["estilo"]:<6} {item["degradacao"]:<9} exames {len(item["exames"])} '
-                         f'lidos {len(found["lidos"])} perguntados {len(found["perguntados"])} '
-                         f'baixa {len(found["baixa"])} errados {len(found["errados"])} '
-                         f'PII {len(found["vazamentos"])}' + (f' falha: {found["erro"]}' if found['erro'] else ''))
+            lines.append(
+                f'  {filename:<16} {item["estilo"]:<6} {item["degradacao"]:<9} exames {len(item["exames"])} '
+                f'lidos {len(found["lidos"])} perguntados {len(found["perguntados"])} '
+                f'baixa {len(found["baixa"])} errados {len(found["errados"])} '
+                f'PII {len(found["vazamentos"])}' + (f' falha: {found["erro"]}' if found['erro'] else '')
+            )
         for code, (score, line) in found['errados'].items():
             lines.append(f'  AGENDARIA ERRADO em {filename}: {code} (confiança {score}) pela linha {line!r}')
-        lines += [f'  perguntaria (fora do pedido) em {filename}: {code}' for code in found.get('perguntados_errados', ())]
+        lines += [
+            f'  perguntaria (fora do pedido) em {filename}: {code}' for code in found.get('perguntados_errados', ())
+        ]
         lines += [f'  PII SOBROU em {filename}: {field} em {line!r}' for field, line in found['vazamentos']]
         problems += len(found['errados']) + len(found['vazamentos'])
-    header = f'{"grupo":<20} {"imagens":>7} {"exames":>6} {"lidos":>11} {"perguntados":>11} {"baixa conf.":>11} ' \
-             f'{"não lidos":>9} {"errados":>7} {"PII":>3} {"falhas OCR":>10}'
+    header = (
+        f'{"grupo":<20} {"imagens":>7} {"exames":>6} {"lidos":>11} {"perguntados":>11} {"baixa conf.":>11} '
+        f'{"não lidos":>9} {"errados":>7} {"PII":>3} {"falhas OCR":>10}'
+    )
     table = [header]
     for key in sorted(groups, key=lambda k: (k == 'todas', k)):
         g = groups[key]
         missing = g['exames'] - g['lidos'] - g['perguntados'] - g['baixa']
-        table.append(f'{key:<20} {g["imagens"]:>7} {g["exames"]:>6} {g["lidos"]:>4} ({100 * g["lidos"] / g["exames"]:3.0f}%) '
-                     f'{g["perguntados"]:>11} {g["baixa"]:>11} {missing:>9} {g["errados"]:>7} {g["pii"]:>3} {g["falhas"]:>10}')
+        table.append(
+            f'{key:<20} {g["imagens"]:>7} {g["exames"]:>6} {g["lidos"]:>4} ({100 * g["lidos"] / g["exames"]:3.0f}%) '
+            f'{g["perguntados"]:>11} {g["baixa"]:>11} {missing:>9} {g["errados"]:>7} {g["pii"]:>3} {g["falhas"]:>10}'
+        )
     return '\n'.join(table + lines), problems
 
 

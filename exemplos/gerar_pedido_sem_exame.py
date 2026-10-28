@@ -9,6 +9,7 @@ Na raiz do repositório, com as fontes DejaVu (as da imagem de testes; sem elas,
 fonte padrão e a imagem sai diferente):
     python exemplos/gerar_pedido_sem_exame.py samples/pedido-sem-exame.png
 """
+
 import random
 import sys
 from pathlib import Path

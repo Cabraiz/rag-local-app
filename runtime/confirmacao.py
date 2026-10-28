@@ -3,6 +3,7 @@ confirmation) with what the page holds besides the list, the whole list, each ex
 ones not booked, and one question. `cli run` asks it in the terminal (ask_person), `adk run`'s console and `adk web`'s
 page show the same text, and the same call resumes with the answer: only a yes to the list that call showed books.
 """
+
 import os
 import sys
 from typing import Any
@@ -21,13 +22,19 @@ def review(sure: list[Item], asked: list[Item], left_out: list[Item], order: Ord
     (`order`: its record); the exams to book (an asked one with what was read and why), then the ones not booked."""
     order = order or OrderRecord()
     read = order.ocr_read or []
-    off = ', '.join(f'linha {at + 1} "{printable(read[at])[:80]}"' for at in (order.off_list or [])[:3] if 0 <= at < len(read))
+    off = ', '.join(
+        f'linha {at + 1} "{printable(read[at])[:80]}"' for at in (order.off_list or [])[:3] if 0 <= at < len(read)
+    )
     lines = [f'Atenção: o pedido tem texto além da lista de exames{": " * bool(off)}{off}; confira o papel'] * any(
-        item.get('why') == 'page' for item in [*asked, *left_out])
+        item.get('why') == 'page' for item in [*asked, *left_out]
+    )
     lines += reading_lines(order.view() | {'low_confidence': [], 'confirmed': []})[1:] + ['Exames para agendar:']
     lines += [f'- {item["name"]} ({item["code"]})' for item in sure]
-    lines += [f'- {item["name"]} ({item["code"]}): lido "{printable(item["read"])}", confiança '
-              f'{confidence(item["confidence"])}{SAID.get(item.get("why") or "", "")}; confira' for item in asked]
+    lines += [
+        f'- {item["name"]} ({item["code"]}): lido "{printable(item["read"])}", confiança '
+        f'{confidence(item["confidence"])}{SAID.get(item.get("why") or "", "")}; confira'
+        for item in asked
+    ]
     lines += ['Não agendados:'] * bool(left_out) + [f'- {left_out_line(item, SAID)}' for item in left_out]
     count = len(sure) + len(asked)
     return '\n'.join(lines + ['Agendar este exame?' if count == 1 else f'Agendar estes {count} exames?'])

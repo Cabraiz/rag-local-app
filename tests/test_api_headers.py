@@ -1,4 +1,5 @@
 """The security headers of the API (SecurityHeaders in api/main.py) on every kind of response."""
+
 import json
 import sqlite3
 
@@ -27,7 +28,9 @@ def test_created_read_missing_and_invalid_appointments(client):
     assert_secured(client.get('/appointments/00000000-0000-0000-0000-000000000000'), 404)
     assert_secured(client.get('/appointments/nao-e-uuid'), 422)
     assert_secured(client.post('/appointments', json={'exams': []}), 422)
-    assert_secured(client.post('/appointments', content='{"exams": [', headers={'content-type': 'application/json'}), 422)
+    assert_secured(
+        client.post('/appointments', content='{"exams": [', headers={'content-type': 'application/json'}), 422
+    )
 
 
 def test_routes_without_exams_are_not_marked_no_store(client):
@@ -74,10 +77,13 @@ def test_an_unreadable_record_is_a_500_with_the_headers(tmp_path, monkeypatch):
         assert_secured(client.get(f"/appointments/{created['id']}"), 500)
 
 
-@pytest.mark.parametrize('page, asset', [
-    ('/docs', 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js'),
-    ('/redoc', 'https://cdn.jsdelivr.net/npm/redoc@2/bundles/redoc.standalone.js'),
-])
+@pytest.mark.parametrize(
+    'page, asset',
+    [
+        ('/docs', 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js'),
+        ('/redoc', 'https://cdn.jsdelivr.net/npm/redoc@2/bundles/redoc.standalone.js'),
+    ],
+)
 def test_the_docs_pages_still_load_their_cdn_assets(client, page, asset):
     """No CSP on the docs pages: their HTML loads scripts from a CDN and runs an inline one."""
     response = client.get(page)

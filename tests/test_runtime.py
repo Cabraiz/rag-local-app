@@ -1,4 +1,5 @@
 """The generated agent.py with the runtime library only, outside the repository."""
+
 import asyncio
 import shutil
 import subprocess
@@ -59,7 +60,9 @@ def bundle(tmp_path, spec_file):
 
 def test_agent_py_runs_with_the_runtime_library_alone_outside_the_repository(tmp_path):
     bundle_dir = bundle(tmp_path, SPEC_FILE)
-    done = subprocess.run([sys.executable, '-I', '-c', CHECK], cwd=bundle_dir, capture_output=True, text=True, timeout=120)
+    done = subprocess.run(
+        [sys.executable, '-I', '-c', CHECK], cwd=bundle_dir, capture_output=True, text=True, timeout=120
+    )
     assert done.returncode == 0, done.stderr
     name, booking, path, catalog_path, others = done.stdout.splitlines()[-5:]
     assert name == "clinic_scheduler ['extract', 'search', 'schedule']"
@@ -74,8 +77,13 @@ def test_agent_py_runs_with_the_runtime_library_alone_outside_the_repository(tmp
 def test_every_example_spec_imports_with_the_runtime_library_alone(tmp_path, monkeypatch, spec):
     monkeypatch.setenv('ALLOWED_HOSTS', 'ocr:8001,rag:8002,api:8000,docs:8010')  # the generic example's server
     check = "import sys; sys.path.insert(0, ''); import agent; print(agent.root_agent.name)"
-    done = subprocess.run([sys.executable, '-I', '-c', check], cwd=bundle(tmp_path, ROOT / 'specs' / spec),
-                          capture_output=True, text=True, timeout=120)
+    done = subprocess.run(
+        [sys.executable, '-I', '-c', check],
+        cwd=bundle(tmp_path, ROOT / 'specs' / spec),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
     assert done.returncode == 0, done.stderr
 
 
@@ -96,21 +104,30 @@ def test_an_api_call_that_is_not_the_checked_booking_is_refused(booking_tool):
 
 
 def test_any_tool_outside_the_roles_is_refused_and_the_booking_takes_only_exams_and_the_key():
-    callbacks, context = BookingCallbacks(ocr_tool='extract_exam_text', search_tool='search_exams',
-                                          booking_tool='create_appointment'), SimpleNamespace(state={})
+    callbacks, context = (
+        BookingCallbacks(ocr_tool='extract_exam_text', search_tool='search_exams', booking_tool='create_appointment'),
+        SimpleNamespace(state={}),
+    )
     # An MCP tool without a role (a free file name would escape the run's file token): refused.
-    reply = asyncio.run(callbacks.before_tool(SimpleNamespace(name='read_any_file'), {'filename': '/etc/passwd'}, context))
+    reply = asyncio.run(
+        callbacks.before_tool(SimpleNamespace(name='read_any_file'), {'filename': '/etc/passwd'}, context)
+    )
     assert reply == {'blocked': 'ferramenta sem papel conferido pelo runtime (read_any_file); nada foi enviado'}
     # The booking call with a field the runtime does not check (free text from the model): refused.
-    reply = asyncio.run(callbacks.before_tool(SimpleNamespace(name='create_appointment'), {'exams': [], 'notas': 'x'}, context))
+    reply = asyncio.run(
+        callbacks.before_tool(SimpleNamespace(name='create_appointment'), {'exams': [], 'notas': 'x'}, context)
+    )
     assert reply == {'blocked': 'campo(s) fora do agendamento conferido: notas'}
 
 
-@pytest.mark.parametrize('response, kept', [
-    ({'appointment_id': 'a1'}, True),  # any answer that is not an error is the run's appointment
-    ({'error': 'Tool create_appointment execution failed. Status Code: 500'}, False),
-    ({'blocked': 'nenhum exame com confiança suficiente para agendar'}, False),
-])
+@pytest.mark.parametrize(
+    'response, kept',
+    [
+        ({'appointment_id': 'a1'}, True),  # any answer that is not an error is the run's appointment
+        ({'error': 'Tool create_appointment execution failed. Status Code: 500'}, False),
+        ({'blocked': 'nenhum exame com confiança suficiente para agendar'}, False),
+    ],
+)
 def test_the_runs_one_appointment_is_any_successful_answer(response, kept):
     callbacks, context = BookingCallbacks(booking_tool='create_appointment'), SimpleNamespace(state={})
     callbacks.after_tool(SimpleNamespace(name='create_appointment'), {}, context, response)

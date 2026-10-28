@@ -1,6 +1,7 @@
 """What of the person's message reaches the model: the image only by a token (a file name can carry a
 patient's name), the message as the one `cli run` sends, and only text and tool calls in each part.
 """
+
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -40,8 +41,9 @@ def fields_of(part: types.Part) -> set[str]:
 def accepted(part: types.Part) -> bool:
     """A part a person may send: text only, or the answer to the question."""
     fields = fields_of(part)
-    return fields == {'text'} or (fields == {'function_response'}
-                                  and getattr(part.function_response, 'name', None) == CONFIRMATION)
+    return fields == {'text'} or (
+        fields == {'function_response'} and getattr(part.function_response, 'name', None) == CONFIRMATION
+    )
 
 
 def only_allowed(part: types.Part) -> types.Part:
@@ -60,7 +62,9 @@ def scrub(llm_request: LlmRequest, sent: list[types.Part], token: str | None, re
     for content in llm_request.contents:
         parts = [only_allowed(part) for part in content.parts or [] if part not in others]
         content.parts = parts or [types.Part(text='[parte removida]')]
-    for part, text in ((part, part.text) for content in llm_request.contents for part in content.parts or [] if part.text):
+    for part, text in (
+        (part, part.text) for content in llm_request.contents for part in content.parts or [] if part.text
+    ):
         if text in typed:
             part.text = f'Arquivo do pedido: {token}' if token else '[mensagem]'
         elif token and real and real in text:
@@ -84,5 +88,9 @@ def without_file_name(response: dict[str, Any], order: 'OrderRecord') -> dict[st
     texts = [item for item in response.get('content', []) if isinstance(item, dict) and 'text' in item]
     if not (token and real) or not any(real in item['text'] for item in texts):
         return None
-    return response | {'content': [item | {'text': item['text'].replace(real, token)} if item in texts else item
-                                   for item in response['content']]}
+    return response | {
+        'content': [
+            item | {'text': item['text'].replace(real, token)} if item in texts else item
+            for item in response['content']
+        ]
+    }

@@ -4,6 +4,7 @@ O mesmo código de tests/load/manuscritos.py (as 30 rodam com o compose da carga
 RAG em processo, como em test_manuscritos.py. Nada fora do pedido pode ser agendado sem
 perguntar e nenhuma PII do gabarito pode sobrar no texto do OCR.
 """
+
 import re
 import shutil
 from pathlib import Path

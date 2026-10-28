@@ -5,6 +5,7 @@ Runs only when asked, in the compose `tests-e2e` service (ocr, rag and api up, t
 The `tests` service never gets the key, so the full suite skips this test; `tests-e2e` sets
 E2E_REQUIRED, and there a missing key is a failure, so the run cannot look like a pass.
 """
+
 import os
 import re
 from pathlib import Path

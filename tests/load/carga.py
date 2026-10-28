@@ -9,6 +9,7 @@ exames lidos vão ao RAG (MCP via SSE) e, com os códigos, a um POST na API. No 
 agendamento é lido de volta (GET) e os bytes do SQLite e do WAL são conferidos sem
 decifrar. Sai com código 1 se houver vazamento ou se algum pedido não puder ser conferido.
 """
+
 import argparse
 import asyncio
 import contextlib
@@ -36,7 +37,9 @@ MARKER = r'^\s*(?:\d+\s*[.)]|[-–•*])\s*'  # "1." "2)" "-" "•" no início d
 EXAM_LINE = re.compile(MARKER + r'(?P<exame>\S.*)$')
 # Gerados pela API, não vêm do pedido: os dígitos de um UUID ou de um horário batem por acaso
 # com algum CRM de 6 dígitos.
-API_GENERATED = re.compile(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}|\d{4}-\d{2}-\d{2}T[\d:.]+(?:[+-]\d{2}:\d{2}|Z)?')
+API_GENERATED = re.compile(
+    r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}|\d{4}-\d{2}-\d{2}T[\d:.]+(?:[+-]\d{2}:\d{2}|Z)?'
+)
 
 
 plain = catalogo.words  # sem acento, sem caixa, só palavras: "José da Silva!" -> "jose da silva"
@@ -94,8 +97,15 @@ SESSION_TRIES = 3  # tentativas seguidas de abrir ou fechar uma sessão MCP ante
 
 def falha(item, error):
     """Métricas de um pedido que não pôde ser conferido: falha contada, nunca uma carga travada."""
-    return {'erro': error, 'vazamentos': [], 'nao_lidos': [exam['name'] for exam in item['exames']],
-            'mascarados': {}, 'ocr_s': None, 'codigos_certos': 0, 'agendado': False}
+    return {
+        'erro': error,
+        'vazamentos': [],
+        'nao_lidos': [exam['name'] for exam in item['exames']],
+        'mascarados': {},
+        'ocr_s': None,
+        'codigos_certos': 0,
+        'agendado': False,
+    }
 
 
 async def um_pedido(ocr, rag, api, filename, item):
@@ -111,8 +121,15 @@ async def um_pedido(ocr, rag, api, filename, item):
     texto = '\n'.join(reply['lines'])
     lidos = f' {plain(texto)} '
     nao_lidos = [exam['name'] for exam in item['exames'] if f' {plain(exam["name"])} ' not in lidos]
-    found = {'erro': None, 'vazamentos': vazamentos(texto, item['sensiveis']), 'nao_lidos': nao_lidos,
-             'mascarados': reply['pii_masked'], 'ocr_s': ocr_seconds, 'codigos_certos': 0, 'agendado': False}
+    found = {
+        'erro': None,
+        'vazamentos': vazamentos(texto, item['sensiveis']),
+        'nao_lidos': nao_lidos,
+        'mascarados': reply['pii_masked'],
+        'ocr_s': ocr_seconds,
+        'codigos_certos': 0,
+        'agendado': False,
+    }
     if rag is None:
         return found
     try:  # RAG e API: um erro aqui é falha deste pedido; a conferência do OCR acima fica
@@ -164,15 +181,21 @@ async def rodar(manifesto, ocr_url, rag_url=None, api_url=None, concorrencia=8):
         while not acabou.is_set():  # sessões novas a cada vez que uma morre
             abrindo.add(asyncio.current_task())
             try:
-                async with sse_client(ocr_url, sse_read_timeout=120) as ocr_streams, \
-                        ClientSession(*ocr_streams, read_timeout_seconds=CALL_SECONDS) as ocr:
+                async with (
+                    sse_client(ocr_url, sse_read_timeout=120) as ocr_streams,
+                    ClientSession(*ocr_streams, read_timeout_seconds=CALL_SECONDS) as ocr,
+                ):
                     await ocr.initialize()
                     if rag_url is None:
                         await consumir(ocr, None, None)
                     else:
-                        async with sse_client(rag_url, sse_read_timeout=120) as rag_streams, \
-                                ClientSession(*rag_streams, read_timeout_seconds=CALL_SECONDS) as rag, \
-                                httpx.AsyncClient(base_url=api_url, timeout=30) if api_url else contextlib.nullcontext() as api:
+                        async with (
+                            sse_client(rag_url, sse_read_timeout=120) as rag_streams,
+                            ClientSession(*rag_streams, read_timeout_seconds=CALL_SECONDS) as rag,
+                            httpx.AsyncClient(base_url=api_url, timeout=30)
+                            if api_url
+                            else contextlib.nullcontext() as api,
+                        ):
                             await rag.initialize()
                             await consumir(ocr, rag, api)
                 falhas = 0
@@ -190,8 +213,7 @@ async def rodar(manifesto, ocr_url, rag_url=None, api_url=None, concorrencia=8):
             if filename is None:
                 return
             try:
-                found = await asyncio.wait_for(um_pedido(ocr, rag, api, filename, manifesto[filename]),
-                                               PEDIDO_SECONDS)
+                found = await asyncio.wait_for(um_pedido(ocr, rag, api, filename, manifesto[filename]), PEDIDO_SECONDS)
             except Exception as error:  # noqa: BLE001 - tempo esgotado: a sessão pode ter ficado presa
                 found = {**falha(manifesto[filename], f'{type(error).__name__}: {error}'[:200]), 'sessao': True}
             tries[filename] = tries.get(filename, 0) + 1
@@ -229,8 +251,11 @@ def banco_em_claro(db_path, manifesto, results):
     (o CID, curto demais, coincidiria por acaso com um pedaço do texto cifrado). Devolve
     [(o que, pedido, valor)].
     """
-    raw = b''.join(Path(f'{db_path}{suffix}').read_bytes() for suffix in ('', '-wal', '-shm')
-                   if Path(f'{db_path}{suffix}').exists())
+    raw = b''.join(
+        Path(f'{db_path}{suffix}').read_bytes()
+        for suffix in ('', '-wal', '-shm')
+        if Path(f'{db_path}{suffix}').exists()
+    )
     text = API_GENERATED.sub(' ', raw.decode('utf-8', errors='replace'))
     tokens = set(plain(text).split())
     numbers = [re.sub(r'\D', '', run) for run in NUMBER_RUN.findall(text)]
@@ -238,8 +263,10 @@ def banco_em_claro(db_path, manifesto, results):
     for filename, item in results.items():
         if not item['agendado']:
             continue
-        values = {**manifesto[filename]['sensiveis'],
-                  **{f'exame {exam["code"]}': exam['name'] for exam in manifesto[filename]['exames']}}
+        values = {
+            **manifesto[filename]['sensiveis'],
+            **{f'exame {exam["code"]}': exam['name'] for exam in manifesto[filename]['exames']},
+        }
         for field, value in values.items():
             if field in DOCUMENTOS:
                 leak = any(re.sub(r'\D', '', value) in number for number in numbers)
@@ -258,12 +285,14 @@ async def conferir_api(api_url, results, concorrencia=8):
     booked = {filename: item for filename, item in results.items() if item['agendado']}
     limit = asyncio.Semaphore(concorrencia)
     async with httpx.AsyncClient(base_url=api_url, timeout=30) as api:
+
         async def same(item):
             async with limit:
                 response = await api.get(f'/appointments/{item["agendado"]}')
             if response.status_code != 200:
                 return False
             return sorted(exam['code'] for exam in response.json()['exams']) == item['enviados']
+
         checks = await asyncio.gather(*(same(item) for item in booked.values()), return_exceptions=True)
     return [filename for filename, ok in zip(booked, checks, strict=True) if ok is not True]
 
@@ -296,24 +325,34 @@ def resumo(manifesto, results, seconds, banco=None, diferentes=None, sessoes=Non
     latency = sorted(item['ocr_s'] for item in found if item['ocr_s'] is not None) or [0.0]
     errors = [item['erro'] for item in found if item['erro']]
     booked = sum(bool(item['agendado']) for item in found)
-    rows = [('Pedidos', f'{len(results)}'),
-            ('Campos sensíveis impressos', f'{sum(len(item["sensiveis"]) for item in manifesto.values())}'),
-            ('Mascarados pelo OCR, por tipo', ' · '.join(f'{k} {v}' for k, v in sorted(masked.items()))),
-            ('Falhas do OCR', f'{len(errors)}' + (f' (ex.: {errors[0]})' if errors else '')),
-            ('Vazamentos', f'{len(leaks)}'),
-            ('Exames preservados', f'{kept}/{exams} ({100 * kept / exams:.1f}%)'),
-            ('Códigos certos no RAG', f'{right}/{exams} ({100 * right / exams:.1f}%)'),
-            ('Agendados na API', f'{booked}' + ('' if diferentes is None else
-                                                f'; lidos de volta (GET) iguais ao enviado: {booked - len(diferentes)}')),
-            ('SQLite em bytes (banco e WAL)', 'não conferido (sem o volume api-data)' if banco is None
-             else f'{len(banco)} em claro (código FICT, exame ou valor sensível)'),
-            ('Latência do OCR p50 / p95', f'{percentil(latency, 50):.2f} s / {percentil(latency, 95):.2f} s'),
-            ('Vazão', f'{len(results) / seconds:.2f} pedidos/s ({seconds:.0f} s no total)')]
+    rows = [
+        ('Pedidos', f'{len(results)}'),
+        ('Campos sensíveis impressos', f'{sum(len(item["sensiveis"]) for item in manifesto.values())}'),
+        ('Mascarados pelo OCR, por tipo', ' · '.join(f'{k} {v}' for k, v in sorted(masked.items()))),
+        ('Falhas do OCR', f'{len(errors)}' + (f' (ex.: {errors[0]})' if errors else '')),
+        ('Vazamentos', f'{len(leaks)}'),
+        ('Exames preservados', f'{kept}/{exams} ({100 * kept / exams:.1f}%)'),
+        ('Códigos certos no RAG', f'{right}/{exams} ({100 * right / exams:.1f}%)'),
+        (
+            'Agendados na API',
+            f'{booked}'
+            + ('' if diferentes is None else f'; lidos de volta (GET) iguais ao enviado: {booked - len(diferentes)}'),
+        ),
+        (
+            'SQLite em bytes (banco e WAL)',
+            'não conferido (sem o volume api-data)'
+            if banco is None
+            else f'{len(banco)} em claro (código FICT, exame ou valor sensível)',
+        ),
+        ('Latência do OCR p50 / p95', f'{percentil(latency, 50):.2f} s / {percentil(latency, 95):.2f} s'),
+        ('Vazão', f'{len(results) / seconds:.2f} pedidos/s ({seconds:.0f} s no total)'),
+    ]
     if sessoes is not None:  # aviso, não falha: uma sessão que não fecha não muda nenhum pedido
         rows.append(('Sessões MCP que quebraram / não fecharam', f'{sessoes["quebraram"]} / {sessoes["nao_fecharam"]}'))
     width = max(len(label) for label, _ in rows)
-    lines = [f'{label if i == 0 else "":<{width}}  {part}'
-             for label, value in rows for i, part in enumerate(quebrar(value))]
+    lines = [
+        f'{label if i == 0 else "":<{width}}  {part}' for label, value in rows for i, part in enumerate(quebrar(value))
+    ]
     for filename, item in sorted(results.items()):
         lines += [f'  VAZOU {field} em {filename}: {line}' for field, line in item['vazamentos']]
         lines += [f'  exame não lido em {filename}: {name}' for name in item['nao_lidos']]

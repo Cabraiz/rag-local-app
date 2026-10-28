@@ -7,6 +7,7 @@ that are not exams). `expected` is the right code, or null when nothing should b
 `score` is the RAG score recorded when the threshold was chosen. "Somatomedina C" was first
 labelled as not an exam; it is the other name of IGF-1 (FICT-045) and is labelled so.
 """
+
 import json
 import re
 from pathlib import Path
@@ -15,7 +16,9 @@ from mcp_servers import rag
 from runtime.confianca import BookingPolicy
 
 ROOT = Path(__file__).resolve().parents[1]
-QUERIES = [json.loads(line) for line in (ROOT / 'tests/calibration/queries.jsonl').read_text(encoding='utf-8').splitlines()]
+QUERIES = [
+    json.loads(line) for line in (ROOT / 'tests/calibration/queries.jsonl').read_text(encoding='utf-8').splitlines()
+]
 # The threshold the generated agent uses (runtime's booking policy), so the test follows the code.
 THRESHOLD = BookingPolicy().min_confidence
 MIN_RECALL = 0.84  # the share of right matches kept, as stated in docs/arquitetura.md
@@ -27,8 +30,10 @@ def top_hit(query):
 
 
 def test_calibration_set_has_no_personal_data():
-    personal = re.compile(r'\d{3}\.\d{3}\.\d{3}|\d{4,5}-\d{4}|\d{2}/\d{2}/\d{4}|@|'
-                          r'(?i:paciente|cpf|telefone|e-?mail|crm|nascimento|conv[eê]nio|m[eé]dic[oa])')
+    personal = re.compile(
+        r'\d{3}\.\d{3}\.\d{3}|\d{4,5}-\d{4}|\d{2}/\d{2}/\d{4}|@|'
+        r'(?i:paciente|cpf|telefone|e-?mail|crm|nascimento|conv[eê]nio|m[eé]dic[oa])'
+    )
     assert len(QUERIES) == 631
     assert not [q['query'] for q in QUERIES if personal.search(q['query'])]
 

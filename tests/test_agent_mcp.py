@@ -7,6 +7,7 @@ The idle wait also holds a raw HTTP/1.1 connection to each server: it must still
 the server closed the connection was lost and the agent's tool call waited for its read timeout
 (python-sdk #906); the servers now keep idle connections for 75 s.
 """
+
 import asyncio
 import importlib.util
 import os
@@ -54,10 +55,18 @@ def servers():
     for port in SERVERS.values():
         require_free(port)
     env = {**os.environ, 'SAMPLES_DIR': str(ROOT / 'samples')}
-    processes = [subprocess.Popen([sys.executable, '-m', f'mcp_servers.{name}'], cwd=ROOT, env=env, shell=False,
-                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                  creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-                 for name in SERVERS]
+    processes = [
+        subprocess.Popen(
+            [sys.executable, '-m', f'mcp_servers.{name}'],
+            cwd=ROOT,
+            env=env,
+            shell=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+        )
+        for name in SERVERS
+    ]
     try:
         for name, port in SERVERS.items():
             deadline = time.monotonic() + 60  # generous: a busy machine starts the servers slowly
@@ -84,7 +93,9 @@ async def health(reader, writer, port):
         head = await reader.readuntil(b'\r\n\r\n')
     except (asyncio.IncompleteReadError, ConnectionError):
         return None
-    length = next(int(line.split(b':')[1]) for line in head.split(b'\r\n') if line.lower().startswith(b'content-length'))
+    length = next(
+        int(line.split(b':')[1]) for line in head.split(b'\r\n') if line.lower().startswith(b'content-length')
+    )
     await reader.readexactly(length)
     return head.split(b'\r\n', 1)[0].decode()
 
@@ -96,35 +107,41 @@ def test_agent_tools_answer_again_after_the_sessions_sit_idle(servers):
 
     async def run():
         # the same toolsets the generated agent declares, pointed at the local servers
-        toolsets = {name: McpToolset(connection_params=SseConnectionParams(url=servers[name]), tool_filter=[tool])
-                    for name, tool in (('ocr', 'extract_exam_text'), ('rag', 'search_exams'))}
+        toolsets = {
+            name: McpToolset(connection_params=SseConnectionParams(url=servers[name]), tool_filter=[tool])
+            for name, tool in (('ocr', 'extract_exam_text'), ('rag', 'search_exams'))
+        }
         arguments = {'ocr': {'filename': 'pedido.png'}, 'rag': {'query': 'Glicose', 'top_k': 1}}
         try:
             tools = {name: await toolset.get_tools() for name, toolset in toolsets.items()}
-            assert {name: [tool.name for tool in found] for name, found in tools.items()} == \
-                {'ocr': ['extract_exam_text'], 'rag': ['search_exams']}
+            assert {name: [tool.name for tool in found] for name, found in tools.items()} == {
+                'ocr': ['extract_exam_text'],
+                'rag': ['search_exams'],
+            }
 
             async def call_both():
-                replies = {name: await tools[name][0].run_async(args=arguments[name], tool_context=context)
-                           for name in tools}
+                replies = {
+                    name: await tools[name][0].run_async(args=arguments[name], tool_context=context) for name in tools
+                }
                 return {name: mcp_payload(reply) for name, reply in replies.items()}
 
             first = await call_both()
             assert 'Exame: Creatinina' in first['ocr']['lines']
-            assert first['rag'] == [{'code': 'FICT-002', 'name': 'Glicemia de jejum', 'score': 1.0,
-                                     'term': 'Glicose'}]
+            assert first['rag'] == [{'code': 'FICT-002', 'name': 'Glicemia de jejum', 'score': 1.0, 'term': 'Glicose'}]
 
             raw = {name: await asyncio.open_connection('127.0.0.1', port) for name, port in SERVERS.items()}
-            assert {name: await health(*raw[name], SERVERS[name]) for name in raw} == \
-                {name: 'HTTP/1.1 200 OK' for name in raw}
+            assert {name: await health(*raw[name], SERVERS[name]) for name in raw} == {
+                name: 'HTTP/1.1 200 OK' for name in raw
+            }
             await asyncio.sleep(IDLE_SECONDS)
             still_open = {name: await health(*raw[name], SERVERS[name]) for name in raw}
             for _, writer in raw.values():
                 writer.close()
 
             assert await call_both() == first  # same sessions, same answers after the idle wait
-            assert still_open == {name: 'HTTP/1.1 200 OK' for name in raw}, \
+            assert still_open == {name: 'HTTP/1.1 200 OK' for name in raw}, (
                 'a server closed an idle connection before the clients drop it (5 s): keep KEEP_ALIVE_SECONDS'
+            )
         finally:
             for toolset in toolsets.values():
                 await toolset.close()

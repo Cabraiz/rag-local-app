@@ -9,6 +9,7 @@ Arguments are key=value pairs (the same in PowerShell 5.1 and Bash); a single JS
 object ('{"filename": "pedido.png"}') is still accepted. Numbers and true/false become
 JSON values; anything else is text. Problems end in one "Erro: ..." line, exit code 2.
 """
+
 import asyncio
 import json
 import sys
@@ -98,8 +99,10 @@ if __name__ == '__main__':
     except UsageError as error:
         print(f'Erro: {error}', file=sys.stderr)
     except OSError as error:  # connection refused, DNS, timeout: the stack is not up
-        print(f'Erro: servidor MCP fora do ar ({type(error).__name__}); suba com docker compose up -d --wait',
-              file=sys.stderr)
+        print(
+            f'Erro: servidor MCP fora do ar ({type(error).__name__}); suba com docker compose up -d --wait',
+            file=sys.stderr,
+        )
     except Exception as error:  # an unexpected failure is still one line, not a traceback
         print(f'Erro: a chamada MCP falhou ({type(error).__name__}: {str(error)[:200]})', file=sys.stderr)
     sys.exit(2)

@@ -16,6 +16,7 @@ Escreve samples/fotos-celular/foto-01.jpg ... e gabarito.json no formato de samp
 então tests/load/manuscritos.py as mede pelo OCR, pelo RAG e pela regra do agente:
     ... run --rm tests python -m tests.load.manuscritos --origem samples/fotos-celular --detalhe
 """
+
 import argparse
 import io
 import json
@@ -54,10 +55,22 @@ def curvar(page, rng, amplitude):
     w, h = page.size
     strips, phase = 48, rng.uniform(-0.3, 0.3)
     drop = [amplitude * math.sin(math.pi * (i / strips + phase)) for i in range(strips + 1)]
-    mesh = [((i * w // strips, 0, (i + 1) * w // strips, h),
-             (i * w // strips, -drop[i], i * w // strips, h - drop[i],
-              (i + 1) * w // strips, h - drop[i + 1], (i + 1) * w // strips, -drop[i + 1]))
-            for i in range(strips)]
+    mesh = [
+        (
+            (i * w // strips, 0, (i + 1) * w // strips, h),
+            (
+                i * w // strips,
+                -drop[i],
+                i * w // strips,
+                h - drop[i],
+                (i + 1) * w // strips,
+                h - drop[i + 1],
+                (i + 1) * w // strips,
+                -drop[i + 1],
+            ),
+        )
+        for i in range(strips)
+    ]
     return page.convert('RGBA').transform(page.size, Image.MESH, mesh, Image.BICUBIC, fillcolor=(0, 0, 0, 0))
 
 
@@ -121,8 +134,11 @@ def fotografar(page, rng, level):
         light = ImageChops.multiply(light, sombra(photo.size, rng, p['sombra']))
         effects.append('sombra')
     photo = ImageChops.multiply(photo, light.convert('RGB'))
-    tint = (255, rng.randrange(238, 252), rng.randrange(215, 245)) if rng.random() < 0.6 else \
-        (rng.randrange(225, 245), rng.randrange(238, 250), 255)  # lâmpada quente ou luz do dia
+    tint = (
+        (255, rng.randrange(238, 252), rng.randrange(215, 245))
+        if rng.random() < 0.6
+        else (rng.randrange(225, 245), rng.randrange(238, 250), 255)
+    )  # lâmpada quente ou luz do dia
     photo = ImageChops.multiply(photo, Image.new('RGB', photo.size, tint))
     long_side = rng.randrange(1200, 2001)
     scale = long_side / max(photo.size)
@@ -141,9 +157,19 @@ def foto(seed, index):
     sensiveis = dados(rng)
     data, effects, quality, size = fotografar(impresso(rng, linhas(rng, sensiveis, exames, layout), layout), rng, level)
     codes = {exam['name']: exam['code'] for exam in EXAMS}
-    return f'foto-{index:02d}.jpg', data, {
-        'estilo': LAYOUTS[layout], 'degradacao': level, 'efeitos': effects, 'jpeg_qualidade': quality, 'tamanho': size,
-        'exames': [{'code': codes[e], 'name': e} for e in exames], 'sensiveis': sensiveis}
+    return (
+        f'foto-{index:02d}.jpg',
+        data,
+        {
+            'estilo': LAYOUTS[layout],
+            'degradacao': level,
+            'efeitos': effects,
+            'jpeg_qualidade': quality,
+            'tamanho': size,
+            'exames': [{'code': codes[e], 'name': e} for e in exames],
+            'sensiveis': sensiveis,
+        },
+    )
 
 
 def main(argv=None):
@@ -159,10 +185,16 @@ def main(argv=None):
         filename, data, item = foto(args.semente, index)
         (out / filename).write_bytes(data)
         truth[filename] = item
-        print(f'{filename} {item["estilo"]:<12} {item["degradacao"]:<6} {item["tamanho"]} {len(data):>7} bytes', flush=True)
+        print(
+            f'{filename} {item["estilo"]:<12} {item["degradacao"]:<6} {item["tamanho"]} {len(data):>7} bytes',
+            flush=True,
+        )
     command = f'python -m tests.load.fotos --saida {args.saida} --n {args.n} --semente {args.semente}'
-    (out / 'gabarito.json').write_text(json.dumps({'gerado_por': command, 'imagens': truth}, ensure_ascii=False, indent=1)
-                                       + '\n', encoding='utf-8', newline='\n')
+    (out / 'gabarito.json').write_text(
+        json.dumps({'gerado_por': command, 'imagens': truth}, ensure_ascii=False, indent=1) + '\n',
+        encoding='utf-8',
+        newline='\n',
+    )
 
 
 if __name__ == '__main__':

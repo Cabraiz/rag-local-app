@@ -7,6 +7,7 @@ and the addresses checked are the ones used, for one `cli run` (pinned_names) or
 tool and the MCP SDK each take an httpx client factory, and each gets one here (client, mcp_client) whose
 transport connects to the address checked, the name kept for the Host header and TLS.
 """
+
 import contextlib
 import ipaddress
 import os
@@ -29,8 +30,10 @@ ALLOWED_HOST = re.compile(r'[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?')  # "host
 # (fd00:ec2::254 is AWS's metadata), the shared 100.64.0.0/10 (100.100.100.200 is Alibaba Cloud's)
 # and Azure's 168.63.129.16. Private IPv4 stays allowed: it is where Docker puts the compose services.
 LOCAL_NETWORKS = [ipaddress.ip_network(network) for network in ('fc00::/7', '100.64.0.0/10', '168.63.129.16/32')]
-REFUSED = ('um endereço local ou de metadados de nuvem (ex.: 127.0.0.1, 169.254.169.254, fd00:ec2::254); só um host '
-           'escrito como esse endereço (IP ou localhost) e listado em ALLOWED_HOSTS pode apontar para ele')
+REFUSED = (
+    'um endereço local ou de metadados de nuvem (ex.: 127.0.0.1, 169.254.169.254, fd00:ec2::254); só um host '
+    'escrito como esse endereço (IP ou localhost) e listado em ALLOWED_HOSTS pode apontar para ele'
+)
 
 PINS: dict[str, list[str]] | None = None  # name -> addresses checked, while names are pinned
 SCOPE: str | None = None  # 'run' inside pinned_names() (cli run), 'process' after check_urls (adk run/web)
@@ -64,16 +67,23 @@ def check_host(url: str) -> None:
     hosts = allowed_hosts()
     if not host_allowed(url, hosts):
         host, port = host_and_port(url)
-        raise ValueError(f'host "{host}:{port}" fora de ALLOWED_HOSTS ({",".join(hosts)}); '
-                         'gere o agent.py de novo ou inclua o host em ALLOWED_HOSTS')
+        raise ValueError(
+            f'host "{host}:{port}" fora de ALLOWED_HOSTS ({",".join(hosts)}); '
+            'gere o agent.py de novo ou inclua o host em ALLOWED_HOSTS'
+        )
 
 
 def unsafe(address: str) -> bool:
     """A local or cloud metadata address, also written as IPv4 inside IPv6."""
     ip = ipaddress.ip_address(address.split('%')[0])
     ip = getattr(ip, 'ipv4_mapped', None) or ip
-    return (ip.is_loopback or ip.is_link_local or ip.is_unspecified or ip.is_multicast
-            or any(ip in network for network in LOCAL_NETWORKS if network.version == ip.version))
+    return (
+        ip.is_loopback
+        or ip.is_link_local
+        or ip.is_unspecified
+        or ip.is_multicast
+        or any(ip in network for network in LOCAL_NETWORKS if network.version == ip.version)
+    )
 
 
 def host_of(url: str) -> str | None:
@@ -132,7 +142,9 @@ def check_urls(urls: Iterable[str]) -> list[str]:
             return []
         if PINS is None or SCOPE is None:
             PINS, SCOPE = {}, 'process'
-        return [f'{url}: "{host}" resolve para {", ".join(bad)}, {REFUSED}' for url, (host, bad) in pin(urls, PINS).items()]
+        return [
+            f'{url}: "{host}" resolve para {", ".join(bad)}, {REFUSED}' for url, (host, bad) in pin(urls, PINS).items()
+        ]
 
 
 def pinned(request: Any, refused: Callable[..., Exception]) -> Any:
@@ -146,8 +158,13 @@ def pinned(request: Any, refused: Callable[..., Exception]) -> Any:
         return request
     if not addresses:
         raise refused(f'"{host}" não resolveu no início da execução', request=request)
-    return type(request)(request.method, request.url.copy_with(host=addresses[0]), headers=request.headers,
-                         stream=request.stream, extensions={**request.extensions, 'sni_hostname': host})
+    return type(request)(
+        request.method,
+        request.url.copy_with(host=addresses[0]),
+        headers=request.headers,
+        stream=request.stream,
+        extensions={**request.extensions, 'sni_hostname': host},
+    )
 
 
 class Pinned(httpx.AsyncHTTPTransport):
@@ -164,8 +181,10 @@ def client(**kwargs: Any) -> httpx.AsyncClient:
     return httpx.AsyncClient(transport=Pinned(), **kwargs)
 
 
-def mcp_client(headers: dict[str, str] | None = None, timeout: httpx2.Timeout | None = None,
-               auth: httpx2.Auth | None = None) -> httpx2.AsyncClient:
+def mcp_client(
+    headers: dict[str, str] | None = None, timeout: httpx2.Timeout | None = None, auth: httpx2.Auth | None = None
+) -> httpx2.AsyncClient:
     """The MCP SDK's client (create_mcp_http_client, with its default timeouts) over the pinned addresses."""
-    return httpx2.AsyncClient(headers=headers, timeout=timeout or httpx2.Timeout(30.0, read=300.0), auth=auth,
-                              transport=PinnedMcp())
+    return httpx2.AsyncClient(
+        headers=headers, timeout=timeout or httpx2.Timeout(30.0, read=300.0), auth=auth, transport=PinnedMcp()
+    )

@@ -1,6 +1,7 @@
 """One generated file, one behaviour: what `cli run` and `adk run` / `adk web` share, and what a long
 `adk web` process needs (a bounded memory of orders, locks that work across event loops, a quiet
 console)."""
+
 import asyncio
 import json
 import os
@@ -28,8 +29,15 @@ def test_adk_runs_console_shows_no_experimental_notices(tmp_path):
     # confirmation, pluggable auth) on stderr; the generated folder imports runtime first, which silences them.
     transpile(ROOT / 'specs' / 'agent.json', tmp_path / 'generated' / 'agent.py')
     environment = {**os.environ, 'PYTHONPATH': str(ROOT), 'ADK_DISABLE_LOAD_DOTENV': '1', 'PYTHONWARNINGS': 'default'}
-    done = subprocess.run([sys.executable, '-m', 'google.adk.cli', 'run', '--in_memory', 'generated'], cwd=tmp_path,
-                          input='exit\n', capture_output=True, text=True, timeout=120, env=environment)
+    done = subprocess.run(
+        [sys.executable, '-m', 'google.adk.cli', 'run', '--in_memory', 'generated'],
+        cwd=tmp_path,
+        input='exit\n',
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env=environment,
+    )
     assert 'Running agent clinic_scheduler' in done.stdout, done.stdout + done.stderr
     assert '[EXPERIMENTAL]' not in done.stdout + done.stderr
 
@@ -39,8 +47,14 @@ def console_of_adk_run(folder, home):
     `exit` typed twice: once for a telemetry question, if one came, then for the agent."""
     master, terminal = pty.openpty()
     environment = {**os.environ, 'PYTHONPATH': str(ROOT), 'ADK_DISABLE_LOAD_DOTENV': '1', 'HOME': str(home)}
-    process = subprocess.Popen([sys.executable, '-m', 'google.adk.cli', 'run', '--in_memory', 'generated'], cwd=folder,
-                               env=environment, stdin=terminal, stdout=terminal, stderr=terminal)
+    process = subprocess.Popen(
+        [sys.executable, '-m', 'google.adk.cli', 'run', '--in_memory', 'generated'],
+        cwd=folder,
+        env=environment,
+        stdin=terminal,
+        stdout=terminal,
+        stderr=terminal,
+    )
     os.close(terminal)
     os.write(master, b'exit\nexit\n')
     shown = b''
@@ -80,7 +94,9 @@ def test_without_anyone_to_answer_the_record_leaves_the_middle_band_out():
     two_medium_exams(callbacks, ask=False)
     reply = asyncio.run(callbacks.before_tool(tool, {'exams': [{'code': 'A'}]}, call(state, 'c1')))
     # the reason is the missing yes, not the confidence (an independent run-through: a handwritten order with --yes)
-    assert reply == {'blocked': 'nenhum exame pode ser agendado sem a confirmação da lista: rode num terminal, sem --yes, para responder'}
+    assert reply == {
+        'blocked': 'nenhum exame pode ser agendado sem a confirmação da lista: rode num terminal, sem --yes, para responder'
+    }
     assert [(item['code'], item['reason']) for item in state['low_confidence']] == [('A', 'needs_confirmation')]
 
 
@@ -109,8 +125,14 @@ def test_the_contract_is_fetched_under_a_lock_of_each_event_loop(monkeypatch):
     # adk web serves requests on several threads and loops; an asyncio.Lock made once belongs to the
     # first loop that waits on it, and a second loop waiting on it fails.
     monkeypatch.setenv('ALLOWED_HOSTS', '127.0.0.1')
-    toolset, loads = LiveOpenAPIToolset(openapi_url='http://127.0.0.1:9/openapi.json', base_url='http://127.0.0.1:9',
-                                        tool_filter=['create_appointment']), []
+    toolset, loads = (
+        LiveOpenAPIToolset(
+            openapi_url='http://127.0.0.1:9/openapi.json',
+            base_url='http://127.0.0.1:9',
+            tool_filter=['create_appointment'],
+        ),
+        [],
+    )
 
     class Loaded:
         async def get_tools(self, readonly_context=None):
@@ -120,16 +142,19 @@ def test_the_contract_is_fetched_under_a_lock_of_each_event_loop(monkeypatch):
         loads.append(threading.current_thread().name)
         await asyncio.sleep(0.3)
         return Loaded()
+
     monkeypatch.setattr(toolset, 'load', load)
     results, failures = [], []
 
     def loop():
         async def three_at_once():
             return await asyncio.gather(*(toolset.get_tools() for _ in range(3)))
+
         try:
             results.extend(asyncio.run(three_at_once()))
         except Exception as error:  # reported below
             failures.append(error)
+
     threads = [threading.Thread(target=loop) for _ in range(2)]
     for thread in threads:
         thread.start()
@@ -141,8 +166,12 @@ def test_the_contract_is_fetched_under_a_lock_of_each_event_loop(monkeypatch):
 
 def test_copying_a_record_keeps_the_file_name_private():
     context = SimpleNamespace(state={})
-    pedido.Orders.publish(context, pedido.OrderRecord(image_file='pedido-joao-silva.png', image_token='pedido-1.png',
-                                                      finished=True, own_key='k', refused=True))
+    pedido.Orders.publish(
+        context,
+        pedido.OrderRecord(
+            image_file='pedido-joao-silva.png', image_token='pedido-1.png', finished=True, own_key='k', refused=True
+        ),
+    )
     assert context.state == {'image_token': 'pedido-1.png', 'refused': True}
 
 
@@ -157,8 +186,9 @@ def test_a_missing_api_key_ends_the_step_with_one_clear_line():
 
     booking = callbacks.BookingCallbacks.__new__(callbacks.BookingCallbacks)
     published = {}
-    booking.orders = SimpleNamespace(of=lambda context: pedido.OrderRecord(),
-                                     publish=lambda context, order: published.update(order.view()))
+    booking.orders = SimpleNamespace(
+        of=lambda context: pedido.OrderRecord(), publish=lambda context, order: published.update(order.view())
+    )
     error = ValueError('No API key was provided. Please pass a valid API key.')
     reply = booking.model_failed(None, None, error)
     assert 'GOOGLE_API_KEY não definida' in reply.content.parts[0].text

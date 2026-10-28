@@ -6,8 +6,7 @@ from contextlib import closing
 import pytest
 from fastapi.testclient import TestClient
 
-CATALOG = [{'code': 'FICT-001', 'name': 'Hemograma completo'},
-           {'code': 'FICT-002', 'name': 'Glicemia de jejum'}]
+CATALOG = [{'code': 'FICT-001', 'name': 'Hemograma completo'}, {'code': 'FICT-002', 'name': 'Glicemia de jejum'}]
 
 
 def configure(tmp_path, monkeypatch):
@@ -17,6 +16,7 @@ def configure(tmp_path, monkeypatch):
     monkeypatch.setenv('EXAMS_PATH', str(catalog))
     monkeypatch.setenv('DB_PATH', str(tmp_path / 'appointments.db'))
     from api.crypto import new_key
+
     monkeypatch.setenv('DB_ENCRYPTION_KEY', new_key())
     return api_module().app
 
@@ -44,8 +44,15 @@ def test_create_then_read_appointment(client):
 def test_unknown_code_is_rejected_with_a_clear_message(client):
     response = client.post('/appointments', json={'exams': [{'code': 'FICT-999', 'name': 'Inexistente'}]})
     assert response.status_code == 422
-    assert response.json() == {'detail': [{'loc': ['body', 'exams', 0, 'code'], 'type': 'unknown_exam_code',
-                                           'msg': 'Código de exame desconhecido no catálogo.'}]}
+    assert response.json() == {
+        'detail': [
+            {
+                'loc': ['body', 'exams', 0, 'code'],
+                'type': 'unknown_exam_code',
+                'msg': 'Código de exame desconhecido no catálogo.',
+            }
+        ]
+    }
     assert '999' not in response.text  # the item is located by `loc`, the value is not echoed
     # The 422 documented in /openapi.json describes this exact body.
     schema = client.get('/openapi.json').json()
@@ -56,14 +63,17 @@ def test_unknown_code_is_rejected_with_a_clear_message(client):
     assert set(item['required']) == set(response.json()['detail'][0])
 
 
-@pytest.mark.parametrize('body', [
-    {'exams': []},
-    {'exams': [{'code': 'ABC-1', 'name': 'Hemograma completo'}]},
-    {'exams': [{'name': 'Hemograma completo'}]},
-    {'exams': [{'code': 'FICT-001', 'name': ''}]},
-    {'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo', 'cpf': '123.456.789-00'}]},
-    {'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo'}], 'patient': 'Maria'},
-])
+@pytest.mark.parametrize(
+    'body',
+    [
+        {'exams': []},
+        {'exams': [{'code': 'ABC-1', 'name': 'Hemograma completo'}]},
+        {'exams': [{'name': 'Hemograma completo'}]},
+        {'exams': [{'code': 'FICT-001', 'name': ''}]},
+        {'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo', 'cpf': '123.456.789-00'}]},
+        {'exams': [{'code': 'FICT-001', 'name': 'Hemograma completo'}], 'patient': 'Maria'},
+    ],
+)
 def test_invalid_body_is_rejected(client, body):
     assert client.post('/appointments', json=body).status_code == 422
 
@@ -71,11 +81,16 @@ def test_invalid_body_is_rejected(client, body):
 def test_the_name_is_optional_and_the_contract_says_the_catalog_name_is_stored(client):
     created = client.post('/appointments', json={'exams': [{'code': 'FICT-002'}, {'code': 'FICT-001', 'name': None}]})
     assert created.status_code == 201
-    assert created.json()['exams'] == [{'code': 'FICT-002', 'name': 'Glicemia de jejum'},
-                                       {'code': 'FICT-001', 'name': 'Hemograma completo'}]
+    assert created.json()['exams'] == [
+        {'code': 'FICT-002', 'name': 'Glicemia de jejum'},
+        {'code': 'FICT-001', 'name': 'Hemograma completo'},
+    ]
     schema = client.get('/openapi.json').json()
     requested = schema['components']['schemas']['RequestedExam']
-    assert requested['required'] == ['code'] and 'nome oficial do catálogo' in requested['properties']['name']['description']
+    assert (
+        requested['required'] == ['code']
+        and 'nome oficial do catálogo' in requested['properties']['name']['description']
+    )
     assert 'o `name` é opcional' in schema['paths']['/appointments']['post']['description']
 
 
@@ -112,9 +127,13 @@ def test_swagger_describes_every_route_and_field(client):
 
 def examples(schema):
     """{(path, method, status): the `detail` of the example /docs shows} for the errors with one text."""
-    return {(path, method, status): response['content']['application/json']['example']['detail']
-            for path, operations in schema['paths'].items() for method, operation in operations.items()
-            for status, response in operation['responses'].items() if status not in ('200', '201', '422')}
+    return {
+        (path, method, status): response['content']['application/json']['example']['detail']
+        for path, operations in schema['paths'].items()
+        for method, operation in operations.items()
+        for status, response in operation['responses'].items()
+        if status not in ('200', '201', '422')
+    }
 
 
 def test_each_documented_error_shows_the_text_the_api_really_returns(tmp_path, monkeypatch):
@@ -125,8 +144,11 @@ def test_each_documented_error_shows_the_text_the_api_really_returns(tmp_path, m
         returned = {
             '400': client.get('/health', headers={'Host': 'evil.example'}),
             '404': client.get('/appointments/00000000-0000-0000-0000-000000000000'),
-            '409': client.post('/appointments', json={'exams': [{'code': 'FICT-001'}, {'code': 'FICT-002'}]},
-                               headers={'Idempotency-Key': 'k1'}),
+            '409': client.post(
+                '/appointments',
+                json={'exams': [{'code': 'FICT-001'}, {'code': 'FICT-002'}]},
+                headers={'Idempotency-Key': 'k1'},
+            ),
             '413': client.post('/appointments', content='x' * 20_000, headers={'content-type': 'application/json'}),
         }
         with closing(sqlite3.connect(client.app.state.db_path)) as connection, connection:  # a row edited in the db
@@ -135,8 +157,11 @@ def test_each_documented_error_shows_the_text_the_api_really_returns(tmp_path, m
     with limited_client(tmp_path, monkeypatch, '1') as client:
         client.get('/openapi.json')
         returned['429'] = client.get('/openapi.json')
-    detail = {status: response.json()['detail'] for status, response in returned.items()
-              if response.status_code == int(status)}
+    detail = {
+        status: response.json()['detail']
+        for status, response in returned.items()
+        if response.status_code == int(status)
+    }
     assert set(detail) == {'400', '404', '409', '413', '429', '500'}
     assert {status for _, _, status in shown} == set(detail)
     for (path, method, status), example in shown.items():
@@ -177,6 +202,7 @@ def test_oversized_chunked_body_without_content_length_is_413(client):
 
 def test_fifty_parallel_posts_are_all_created(client):
     from concurrent.futures import ThreadPoolExecutor
+
     body = {'exams': [{'code': 'FICT-001', 'name': 'Hemograma'}]}
     with ThreadPoolExecutor(max_workers=50) as pool:
         statuses = list(pool.map(lambda _: client.post('/appointments', json=body).status_code, range(50)))
@@ -189,15 +215,18 @@ def test_only_ascii_digits_are_accepted_in_codes(client, code):
     assert response.status_code == 422 and code not in response.text
 
 
-@pytest.mark.parametrize('body', [
-    {'exams': [{'code': 1, 'name': 'Hemograma'}]},
-    {'exams': [{'code': 'FICT-001', 'name': ['Hemograma']}]},
-    {'exams': {'code': 'FICT-001', 'name': 'Hemograma'}},
-    {'exams': None},
-    [],
-    {'exams': [{'code': 'FICT-001', 'name': 'a'}, {'code': 'FICT-001', 'name': 'b'}]},
-    {'exams': [{'code': 'FICT-001', 'name': 'a'}] * 21},
-])
+@pytest.mark.parametrize(
+    'body',
+    [
+        {'exams': [{'code': 1, 'name': 'Hemograma'}]},
+        {'exams': [{'code': 'FICT-001', 'name': ['Hemograma']}]},
+        {'exams': {'code': 'FICT-001', 'name': 'Hemograma'}},
+        {'exams': None},
+        [],
+        {'exams': [{'code': 'FICT-001', 'name': 'a'}, {'code': 'FICT-001', 'name': 'b'}]},
+        {'exams': [{'code': 'FICT-001', 'name': 'a'}] * 21},
+    ],
+)
 def test_wrong_types_duplicates_and_too_many_are_422(client, body):
     response = client.post('/appointments', json=body)
     assert response.status_code == 422
@@ -208,26 +237,54 @@ SENTINEL = 'Sentinela-987'  # a value that must never come back in a message
 EXAM = {'code': 'FICT-001', 'name': 'Hemograma'}
 
 
-@pytest.mark.parametrize('body, loc, kind, msg', [
-    ({'exams': []}, ['body', 'exams'], 'too_short', 'Deve ter pelo menos 1 item.'),
-    ({'exams': [EXAM] * 21}, ['body', 'exams'], 'too_long', 'Deve ter no máximo 20 itens.'),
-    ({'exams': [{**EXAM, 'cpf': SENTINEL}]}, ['body', 'exams', 0, 'cpf'], 'extra_forbidden',
-     'Campo não permitido: envie só os campos documentados.'),
-    ({'exams': [EXAM], 'paciente': SENTINEL}, ['body', 'paciente'], 'extra_forbidden',
-     'Campo não permitido: envie só os campos documentados.'),
-    ({'exams': [{'name': 'Hemograma'}]}, ['body', 'exams', 0, 'code'], 'missing', 'Campo obrigatório ausente.'),
-    ({}, ['body', 'exams'], 'missing', 'Campo obrigatório ausente.'),
-    ({'exams': [{'code': SENTINEL, 'name': 'a'}]}, ['body', 'exams', 0, 'code'], 'string_pattern_mismatch',
-     'Código fora do formato: use FICT- e 3 dígitos, como FICT-001.'),
-    ({'exams': [{'code': 987, 'name': 'a'}]}, ['body', 'exams', 0, 'code'], 'string_type', 'Deve ser um texto.'),
-    ({'exams': [{'code': 'FICT-001', 'name': ''}]}, ['body', 'exams', 0, 'name'], 'string_too_short',
-     'Deve ter pelo menos 1 caractere.'),
-    ({'exams': [{'code': 'FICT-001', 'name': SENTINEL * 20}]}, ['body', 'exams', 0, 'name'], 'string_too_long',
-     'Deve ter no máximo 120 caracteres.'),
-    ({'exams': EXAM}, ['body', 'exams'], 'list_type', 'Deve ser uma lista.'),
-    ([SENTINEL], ['body'], 'model_attributes_type', 'Deve ser um objeto JSON, como {"exams": [...]}.'),
-    ({'exams': [EXAM, EXAM]}, ['body', 'exams'], 'value_error', 'Cada código de exame deve aparecer uma única vez.'),
-])
+@pytest.mark.parametrize(
+    'body, loc, kind, msg',
+    [
+        ({'exams': []}, ['body', 'exams'], 'too_short', 'Deve ter pelo menos 1 item.'),
+        ({'exams': [EXAM] * 21}, ['body', 'exams'], 'too_long', 'Deve ter no máximo 20 itens.'),
+        (
+            {'exams': [{**EXAM, 'cpf': SENTINEL}]},
+            ['body', 'exams', 0, 'cpf'],
+            'extra_forbidden',
+            'Campo não permitido: envie só os campos documentados.',
+        ),
+        (
+            {'exams': [EXAM], 'paciente': SENTINEL},
+            ['body', 'paciente'],
+            'extra_forbidden',
+            'Campo não permitido: envie só os campos documentados.',
+        ),
+        ({'exams': [{'name': 'Hemograma'}]}, ['body', 'exams', 0, 'code'], 'missing', 'Campo obrigatório ausente.'),
+        ({}, ['body', 'exams'], 'missing', 'Campo obrigatório ausente.'),
+        (
+            {'exams': [{'code': SENTINEL, 'name': 'a'}]},
+            ['body', 'exams', 0, 'code'],
+            'string_pattern_mismatch',
+            'Código fora do formato: use FICT- e 3 dígitos, como FICT-001.',
+        ),
+        ({'exams': [{'code': 987, 'name': 'a'}]}, ['body', 'exams', 0, 'code'], 'string_type', 'Deve ser um texto.'),
+        (
+            {'exams': [{'code': 'FICT-001', 'name': ''}]},
+            ['body', 'exams', 0, 'name'],
+            'string_too_short',
+            'Deve ter pelo menos 1 caractere.',
+        ),
+        (
+            {'exams': [{'code': 'FICT-001', 'name': SENTINEL * 20}]},
+            ['body', 'exams', 0, 'name'],
+            'string_too_long',
+            'Deve ter no máximo 120 caracteres.',
+        ),
+        ({'exams': EXAM}, ['body', 'exams'], 'list_type', 'Deve ser uma lista.'),
+        ([SENTINEL], ['body'], 'model_attributes_type', 'Deve ser um objeto JSON, como {"exams": [...]}.'),
+        (
+            {'exams': [EXAM, EXAM]},
+            ['body', 'exams'],
+            'value_error',
+            'Cada código de exame deve aparecer uma única vez.',
+        ),
+    ],
+)
 def test_validation_errors_are_in_portuguese_and_never_echo_the_value(client, body, loc, kind, msg):
     response = client.post('/appointments', json=body)
     assert response.status_code == 422
@@ -240,12 +297,16 @@ def test_invalid_json_and_a_bad_id_are_in_portuguese_too(client):
     assert broken.json()['detail'][0]['msg'] == 'JSON inválido: confira aspas, vírgulas e chaves.'
     for wrong in ('nao-e-uuid', '987'):  # pydantic's own text quotes a character of the value
         [item] = client.get(f'/appointments/{wrong}').json()['detail']
-        assert item == {'loc': ['path', 'appointment_id'], 'type': 'uuid_parsing',
-                        'msg': 'Deve ser um UUID, como 3fa85f64-5717-4562-b3fc-2c963f66afa6.'}
+        assert item == {
+            'loc': ['path', 'appointment_id'],
+            'type': 'uuid_parsing',
+            'msg': 'Deve ser um UUID, como 3fa85f64-5717-4562-b3fc-2c963f66afa6.',
+        }
 
 
 def test_an_unmapped_error_type_keeps_the_original_message():
     from api.main import portuguese
+
     assert portuguese({'type': 'novo_tipo', 'loc': ('body', 'x'), 'msg': 'Original message'}) == 'Original message'
 
 
@@ -287,7 +348,9 @@ def test_over_the_limit_is_429_with_retry_after(tmp_path, monkeypatch):
         refused = client.post('/appointments', json=ONE_EXAM)
         assert refused.status_code == 429
         assert int(refused.headers['Retry-After']) >= 1
-        assert refused.json() == {'detail': f"Muitas requisições deste cliente: tente de novo em {refused.headers['Retry-After']} s."}
+        assert refused.json() == {
+            'detail': f"Muitas requisições deste cliente: tente de novo em {refused.headers['Retry-After']} s."
+        }
         assert client.get(f"/appointments/{created.json()['id']}").status_code == 429  # GET counts too
         rows = sqlite3.connect(client.app.state.db_path).execute('SELECT COUNT(*) FROM appointments').fetchone()
         assert rows == (2,)  # the refused POST wrote nothing
@@ -339,6 +402,7 @@ def test_an_invalid_limit_stops_the_start_with_one_clear_line(tmp_path, monkeypa
 
 def test_429_is_in_the_openapi_contract_and_the_ip_is_not_logged(tmp_path, monkeypatch):
     import logging
+
     records = []
     handler = logging.Handler()
     handler.emit = lambda record: records.append(record.getMessage())
@@ -366,4 +430,5 @@ def test_429_is_in_the_openapi_contract_and_the_ip_is_not_logged(tmp_path, monke
 
 def api_module():
     import api.main
+
     return api.main

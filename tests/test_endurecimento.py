@@ -1,5 +1,6 @@
 """Hardening that crosses the services: the MCP servers' logs keep no value a peer sent, a hostile image ends in
 one clear sentence, and the Docker base image is pinned by digest."""
+
 import asyncio
 import logging
 import re
@@ -24,8 +25,11 @@ ROOT = Path(__file__).resolve().parents[1]
 @pytest.fixture
 def quiet(caplog):
     """quiet_logs as the servers install it, undone afterwards; the records reach caplog."""
-    factory, sse, disabled = logging.getLogRecordFactory(), logging.getLogger('mcp.server.sse').level, \
-        logging.root.manager.disable
+    factory, sse, disabled = (
+        logging.getLogRecordFactory(),
+        logging.getLogger('mcp.server.sse').level,
+        logging.root.manager.disable,
+    )
     logging.disable(logging.NOTSET)  # cli.main() turns logging off for its whole process
     logger = logging.getLogger('teste.servidor')
     logger.addHandler(caplog.handler)
@@ -51,7 +55,10 @@ def test_the_mcp_logs_keep_no_file_name_peer_id_or_traceback(quiet, caplog):
     assert [record.getMessage() for record in caplog.records] == [
         "Tool 'extract_exam_text' failed: '…'",
         "Tool 'extract_exam_text' raised an unexpected exception (FileNotFoundError)",
-        '… - "POST … HTTP/1.1" 202', 'OSError', 'Started server process [7]']
+        '… - "POST … HTTP/1.1" 202',
+        'OSError',
+        'Started server process [7]',
+    ]
     assert 'Maria' not in caplog.text and 'Traceback' not in caplog.text
     assert logging.getLogger('mcp.server.sse').getEffectiveLevel() == logging.ERROR  # its warnings quote the peer
 
@@ -66,9 +73,15 @@ def test_each_server_quiets_its_logs_naming_its_own_tools(module):
 
 def png(width, height):
     """A PNG header that claims width x height, with no pixels behind it."""
+
     def chunk(kind, data):
         return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
-    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0)) + chunk(b'IEND', b'')
+
+    return (
+        b'\x89PNG\r\n\x1a\n'
+        + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0))
+        + chunk(b'IEND', b'')
+    )
 
 
 def test_a_decompression_bomb_is_refused_from_its_header(tmp_path, monkeypatch):
@@ -79,11 +92,19 @@ def test_a_decompression_bomb_is_refused_from_its_header(tmp_path, monkeypatch):
             check(ocr.resolve_sample('bomba.png'))
 
 
-@pytest.mark.parametrize('error', [ValueError('tile cannot extend outside image'), SyntaxError('broken PNG file'),
-                                   EOFError(), OSError('image file is truncated')])
+@pytest.mark.parametrize(
+    'error',
+    [
+        ValueError('tile cannot extend outside image'),
+        SyntaxError('broken PNG file'),
+        EOFError(),
+        OSError('image file is truncated'),
+    ],
+)
 def test_what_pillow_raises_on_a_hostile_image_ends_in_one_sentence(monkeypatch, error):
     def hostile(image):
         raise error
+
     monkeypatch.setattr(ocr, 'on_white', hostile)
     monkeypatch.setattr(ocr, 'SAMPLES_DIR', ROOT / 'samples')
     with pytest.raises(ToolError) as refused:
@@ -99,6 +120,7 @@ def test_the_base_image_is_pinned_by_digest():
 
 
 # --- The OCR reads a few images at a time --------------------------------------------------------------------
+
 
 @pytest.fixture
 def slots(monkeypatch):
@@ -116,6 +138,7 @@ def slots(monkeypatch):
         with state.lock:
             state.running -= 1
         return []
+
     monkeypatch.setattr(ocr, 'read_lines', reading)
     yield state
     state.release.set()
@@ -126,8 +149,11 @@ def test_requests_past_the_ocr_slots_wait_and_then_get_a_clear_refusal(slots):
         calls = [asyncio.create_task(ocr.extract_exam_text('pedido.png')) for _ in range(5)]
         done = await asyncio.gather(*calls, return_exceptions=True)
         return [str(item) if isinstance(item, Exception) else 'ok' for item in done]
+
     threading.Timer(1.0, slots.release.set).start()  # after the 0,2 s wait of the 2 extra requests
-    assert sorted(asyncio.run(burst())) == ['OCR ocupado com outras imagens; tente de novo em instantes.'] * 2 + ['ok'] * 3
+    assert (
+        sorted(asyncio.run(burst())) == ['OCR ocupado com outras imagens; tente de novo em instantes.'] * 2 + ['ok'] * 3
+    )
     assert slots.most == 3
 
 
@@ -137,11 +163,13 @@ def test_a_request_that_waits_less_than_the_limit_gets_its_reading(slots, monkey
 
     async def burst():
         return await asyncio.gather(*(ocr.extract_exam_text('pedido.png') for _ in range(8)))
+
     assert len(asyncio.run(burst())) == 8 and slots.most == 3
 
 
 def test_a_cancelled_request_keeps_its_slot_until_its_reading_ends(slots):
     """A peer that cancels its calls cannot start more readings than the slots: the thread holds the slot."""
+
     async def cancel_three():
         calls = [asyncio.create_task(ocr.extract_exam_text('pedido.png')) for _ in range(3)]
         while slots.running < 3:
@@ -152,11 +180,13 @@ def test_a_cancelled_request_keeps_its_slot_until_its_reading_ends(slots):
         with pytest.raises(ToolError, match='^OCR ocupado'):
             await ocr.check_image('pedido.png')  # the image check shares the slots
         slots.release.set()
+
     asyncio.run(cancel_three())  # returns once the readings ended
     assert slots.running == 0 and ocr.SLOTS.acquire(blocking=False)
 
 
 # --- What reaches the images: the build context ------------------------------------------------------------
+
 
 def docker_rules(path):
     """(negated, regex) of each .dockerignore line, as Docker reads them (`**` any folders, `*` within one)."""
@@ -166,8 +196,10 @@ def docker_rules(path):
         if not line or line.startswith('#'):
             continue
         negated, pattern = line.startswith('!'), line.lstrip('!').strip('/')
-        regex = ''.join({'**/': '(?:.*/)?', '**': '.*', '*': '[^/]*', '?': '[^/]'}.get(part, re.escape(part))
-                        for part in re.split(r'(\*\*/|\*\*|\*|\?)', pattern))
+        regex = ''.join(
+            {'**/': '(?:.*/)?', '**': '.*', '*': '[^/]*', '?': '[^/]'}.get(part, re.escape(part))
+            for part in re.split(r'(\*\*/|\*\*|\*|\?)', pattern)
+        )
         rules.append((negated, re.compile(regex)))
     return rules
 
@@ -192,10 +224,26 @@ def gitignore_examples():
             yield f'tests/{example}'
 
 
-@pytest.mark.parametrize('path', [*gitignore_examples(), '.env.local', 'api/.env.production', 'chave.pem',
-                                  'tests/servico.key', 'gcp-credentials.json', '.local/notas.txt', 'secrets/db.txt',
-                                  'docs/secrets/x', '.venv/lib/x.py', 'runtime/venv/x.py', '.mypy_cache/x',
-                                  'runtime/.ruff_cache/x', 'minha-pasta/qualquer.txt', '.git/config'])
+@pytest.mark.parametrize(
+    'path',
+    [
+        *gitignore_examples(),
+        '.env.local',
+        'api/.env.production',
+        'chave.pem',
+        'tests/servico.key',
+        'gcp-credentials.json',
+        '.local/notas.txt',
+        'secrets/db.txt',
+        'docs/secrets/x',
+        '.venv/lib/x.py',
+        'runtime/venv/x.py',
+        '.mypy_cache/x',
+        'runtime/.ruff_cache/x',
+        'minha-pasta/qualquer.txt',
+        '.git/config',
+    ],
+)
 def test_secrets_and_local_files_stay_out_of_the_images(path):
     assert not in_the_context(path)
 
@@ -203,8 +251,10 @@ def test_secrets_and_local_files_stay_out_of_the_images(path):
 def test_what_the_repository_versions_reaches_the_test_image():
     """Where git runs: every tracked file but the CI's and generated/'s; in the image, the example env file."""
     assert in_the_context('.env.example') and in_the_context('tests/test_api.py')
-    if shutil.which('git') is None or (done := subprocess.run(['git', 'ls-files'], cwd=ROOT, capture_output=True,
-                                                               text=True)).returncode != 0:
+    if (
+        shutil.which('git') is None
+        or (done := subprocess.run(['git', 'ls-files'], cwd=ROOT, capture_output=True, text=True)).returncode != 0
+    ):
         return
     tracked = [path for path in done.stdout.splitlines() if not path.startswith(('.github/', 'generated/'))]
     assert len(tracked) > 100 and [path for path in tracked if not in_the_context(path)] == []
@@ -212,10 +262,15 @@ def test_what_the_repository_versions_reaches_the_test_image():
 
 def test_every_file_the_dockerfile_copies_reaches_the_build_context():
     """Without git too: a new top-level module the images COPY must be allowed by .dockerignore, or the build fails."""
-    copied = [source for line in (ROOT / 'Dockerfile').read_text(encoding='utf-8').splitlines()
-              if line.strip().startswith('COPY') and '--from' not in line
-              for source in [word for word in line.split()[1:] if not word.startswith('--')][:-1]]
-    assert 'catalogo.py' in copied and [source for source in copied if source != '.' and not in_the_context(source)] == []
+    copied = [
+        source
+        for line in (ROOT / 'Dockerfile').read_text(encoding='utf-8').splitlines()
+        if line.strip().startswith('COPY') and '--from' not in line
+        for source in [word for word in line.split()[1:] if not word.startswith('--')][:-1]
+    ]
+    assert (
+        'catalogo.py' in copied and [source for source in copied if source != '.' and not in_the_context(source)] == []
+    )
 
 
 def test_every_service_has_a_memory_and_process_cap_and_the_servers_a_cpu_cap():

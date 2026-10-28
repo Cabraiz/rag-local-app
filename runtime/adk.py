@@ -1,5 +1,6 @@
 """ADK building blocks the generated agent declares: the Gemini model, and the toolsets of the MCP servers
 and of the API, each on a host that ALLOWED_HOSTS allows and at the address checked for it (runtime/rede.py)."""
+
 import asyncio
 import os
 import threading
@@ -45,10 +46,12 @@ class Primary(Gemini):
     """The spec's model when it has a reserve: a 429 or 503 is not retried (only a 500 is), so the
     reserve answers at once, and this says so in one line (the console of `adk run`, the log of
     `adk web`)."""
+
     reserve: str = ''
 
-    async def generate_content_async(self, llm_request: LlmRequest,
-                                     stream: bool = False) -> AsyncGenerator[LlmResponse, None]:
+    async def generate_content_async(
+        self, llm_request: LlmRequest, stream: bool = False
+    ) -> AsyncGenerator[LlmResponse, None]:
         answered = False
         try:
             async for response in super().generate_content_async(llm_request, stream):
@@ -74,9 +77,13 @@ def gemini(model: str, fallback: str | None = None) -> Gemini | FallbackModel:
     primary = os.environ.get('GEMINI_MODEL') or model
     if not fallback or fallback == primary:
         return Gemini(model=primary, retry_options=retries(429, 500, 503))
-    return FallbackModel(models=[Primary(model=primary, reserve=fallback, retry_options=retries(500)),
-                                 Gemini(model=fallback, retry_options=retries(429, 500, 503))],
-                         retriable_status_codes=RESERVE_ON)
+    return FallbackModel(
+        models=[
+            Primary(model=primary, reserve=fallback, retry_options=retries(500)),
+            Gemini(model=fallback, retry_options=retries(429, 500, 503)),
+        ],
+        retriable_status_codes=RESERVE_ON,
+    )
 
 
 class McpToolset(mcp_tool.McpToolset):
@@ -133,8 +140,11 @@ class LiveOpenAPIToolset(BaseToolset):
             response.raise_for_status()
         spec = response.json()
         spec['servers'] = [{'url': self.base_url}]
-        return OpenAPIToolset(spec_dict=spec, tool_filter=self.operations,
-                              httpx_client_factory=lambda: rede.client(timeout=httpx.Timeout(600, connect=10, pool=10)))
+        return OpenAPIToolset(
+            spec_dict=spec,
+            tool_filter=self.operations,
+            httpx_client_factory=lambda: rede.client(timeout=httpx.Timeout(600, connect=10, pool=10)),
+        )
 
     async def close(self) -> None:
         if self.toolset is not None:

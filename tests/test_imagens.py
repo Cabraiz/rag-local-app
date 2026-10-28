@@ -1,4 +1,5 @@
 """The agent image runs the CLI only; the test tools and the tests live in the `test` stage."""
+
 import re
 from importlib import metadata
 from pathlib import Path
@@ -62,8 +63,14 @@ def test_every_package_of_the_test_image_is_pinned_once_at_its_installed_version
     direct = {normalized(name) for name in [*pins('requirements.txt'), *pins('requirements-dev.txt')]}
     transitive = {normalized(name): version for name, version in pins('constraints.txt').items()}
     assert transitive and not direct & set(transitive)
-    pinned = {normalized(name): version for name, version in
-              [*pins('requirements.txt').items(), *pins('requirements-dev.txt').items(), *pins('constraints.txt').items()]}
+    pinned = {
+        normalized(name): version
+        for name, version in [
+            *pins('requirements.txt').items(),
+            *pins('requirements-dev.txt').items(),
+            *pins('constraints.txt').items(),
+        ]
+    }
     installed = {normalized(dist.metadata['Name']): dist.version for dist in metadata.distributions()}
     installed = {name: version for name, version in installed.items() if name not in ('pip', 'setuptools', 'wheel')}
     assert installed == pinned

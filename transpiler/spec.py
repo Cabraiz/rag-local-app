@@ -1,4 +1,5 @@
 """Agent spec: the JSON a user writes, validated before any code is generated."""
+
 import builtins
 import importlib
 import json
@@ -25,8 +26,17 @@ CLASS_PATH = r'^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)*\.[A-Z][A-Za-z0-9]{0,39}$' 
 # here, in code.
 CLASS_PACKAGES = ('runtime', 'google.adk.plugins')
 # Names of the generated module that a class it imports must not shadow.
-GENERATED_NAMES = {'App', 'LiveOpenAPIToolset', 'LlmAgent', 'LoopAgent', 'McpToolset', 'ParallelAgent',
-                   'ResumabilityConfig', 'SequentialAgent', 'SseConnectionParams'}
+GENERATED_NAMES = {
+    'App',
+    'LiveOpenAPIToolset',
+    'LlmAgent',
+    'LoopAgent',
+    'McpToolset',
+    'ParallelAgent',
+    'ResumabilityConfig',
+    'SequentialAgent',
+    'SseConnectionParams',
+}
 # Names an agent cannot have: each agent becomes a variable of the generated module.
 RESERVED = {'app', 'user', 'gemini', 'root_agent', 'runtime'}
 
@@ -54,10 +64,13 @@ class Strict(BaseModel):
 
 class Server(Strict):
     """An MCP server over SSE (url + tools) or an HTTP API described by OpenAPI (openapi_url + operations)."""
+
     url: str | None = Field(default=None, pattern=SSE_URL, description='SSE endpoint of the MCP server')
     tools: list[str] | None = Field(default=None, min_length=1, description='The tools the agents may call')
     openapi_url: str | None = Field(default=None, pattern=OPENAPI_URL)
-    operations: list[str] | None = Field(default=None, min_length=1, description='The operation_ids the agents may call')
+    operations: list[str] | None = Field(
+        default=None, min_length=1, description='The operation_ids the agents may call'
+    )
 
     @field_validator('tools', 'operations')
     @classmethod
@@ -73,8 +86,10 @@ class Server(Strict):
     def one_kind(self):
         mcp, openapi = (self.url, self.tools), (self.openapi_url, self.operations)
         if not ((all(mcp) and not any(openapi)) or (all(openapi) and not any(mcp))):
-            raise PydanticCustomError('server_kind', 'declare url e tools (servidor MCP) ou openapi_url e '
-                                                     'operations (API OpenAPI), um dos dois')
+            raise PydanticCustomError(
+                'server_kind',
+                'declare url e tools (servidor MCP) ou openapi_url e operations (API OpenAPI), um dos dois',
+            )
         return self
 
     @property
@@ -93,6 +108,7 @@ class Server(Strict):
 
 class Plugin(Strict):
     """An App plugin (ADK's BasePlugin): its class as module.Class and the keyword arguments it gets."""
+
     path: str = Field(pattern=CLASS_PATH)
     kwargs: dict[str, JsonValue] = {}
 
@@ -225,8 +241,11 @@ def check_servers(spec) -> list[str]:
     exposed by two servers, since an agent and its plugins know a tool by its name. An ALLOWED_HOSTS
     entry that is not "host" or "host:port" is a problem, never ignored."""
     hosts = rede.allowed_hosts()
-    problems = [f'ALLOWED_HOSTS: "{host}" não é host nem host:porta (ex.: ocr:8001,clinica.interna:8443)'
-                for host in hosts if not rede.ALLOWED_HOST.fullmatch(host)]
+    problems = [
+        f'ALLOWED_HOSTS: "{host}" não é host nem host:porta (ex.: ocr:8001,clinica.interna:8443)'
+        for host in hosts
+        if not rede.ALLOWED_HOST.fullmatch(host)
+    ]
     owners: dict[str, list[str]] = {}  # tool -> the servers that declare it
     if problems:  # a broken allowlist: say so instead of judging the servers against it
         return problems
@@ -234,12 +253,15 @@ def check_servers(spec) -> list[str]:
         field, url = server.address
         host, port = rede.host_and_port(url)
         if not port:  # the URL patterns allow digits only
-            problems.append(f'servers.{name}.{field}: porta inválida ({urlsplit(url).netloc.rpartition(":")[2]}); '
-                            'use de 1 a 65535')
+            problems.append(
+                f'servers.{name}.{field}: porta inválida ({urlsplit(url).netloc.rpartition(":")[2]}); use de 1 a 65535'
+            )
             continue
         if not rede.host_allowed(url, hosts):
-            problems.append(f'servers.{name}.{field}: host "{host}:{port}" fora de ALLOWED_HOSTS '
-                            f'({", ".join(hosts)}); quem implanta pode incluí-lo em ALLOWED_HOSTS')
+            problems.append(
+                f'servers.{name}.{field}: host "{host}:{port}" fora de ALLOWED_HOSTS '
+                f'({", ".join(hosts)}); quem implanta pode incluí-lo em ALLOWED_HOSTS'
+            )
         for tool in server.names:
             owners.setdefault(tool, []).append(name)
     for tool, names in owners.items():
@@ -276,14 +298,20 @@ def load_class(path, base):
 
 def imported_classes(spec):
     """(field, path) of every class the generated file imports: the agents' output_schema, then the plugins."""
-    return ([(f'agents.{index}.output_schema', agent.output_schema) for index, agent in enumerate(spec.agents)
-             if agent.output_schema] + [(f'plugins.{index}.path', plugin.path) for index, plugin in enumerate(spec.plugins)])
+    return [
+        (f'agents.{index}.output_schema', agent.output_schema)
+        for index, agent in enumerate(spec.agents)
+        if agent.output_schema
+    ] + [(f'plugins.{index}.path', plugin.path) for index, plugin in enumerate(spec.plugins)]
 
 
 def check_schemas(spec):
     """Each output_schema is a pydantic model of CLASS_PACKAGES (whose class names are the project's own)."""
-    loaded = [(index, load_class(agent.output_schema, BaseModel)) for index, agent in enumerate(spec.agents)
-              if agent.output_schema]
+    loaded = [
+        (index, load_class(agent.output_schema, BaseModel))
+        for index, agent in enumerate(spec.agents)
+        if agent.output_schema
+    ]
     return [f'agents.{index}.output_schema: {found}' for index, found in loaded if isinstance(found, str)]
 
 
@@ -311,8 +339,12 @@ def load_plugins(spec):
 
 def check_plugins(spec):
     loaded, problems = load_plugins(spec)
-    return problems + [problem for plugin, config, where in loaded if hasattr(plugin, 'check_spec')
-                       for problem in plugin.check_spec(spec, config, where)]
+    return problems + [
+        problem
+        for plugin, config, where in loaded
+        if hasattr(plugin, 'check_spec')
+        for problem in plugin.check_spec(spec, config, where)
+    ]
 
 
 # Copy of ADK 2.10's _TEMPLATE_VAR_PATTERN (google/adk/flows/llm_flows/prompt/_instructions_utils.py),
@@ -339,8 +371,10 @@ def placeholder_problem(field, match, available):
         return None  # not a placeholder for ADK: stays as text
     if match.group(0).startswith('{{') or match.group(0).endswith('}}'):
         # ADK strips every brace around a valid name: {{key}} is the placeholder {key}, not the text {key}.
-        return (f'{field}: {match.group(0)} não é texto literal: o ADK não tem escape para chaves e lê isso como '
-                f'o placeholder {{{name}}}; para citar o nome, escreva-o sem chaves')
+        return (
+            f'{field}: {match.group(0)} não é texto literal: o ADK não tem escape para chaves e lê isso como '
+            f'o placeholder {{{name}}}; para citar o nome, escreva-o sem chaves'
+        )
     if name not in available:
         return f'{field}: {{{name}}} não é saída de um agente anterior'
     return None
@@ -353,8 +387,12 @@ def check_agents(spec) -> list[str]:
     available: list[str] = []  # output keys of the agents that ran before this one
     for index, agent in enumerate(spec.agents):
         where = f'agents.{index}'
-        if (agent.name in names or agent.name in RESERVED | {spec.name} or keyword.iskeyword(agent.name)
-                or hasattr(builtins, agent.name)):  # each agent is a variable of the generated module
+        if (
+            agent.name in names
+            or agent.name in RESERVED | {spec.name}
+            or keyword.iskeyword(agent.name)
+            or hasattr(builtins, agent.name)
+        ):  # each agent is a variable of the generated module
             problems.append(f'{where}.name: "{agent.name}" já é usado (ou é reservado)')
         names.add(agent.name)
         for match in ADK_PLACEHOLDER.finditer(agent.instruction):
@@ -385,15 +423,20 @@ def tool_problems(spec, where, agent):
 def parse_spec(text):
     """JSON text -> AgentSpec, or TranspileError listing every problem."""
     try:
-        data = json.loads(text.removeprefix('﻿'), object_pairs_hook=reject_duplicates,  # a BOM is not JSON
-                          parse_constant=reject_constant)
+        data = json.loads(
+            text.removeprefix('﻿'),
+            object_pairs_hook=reject_duplicates,  # a BOM is not JSON
+            parse_constant=reject_constant,
+        )
     except json.JSONDecodeError as error:
         raise TranspileError([f'JSON inválido (linha {error.lineno}, coluna {error.colno}): {error.msg}']) from None
     try:
         spec = AgentSpec.model_validate(data)
     except ValidationError as error:
         raise TranspileError([describe(item) for item in error.errors()]) from None
-    problems = check_servers(spec) + check_agents(spec) + check_workflow(spec) + check_schemas(spec) + check_plugins(spec)
+    problems = (
+        check_servers(spec) + check_agents(spec) + check_workflow(spec) + check_schemas(spec) + check_plugins(spec)
+    )
     if problems:
         raise TranspileError(problems)
     return spec

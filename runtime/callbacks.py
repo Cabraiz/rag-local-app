@@ -4,6 +4,7 @@ asks for it, reach the booking API once the person confirms the list (before_too
 report written from what the tools returned (report). The model only proposes; these checks run in
 code, on the order's record (runtime/pedido.py), never on the session state.
 """
+
 import asyncio
 import json
 import uuid
@@ -31,18 +32,28 @@ UNTRUSTED_DATA = (
 BOOKING_ARGUMENTS = {'exams', 'idempotency_key'}
 # Keys of a tool reply that mean nothing was written: the callback's block or question, or an HTTP error.
 NOT_SENT = {'blocked', 'pending_confirmation', 'error'}
-ASK_FOR_IMAGE = ('Informe só o nome de um arquivo de pedido em samples/ (.png, .jpg ou .jpeg), sem pastas, '
-                 'por exemplo: pedido.png. Nada foi lido nem agendado.')
-NO_ATTACHMENTS = ('Envie só o nome do arquivo do pedido, como texto, sem anexar a imagem nem outros dados: a imagem é '
-                  'lida pelo OCR, que mascara os dados pessoais antes do modelo. Nada foi lido nem agendado.')
-RAN_BEFORE = ('Esta sessão já tratou um pedido, antes de o agente ser reiniciado: confira os agendamentos e não '
-              'repita este pedido. Para outro pedido, abra uma nova sessão. Nada foi lido nem agendado.')
+ASK_FOR_IMAGE = (
+    'Informe só o nome de um arquivo de pedido em samples/ (.png, .jpg ou .jpeg), sem pastas, '
+    'por exemplo: pedido.png. Nada foi lido nem agendado.'
+)
+NO_ATTACHMENTS = (
+    'Envie só o nome do arquivo do pedido, como texto, sem anexar a imagem nem outros dados: a imagem é '
+    'lida pelo OCR, que mascara os dados pessoais antes do modelo. Nada foi lido nem agendado.'
+)
+RAN_BEFORE = (
+    'Esta sessão já tratou um pedido, antes de o agente ser reiniciado: confira os agendamentos e não '
+    'repita este pedido. Para outro pedido, abra uma nova sessão. Nada foi lido nem agendado.'
+)
 NO_KEY = 'GOOGLE_API_KEY não definida: preencha GOOGLE_API_KEY= no .env e rode de novo. Nada foi agendado.'
 NOT_CONFIRMED = 'você não confirmou a lista de exames'
 # --yes leaves out the exams that need a yes: when that leaves none, the reason is the missing confirmation.
-ONLY_WITH_CONFIRMATION = 'nenhum exame pode ser agendado sem a confirmação da lista: rode num terminal, sem --yes, para responder'
-ONE_ORDER = ('Esta sessão já tratou um pedido. Para outro pedido, abra uma nova sessão (no `adk run`, saia com '
-             'exit e rode de novo; no `adk web`, New Session). Nada foi lido nem agendado.')
+ONLY_WITH_CONFIRMATION = (
+    'nenhum exame pode ser agendado sem a confirmação da lista: rode num terminal, sem --yes, para responder'
+)
+ONE_ORDER = (
+    'Esta sessão já tratou um pedido. Para outro pedido, abra uma nova sessão (no `adk run`, saia com '
+    'exit e rode de novo; no `adk web`, New Session). Nada foi lido nem agendado.'
+)
 Reply = dict[str, Any]  # a tool's reply, or the one a callback gives instead of the call
 
 
@@ -80,9 +91,17 @@ def blocked(order: OrderRecord, reason: str) -> Reply:
 class BookingCallbacks:
     """Callbacks for every agent of the pipeline; each acts only on its own tool."""
 
-    def __init__(self, *, ocr_tool: str | None = None, search_tool: str | None = None,
-                 booking_tool: str | None = None, policy: BookingPolicy | None = None,
-                 ocr_url: str | None = None, search_url: str | None = None, servers: list[str] | tuple = ()):
+    def __init__(
+        self,
+        *,
+        ocr_tool: str | None = None,
+        search_tool: str | None = None,
+        booking_tool: str | None = None,
+        policy: BookingPolicy | None = None,
+        ocr_url: str | None = None,
+        search_url: str | None = None,
+        servers: list[str] | tuple = (),
+    ):
         self.ocr_tool, self.search_tool, self.booking_tool = ocr_tool, search_tool, booking_tool
         self.policy = policy or BookingPolicy()
         # The MCP servers of the reading and search roles, and every server of the spec (their addresses
@@ -111,8 +130,9 @@ class BookingCallbacks:
         if not all(entrada.accepted(part) for part in (content.parts if content else None) or []):
             return said(NO_ATTACHMENTS)
         if order.order_invocation is None and any(  # an order of this session ran before this process
-                event.invocation_id != invocation and event.author not in ('user', callback_context.agent_name)
-                for event in getattr(getattr(callback_context, 'session', None), 'events', [])):  # ADK's, not state
+            event.invocation_id != invocation and event.author not in ('user', callback_context.agent_name)
+            for event in getattr(getattr(callback_context, 'session', None), 'events', [])
+        ):  # ADK's, not state
             return said(RAN_BEFORE)
         names = entrada.image_names(' '.join(entrada.texts_of(content))) if need_image else []
         if need_image and (len(names) != 1 or '/' in names[0] or '\\' in names[0]):
@@ -121,9 +141,13 @@ class BookingCallbacks:
         if self.orders.claim(order, invocation) != invocation:
             return said(self.already_handled(order))
         problems = await asyncio.to_thread(rede.check_urls, self.servers)  # cli run: checked and pinned already
-        problem = ('Endereço recusado: ' + '; '.join(problems) + '.' if problems else
-                   (await self.image_problem(names[0]) or '').replace(names[0], entrada.image_token(names[0]))
-                   if need_image else '')
+        problem = (
+            'Endereço recusado: ' + '; '.join(problems) + '.'
+            if problems
+            else (await self.image_problem(names[0]) or '').replace(names[0], entrada.image_token(names[0]))
+            if need_image
+            else ''
+        )
         if problem:
             order.order_invocation = None  # nothing ran: a corrected message may start the order
             return said(problem.rstrip('.') + '. Nada foi lido nem agendado.')
@@ -137,12 +161,20 @@ class BookingCallbacks:
         it answered, so that the person does not book the same order again in another session."""
         appointment = order.booked_appointment
         if appointment is not None:
-            return (f'Esta sessão já tratou um pedido, e o agendamento {appointment.get("id")} já foi criado: não '
-                    'repita este pedido.' + ('\n' + relatorio.report(order, books=self.booking_tool is not None)
-                                             if order.ocr_lines is not None else ''))  # an evicted order keeps no lines
+            return (
+                f'Esta sessão já tratou um pedido, e o agendamento {appointment.get("id")} já foi criado: não '
+                'repita este pedido.'
+                + (
+                    '\n' + relatorio.report(order, books=self.booking_tool is not None)
+                    if order.ocr_lines is not None
+                    else ''
+                )
+            )  # an evicted order keeps no lines
         if order.idempotency_key:
-            return ('Esta sessão já tratou um pedido, e a execução parou com o agendamento já preparado: a API pode '
-                    'tê-lo criado. Confira os agendamentos antes de repetir o pedido.')
+            return (
+                'Esta sessão já tratou um pedido, e a execução parou com o agendamento já preparado: a API pode '
+                'tê-lo criado. Confira os agendamentos antes de repetir o pedido.'
+            )
         return ONE_ORDER
 
     async def image_problem(self, name: str) -> str | None:
@@ -152,8 +184,10 @@ class BookingCallbacks:
         try:
             reason = await asyncio.wait_for(servidores.image_problem(self.ocr_url, name), servidores.CHECK_SECONDS)
         except Exception as error:  # down, or the stream dropped
-            return (f'O servidor de leitura não conferiu a imagem em {self.ocr_url} ({type(error).__name__}); '
-                    'suba os serviços com `docker compose up -d --wait`.')
+            return (
+                f'O servidor de leitura não conferiu a imagem em {self.ocr_url} ({type(error).__name__}); '
+                'suba os serviços com `docker compose up -d --wait`.'
+            )
         return f'OCR recusou a imagem: {reason}.' if reason else None
 
     def model_failed(self, callback_context: Context, llm_request: LlmRequest, error: Exception) -> LlmResponse | None:
@@ -177,8 +211,12 @@ class BookingCallbacks:
         order = self.orders.of(callback_context)
         if order.model_error:  # an earlier step's model failed: no further model call in this run
             return LlmResponse(content=said(order.model_error))
-        sent = [part for event in callback_context.session.events if event.author == 'user'
-                for part in (event.content.parts if event.content else None) or []]
+        sent = [
+            part
+            for event in callback_context.session.events
+            if event.author == 'user'
+            for part in (event.content.parts if event.content else None) or []
+        ]
         entrada.scrub(llm_request, sent, order.image_token, order.image_file)
         return None
 
@@ -190,12 +228,15 @@ class BookingCallbacks:
         if order.pending:  # a call still waits for the person's answer: the run is not over
             return None
         order.unreported, order.order_unchecked = await servidores.unreported_exams(
-            order, self.search_url, self.search_tool, self.policy)
+            order, self.search_url, self.search_tool, self.policy
+        )
         order.finished = True
         self.orders.publish(callback_context, order)
         return said(relatorio.report(order, books=self.booking_tool is not None))
 
-    def after_tool(self, tool: BaseTool, args: dict[str, Any], tool_context: Context, tool_response: object) -> Reply | None:
+    def after_tool(
+        self, tool: BaseTool, args: dict[str, Any], tool_context: Context, tool_response: object
+    ) -> Reply | None:
         """Keep the OCR's lines, counts and readings, the candidates of each search and the API's reply."""
         order, result = self.orders.of(tool_context), mcp_payload(tool_response)
         reply = None  # the model reads the reply unchanged, but the OCR's (exam lines only) and its error (no file)
@@ -245,9 +286,12 @@ class BookingCallbacks:
         are reported (a yes that came too late to be booked, or a no), never sent in a second POST."""
         reported = {item['code'] for item in order.low_confidence or []} | set(order.posted or [])
         order.low_confidence = (order.low_confidence or []) + [
-            item | {'reason': 'after_booking' if yes else 'declined'} for item in shown if item['code'] not in reported]
+            item | {'reason': 'after_booking' if yes else 'declined'} for item in shown if item['code'] not in reported
+        ]
 
-    async def only_confident_codes(self, args: dict[str, Any], tool_context: Context, order: OrderRecord) -> Reply | None:
+    async def only_confident_codes(
+        self, args: dict[str, Any], tool_context: Context, order: OrderRecord
+    ) -> Reply | None:
         """Book (>= min_confidence), ask about (>= ask_from) or leave out each exam, on its own piece of
         the order; then the person confirms the whole list, or nothing is booked. The question is ADK's
         tool confirmation: the call pauses, the client answers, and the same call resumes with the answer
@@ -288,10 +332,14 @@ class BookingCallbacks:
         listed = booked + to_ask
         if not listed:
             unasked = any(item.get('reason') == 'needs_confirmation' for item in left_out)
-            return blocked(order, ONLY_WITH_CONFIRMATION if unasked else 'nenhum exame com confiança suficiente para agendar')
+            return blocked(
+                order, ONLY_WITH_CONFIRMATION if unasked else 'nenhum exame com confiança suficiente para agendar'
+            )
         if asks and confirmation is None and hasattr(tool_context, 'request_confirmation'):  # the whole order checked
             late, _ = await servidores.unreported_exams(order, self.search_url, self.search_tool, self.policy, listed)
-            return confirmacao.pause_for_answer(tool_context, order, listed, confirmacao.review(booked, to_ask, left_out + late, order))
+            return confirmacao.pause_for_answer(
+                tool_context, order, listed, confirmacao.review(booked, to_ask, left_out + late, order)
+            )
         if asks and not (yes and [item['code'] for item in shown or []] == [item['code'] for item in listed]):
             order.refused = True  # a no, or no answer to this very list: nothing is booked
             return blocked(order, NOT_CONFIRMED)
@@ -316,7 +364,8 @@ class BookingCallbacks:
         sure, check, left_out = sort_out(exams, candidates, order, self.policy, accounted)
         left_out += omitted(exams, accounted, order, self.policy)
         order.accounted = accounted
-        order.listing = by_confidence([item | {'check': False} for item in sure]
-                                      + [item | {'check': True} for item in check], exams)
+        order.listing = by_confidence(
+            [item | {'check': False} for item in sure] + [item | {'check': True} for item in check], exams
+        )
         order.low_confidence = by_confidence(left_out, exams)
         self.orders.publish(callback_context, order)

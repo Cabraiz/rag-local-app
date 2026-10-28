@@ -3,6 +3,7 @@
 A browser sends the page's own name as Host. A page at evil.example whose name a DNS rebinding points at
 127.0.0.1 reaches the published port, but its Host is not one the API answers, so it gets 400.
 """
+
 import contextlib
 import socket
 import sqlite3
@@ -15,8 +16,10 @@ from tests.apoio import serve
 from tests.test_api import ONE_EXAM, api_module, configure
 from tests.test_api_headers import assert_secured
 
-REFUSED = {'detail': 'Cabeçalho Host não permitido: chame a API por 127.0.0.1 ou localhost (no host) ou por api '
-                     '(na rede do compose), ou inclua o nome em API_ALLOWED_HOSTS.'}
+REFUSED = {
+    'detail': 'Cabeçalho Host não permitido: chame a API por 127.0.0.1 ou localhost (no host) ou por api '
+    '(na rede do compose), ou inclua o nome em API_ALLOWED_HOSTS.'
+}
 
 
 @pytest.fixture
@@ -27,17 +30,31 @@ def default_hosts(tmp_path, monkeypatch):
         yield client
 
 
-@pytest.mark.parametrize('host', ['127.0.0.1', '127.0.0.1:8765', '127.0.0.1:9000', 'localhost:8765', 'LOCALHOST',
-                                  'api:8000', 'api'])
+@pytest.mark.parametrize(
+    'host', ['127.0.0.1', '127.0.0.1:8765', '127.0.0.1:9000', 'localhost:8765', 'LOCALHOST', 'api:8000', 'api']
+)
 def test_the_hosts_the_stack_uses_are_answered(default_hosts, host):
     created = default_hosts.post('/appointments', json=ONE_EXAM, headers={'host': host})
     assert created.status_code == 201
     assert default_hosts.get(f"/appointments/{created.json()['id']}", headers={'host': host}).status_code == 200
 
 
-@pytest.mark.parametrize('host', ['evil.example', 'evil.example:8765', '127.0.0.1.evil.example', 'api.evil.example',
-                                  'testserver', '', '127.0.0.1:8765@evil.example', 'api:8000/x', '[::1]:8765',
-                                  'localhost:', '127.0.0.1:8765:80'])
+@pytest.mark.parametrize(
+    'host',
+    [
+        'evil.example',
+        'evil.example:8765',
+        '127.0.0.1.evil.example',
+        'api.evil.example',
+        'testserver',
+        '',
+        '127.0.0.1:8765@evil.example',
+        'api:8000/x',
+        '[::1]:8765',
+        'localhost:',
+        '127.0.0.1:8765:80',
+    ],
+)
 def test_any_other_host_is_400_in_the_api_error_style(default_hosts, host):
     refused = default_hosts.post('/appointments', json=ONE_EXAM, headers={'host': host})
     assert_secured(refused, 400, no_store=True)
@@ -69,8 +86,9 @@ def test_an_invalid_entry_stops_the_start(tmp_path, monkeypatch, value):
     monkeypatch.setenv('API_ALLOWED_HOSTS', f'127.0.0.1,{value}')
     with pytest.raises(api_module().ConfigError) as stop, TestClient(configure(tmp_path, monkeypatch)):
         pass
-    assert str(stop.value) == (f'API_ALLOWED_HOSTS inválido: "{value}" não é um nome de host '
-                               '(ex.: 127.0.0.1,localhost,api).')
+    assert str(stop.value) == (
+        f'API_ALLOWED_HOSTS inválido: "{value}" não é um nome de host (ex.: 127.0.0.1,localhost,api).'
+    )
 
 
 def test_before_the_start_every_request_is_refused(tmp_path, monkeypatch):
@@ -91,9 +109,10 @@ def test_under_uvicorn_a_rebinding_host_is_refused_and_the_loopback_one_books(tm
 
         def raw(host):
             with socket.create_connection(('127.0.0.1', port), timeout=10) as connection:
-                connection.sendall(b'POST /appointments HTTP/1.1\r\nHost: ' + host + b'\r\nContent-Type: application/json'
-                                   b'\r\nContent-Length: ' + str(len(body)).encode() + b'\r\nConnection: close\r\n\r\n'
-                                   + body)
+                connection.sendall(
+                    b'POST /appointments HTTP/1.1\r\nHost: ' + host + b'\r\nContent-Type: application/json'
+                    b'\r\nContent-Length: ' + str(len(body)).encode() + b'\r\nConnection: close\r\n\r\n' + body
+                )
                 return b''.join(iter(lambda: connection.recv(65536), b''))
 
         assert raw(b'evil.example:' + str(port).encode()).startswith(b'HTTP/1.1 400 ')

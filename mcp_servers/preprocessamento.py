@@ -5,6 +5,7 @@ which finds the loose words of a handwritten order; the words form lines again b
 ("Paciente:") takes the line below, so the PII mask sees both. On 185 orders, exams found in the text went from 45% to
 53% (handwritten 23% -> 34%) at 1.6x the latency. Each line read is an OcrLine.
 """
+
 import re
 from dataclasses import dataclass
 from statistics import fmean, median
@@ -36,6 +37,7 @@ Box = tuple[int, int, int, float]
 class OcrLine:
     """A line read: its text, Tesseract's mean confidence in its words (0-100) and where it is on the page.
     A line from anywhere else (a page of text in a test) has neither: each reader of it says what that means."""
+
     text: str
     confidence: float | None = None
     box: Box | None = None
@@ -54,7 +56,11 @@ def prepare(image):
 def flatten_light(gray):
     """Removes shadow and uneven light: the background (paper) is the local maximum on a reduced copy."""
     small = gray.resize((max(1, gray.width // 8), max(1, gray.height // 8)), Image.Resampling.BOX)
-    paper = small.filter(ImageFilter.MaxFilter(7)).filter(ImageFilter.BoxBlur(2)).resize(gray.size, Image.Resampling.BILINEAR)
+    paper = (
+        small.filter(ImageFilter.MaxFilter(7))
+        .filter(ImageFilter.BoxBlur(2))
+        .resize(gray.size, Image.Resampling.BILINEAR)
+    )
     return ImageChops.invert(ImageChops.subtract(paper, gray))  # 255 - (paper - pixel): evenly white paper
 
 
@@ -77,9 +83,14 @@ def tilt(gray):
 
 def read_words(image, timeout, lang=LANG, config=CONFIG) -> list[Word]:
     """Each word Tesseract read (a conf below 0: no word)."""
-    data = pytesseract.image_to_data(image, lang=lang, config=config, output_type=pytesseract.Output.DICT, timeout=timeout)
-    return [(data['left'][i], data['top'][i], data['width'][i], data['height'][i], text.strip(), float(data['conf'][i]))
-            for i, text in enumerate(data['text']) if text.strip() and float(data['conf'][i]) >= 0]
+    data = pytesseract.image_to_data(
+        image, lang=lang, config=config, output_type=pytesseract.Output.DICT, timeout=timeout
+    )
+    return [
+        (data['left'][i], data['top'][i], data['width'][i], data['height'][i], text.strip(), float(data['conf'][i]))
+        for i, text in enumerate(data['text'])
+        if text.strip() and float(data['conf'][i]) >= 0
+    ]
 
 
 def group_by_height(read):
@@ -109,8 +120,11 @@ def group_by_height(read):
 
 def takes_the_line_below(label: dict, line: dict) -> bool:
     """A label without a value ("Paciente:") right above a line that is not a list item ("1. Hemograma" stays alone)."""
-    return (line_text(label['words']).endswith(':') and not LIST_ITEM.match(line_text(line['words']))
-            and line['top'] - label['bottom'] <= label['bottom'] - label['top'])
+    return (
+        line_text(label['words']).endswith(':')
+        and not LIST_ITEM.match(line_text(line['words']))
+        and line['top'] - label['bottom'] <= label['bottom'] - label['top']
+    )
 
 
 def fix_marker(line):
@@ -137,9 +151,12 @@ def line_text(line, cuts=()):
 def column_gaps(lines):
     """{(line, word)} of each column gap: COLUMN_GAP letter heights or more between two words read well, opening
     where another line's opens (1.5 heights). Measured: none on the 159 images of samples/."""
-    gaps = [(i, j, b[0], median(w[3] for w in line)) for i, line in enumerate(lines)
-            for j, (a, b) in enumerate(zip(line, line[1:], strict=False), 1)
-            if b[0] - a[0] - a[2] >= COLUMN_GAP * median(w[3] for w in line) and min(a[5], b[5]) >= CONFIDENT]
+    gaps = [
+        (i, j, b[0], median(w[3] for w in line))
+        for i, line in enumerate(lines)
+        for j, (a, b) in enumerate(zip(line, line[1:], strict=False), 1)
+        if b[0] - a[0] - a[2] >= COLUMN_GAP * median(w[3] for w in line) and min(a[5], b[5]) >= CONFIDENT
+    ]
     return {(i, j) for i, j, x, h in gaps if any(abs(x - x2) <= 1.5 * max(h, h2) for i2, _, x2, h2 in gaps if i2 != i)}
 
 
@@ -178,8 +195,7 @@ def poor_reading(read):
 def rotation(image, timeout):
     """Degrees (90, 180, 270) the Tesseract OSD says to turn clockwise, or 0 if it cannot tell."""
     try:
-        osd = pytesseract.image_to_osd(image, config='--psm 0', output_type=pytesseract.Output.DICT,
-                                       timeout=timeout)
+        osd = pytesseract.image_to_osd(image, config='--psm 0', output_type=pytesseract.Output.DICT, timeout=timeout)
     except RuntimeError:  # too little text to decide, or out of time: the upright reading stays
         return 0
     return osd['rotate'] if osd['orientation_conf'] >= MIN_OSD else 0
@@ -200,8 +216,12 @@ def read_ocr_lines(image, timeout, prepared=True, lang=LANG, config=CONFIG) -> l
             raise SidewaysImage('imagem de lado ou de cabeça para baixo: gire e envie de novo')
     lines = group_by_height(read)
     cuts = column_gaps(lines)  # a table or columns: each cell separated by "|"
-    return [OcrLine(line_text(line, {j for k, j in cuts if k == i}), round(float(mean_confidence(line)), 1),
-                    box_of(line, image)) for i, line in enumerate(lines)]
+    return [
+        OcrLine(
+            line_text(line, {j for k, j in cuts if k == i}), round(float(mean_confidence(line)), 1), box_of(line, image)
+        )
+        for i, line in enumerate(lines)
+    ]
 
 
 def box_of(line, image) -> Box:

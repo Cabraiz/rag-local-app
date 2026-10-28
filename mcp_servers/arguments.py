@@ -6,6 +6,7 @@ the wrong type (filename=123, query=None) came back as "1 validation error for .
 schema still says "string", but a value it rejects becomes `fallback`, which the tool
 then refuses in Portuguese. What a peer sends never reaches a log either (quiet_logs).
 """
+
 import logging
 
 from mcp.server.transport_security import TransportSecuritySettings
@@ -14,11 +15,13 @@ from pydantic import ValidationError, WrapValidator
 
 def or_default(fallback):
     """pydantic's own check of the argument; a value it rejects becomes `fallback`."""
+
     def check(value, handler):
         try:
             return handler(value)
         except ValidationError:
             return fallback
+
     return WrapValidator(check)
 
 
@@ -29,11 +32,18 @@ def quiet_logs(*tools: str) -> None:
 
     def record(*args, **kwargs) -> logging.LogRecord:
         made = make(*args, **kwargs)
-        made.args = tuple(arg if isinstance(arg, int | float) or isinstance(arg, str) and arg in known else '…'
-                          for arg in made.args) if isinstance(made.args, tuple) else dict.fromkeys(made.args or ())
+        made.args = (
+            tuple(
+                arg if isinstance(arg, int | float) or isinstance(arg, str) and arg in known else '…'
+                for arg in made.args
+            )
+            if isinstance(made.args, tuple)
+            else dict.fromkeys(made.args or ())
+        )
         error = f' ({made.exc_info[0].__name__})' if made.exc_info and made.exc_info[0] else ''
         made.msg, made.exc_info = f'{made.msg if isinstance(made.msg, str) else type(made.msg).__name__}{error}', None
         return made
+
     logging.setLogRecordFactory(record)
     logging.getLogger('mcp.server.sse').setLevel(logging.ERROR)
 
@@ -44,13 +54,20 @@ KEEP_ALIVE_SECONDS = 75
 
 def transport_security(host: str) -> TransportSecuritySettings:
     """Only `host` (the server's name and port on the compose network) and localhost may reach it: no DNS rebinding."""
-    return TransportSecuritySettings(enable_dns_rebinding_protection=True, allowed_origins=[],
-                                     allowed_hosts=[host, 'localhost:*', '127.0.0.1:*'])
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True, allowed_origins=[], allowed_hosts=[host, 'localhost:*', '127.0.0.1:*']
+    )
 
 
 def serve(server, security: TransportSecuritySettings, port: int, *tools: str) -> None:
     """Run an MCP server over SSE, its logs keeping no value a peer sent (quiet_logs)."""
     import uvicorn
+
     quiet_logs(*tools)
-    uvicorn.run(server.sse_app(transport_security=security, host='0.0.0.0'), host='0.0.0.0', port=port,
-                timeout_keep_alive=KEEP_ALIVE_SECONDS, log_level=server.settings.log_level.lower())
+    uvicorn.run(
+        server.sse_app(transport_security=security, host='0.0.0.0'),
+        host='0.0.0.0',
+        port=port,
+        timeout_keep_alive=KEEP_ALIVE_SECONDS,
+        log_level=server.settings.log_level.lower(),
+    )

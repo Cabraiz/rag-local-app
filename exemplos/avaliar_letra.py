@@ -16,6 +16,7 @@ Uso (na raiz do repositório; os comandos completos, com o servidor, estão em e
     python exemplos/avaliar_letra.py --servidor http://127.0.0.1:8080 --paginas 3
     python exemplos/avaliar_letra.py caixas   # refaz o JSON das caixas (precisa de numpy e das fontes)
 """
+
 import argparse
 import base64
 import io
@@ -37,14 +38,34 @@ CAIXAS = ROOT / 'exemplos' / 'manuscritos-linhas.json'
 CATALOG = catalog()
 NOME = {exam['name']: exam['code'] for exam in CATALOG}
 # Abreviações comuns em pedidos escritos à mão, só no prompt (o catálogo e a busca não mudam).
-ABREVIACOES = {'FICT-001': ['HMG', 'Hemog'], 'FICT-002': ['Gli jj', 'GJ'], 'FICT-004': ['Ur'], 'FICT-005': ['Cr'],
-               'FICT-090': ['U1'], 'FICT-071': ['PCR'], 'FICT-025': ['T4L'], 'FICT-023': ['25-OH vit D'],
-               'FICT-048': ['PSA t'], 'FICT-055': ['TGO'], 'FICT-056': ['TGP']}
-CATALOGO = '\n'.join(f"- {e['name']}" + (f" (também escrito: {', '.join(dict.fromkeys(e['synonyms'] + ABREVIACOES.get(e['code'], [])))})"
-                                          if e['synonyms'] or e['code'] in ABREVIACOES else '') for e in CATALOG)
-SISTEMA = ('Você lê pedidos médicos manuscritos. Catálogo de exames (nome oficial e formas abreviadas):\n' + CATALOGO +
-           '\n\nResponda somente com o nome oficial do exame do catálogo escrito na imagem, ou NENHUM se a linha '
-           'não é um exame do catálogo (nome de pessoa, CPF, data, cabeçalho, ilegível ou exame fora do catálogo).')
+ABREVIACOES = {
+    'FICT-001': ['HMG', 'Hemog'],
+    'FICT-002': ['Gli jj', 'GJ'],
+    'FICT-004': ['Ur'],
+    'FICT-005': ['Cr'],
+    'FICT-090': ['U1'],
+    'FICT-071': ['PCR'],
+    'FICT-025': ['T4L'],
+    'FICT-023': ['25-OH vit D'],
+    'FICT-048': ['PSA t'],
+    'FICT-055': ['TGO'],
+    'FICT-056': ['TGP'],
+}
+CATALOGO = '\n'.join(
+    f"- {e['name']}"
+    + (
+        f" (também escrito: {', '.join(dict.fromkeys(e['synonyms'] + ABREVIACOES.get(e['code'], [])))})"
+        if e['synonyms'] or e['code'] in ABREVIACOES
+        else ''
+    )
+    for e in CATALOG
+)
+SISTEMA = (
+    'Você lê pedidos médicos manuscritos. Catálogo de exames (nome oficial e formas abreviadas):\n'
+    + CATALOGO
+    + '\n\nResponda somente com o nome oficial do exame do catálogo escrito na imagem, ou NENHUM se a linha '
+    'não é um exame do catálogo (nome de pessoa, CPF, data, cabeçalho, ilegível ou exame fora do catálogo).'
+)
 GRAMATICA = 'root ::= ' + ' | '.join(json.dumps(e['name'], ensure_ascii=False) for e in CATALOG) + ' | "NENHUM"\n'
 LIVRE = 'Transcreva exatamente o texto manuscrito desta imagem, em português. Responda só com o texto, sem comentários.'
 
@@ -69,11 +90,23 @@ def ler_linha(servidor, recorte):
     """(código do modo livre, score, código do modo fechado ou None) de uma linha recortada."""
     buffer = io.BytesIO()
     recorte.save(buffer, 'PNG')
-    imagem = {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,' + base64.b64encode(buffer.getvalue()).decode()}}
+    imagem = {
+        'type': 'image_url',
+        'image_url': {'url': 'data:image/png;base64,' + base64.b64encode(buffer.getvalue()).decode()},
+    }
     livre = perguntar(servidor, [{'role': 'user', 'content': [imagem, {'type': 'text', 'text': LIVRE}]}], max_tokens=40)
-    fechado = perguntar(servidor, [{'role': 'system', 'content': SISTEMA},
-                                   {'role': 'user', 'content': [imagem, {'type': 'text', 'text': 'Qual exame do catálogo está escrito? (ou NENHUM)'}]}],
-                        max_tokens=16, grammar=GRAMATICA)
+    fechado = perguntar(
+        servidor,
+        [
+            {'role': 'system', 'content': SISTEMA},
+            {
+                'role': 'user',
+                'content': [imagem, {'type': 'text', 'text': 'Qual exame do catálogo está escrito? (ou NENHUM)'}],
+            },
+        ],
+        max_tokens=16,
+        grammar=GRAMATICA,
+    )
     return (*melhor(livre), NOME.get(fechado))
 
 
@@ -81,6 +114,7 @@ def tesseract(caminho):
     """Exames agendados sozinhos pelo caminho atual do OCR, como na regra do agente."""
     from mcp_servers import ocr
     from runtime.confianca import BookingPolicy
+
     politica, agendados = BookingPolicy(), set()
     try:
         linhas = ocr.read_lines(caminho)
@@ -95,27 +129,34 @@ def tesseract(caminho):
     return agendados
 
 
-REGRAS = {'livre (RAG >= 0,90)': lambda a, s, b: a if s >= 0.90 else None,
-          'fechado sozinho': lambda a, s, b: b,
-          'acordo livre + fechado': lambda a, s, b: b if b and a == b else None,
-          # o "Solicito:" lido "Solicito." dá Sódio nos dois modos (score 0,62): o acordo exige também
-          # que o texto livre seja um exame por si (0,80, o OWN_EXAM de mcp_servers/rag.py)
-          'acordo + livre >= 0,80': lambda a, s, b: b if b and a == b and s >= 0.80 else None}
+REGRAS = {
+    'livre (RAG >= 0,90)': lambda a, s, b: a if s >= 0.90 else None,
+    'fechado sozinho': lambda a, s, b: b,
+    'acordo livre + fechado': lambda a, s, b: b if b and a == b else None,
+    # o "Solicito:" lido "Solicito." dá Sódio nos dois modos (score 0,62): o acordo exige também
+    # que o texto livre seja um exame por si (0,80, o OWN_EXAM de mcp_servers/rag.py)
+    'acordo + livre >= 0,80': lambda a, s, b: b if b and a == b and s >= 0.80 else None,
+}
 
 
 def avaliar(args):
     from PIL import Image
+
     caixas = json.loads(CAIXAS.read_text(encoding='utf-8'))
     for estilo in ('comum', 'medico'):
-        paginas = [(nome, item) for nome, item in caixas.items() if item['estilo'] == estilo][:args.paginas]
-        totais = {nome: {'certos': 0, 'aceitos': 0, 'errados': 0, 'abstencoes': 0, 'segundos': 0.0}
-                  for nome in ['Tesseract (página inteira)', *REGRAS]}
+        paginas = [(nome, item) for nome, item in caixas.items() if item['estilo'] == estilo][: args.paginas]
+        totais = {
+            nome: {'certos': 0, 'aceitos': 0, 'errados': 0, 'abstencoes': 0, 'segundos': 0.0}
+            for nome in ['Tesseract (página inteira)', *REGRAS]
+        }
         exames = linhas_de_exame = 0
         for nome, item in paginas:
             pedido, imagem = set(item['codigos']), Image.open(AMOSTRAS / nome).convert('RGB')
             exames += len(pedido)
             inicio = time.perf_counter()
-            somar(totais['Tesseract (página inteira)'], tesseract(AMOSTRAS / nome), pedido, time.perf_counter() - inicio)
+            somar(
+                totais['Tesseract (página inteira)'], tesseract(AMOSTRAS / nome), pedido, time.perf_counter() - inicio
+            )
             inicio, lidas = time.perf_counter(), []
             for linha in item['linhas']:
                 lidas.append((linha.get('codigo'), ler_linha(args.servidor, imagem.crop(tuple(linha['caixa'])))))
@@ -123,7 +164,9 @@ def avaliar(args):
             linhas_de_exame += sum(codigo is not None for codigo, _ in lidas)
             for regra, aceita in REGRAS.items():
                 escolhidos = [(codigo, aceita(*leitura)) for codigo, leitura in lidas]
-                totais[regra]['abstencoes'] += sum(codigo is not None and aceito is None for codigo, aceito in escolhidos)
+                totais[regra]['abstencoes'] += sum(
+                    codigo is not None and aceito is None for codigo, aceito in escolhidos
+                )
                 somar(totais[regra], {aceito for _, aceito in escolhidos if aceito}, pedido, segundos)
         imprimir(estilo, len(paginas), exames, linhas_de_exame, totais)
 
@@ -142,8 +185,10 @@ def imprimir(estilo, paginas, exames, linhas_de_exame, totais):
     for nome, t in totais.items():
         precisao = f"{t['certos'] / t['aceitos']:.0%}" if t['aceitos'] else '-'
         abstencao = f"{t['abstencoes'] / linhas_de_exame:.0%}" if nome in REGRAS and linhas_de_exame else '-'
-        print(f"| {nome} | {t['certos'] / max(exames, 1):.0%} | {precisao} | {t['errados']} | {abstencao} | "
-              f"{t['segundos'] / max(paginas, 1):.1f} |")
+        print(
+            f"| {nome} | {t['certos'] / max(exames, 1):.0%} | {precisao} | {t['errados']} | {abstencao} | "
+            f"{t['segundos'] / max(paginas, 1):.1f} |"
+        )
 
 
 def caixas(_args):
@@ -155,6 +200,7 @@ def caixas(_args):
     from PIL import Image, ImageDraw
 
     import exemplos.gerar_manuscrito as gm
+
     registro = gm.INK_BOXES = []  # gm.write guarda aqui a caixa da tinta de cada linha
     final = lambda imagem: imagem.resize((850, int(imagem.height * 850 / imagem.width)), Image.LANCZOS)  # noqa: E731
     gabarito, saida = json.loads((AMOSTRAS / 'gabarito.json').read_text(encoding='utf-8'))['imagens'], {}
@@ -167,11 +213,15 @@ def caixas(_args):
         estado = rng.getstate()
         refeita = final(gm.degrade(gm.paper_texture(pagina, rng), rng, nivel)[0])
         amostra = Image.open(AMOSTRAS / nome).convert('L')
-        if refeita.size != amostra.size or np.abs(np.asarray(refeita.convert('L'), float) - np.asarray(amostra, float)).mean() > 8:
+        if (
+            refeita.size != amostra.size
+            or np.abs(np.asarray(refeita.convert('L'), float) - np.asarray(amostra, float)).mean() > 8
+        ):
             continue
         # paciente, CPF e o "Solicito:" ficam como linhas que não são exame (devem dar NENHUM)
-        linhas = [(None, registro[0]), (None, registro[1]), (None, registro[3])] + \
-            [(exame['code'], registro[4 + k]) for k, exame in enumerate(verdade['exames'])]
+        linhas = [(None, registro[0]), (None, registro[1]), (None, registro[3])] + [
+            (exame['code'], registro[4 + k]) for k, exame in enumerate(verdade['exames'])
+        ]
         marcada, branca = Image.new('RGB', gm.PAGE, 'white'), Image.new('RGB', gm.PAGE, 'white')
         for k, (_, (x0, y0, x1, y1)) in enumerate(linhas):
             cor = [255, 255, 255]
@@ -185,8 +235,13 @@ def caixas(_args):
         caixas_linha = [caixa_do_canal(degradadas, k % 3, k // 3) for k in range(len(linhas))]
         if None in caixas_linha:
             continue
-        saida[nome] = {'estilo': estilo, 'codigos': [e['code'] for e in verdade['exames']],
-                       'linhas': [{'codigo': codigo, 'caixa': caixa} for (codigo, _), caixa in zip(linhas, caixas_linha, strict=True)]}
+        saida[nome] = {
+            'estilo': estilo,
+            'codigos': [e['code'] for e in verdade['exames']],
+            'linhas': [
+                {'codigo': codigo, 'caixa': caixa} for (codigo, _), caixa in zip(linhas, caixas_linha, strict=True)
+            ],
+        }
     CAIXAS.write_text(json.dumps(saida, ensure_ascii=False) + '\n', encoding='utf-8')
     print(f'{len(saida)} de {len(gabarito)} imagens em {CAIXAS.name}')
 
@@ -194,7 +249,11 @@ def caixas(_args):
 def caixa_do_canal(degradadas, canal, ordem):
     """A caixa (x0, y0, x1, y1) da ordem-ésima faixa escura do canal, ou None."""
     import numpy as np
-    marcada, branca = degradadas[0][..., canal], degradadas[1][..., canal] + 1.0  # +1: as caixas medidas usaram este piso
+
+    marcada, branca = (
+        degradadas[0][..., canal],
+        degradadas[1][..., canal] + 1.0,
+    )  # +1: as caixas medidas usaram este piso
     dentro = ((branca - marcada) > 0.3 * branca) & (branca > 50)
     linhas = np.flatnonzero(dentro.sum(1) > 5)
     faixas = np.split(linhas, np.flatnonzero(np.diff(linhas) > 1) + 1) if linhas.size else []

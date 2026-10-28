@@ -15,16 +15,17 @@ load-test requests degraded step by step, with sensor noise and JPEG; it was che
 simulated handwritten requests: no scan, load-test request or file in samples/ is refused
 (samples/ in tests/test_qualidade.py).
 """
+
 from PIL import Image, ImageFilter, ImageStat
 
-MIN_LONG_SIDE = 320   # at 300 px, 1% of the exams read; at 350 px, 30%
-MIN_PAPER = 44        # as measured on noisy photos: paper at 40, nothing read; at 48, 16%
-MIN_CONTRAST = 28     # contrast 22 to 27: nothing read; 26 to 32: 7%; 30 to 37: 38%
-MIN_EDGES = 10        # printed page blurred by 6 px: 5.5 at most; a handwritten photo the OCR still reads: 13+
-MIN_STRONGEST = 3.0   # same pages: 2.8 at most from 6 px on; a handwritten photo the OCR still reads: 3.3+
+MIN_LONG_SIDE = 320  # at 300 px, 1% of the exams read; at 350 px, 30%
+MIN_PAPER = 44  # as measured on noisy photos: paper at 40, nothing read; at 48, 16%
+MIN_CONTRAST = 28  # contrast 22 to 27: nothing read; 26 to 32: 7%; 30 to 37: 38%
+MIN_EDGES = 10  # printed page blurred by 6 px: 5.5 at most; a handwritten photo the OCR still reads: 13+
+MIN_STRONGEST = 3.0  # same pages: 2.8 at most from 6 px on; a handwritten photo the OCR still reads: 3.3+
 REFERENCE_CONTRAST = 150  # a printed request on white paper
-INK_PIXELS = 2000     # ink and strongest-edge samples: 0.2% of a 1-megapixel page
-PAGE_SIDE = 550       # the edges are measured with the longer side at this size, whatever the camera
+INK_PIXELS = 2000  # ink and strongest-edge samples: 0.2% of a 1-megapixel page
+PAGE_SIDE = 550  # the edges are measured with the longer side at this size, whatever the camera
 
 
 def percentile(histogram: list[int], fraction: float) -> int:
@@ -67,10 +68,15 @@ def measure(image: Image.Image) -> dict:
     paper = percentile(histogram, 0.90)
     contrast = paper - percentile(histogram, min(0.002, INK_PIXELS / sum(histogram)))
     relative = max(contrast, 1) / REFERENCE_CONTRAST
-    edges = ImageStat.Stat(laplacian(resized(gray, PAGE_SIDE, enlarge=True), 1)).var[0] / relative ** 1.5
+    edges = ImageStat.Stat(laplacian(resized(gray, PAGE_SIDE, enlarge=True), 1)).var[0] / relative**1.5
     strongest = max(strongest_edge(resized(gray, side, enlarge=False)) for side in (PAGE_SIDE, 4 * PAGE_SIDE))
-    return {'long_side': max(gray.size), 'paper': paper, 'contrast': contrast,
-            'edges': round(edges, 1), 'strongest': round(strongest / relative, 1)}
+    return {
+        'long_side': max(gray.size),
+        'paper': paper,
+        'contrast': contrast,
+        'edges': round(edges, 1),
+        'strongest': round(strongest / relative, 1),
+    }
 
 
 def quality_problem(image: Image.Image) -> str | None:

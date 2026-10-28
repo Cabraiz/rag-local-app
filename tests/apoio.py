@@ -1,5 +1,6 @@
 """Helpers the test modules share, each written once: a server in a thread, stand-ins for the services
 and for the Gemini API, a resolver for the spec's hosts, and the spec edits the transpiler tests make."""
+
 import asyncio
 import copy
 import json
@@ -39,12 +40,14 @@ def serve(app, path='', port=None):
     import uvicorn
 
     from mcp_servers.arguments import KEEP_ALIVE_SECONDS
+
     if hasattr(app, 'server') and hasattr(app, 'SECURITY'):
         app, path = app.server.sse_app(transport_security=app.SECURITY, host='127.0.0.1'), '/sse'
     port = port or free_port()
     # Keep-alive as in production (75 s): with uvicorn's 5 s, a POST can race the client's 5 s pool expiry.
-    server = uvicorn.Server(uvicorn.Config(app, host='127.0.0.1', port=port, log_level='warning',
-                                           timeout_keep_alive=KEEP_ALIVE_SECONDS))
+    server = uvicorn.Server(
+        uvicorn.Config(app, host='127.0.0.1', port=port, log_level='warning', timeout_keep_alive=KEEP_ALIVE_SECONDS)
+    )
     threading.Thread(target=server.run, daemon=True).start()
     deadline = time.monotonic() + 60  # generous: a busy machine (CI, parallel builds) starts uvicorn slowly
     while not server.started and time.monotonic() < deadline:
@@ -58,6 +61,7 @@ def read_through_servers(monkeypatch, folder, itens):
     compose: (its table, its problem count, the result of each image)."""
     from mcp_servers import ocr, rag
     from tests.load import manuscritos
+
     monkeypatch.setattr(ocr, 'SAMPLES_DIR', folder)
     servers = [serve(ocr), serve(rag)]
     try:
@@ -71,8 +75,10 @@ def read_through_servers(monkeypatch, folder, itens):
 
 def forbidden(why):
     """A stand-in that fails the test, saying why, when anything calls it."""
+
     def call(*args, **kwargs):
         raise AssertionError(why)
+
     return call
 
 
@@ -83,10 +89,12 @@ def loopback(names):
     def getaddrinfo(host, *args, **kwargs):
         name = host.decode() if isinstance(host, bytes) else host  # anyio passes it IDNA-encoded
         return real('127.0.0.1' if name in names else host, *args, **kwargs)
+
     return getaddrinfo
 
 
 # --- the spec, edited --------------------------------------------------------------------------------
+
 
 def spec_with(change, base=SPEC):
     """A spec (specs/agent.json by default) as JSON text after change(spec_dict) edits a copy of it."""
@@ -98,6 +106,7 @@ def spec_with(change, base=SPEC):
 def problems(text):
     """What the transpiler says is wrong with a spec."""
     from transpiler import TranspileError, parse_spec
+
     with pytest.raises(TranspileError) as error:
         parse_spec(text)
     return error.value.problems
@@ -110,6 +119,7 @@ def booking(spec):
 
 # --- stand-ins ---------------------------------------------------------------------------------------
 
+
 def stand_ins(order, hits):
     """The OCR, RAG and API tools as plain functions over one order: (calls by tool, the tools by name)."""
     calls = {'extract_exam_text': [], 'search_exams': [], 'create_appointment': []}
@@ -117,9 +127,17 @@ def stand_ins(order, hits):
     def extract_exam_text(filename: str) -> dict:
         """Reads the order (stand-in for the OCR server)."""
         calls['extract_exam_text'].append(filename)
-        return {'structuredContent': {'version': 1, 'lines': order, 'line_confidence': [96.0] * len(order),
-                                      'line_intent': ['request'] * len(order), 'contested_exams': [], 'page_clean': True,
-                                      'pii_masked': {}}}
+        return {
+            'structuredContent': {
+                'version': 1,
+                'lines': order,
+                'line_confidence': [96.0] * len(order),
+                'line_intent': ['request'] * len(order),
+                'contested_exams': [],
+                'page_clean': True,
+                'pii_masked': {},
+            }
+        }
 
     def search_exams(query: str, top_k: int = 3) -> dict:
         """Searches the catalog (stand-in for the RAG server)."""
@@ -136,6 +154,7 @@ def stand_ins(order, hits):
 
 class Quiet(BaseHTTPRequestHandler):
     """http.server's handler without its log line per request."""
+
     def log_message(self, *args):
         pass
 
@@ -143,6 +162,7 @@ class Quiet(BaseHTTPRequestHandler):
 class OfflineGemini(Quiet):
     """The Gemini API, offline: every model in `refused` answers `status`, any other 404 (not retried); the
     models called are kept in `calls`."""
+
     status, refused, calls = 503, frozenset(), []
 
     def do_POST(self):  # noqa: N802 (http.server's name)
@@ -150,8 +170,15 @@ class OfflineGemini(Quiet):
         model = self.path.split('/models/')[-1].split(':')[0]
         type(self).calls.append(model)
         code = self.status if model in self.refused else 404
-        body = json.dumps({'error': {'code': code, 'message': 'This model is currently experiencing high demand',
-                                     'status': 'UNAVAILABLE'}}).encode()
+        body = json.dumps(
+            {
+                'error': {
+                    'code': code,
+                    'message': 'This model is currently experiencing high demand',
+                    'status': 'UNAVAILABLE',
+                }
+            }
+        ).encode()
         self.send_response(code)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', str(len(body)))
