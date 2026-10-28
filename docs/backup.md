@@ -24,9 +24,11 @@ apagar volumes, trocar de máquina ou testar uma restauração. O que o banco gu
 Faça uma vez: a chave não muda. Se você definiu `DB_ENCRYPTION_KEY`, a chave é essa e não há o que copiar.
 
 1. Copie a chave do volume:
+
    ```bash
    docker compose cp api:/keys/db.key ./db.key
    ```
+
 2. Guarde o conteúdo longe da cópia do banco.
 3. Apague o arquivo `db.key`.
 
@@ -36,12 +38,15 @@ Com a API no ar:
 
 1. Crie a pasta, uma vez: `mkdir backup`.
 2. Gere a cópia dentro do container, traga-a para o host e apague a do container:
+
    ```bash
    docker compose exec api python -m api.backup --saida backup.db
    docker compose cp api:/state/backup.db ./backup/appointments.db
    docker compose exec api sh -c "rm /state/backup.db"
    ```
+
 3. Confira a saída do primeiro comando:
+
    ```text
    cópia gravada em /state/backup.db: 3 agendamento(s), com os exames cifrados; a chave do banco não vai na cópia (guarde-a à parte)
    ```
@@ -61,20 +66,27 @@ Com a chave no lugar. Os comandos param a API antes de gravar e a sobem de novo 
 1. **A chave primeiro.** Com o volume `api-key` intacto, não há nada a fazer. Numa máquina nova, ponha a chave em
    `DB_ENCRYPTION_KEY=` no `.env`.
 2. **Ponha a cópia no volume da API**, ainda com ela no ar:
+
    ```bash
    docker compose cp ./backup/appointments.db api:/state/restore.db
    ```
+
 3. **Pare a API e restaure:**
+
    ```bash
    docker compose stop api
    docker compose run --rm --no-deps api python -m api.backup --entrada restore.db
    ```
+
 4. **Suba a API e apague a cópia do volume:**
+
    ```bash
    docker compose up -d --wait
    docker compose exec api sh -c "rm /state/restore.db"
    ```
+
 5. **Confira a saída** do `--entrada` (passo 3):
+
    ```text
    banco restaurado em /state/appointments.db: 3 agendamento(s), todos decifrados com a chave atual
    ```

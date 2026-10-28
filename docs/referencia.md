@@ -173,7 +173,7 @@ do 1º turno do modelo, para recusar logo um arquivo que o OCR recusaria.
   foto), sem o Tesseract.
 - Em `search_exams`, `term` é o nome ou o sinônimo que deu o score.
 
-#### A resposta do OCR
+### A resposta do OCR
 
 O contrato completo é o `OcrReading`, em [`leitura.py`](../leitura.py). Um exemplo, resumido:
 

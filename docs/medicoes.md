@@ -601,7 +601,7 @@ regras. O efeito nos conjuntos honestos está na [seção seguinte](#lista-branc
 | Ataque | Sem as regras | Com as regras | Como repetir |
 |---|---|---|---|
 | 69 linhas que não pedem o exame (37 de negação, 15 de histórico, 7 em dúvida, 7 de observação, 3 de preparo), ao lado de um exame pedido | **69 de 69 agendados sozinhos** | **0 agendados sozinhos**: 55 avisados com o motivo, 14 perguntados | `pytest tests/test_negacao.py` |
-| Os 61 casos do 2º conjunto: exames negados ou já feitos agendados (cuidadoso · preguiçoso) | 26 · 10 | **0 · 0** |
+| Os 61 casos do 2º conjunto: exames negados ou já feitos agendados (cuidadoso · preguiçoso) | 26 · 10 | **0 · 0** | `pytest tests/test_negacao_casos.py` |
 | Os 61 casos do 2º conjunto: exames em silêncio | 1 | **0** | `pytest tests/test_negacao_casos.py` |
 | 12 imagens em que o Gemini real agendava exames cancelados em outra linha, numa tabela "Realizar?", no rodapé ou em resultados anteriores (regra de página) | 16 (cuidadoso) e 12 (preguiçoso) | **0 e 0** | 4 delas redesenhadas em `tests/test_negacao_casos.py` |
 

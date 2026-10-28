@@ -1,0 +1,12 @@
+// markdownlint (CI: the docs job). The project's own choices, each with its reason:
+{
+  "config": {
+    "default": true,
+    "MD013": false, // line length: tables and links stay on one line; prose wraps at about 120
+    "MD033": false, // inline HTML: <a name> anchors, <details> and <sub> under the video
+    "MD034": false, // bare URLs: a user-attachments URL alone on its line is how GitHub shows a video player
+    "MD036": false  // bold labels ("**Índice**", "**Leitura**") open a block without becoming a heading
+  },
+  "globs": ["**/*.md"],
+  "ignores": ["generated/**"]
+}

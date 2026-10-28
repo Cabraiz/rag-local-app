@@ -7,6 +7,7 @@ Do pedido médico em foto ao agendamento confirmado. Um JSON, a spec, descreve o
 [![CI](https://github.com/Cabraiz/rag-local-app/actions/workflows/ci.yml/badge.svg)](https://github.com/Cabraiz/rag-local-app/actions/workflows/ci.yml) ![Python 3.12](https://img.shields.io/badge/python-3.12-blue) ![Google ADK 2.10](https://img.shields.io/badge/Google%20ADK-2.10-4285F4) ![MCP SSE](https://img.shields.io/badge/MCP-SSE-6E56CF) ![Docker Compose](https://img.shields.io/badge/docker-compose-2496ED)
 
 ## Rodar em 4 comandos
+
 **Requer** Docker com Compose ≥ 2.1.1 e uma [chave Gemini](https://aistudio.google.com/apikey) (a gratuita serve: os dados são fictícios). Rode dentro do clone (`git clone https://github.com/Cabraiz/rag-local-app`), em PowerShell ou Git Bash. A API usa a porta 8765. Se algo falhar: [guia completo](docs/como-rodar.md#quando-algo-falha). Se um exame ficar de fora: [cada aviso e o que fazer](docs/referencia.md#avisos-sobre-os-exames-de-um-pedido).
 
 ```bash
@@ -45,6 +46,7 @@ https://github.com/user-attachments/assets/2bf4ca61-0f7f-42d9-a174-16b3377d8f16
 <sub>O fluxo completo em um vídeo, gravado numa execução real ([mp4](docs/gravacoes/00-visao-geral.mp4)).</sub>
 
 ## O que o sistema cobre
+
 | Componente | Código | Vídeo | Testes | Detalhe |
 |---|---|---|---|---|
 | Transpilador JSON → ADK | [`transpiler/`](transpiler/), [`runtime/`](runtime/), [5 specs](specs/) | [01](docs/videos.md#01-transpilador) | [`test_transpiler.py`](tests/test_transpiler.py) · [`test_spec_generica.py`](tests/test_spec_generica.py) | [transpilador.md](docs/transpilador.md) |

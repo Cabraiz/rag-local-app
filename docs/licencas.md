@@ -48,6 +48,7 @@ pacotes Python e `/usr/share/doc/<pacote>/copyright` para os do Debian). Cada im
 As dependências diretas são permissivas (MIT, BSD, Apache-2.0, PSF): pedem que os avisos de
 copyright sejam mantidos, e a Apache-2.0 também pede o arquivo NOTICE quando houver. Há copyleft em
 duas partes:
+
 - a **certifi**, dependência transitiva, é MPL-2.0, um copyleft fraco por arquivo. Só quem modifica e distribui os
   arquivos dela precisa publicar essas mudanças, e o projeto a usa sem modificação;
 - a imagem base traz pacotes do Debian sob GPL/LGPL (por exemplo `bash` e `libc6`), usados

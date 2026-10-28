@@ -77,11 +77,12 @@ def test_twenty_simultaneous_posts_with_one_key_create_one_appointment(client, m
 
 
 def test_the_key_and_the_request_are_stored_only_as_keyed_hashes(client):
-    client.post('/appointments', json=BODY, headers={'Idempotency-Key': 'pedido-Maria-123.456.789-00'})
+    key = 'pedido-Maria-123.456.789-00'  # gitleaks:allow (a fictitious key that carries personal data, not a secret)
+    client.post('/appointments', json=BODY, headers={'Idempotency-Key': key})
     [(key_hash, request_hash, _, created_at)] = rows('idempotency_keys')  # one row per exam
     for stored in (key_hash, request_hash):
         assert re.fullmatch(r'[0-9a-f]{64}', stored)
-    plain_key = hashlib.sha256(b'pedido-Maria-123.456.789-00').hexdigest()
+    plain_key = hashlib.sha256(key.encode('utf-8')).hexdigest()
     plain_codes = hashlib.sha256(json.dumps(['FICT-001']).encode('utf-8')).hexdigest()
     assert key_hash != plain_key and request_hash != plain_codes  # HMACs with the database key, not guessable hashes
     assert isinstance(created_at, int)

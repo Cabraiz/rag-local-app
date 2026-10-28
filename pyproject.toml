@@ -1,6 +1,7 @@
 # Quality checks that run in CI (.github/workflows/ci.yml), in the tests service:
 #   docker compose run --rm --no-deps tests ruff check .
 #   docker compose run --rm --no-deps tests ruff format --check .
+#   vulture   (dead code; pip install vulture, config below)
 #   docker compose run --rm --no-deps tests mypy
 #   docker compose run --rm tests pytest -q --cov
 
@@ -31,6 +32,14 @@ known-first-party = ["api", "catalogo", "cli", "guardrails", "leitura", "mcp_ser
 "tests/**" = ["F811"]
 # cli.py silences ADK's [EXPERIMENTAL] notices before importing ADK, so its imports follow code.
 "cli.py" = ["E402"]
+
+[tool.vulture]
+# Dead code (CI: the checks job). The framework calls these by name, so they are never "unused":
+# pydantic validators, FastAPI and MCP routes, ADK plugin callbacks, and the names ADK or the spec read.
+paths = ["api", "catalogo.py", "cli.py", "leitura.py", "guardrails", "mcp_servers", "runtime", "transpiler", "exemplos"]
+min_confidence = 60
+ignore_decorators = ["@field_validator", "@model_validator", "@app.*", "@server.*", "@*.custom_route"]
+ignore_names = ["model_config", "cls", "*_callback", "skip_summarization", "used_by", "ListedExams", "disabled"]
 
 [tool.mypy]
 python_version = "3.12"

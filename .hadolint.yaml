@@ -1,0 +1,3 @@
+# hadolint (CI: the checks job).
+ignored:
+  - DL3008  # apt versions are not pinned: a known, documented limit (docs/decisoes.md#cadeia-de-suprimentos-em-parte)

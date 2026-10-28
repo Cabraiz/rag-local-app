@@ -200,15 +200,21 @@ docker compose run --rm --no-deps tests mypy                             # tipos
 
 - **Cargas fora da suíte** (OCR, RAG e API reais, sem Gemini): `tests.load.carga`, `tests.load.manuscritos`,
   `tests.load.robustez`; os comandos e o que cada um mede estão em [medicoes.md](medicoes.md#resumo).
-- **A CI** ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) roda a suíte, o `ruff` e o `mypy`:
-  - `ruff check`: pyflakes, pycodestyle, ordem dos imports e bugbear;
-  - `ruff format --check`: o formato do código;
-  - `mypy`: sem `--strict`, com `ignore_missing_imports` e `check_untyped_defs` (config em
-    [`pyproject.toml`](../pyproject.toml));
-  - cobertura como relatório, sem limite que quebre o build: 98% das linhas de `api`, `catalogo`, `cli`, `guardrails`,
-    `mcp_servers`, `runtime` e `transpiler`, sem o `agent.py` gerado;
+- **A CI** ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) tem dois jobs. O primeiro, `checks`, não
+  monta imagem e falha em um ou dois minutos:
+  - espaços no fim da linha, marcas de conflito e finais de linha CRLF;
+  - `ruff check` (pyflakes, pycodestyle, ordem dos imports e bugbear) e `ruff format --check`;
+  - `vulture`: função, classe ou import que nada usa (config em [`pyproject.toml`](../pyproject.toml));
+  - `markdownlint` no README e em `docs/` ([`.markdownlint-cli2.jsonc`](../.markdownlint-cli2.jsonc));
+  - `hadolint` no `Dockerfile` ([`.hadolint.yaml`](../.hadolint.yaml)) e `actionlint` nos workflows;
+  - `gitleaks`: chave ou token commitado por engano;
+  - `docker compose config`: o compose com todos os perfis;
   - `pip-audit` sobre `requirements.txt`, `requirements-dev.txt` e `constraints.txt`: falha numa vulnerabilidade que já
     tem correção. O Dependabot abre os PRs de atualização toda semana.
+- **O segundo job, `test`,** só começa se o `checks` passar. Ele monta as imagens e roda:
+  - `mypy`: sem `--strict`, com `ignore_missing_imports` e `check_untyped_defs`;
+  - a suíte, com cobertura como relatório, sem limite que quebre o build: 98% das linhas de `api`, `catalogo`, `cli`,
+    `guardrails`, `mcp_servers`, `runtime` e `transpiler`, sem o `agent.py` gerado.
 - **A cobertura, local:** `docker compose run --rm tests pytest -q -n auto --cov --cov-report=term`.
 - **Avisos filtrados:** o `pyproject.toml` filtra, cada um pelo nome, a depreciação do `SequentialAgent`
   ([por quê](decisoes.md#sequentialagent-obsoleto-no-adk-210)) e os avisos `[EXPERIMENTAL]` do ADK sobre os recursos em
@@ -289,6 +295,7 @@ spec nova acrescentando-a às listas de `tests/test_transpiler.py` e `tests/test
 4. Rode `tests/test_rag.py`, `test_calibration.py` (o limiar de 0,90 sobre as 631 consultas de `tests/calibration/queries.jsonl`) e
    `test_pii.py::test_no_catalog_exam_is_masked`. Se você mudou os números, corrija os docs.
 5. Reconstrua as imagens: todas copiam `data/` no build, e sem isso a API recusa o código novo.
+
    ```bash
    docker compose up -d --build --wait     # ocr, rag e api com o catálogo novo
    docker compose build agent tests        # o agente e a suíte

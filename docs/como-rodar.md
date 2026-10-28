@@ -280,6 +280,7 @@ As recusas do OCR e os erros do Gemini, com o que fazer: [Erros por camada](refe
 **Docker sem sub-redes livres:**
 
 - **Solução recomendada:** fixe duas faixas livres num `docker-compose.override.yml` na raiz (o Compose o lê sozinho; o `.gitignore` já o ignora):
+
   ```yaml
   networks:
     default:
@@ -287,9 +288,12 @@ As recusas do OCR e os erros do Gemini, com o que fazer: [Erros por camada](refe
     internal:
       ipam: {config: [{subnet: 10.201.11.0/24}]}
   ```
+
 - **Faixas em uso** (PowerShell ou Git Bash):
+
   ```bash
   docker network inspect $(docker network ls -q) --format "{{.Name}} {{range .IPAM.Config}}{{.Subnet}} {{end}}"
   ```
+
 - **Comandos com `-f`** (carga e robustez, em [medicoes.md](medicoes.md)) não leem o override sozinhos: acrescente `-f docker-compose.override.yml`.
 - **Alternativa, com cuidado:** `docker network prune` apaga as redes sem container em uso, inclusive as de **outros projetos** parados. Confira antes com `docker network ls`.
